@@ -9,6 +9,8 @@ export type { Actor } from "../authz";
 export { HttpError, AuthzError, NotFoundError, ValidationError, ConflictError } from "../errors";
 export { getGallery, listEvents, type Gallery, type GalleryProject, type PublicEvent } from "./events";
 export { createProject, ProjectInput } from "./projects";
+export { getJudgeScores, type JudgeReview, type JudgeScores } from "./scores";
+export { exportFile, EXPORT_FILES } from "./exports";
 export { json, route } from "../http";
 export { actorNav, type NavLink } from "./nav";
 export {
