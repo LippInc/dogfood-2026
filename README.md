@@ -51,6 +51,13 @@ Monte Carlo validation, the audit log's append-only triggers and hash chain.
   score and each review's feedback, judges unnamed. CSV exports (scores,
   projects, normalized ranking, audit log) and a full `event.json` are available
   at every stage.
+- **Community vote and comments.** The organizer opens a voting window and chooses
+  who may vote: signed-in accounts, a voter list with personal links, and/or an
+  open link. Each ballot lists the projects in the voter's own shuffled order; the
+  count stays hidden from everyone until the window closes. Suspected duplicate
+  ballots are flagged for an audited set-aside; ballots, link entries, comments
+  and sign-in are rate limited. Signed-in visitors can comment on projects, and an
+  organizer can hide a comment with a reason that stays in its place.
 - **Audit log.** Every change and every refused request is recorded in the same
   transaction as the change; the database refuses edits and deletes of the log,
   and each row carries the hash of the one before.
@@ -64,10 +71,13 @@ documented on purpose; set your own when the flag is on anywhere public.
 
 ## What it does not do yet
 
-- No community voting, comments or rate limits (the organizers' T3 tier).
 - No documented REST API, webhooks, certificates or embeddable gallery (T4);
   the JSON routes the pages use exist under `/api` but are not a stable API yet.
-- No email: invitations and reminders are links the organizer copies and sends.
+- No email: invitations, voter links and reminders are links the organizer copies
+  and sends. Accounts are not email-verified.
+- Rate limits and duplicate-ballot flags key on the client address from
+  `X-Forwarded-For`; run the portal behind a reverse proxy that overwrites it, or
+  a client can pick its own. The limits live in memory and reset on restart.
 - Results cannot be unpublished from the interface.
 - No calibrated prize probabilities or rank intervals: normalized ranks compare
   within a track, and close scores should be read as ties.

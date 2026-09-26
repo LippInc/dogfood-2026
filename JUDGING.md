@@ -109,33 +109,33 @@ Every change and every refused request is written in the same database transacti
 
 ### Sybil votes
 
-**What is built:** nothing to attack. Public community voting is not built yet; the only votes are judge reviews, one per judge per assigned project, refused for anyone but the session's judge.
+**What is built:** the organizer chooses who may vote in the community vote, per event: signed-in accounts (one ballot per account), people on a voter list (one personal link per address, made by the organizer), and anyone holding the event's open link (one ballot per browser). Opening a voting link only shows a page; entering takes a click, so link previews and mail scanners that fetch the URL never create a ballot. New open-link voters are limited to 8 per network address per hour. Ballots that come from the same network address and browser are flagged to the organizer as suspected duplicates; the organizer can set one aside, only with a written reason, and undo it; both are audited.
 
-**What is not:** public voting at all. If it is ever added, it needs one-person-one-vote identity and per-voter limits before its numbers can be trusted. Nothing here promises it.
+**What is not:** proof that an open-link voter is one person. Clearing cookies, another browser or another network makes a new voter; the flags catch only the careless case, and people behind one shared address (an office, a venue's wifi) are flagged together, which is why the flag is a prompt for a human and never an automatic removal. Accounts are not email-verified (the portal sends no email), so the account mode is only as strong as sign-up. The address the limits and flags use is the `X-Forwarded-For` header, which a client talking to the portal directly can set itself; put the portal behind a reverse proxy that overwrites it.
 
 ### Ballot stuffing
 
-**What is built:** a judge scores only their assigned projects, matched against the session and not the request; out-of-scale values are refused by the application and again by database triggers on the score rows; every change is audited with before and after.
+**What is built:** each voter picks at most the organizer's number of favourites (3 by default), only among the event's submitted projects, and can change the picks while the window is open; the server checks all of it. Saving a ballot is limited to 30 times a minute per voter (429 with `Retry-After`; the first refusal is audited). Every ballot change is audited with the picks before and after. Each ballot lists the projects in the voter's own seeded order, so no project gets the top spot on every ballot. The count is hidden from everyone, organizers included, until the window closes, so there is no running total to chase.
 
-**What is not:** community voting (above), so there is no public ballot to stuff in this build.
+**What is not:** a CAPTCHA or any browser fingerprint beyond the address and the user agent.
 
 ### Submission scraping
 
-**What is built:** drafts are private, and the gallery and the API show only submitted projects.
+**What is built:** drafts are private, and the gallery and the API show only submitted projects. Comments need an account and are limited to 5 per 10 minutes per account.
 
-**What is not:** rate limiting. There is none yet, so a client can read the public endpoints as fast as it likes; what it gets is what the organizer chose to make public.
+**What is not:** a rate limit on reading. A client can read the public pages and API as fast as it likes; what it gets is what the event made public.
 
 ### Judge collusion
 
-**What is built:** judges cannot read each other's scores (backend-enforced, tested); every score change is audited with before and after; the leniency model limits what one generous or harsh judge can do; the flat-judge rule catches a judge who scores everything the same.
+**What is built:** judges cannot read each other's scores (backend-enforced, tested, and checked by the organizers' suite); every score change is audited with before and after; the leniency model limits what one generous or harsh judge can do; the flat-judge rule catches a judge who scores everything the same.
 
 **What is not:** detection of coordinated collusion. Two judges trading favourable scores look like ordinary disagreement to the model; nothing flags that. The audit log keeps the evidence for an organizer to read.
 
 ### Deadline gaming
 
-**What is built:** the submission deadline is enforced on the server — exclusive close time, refusal with 403, audited. A late duplicate is handled by the merge decision.
+**What is built:** the submission deadline and the voting window are enforced on the server: exclusive close times, refusals with 403, audited. A late duplicate submission is handled by the merge decision. Password sign-in is limited to 10 attempts per address per 15 minutes.
 
-**What is not:** a grace period. The close time is exclusive by design: a submission before it counts, one at or after it does not.
+**What is not:** a grace period. The close time is exclusive by design: a submission or vote before it counts, one at or after it does not.
 
 ## What it does not do
 
