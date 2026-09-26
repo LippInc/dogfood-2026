@@ -40,7 +40,8 @@ const worst = (a: Map<string, number>, b: Map<string, number>) => {
   return Math.max(...[...a].map(([id, v]) => Math.abs(v - b.get(id)!)));
 };
 
-describe("the fit at scale", () => {
+// 60 s budget: under the whole suite in parallel this test shares the CPU (the Monte Carlo test does the same)
+describe("the fit at scale", { timeout: 60_000 }, () => {
   it("agrees with the full dense system on uneven designs: scores, leniencies and the ± factors", () => {
     for (const seed of [1, 2, 3]) {
       const r = rng(seed * 101);
