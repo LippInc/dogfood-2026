@@ -13,6 +13,8 @@ export const LIMITS = {
   linkVoter: { capacity: 8, perSeconds: 3600 },
   /** comments per account */
   comment: { capacity: 5, perSeconds: 600 },
+  /** password sign-in attempts per email address */
+  signIn: { capacity: 10, perSeconds: 900 },
 } satisfies Record<string, Limit>;
 
 type Bucket = { tokens: number; at: number; refused: boolean };

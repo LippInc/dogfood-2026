@@ -4,6 +4,7 @@ import { appendAudit } from "../audit";
 import { CHECKER_LABELS, checkerSessionsEnabled, type CheckerLabel } from "../checker";
 import { getDb } from "../db/client";
 import { events, sessions, teamMembers, teams, userRoles, users } from "../db/schema";
+import { LIMITS, take } from "../rate-limit";
 import { createLoginSession, endSession, setSessionCookie, verifyPassword } from "../session";
 
 // A stored hash for "no such user", so an unknown email costs the same argon2 time
@@ -16,6 +17,16 @@ export type SignInResult = { ok: true; userId: string } | { ok: false; message: 
 export async function signInWithPassword(emailRaw: string, password: string): Promise<SignInResult> {
   const email = emailRaw.trim().toLowerCase();
   const db = getDb();
+  // Password guessing: at most 10 tries per address per 15 minutes, whoever sends them.
+  const t = take(`signin:${email}`, LIMITS.signIn);
+  if (!t.ok) {
+    if (t.firstRefusal) {
+      db.transaction((tx) =>
+        appendAudit(tx, { actorUserId: null, actorLabel: "anonymous", action: "ratelimit.refused", targetType: "limit", targetId: "sign-in", after: { retryAfter: t.retryAfter } }),
+      );
+    }
+    return { ok: false, message: `Too many attempts for this address. Try again in ${Math.ceil(t.retryAfter / 60)} min.` };
+  }
   const user = db.select().from(users).where(eq(users.email, email)).get();
   const valid = verifyPassword(password, user?.passwordHash ?? DUMMY_HASH) && Boolean(user?.passwordHash);
   if (!user || !valid) return { ok: false, message: "That email and password do not match an account here." };
