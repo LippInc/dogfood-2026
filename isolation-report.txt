@@ -1,29 +1,38 @@
 # python tests/isolation_check.py .dogfood.toml, after run.py, on a clean docker compose down -v && up
-# image built from commit bf3ed0e; run at 2026-09-26T21:27Z
+# image built from commit 9f9992e; run at 2026-09-26T22:44Z
 
 DOGFOOD 2026 isolation hand-check
 portal: http://localhost:8080
-warning: this check writes data (votes, comments, voting settings);
-run it on a fresh instance, after run.py, never on one you care about.
+warning: this check writes data (votes, comments, voting settings) and publishes
+the sample event's results; run it on a fresh instance, after run.py, never on one you care about.
 
-A  judge scores by role ................................. PASS
-A  peer scores refused, never handed out ................ PASS
-A  review save honours the assignment's judge ........... PASS
-A  score exports are organizer-only ..................... PASS
-A  audit log is organizer-only .......................... PASS
-A  judge console is the event's judges' page ............ PASS
-B  voting settings are organizer-only ................... PASS
-B  tally hidden from everyone while voting is open ...... PASS
-B  ballot saves obey the voter and the limit ............ PASS
-B  open link voters each get their own ballot ........... PASS
-B  duplicate voters flagged for the organizer ........... PASS
-B  listed voters enter by personal link ................. PASS
-B  a voided ballot stops counting and stops voting ...... PASS
-B  comments: post, hide, and the reason stays ........... PASS
-B  rate limits answer 429 with retry-after .............. PASS
-B  closed tally counts every ballot but the voided one .. PASS
-B  results page hides unpublished scores ................ PASS
-B  voting and comment steps are in the audit log ........ PASS
+A  judge scores by role .................................................... PASS
+A  peer scores refused, never handed out ................................... PASS
+A  review save honours the assignment's judge .............................. PASS
+A  score exports are organizer-only ........................................ PASS
+A  audit log is organizer-only ............................................. PASS
+A  judge console is the event's judges' page ............................... PASS
+B  voting settings are organizer-only ...................................... PASS
+B  tally hidden from everyone while voting is open ......................... PASS
+B  ballot saves obey the voter and the limit ............................... PASS
+B  open link voters each get their own ballot .............................. PASS
+B  duplicate voters flagged for the organizer .............................. PASS
+B  listed voters enter by personal link .................................... PASS
+B  a voided ballot stops counting and stops voting ......................... PASS
+B  comments: post, hide, and the reason stays .............................. PASS
+B  rate limits answer 429 with retry-after ................................. PASS
+B  closed tally counts every ballot but the voided one ..................... PASS
+B  results page hides unpublished scores ................................... PASS
+B  voting and comment steps are in the audit log ........................... PASS
+C  REST API: OpenAPI document and bearer auth .............................. PASS
+C  REST API: settings round trip ........................................... PASS
+C  webhooks: private targets refused, a change queued with its audit hash .. PASS
+C  records: publish, issue, verify, tamper ................................. PASS
+C  records: checked offline with scripts/verify-record.mjs ................. PASS
+C  embed: the widget and its frame headers ................................. PASS
+C  bulk export and idempotent import ....................................... PASS
+C  bulk import of a new event, then a personal link ........................ PASS
 
-isolation: 18 of 18 checks passed
+isolation: 26 of 26 checks passed
 T3 behaviour: verified
+T4 behaviour: verified

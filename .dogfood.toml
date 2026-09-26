@@ -2,8 +2,8 @@
 base_url = "http://localhost:8080"
 
 [tiers]
-claimed = ["T1", "T2", "T3"]
-pitch = "A self-hostable hackathon portal where every score, average and rank can show how it was made, with a community vote that is hard to stuff."
+claimed = ["T1", "T2", "T3", "T4"]
+pitch = "A self-hostable hackathon portal where every score, average and rank can show how it was made, with a community vote that is hard to stuff, signed certificates anyone can check, and an API and webhooks for every action."
 
 [auth]
 organizer   = "Cookie: session=orgd06d53eac2b2061c514020674bcbbf1b"
