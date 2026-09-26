@@ -12,9 +12,14 @@ import "server-only";
 //       co-reviewers the two projects share;
 //   σ̂² = max(0.05, W − β̂²), W the pooled within-project variance.
 // If β̂² ≤ 0 the data show no leniency and none is corrected. Flat judges are left
-// out before any of this (flat.ts). The fit solves the normal equations directly
-// (one Cholesky); fitByAlternation() reaches the same answer by alternating updates
-// and exists so the tests can hold one against the other.
+// out before any of this (flat.ts). The fit solves the normal equations directly.
+// Project levels are not penalised, so they are eliminated exactly first (the Schur
+// complement): what is left is one system with a row per judge, solved by one
+// Cholesky, and each project's level follows as the mean of its reviews minus its
+// judges' leniencies. The cost grows with the judges cubed, not with the projects,
+// so an event of 1,000 projects is as quick as the sample event. fitDense() solves
+// the full system instead and fitByAlternation() reaches the same answer by
+// alternating updates; both exist so the tests can hold the three against each other.
 //
 // Each estimate's ± is one standard error from the same system (Henderson's
 // mixed-model equations): the error variance of a project's score, and of a judge's
@@ -171,12 +176,75 @@ export function choleskyInverseDiagonal(A: number[][]): number[] {
 
 const sortedIds = (ids: Iterable<string>) => [...new Set(ids)].sort();
 
+/** Invert a symmetric positive-definite matrix from its Cholesky factor (column by column). */
+function inverseFromFactor(L: number[][]): number[][] {
+  const n = L.length;
+  return Array.from({ length: n }, (_, i) => solveFactored(L, Array.from({ length: n }, (__, t) => (t === i ? 1 : 0))));
+}
+
 /**
  * Minimise Σ (y − θ_project − b_judge)² + k Σ b², projects unpenalised. With k null
  * no leniency is fitted and each project's level is its plain mean. With errors,
  * also the inverse's diagonal (1 ÷ n for a plain mean; 0 for a leniency not fitted).
+ *
+ * With D the review counts and N the project × judge counts, the normal equations
+ * are [Dp N; Nᵀ Dj + kI] [θ; b] = [rp; rj]. Eliminating θ = Dp⁻¹ (rp − N b) leaves
+ * S b = rj − Nᵀ Dp⁻¹ rp with S = Dj + kI − Nᵀ Dp⁻¹ N (a judge × judge matrix, positive
+ * definite for k > 0). For the errors, the inverse's diagonal is (S⁻¹)ⱼⱼ for a judge
+ * and 1 ÷ nₚ + nₚᵀ S⁻¹ nₚ ÷ nₚ² for a project, with nₚ that project's judge counts.
  */
 export function fitLeniency(obs: readonly Obs[], k: number | null, errors = false): Fit {
+  if (k === null) return fitDense(obs, null, errors);
+  const projects = sortedIds(obs.map((o) => o.projectId));
+  const judges = sortedIds(obs.map((o) => o.judgeId));
+  const J = judges.length;
+  const ij = new Map(judges.map((j, i) => [j, i]));
+  // per project: its review count, its total and its judges' counts
+  const rows = new Map(projects.map((p) => [p, { n: 0, sum: 0, judges: new Map<number, number>() }]));
+  const nJudge = new Array<number>(J).fill(0);
+  const rJudge = new Array<number>(J).fill(0);
+  for (const o of obs) {
+    const row = rows.get(o.projectId)!;
+    const j = ij.get(o.judgeId)!;
+    row.n += 1;
+    row.sum += o.y;
+    row.judges.set(j, (row.judges.get(j) ?? 0) + 1);
+    nJudge[j]! += 1;
+    rJudge[j]! += o.y;
+  }
+  const S = Array.from({ length: J }, (_, i) => Array.from({ length: J }, (__, t) => (i === t ? nJudge[i]! + k : 0)));
+  const rhs = [...rJudge];
+  for (const row of rows.values()) {
+    const entries = [...row.judges];
+    for (const [a, ca] of entries) {
+      rhs[a]! -= (ca * row.sum) / row.n;
+      for (const [b, cb] of entries) S[a]![b]! -= (ca * cb) / row.n;
+    }
+  }
+  const L = choleskyFactor(S);
+  const b = solveFactored(L, rhs);
+  const scores = new Map<string, number>();
+  for (const [p, row] of rows) {
+    let lean = 0;
+    for (const [j, c] of row.judges) lean += c * b[j]!;
+    scores.set(p, (row.sum - lean) / row.n);
+  }
+  const fit: Fit = { scores, leniency: new Map(judges.map((j, i) => [j, b[i]!])) };
+  if (errors) {
+    const inv = inverseFromFactor(L);
+    const projectFactor = new Map<string, number>();
+    for (const [p, row] of rows) {
+      let q = 0;
+      for (const [a, ca] of row.judges) for (const [c, cc] of row.judges) q += ca * cc * inv[a]![c]!;
+      projectFactor.set(p, 1 / row.n + q / (row.n * row.n));
+    }
+    fit.factors = { scores: projectFactor, leniency: new Map(judges.map((j, i) => [j, inv[i]![i]!])) };
+  }
+  return fit;
+}
+
+/** The same fit on the full (projects + judges) system, one dense Cholesky. For the tests, and for k null. */
+export function fitDense(obs: readonly Obs[], k: number | null, errors = false): Fit {
   const projects = sortedIds(obs.map((o) => o.projectId));
   const judges = sortedIds(obs.map((o) => o.judgeId));
   if (k === null) {
