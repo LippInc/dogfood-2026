@@ -551,6 +551,55 @@ export const comments = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// Signed records
+// ---------------------------------------------------------------------------
+
+export type PublicJwk = { kty: "OKP"; crv: "Ed25519"; x: string };
+
+/** A record exactly as signed, and its Ed25519 signature (base64url) over the record's canonical JSON. */
+export type SignedEnvelope = { record: Record<string, unknown>; signature: string };
+
+// The portal's Ed25519 signing key, made at first boot. The private half never
+// leaves this table; the public half is served at /.well-known/dogfood-keys.json.
+export const signingKeys = sqliteTable(
+  "signing_keys",
+  {
+    id: text("id").primaryKey(),
+    publicJwk: text("public_jwk", { mode: "json" }).$type<PublicJwk>().notNull(),
+    privatePkcs8: text("private_pkcs8").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [check("signing_keys_created_iso", isoTimestamp(t.createdAt))],
+);
+
+export const RECORD_KINDS = ["judge", "participant"] as const;
+export type RecordKind = (typeof RECORD_KINDS)[number];
+
+// One signed record per person, event and kind: a judge's participation record, or
+// a team member's certificate. The envelope is what was signed, plus the signature.
+export const signedRecords = sqliteTable(
+  "signed_records",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").notNull().references(() => events.id),
+    kind: text("kind", { enum: RECORD_KINDS }).notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    keyId: text("key_id")
+      .notNull()
+      .references(() => signingKeys.id),
+    envelope: text("envelope", { mode: "json" }).$type<SignedEnvelope>().notNull(),
+    issuedAt: text("issued_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("signed_records_once").on(t.eventId, t.kind, t.userId),
+    check("signed_records_kind", sql`${t.kind} in ('judge', 'participant')`),
+    check("signed_records_issued_iso", isoTimestamp(t.issuedAt)),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Audit and imports
 // ---------------------------------------------------------------------------
 

@@ -215,6 +215,16 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" commented on "), project(target)];
     case "comment.hide":
       return [actor, t(" hid a comment on "), project(target), t(`: ${quote(after.reason)}`)];
+    case "record.issue": {
+      const what = after.kind === "judge" ? "judging record" : "certificate";
+      return after.subject === r.actorUserId
+        ? [actor, t(` got their signed ${what}`)]
+        : [actor, t(` issued the signed ${what} of `), person(after.subject)];
+    }
+    case "records.issue_all":
+      return [actor, t(` issued ${after.judges} judging records and ${after.participants} certificates`)];
+    case "signing_key.create":
+      return [actor, t(" made the signing key "), { text: target, mono: true }];
     case "ratelimit.refused":
       return [actor, t(` was asked to slow down (too many ${LIMIT_WORDS[target] ?? target}; wait ${after.retryAfter} s)`)];
     default:

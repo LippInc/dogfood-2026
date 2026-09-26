@@ -5,6 +5,7 @@ import { databasePath, handle } from "./db/client";
 import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
+import { ensureSigningKey } from "./signing";
 import { nowIso } from "./util";
 
 // Runs once per server start, from instrumentation.ts: migrate, re-assert the
@@ -33,6 +34,8 @@ export async function boot(): Promise<void> {
       : `[boot] fixtures already imported (${path.basename(file)}, sha256 ${sha256.slice(0, 12)}); nothing changed`,
   );
   for (const s of report.skipped) console.warn(`[boot] fixture ${s.kind} ${s.id} skipped: ${s.reason}`);
+  const key = ensureSigningKey(h.db, now);
+  console.log(`[boot] records are signed with Ed25519 key ${key.id}; public key at /.well-known/dogfood-keys.json`);
 
   const base = process.env.PUBLIC_URL ?? "http://localhost:8080";
   const event = requireEvent(h.db, report.eventId);

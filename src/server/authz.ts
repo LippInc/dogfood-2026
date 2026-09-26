@@ -46,7 +46,9 @@ export type Action =
   | "review.save"
   | "review.recuse"
   | "vote.cast"
-  | "comment.post";
+  | "comment.post"
+  | "record.issue_own"
+  | "records.issue_all";
 
 export type Resource =
   | { kind: "platform" }
@@ -64,7 +66,9 @@ export type Resource =
   /** a community ballot; voter: who the voting link or account proves, or null */
   | { kind: "ballot"; event: EventFacts; modes: VoterKind[]; voter: { id: string; kind: VoterKind; voided: boolean } | null }
   /** comments on one project */
-  | { kind: "project_comments"; event: EventFacts; projectId: string; submitted: boolean };
+  | { kind: "project_comments"; event: EventFacts; projectId: string; submitted: boolean }
+  /** the actor's own signed record: finishedReviews and onSubmittedTeam are the actor's, in this event */
+  | { kind: "record_subject"; event: EventFacts; recordKind: "judge" | "participant"; finishedReviews: number; onSubmittedTeam: boolean };
 
 export type Refusal = { ok: false; status: 401 | 403; code: string; message: string };
 export type Decision = { ok: true } | Refusal;
@@ -231,6 +235,23 @@ export function authorize(
     case "comment.post": {
       if (resource.kind !== "project_comments") return refuse("bad_resource", "This action needs a project.");
       return resource.submitted ? allow : refuse("not_submitted", "Comments open once a project is submitted.");
+    }
+
+    case "record.issue_own": {
+      if (resource.kind !== "record_subject") return refuse("bad_resource", "This action needs an event and a kind of record.");
+      if (resource.recordKind === "judge") {
+        if (!hasRole(actor, resource.event.id, "judge")) return refuse("not_a_judge_here", "Only this event's judges get a judging record.");
+        if (resource.finishedReviews < 1) return refuse("no_finished_reviews", "A judging record needs at least one finished review.");
+      } else if (!resource.onSubmittedTeam) {
+        return refuse("not_on_a_submitted_team", "Certificates go to members of teams that submitted a project.");
+      }
+      return resource.event.resultsPublishedAt ? allow : refuse("results_not_published", "Records and certificates are issued once the results are published.");
+    }
+
+    case "records.issue_all": {
+      if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");
+      if (!hasRole(actor, resource.event.id, "organizer")) return refuse("not_an_organizer", "Only this event's organizers can do this.");
+      return resource.event.resultsPublishedAt ? allow : refuse("results_not_published", "Records and certificates are issued once the results are published.");
     }
 
   }

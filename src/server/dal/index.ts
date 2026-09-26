@@ -109,3 +109,16 @@ export {
   type DemoIdentity,
   type SignInResult,
 } from "./auth";
+export {
+  getRecord,
+  issueAllRecords,
+  issueOwnRecord,
+  issueOwnRecordRequest,
+  keysDocument,
+  listRecords,
+  myRecords,
+  verifyRecord,
+  RECORD_FORMAT,
+  type RecordView,
+} from "./records";
+export type { Verification } from "../signing";
