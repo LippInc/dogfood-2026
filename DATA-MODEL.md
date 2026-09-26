@@ -64,7 +64,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 ## Signed records and keys
 
-**`signing_keys`** — the portal's Ed25519 signing key, made at first boot. `id`; `public_jwk` json, served at `/.well-known/dogfood-keys.json`; `private_pkcs8` text; `created_at`. The private half is the one secret the database must keep verbatim: signing happens on demand, and the key is the root of trust for every certificate and record. Back up the data volume or records can no longer be issued under the same identity.
+**`signing_keys`** — the portal's Ed25519 signing key, made at first boot. `id`; `public_jwk` json, served at `/.well-known/dogfood-keys.json`; `private_pkcs8` text; `created_at`. The private half is the one secret the database must keep verbatim: signing happens on demand, and the key is the root of trust for every certificate and record. Back up the database (README, "Running it for a real event") or records can no longer be issued under the same identity.
 
 **`signed_records`** — one signed record per person, event and kind (a judge's participation record, or a team member's certificate). `id`; `event_id`; `kind` (`judge` | `participant`); `user_id`; `key_id`; `envelope` json — the record exactly as signed plus the base64url Ed25519 signature over its canonical JSON; `issued_at`. Unique on (`event_id`, `kind`, `user_id`).
 

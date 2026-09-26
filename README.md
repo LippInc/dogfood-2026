@@ -149,6 +149,40 @@ documented on purpose; set your own when the flag is on anywhere public. The
 same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 "Privacy"), so a real event sets its own in any case.
 
+| Setting (environment, in `docker-compose.yml`) | What it does |
+|---|---|
+| `SEED_CHECKER_SESSIONS` | `"true"` seeds the checker's four sessions and the demo sign-in buttons; `"false"` for a real event (boot then removes any left from before) |
+| `DOGFOOD_SEED_SECRET` | Derives the checker sessions and salts the voters' address hashes; set your own |
+| `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
+| `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
+| `WEBHOOKS_ALLOW_PRIVATE` | `"true"` lets webhooks reach private and local addresses; leave it unset unless the receiver is on your own network |
+| `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file the first boot imports |
+
+The container listens on `127.0.0.1:8080`; put it behind a reverse proxy that
+terminates HTTPS and overwrites `X-Forwarded-For` (see the next section).
+
+Back up while it runs, with SQLite's online backup; the copy lands in the volume:
+
+```bash
+docker compose exec portal node scripts/backup.mjs
+```
+
+It prints the file's path, for example `/data/backups/portal-20260927T013000Z.db`;
+`docker compose cp portal:/data/backups/portal-20260927T013000Z.db .` copies it
+out. To restore, stop the portal, put the file back in the volume, and let the
+restore script replace the database and drop the old write-ahead log (copying
+the file over by hand would let SQLite replay that log onto it):
+
+```bash
+docker compose stop
+docker compose cp ./portal-20260927T013000Z.db portal:/data/restore.db
+docker compose run --rm --no-deps portal node scripts/restore.mjs /data/restore.db
+docker compose start
+```
+
+Upgrading is `git pull` and `docker compose up --build`: migrations run at every
+start, and the fixture import never overwrites what the organizers changed.
+
 ## What it does not do yet
 
 - Webhook targets on private or local addresses are refused, when added and at

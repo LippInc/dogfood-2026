@@ -65,6 +65,7 @@ The only background work is the webhook worker: `startWebhookWorker()` runs a ti
 - `src/server/` — everything private: the data access layer (`dal/`), the database (`db/`: schema, client, migration runner, triggers, fixture import), the judging engine (`judging/`), and the cross-cutting modules: `authz.ts`, `mutate.ts`, `audit.ts`, `session.ts`, `openapi.ts`, `webhooks.ts`, `signing.ts`, `rate-limit.ts`, `http.ts`, `errors.ts`, `boot.ts`, `checker.ts`.
 - `src/instrumentation.ts` — the Next hook that starts the boot.
 - `drizzle/` — the SQL migrations.
+- `scripts/` — for operators, in the image too: `backup.mjs` and `restore.mjs` (README, "Running it for a real event") and `verify-record.mjs`, which checks a signed record offline.
 - `tests/` — vitest suites, including the boundary and API registry tests; the hand check for the tiers run.py does not verify is `tests/isolation_check.py`.
 
 ## Where to change what
