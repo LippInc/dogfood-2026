@@ -100,6 +100,8 @@ export type EventSettings = {
   judgeRanking?: boolean;
   /** Reviews each project should get from assignment. */
   reviewsPerProject?: number;
+  /** Most people on one team (invite links refuse beyond it). Default 4. */
+  maxTeamSize?: number;
 };
 
 export const events = sqliteTable(

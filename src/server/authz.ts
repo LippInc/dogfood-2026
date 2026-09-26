@@ -28,6 +28,9 @@ export type Action =
   | "event.create"
   | "event.manage"
   | "event.export"
+  | "team.create"
+  | "team.join"
+  | "team.manage"
   | "project.create"
   | "project.edit"
   | "scores.read_own"
@@ -36,8 +39,10 @@ export type Action =
 export type Resource =
   | { kind: "platform" }
   | { kind: "event"; event: EventFacts }
-  /** onTeam: the actor is a member of a team in this event (create) or of this project's team (edit) */
+  /** onTeam: the actor is a member of a team in this event (create, join) or of this project's team (edit) */
   | { kind: "team_work"; event: EventFacts; onTeam: boolean }
+  /** one team, from the actor's point of view */
+  | { kind: "team"; event: EventFacts; isMember: boolean; isCaptain: boolean }
   /** judgeUserId: whose scores are asked for; the peer route passes the requested id */
   | { kind: "judge_scores"; judgeUserId: string };
 
@@ -69,6 +74,12 @@ export function submissionsOpen(event: EventFacts, now: Date): boolean {
   return t >= open && t < close;
 }
 
+function windowRefusal(event: EventFacts, now: Date, what: string): Refusal {
+  return now.getTime() >= Date.parse(event.submissionsCloseAt)
+    ? refuse("submissions_closed", `Submissions closed at ${event.submissionsCloseAt}. ${what}.`)
+    : refuse("submissions_not_open", `Submissions open at ${event.submissionsOpenAt}.`);
+}
+
 export function authorize(
   actor: Actor | null,
   action: Action,
@@ -89,6 +100,21 @@ export function authorize(
         : refuse("not_an_organizer", "Only this event's organizers can do this.");
     }
 
+    case "team.create":
+    case "team.join": {
+      if (resource.kind !== "team_work") return refuse("bad_resource", "This action needs an event.");
+      if (resource.onTeam) {
+        return refuse("already_on_a_team", "You are already on a team in this event; one person, one team.");
+      }
+      if (!submissionsOpen(resource.event, now)) return windowRefusal(resource.event, now, "Teams can no longer be formed");
+      return allow;
+    }
+
+    case "team.manage": {
+      if (resource.kind !== "team") return refuse("bad_resource", "This action needs a team.");
+      return resource.isCaptain ? allow : refuse("not_the_captain", "Only the team's captain can do this.");
+    }
+
     case "project.create":
     case "project.edit": {
       if (resource.kind !== "team_work") return refuse("bad_resource", "This action needs a team and an event.");
@@ -98,13 +124,7 @@ export function authorize(
           : refuse("not_your_project", "Only members of this project's team can edit it.");
       }
       if (!submissionsOpen(resource.event, now)) {
-        const closed = now.getTime() >= Date.parse(resource.event.submissionsCloseAt);
-        return closed
-          ? refuse(
-              "submissions_closed",
-              `Submissions closed at ${resource.event.submissionsCloseAt}; the project can no longer be submitted or edited.`,
-            )
-          : refuse("submissions_not_open", `Submissions open at ${resource.event.submissionsOpenAt}.`);
+        return windowRefusal(resource.event, now, "The project can no longer be submitted or edited");
       }
       return allow;
     }
