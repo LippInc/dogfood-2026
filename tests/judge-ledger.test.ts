@@ -7,7 +7,7 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { requireEvent } from "@/server/dal/events";
-import { computeNormalization, getNormalization, revokeJudgeOverride, setJudgeOverride, type Normalized } from "@/server/dal/normalization";
+import { computeNormalization, getNormalization, mergeDuplicate, revokeJudgeOverride, setJudgeOverride, type Normalized } from "@/server/dal/normalization";
 import type { Actor } from "@/server/authz";
 
 // The judge ledger on the fixture: each judge's leniency ± its standard error, the
@@ -106,6 +106,31 @@ describe("the judge ledger", () => {
     expect([moves[0], moves[14], moves[28]]).toEqual([3, 20, 34]);
     expect(firsts).toBe(11);
     expect(scoreSe).toEqual(["1:0.66", "2:0.47", "3:0.38", "4:0.33", "5:0.30"]);
+  });
+
+  it("shows the organizer each judge's private note on the project's receipt; a merged copy's note moves to the copy kept", () => {
+    const pick = (project: string) =>
+      h.sqlite
+        .prepare("SELECT s.id AS id, a.judge_user_id AS judge FROM scores s JOIN assignments a ON a.id = s.assignment_id WHERE a.project_id = ? LIMIT 1")
+        .get(project) as { id: string; judge: string };
+    const write = (scoreId: string, note: string) =>
+      h.sqlite
+        .prepare("INSERT INTO score_comments (score_id, feedback, private_note) VALUES (?, '', ?) ON CONFLICT(score_id) DO UPDATE SET private_note = excluded.private_note")
+        .run(scoreId, note);
+    const a = pick("prj_03");
+    const b = pick("prj_07");
+    write(a.id, "Demo crashed twice; scored the design doc.");
+    write(b.id, "Same repository as prj_41.");
+    let notes = getNormalization(organizer(), "evt_01").notes;
+    expect(notes.map((x) => [x.projectId, x.judgeId, x.note])).toEqual(
+      expect.arrayContaining([
+        ["prj_03", a.judge, "Demo crashed twice; scored the design doc."],
+        ["prj_07", b.judge, "Same repository as prj_41."],
+      ]),
+    );
+    mergeDuplicate(organizer(), "evt_01", { keepId: "prj_41", duplicateId: "prj_07" });
+    notes = getNormalization(organizer(), "evt_01").notes;
+    expect(notes.find((x) => x.note === "Same repository as prj_41.")?.projectId).toBe("prj_41");
   });
 
   it("known-bad: comparing a run with itself finds nothing to predict", () => {

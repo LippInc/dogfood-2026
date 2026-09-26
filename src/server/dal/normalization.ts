@@ -1,9 +1,9 @@
 import "server-only";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignments, events, judgeOverrides, normalizationRuns, normalizedScores, projects, teams, tracks, userRoles, users } from "../db/schema";
+import { assignments, events, judgeOverrides, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, userRoles, users } from "../db/schema";
 import { ConflictError, NotFoundError } from "../errors";
 import type { FlatFlag } from "../judging/flat";
 import { averageRanks, normalize, permutationShare, type Obs, type SignalCheck } from "../judging/normalize";
@@ -507,12 +507,30 @@ export function decisions(db: DbOrTx, event: EventRow, now = computeNormalizatio
 // Reads
 // ---------------------------------------------------------------------------
 
+export type PrivateNote = { projectId: string; judgeId: string; judge: string; note: string };
+
+/** The judges' private notes to the organizers, keyed to the project row that shows them (a merged copy's go to the copy kept). */
+function privateNotes(db: DbOrTx, eventId: string, rows: ProjectRow[]): PrivateNote[] {
+  const canonical = new Map(rows.map((p) => [p.id, p.duplicateOf ?? p.id]));
+  return db
+    .select({ projectId: assignments.projectId, judgeId: assignments.judgeUserId, judge: users.name, note: scoreComments.privateNote })
+    .from(scoreComments)
+    .innerJoin(scores, eq(scores.id, scoreComments.scoreId))
+    .innerJoin(assignments, eq(assignments.id, scores.assignmentId))
+    .innerJoin(users, eq(users.id, assignments.judgeUserId))
+    .where(and(eq(assignments.eventId, eventId), ne(scoreComments.privateNote, "")))
+    .orderBy(asc(users.name))
+    .all()
+    .filter((n) => canonical.has(n.projectId))
+    .map((n) => ({ ...n, projectId: canonical.get(n.projectId)! }));
+}
+
 export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
   guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
   const now = computeNormalization(db, event, { signal: true, influence: true });
-  return { event, method: METHOD_LABEL, normalization: now, decisions: decisions(db, event, now) };
+  return { event, method: METHOD_LABEL, normalization: now, decisions: decisions(db, event, now), notes: privateNotes(db, event.id, now.projects) };
 }
 
 // ---------------------------------------------------------------------------

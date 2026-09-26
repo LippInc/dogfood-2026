@@ -50,7 +50,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const { track } = await searchParams;
   const actor = await currentActor();
   if (!actor) unauthorized();
-  const { event, normalization: n, decisions } = guardPage(() => getNormalization(actor, key));
+  const { event, normalization: n, decisions, notes } = guardPage(() => getNormalization(actor, key));
   const tracks = [...new Map(n.projects.map((p) => [p.trackId, p.trackName])).entries()];
   const chosen = typeof track === "string" && tracks.some(([id]) => id === track) ? track : null;
   const rows = n.projects.filter((p) => !chosen || p.trackId === chosen);
@@ -246,6 +246,20 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                                   ({p.receipts.filter((r) => !r.excluded).map((r) => f2(r.adjusted)).join(" + ")}) ÷ {p.n} = {f2(p.score)}
                                 </p>
                                 <Change p={p} />
+                                {notes.some((x) => x.projectId === p.id) ? (
+                                  <div className="mt-2 border-t border-rule pt-2">
+                                    <p className="text-12 font-medium text-ink-2">Private notes to the organizers, never shown to the team</p>
+                                    <ul className="mt-1 flex flex-col gap-1 text-13">
+                                      {notes
+                                        .filter((x) => x.projectId === p.id)
+                                        .map((x) => (
+                                          <li key={x.judgeId}>
+                                            <span className="font-medium">{x.judge}:</span> {x.note}
+                                          </li>
+                                        ))}
+                                    </ul>
+                                  </div>
+                                ) : null}
                                 {p.se !== null ? (
                                   <p className="mt-1 text-13 text-ink-2">
                                     ± {f2(p.se)}: one standard error, from σ̂² = {n.variance.sigma2.toFixed(3)}, the {p.n} counted {p.n === 1 ? "review" : "reviews"} and

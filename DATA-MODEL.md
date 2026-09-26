@@ -46,7 +46,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 **`score_items`** — one criterion's value within a score. `score_id`, `criterion_id` (pk); `value` int. A CHECK cannot see another table, so the value's range (inside its criterion's `scale_min`..`scale_max`) is enforced by two BEFORE INSERT/UPDATE triggers that read `rubric_criteria`.
 
-**`score_comments`** — the review text attached to a score. `score_id` pk; `feedback` (shown to the team after results are published); `private_note` (never shown to the team; organizers read it in `event.json`).
+**`score_comments`** — the review text attached to a score. `score_id` pk; `feedback` (shown to the team after results are published); `private_note` (never shown to the team; organizers read it on the project's receipt on the results page and in `event.json`).
 
 **`judge_overrides`** — the organizer's audited decision to include a flagged judge or exclude an unflagged one. `id`; `event_id`; `judge_user_id`; `mode` (`include` | `exclude`); `reason` (at least 3 characters once trimmed); `created_at`; `created_by`; `revoked_at`; `revoked_by` (either override can be undone).
 

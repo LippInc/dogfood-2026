@@ -70,6 +70,7 @@ export {
   type Influence,
   type JudgeStanding,
   type Normalized,
+  type PrivateNote,
   type ProjectRow,
   type PublishedResults,
   type Receipt,
