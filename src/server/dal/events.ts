@@ -13,6 +13,7 @@ export function eventFacts(e: EventRow): EventFacts {
     submissionsOpenAt: e.submissionsOpenAt,
     submissionsCloseAt: e.submissionsCloseAt,
     resultsPublishedAt: e.resultsPublishedAt,
+    judgingCloseAt: e.judgingCloseAt,
   };
 }
 

@@ -311,6 +311,32 @@ export const judgeTracks = sqliteTable(
   ],
 );
 
+// An organizer invites a judge with a link. Only the SHA-256 of the link's code is
+// stored, so the link is shown once. Whoever opens it signed in (with the invited
+// email, when one is given) becomes a judge for the listed tracks.
+export const judgeInvites = sqliteTable(
+  "judge_invites",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").notNull().references(() => events.id),
+    codeHash: text("code_hash").notNull().unique(),
+    name: text("name").notNull().default(""),
+    email: text("email"),
+    trackIds: text("track_ids", { mode: "json" }).$type<string[]>().notNull(),
+    createdAt: text("created_at").notNull(),
+    createdBy: text("created_by").notNull(),
+    acceptedAt: text("accepted_at"),
+    acceptedBy: text("accepted_by").references(() => users.id),
+    revokedAt: text("revoked_at"),
+  },
+  (t) => [
+    index("judge_invites_event_idx").on(t.eventId),
+    check("judge_invites_tracks_json", sql`json_valid(${t.trackIds}) and json_type(${t.trackIds}) = 'array'`),
+    check("judge_invites_email_lower", sql`${t.email} is null or ${t.email} = lower(${t.email})`),
+    check("judge_invites_one_outcome", sql`${t.acceptedAt} is null or ${t.revokedAt} is null`),
+  ],
+);
+
 export const ASSIGNMENT_RUN_MODES = ["fixture", "fresh", "topup"] as const;
 
 export const assignmentRuns = sqliteTable(

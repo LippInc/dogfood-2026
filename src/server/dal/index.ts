@@ -33,6 +33,19 @@ export {
 } from "./organize";
 export { getJudgeScores, type JudgeReview, type JudgeScores } from "./scores";
 export { exportFile, EXPORT_FILES } from "./exports";
+export {
+  acceptJudgeInvite,
+  getJudges,
+  inviteJudge,
+  judgeInviteByCode,
+  revokeJudgeInvite,
+  setJudgeTracks,
+  type InviteRow,
+  type JudgeInviteView,
+  type JudgeRow,
+} from "./judges";
+export { assignByHand, getAssignments, runAssignment, type RunRow, type RunSummary } from "./assignments";
+export type { Criterion } from "./judging";
 export { actionError, json, route, type ActionResult } from "../http";
 export { actorNav, type NavLink } from "./nav";
 export {

@@ -22,6 +22,8 @@ export type EventFacts = {
   submissionsOpenAt: string | null;
   submissionsCloseAt: string;
   resultsPublishedAt: string | null;
+  /** null: judging stays open until results are published */
+  judgingCloseAt?: string | null;
 };
 
 export type Action =
@@ -34,7 +36,11 @@ export type Action =
   | "project.create"
   | "project.edit"
   | "scores.read_own"
-  | "scores.read_judge";
+  | "scores.read_judge"
+  | "judge.accept_invite"
+  | "judging.console"
+  | "review.save"
+  | "review.recuse";
 
 export type Resource =
   | { kind: "platform" }
@@ -44,7 +50,11 @@ export type Resource =
   /** one team, from the actor's point of view */
   | { kind: "team"; event: EventFacts; isMember: boolean; isCaptain: boolean }
   /** judgeUserId: whose scores are asked for; the peer route passes the requested id */
-  | { kind: "judge_scores"; judgeUserId: string };
+  | { kind: "judge_scores"; judgeUserId: string }
+  /** email: the address the invitation was made for, or null for an open link */
+  | { kind: "judge_invite"; event: EventFacts; email: string | null }
+  /** one judge's assignment of one project */
+  | { kind: "assignment"; id: string; event: EventFacts; judgeUserId: string; status: "pending" | "done" | "recused" };
 
 export type Refusal = { ok: false; status: 401 | 403; code: string; message: string };
 export type Decision = { ok: true } | Refusal;
@@ -72,6 +82,19 @@ export function submissionsOpen(event: EventFacts, now: Date): boolean {
   const open = event.submissionsOpenAt ? Date.parse(event.submissionsOpenAt) : -Infinity;
   const t = now.getTime();
   return t >= open && t < close;
+}
+
+/** Judging opens when submissions close and ends at judging_close_at or when results are published. */
+function judgingRefusal(event: EventFacts, now: Date): Refusal | null {
+  const t = now.getTime();
+  if (t < Date.parse(event.submissionsCloseAt)) {
+    return refuse("judging_not_open", `Judging opens when submissions close, at ${event.submissionsCloseAt}.`);
+  }
+  if (event.resultsPublishedAt) return refuse("results_published", "Results are published, so scores are final.");
+  if (event.judgingCloseAt && t >= Date.parse(event.judgingCloseAt)) {
+    return refuse("judging_closed", `Judging closed at ${event.judgingCloseAt}.`);
+  }
+  return null;
 }
 
 function windowRefusal(event: EventFacts, now: Date, what: string): Refusal {
@@ -139,6 +162,40 @@ export function authorize(
       return resource.judgeUserId === actor.userId
         ? allow
         : refuse("not_your_scores", "A judge can read only their own scores.");
+    }
+
+    case "judge.accept_invite": {
+      if (resource.kind !== "judge_invite") return refuse("bad_resource", "This action needs an invitation.");
+      if (resource.email && resource.email !== actor.email.toLowerCase()) {
+        return refuse(
+          "invite_for_someone_else",
+          "This invitation was made for another email address. Sign in with that address, or ask the organizer for a new link.",
+        );
+      }
+      return allow;
+    }
+
+    case "judging.console": {
+      if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");
+      return hasRole(actor, resource.event.id, "judge")
+        ? allow
+        : refuse("not_a_judge_here", "Only this event's judges can open its judging console.");
+    }
+
+    case "review.save":
+    case "review.recuse": {
+      if (resource.kind !== "assignment") return refuse("bad_resource", "This action needs an assignment.");
+      // The judge id comes from the assignment row, the actor from the session.
+      if (resource.judgeUserId !== actor.userId) {
+        return refuse("not_your_assignment", "A judge can score only the projects assigned to them.");
+      }
+      if (!hasRole(actor, resource.event.id, "judge")) {
+        return refuse("not_a_judge_here", "You are no longer a judge in this event.");
+      }
+      if (resource.status === "recused") {
+        return refuse("recused", "You declared a conflict on this project, so it is no longer yours to score.");
+      }
+      return judgingRefusal(resource.event, now) ?? allow;
     }
   }
 }

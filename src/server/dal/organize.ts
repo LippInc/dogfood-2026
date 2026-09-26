@@ -20,6 +20,7 @@ import { guardRead, mutate } from "../mutate";
 import { BUILTIN_CRITERIA, DEFAULT_CRITERIA } from "../rubric-defaults";
 import { newId, slugify } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
+import { parse } from "./parse";
 
 // The organizer's side of an event: create it, then change its details, tracks,
 // prizes, questions for teams and the rubric. Every change is one audited mutate().
@@ -96,11 +97,6 @@ const NewEvent = z.object({
   prizes: PrizeRows.default([]),
 });
 
-function parse<T extends z.ZodType>(schema: T, body: unknown): z.output<T> {
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) throw new ValidationError("Check the highlighted fields.", z.flattenError(parsed.error).fieldErrors);
-  return parsed.data;
-}
 
 function uniqueNames(rows: { name: string }[], what: string) {
   const seen = new Set<string>();

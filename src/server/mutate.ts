@@ -32,7 +32,7 @@ export function refusalAudit(actor: Actor, action: Action, resource: Resource, r
     action: "authz.refused",
     eventId,
     targetType: resource.kind,
-    targetId: resource.kind === "judge_scores" ? resource.judgeUserId : eventId,
+    targetId: resource.kind === "judge_scores" ? resource.judgeUserId : resource.kind === "assignment" ? resource.id : eventId,
     after: { attempted: action, status: refusal.status, code: refusal.code },
   };
 }
