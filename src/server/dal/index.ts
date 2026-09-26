@@ -45,6 +45,15 @@ export {
   type JudgeRow,
 } from "./judges";
 export { assignByHand, getAssignments, runAssignment, type RunRow, type RunSummary } from "./assignments";
+export {
+  getJudgeConsole,
+  recuseAssignment,
+  saveReview,
+  type ConsoleItem,
+  type ConsoleProject,
+  type JudgeConsole,
+  type SavedReview,
+} from "./reviews";
 export type { Criterion } from "./judging";
 export { actionError, json, route, type ActionResult } from "../http";
 export { actorNav, type NavLink } from "./nav";
