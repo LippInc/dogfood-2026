@@ -4,12 +4,13 @@
 //   docker compose exec portal node scripts/backup.mjs
 //
 // writes /data/backups/portal-<UTC time>.db and prints its path; copy it out with
-// `docker compose cp portal:<path> .`. Uses DATABASE_PATH (default /data/portal.db).
+// `docker compose cp portal:<path> .`. Uses DATABASE_PATH, with the portal's own
+// default (./data/portal.db); the image sets it to /data/portal.db.
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 
-const source = process.env.DATABASE_PATH ?? "/data/portal.db";
+const source = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "portal.db");
 if (!fs.existsSync(source)) {
   console.error(`No database at ${source}.`);
   process.exit(2);

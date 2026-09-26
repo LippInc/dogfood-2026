@@ -114,6 +114,20 @@ describe("backup and restore", () => {
     expect(count(dbPath, "SELECT count(*) AS n FROM users")).toBe(users);
   });
 
+  it("without DATABASE_PATH both scripts use the portal's own default, ./data/portal.db", () => {
+    const home = path.join(dir, "home");
+    fs.mkdirSync(path.join(home, "data"), { recursive: true });
+    fs.copyFileSync(dbPath, path.join(home, "data", "portal.db"));
+    const env = { ...process.env, PORTAL_HEALTH_URL: "http://127.0.0.1:9/api/health" };
+    delete env.DATABASE_PATH;
+    const script = (name: string, args: string[]) =>
+      execFileSync(process.execPath, [path.join(process.cwd(), "scripts", name), ...args], { cwd: home, env, encoding: "utf8" });
+    const out = script("backup.mjs", []);
+    const file = out.trim().split(/\s+/)[0]!;
+    expect(file.startsWith(path.join(home, "data", "backups"))).toBe(true);
+    expect(script("restore.mjs", [file])).toContain(path.join(home, "data", "portal.db"));
+  });
+
   it("known-bad: no database to back up is an error, not an empty backup", () => {
     dbPath = path.join(dir, "missing.db");
     const backup = run("backup.mjs", [path.join(dir, "backups")]);

@@ -2,15 +2,17 @@
 //
 //   docker compose run --rm --no-deps portal node scripts/restore.mjs /data/backups/portal-<time>.db
 //
-// It checks the backup, replaces DATABASE_PATH (default /data/portal.db) with it,
+// It checks the backup, replaces DATABASE_PATH (the portal's own default,
+// ./data/portal.db; the image sets /data/portal.db) with it,
 // and removes the old write-ahead log files, which belong to the replaced database
 // and would corrupt the restored one if SQLite replayed them. The next start runs
 // any newer migrations on it as usual.
 import Database from "better-sqlite3";
 import fs from "node:fs";
+import path from "node:path";
 
 const backup = process.argv[2];
-const target = process.env.DATABASE_PATH ?? "/data/portal.db";
+const target = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "portal.db");
 if (!backup || !fs.existsSync(backup)) {
   console.error("Usage: node scripts/restore.mjs <backup file>");
   process.exit(2);
@@ -36,4 +38,12 @@ if (ok !== "ok") {
 }
 for (const suffix of ["-wal", "-shm"]) fs.rmSync(`${target}${suffix}`, { force: true });
 fs.copyFileSync(backup, target);
-console.log(`Restored ${backup} to ${target} (${rows} audit rows). Start the portal again.`);
+const placed = new Database(target, { readonly: true, fileMustExist: true });
+const after = placed.pragma("integrity_check", { simple: true });
+const placedRows = placed.prepare("SELECT count(*) AS n FROM audit_log").get().n;
+placed.close();
+if (after !== "ok" || placedRows !== rows) {
+  console.error(`The copy at ${target} does not check out (integrity: ${after}, ${placedRows} of ${rows} audit rows). Do not start the portal on it.`);
+  process.exit(1);
+}
+console.log(`Restored ${backup} to ${target} (${rows} audit rows, integrity ok). Start the portal again.`);
