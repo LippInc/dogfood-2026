@@ -1,0 +1,208 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Design tokens: "Show Your Working" v2 (DESIGN.md). Components read role names
+ * only (--bg, --ink, --accent ...), so a side or a mode swaps without touching a
+ * component. Two sides: .work (judges, organizers) and .public (gallery, project
+ * pages, the event's own skin). Two modes per side, one declaration per token:
+ * light-dark() picks the value from the root's color-scheme, which the mode cookie
+ * sets through [data-mode]; with no cookie the operating system decides.
+ * Contrast of every text pair is at least 4.5:1 and of every border, focus ring
+ * and marker at least 3:1 (checked by tests/contrast.test.ts).
+ */
+
+:root {
+  color-scheme: light dark;
+}
+:root[data-mode="light"] {
+  color-scheme: light;
+}
+:root[data-mode="dark"] {
+  color-scheme: dark;
+}
+
+.work {
+  --bg: light-dark(#f3f4f7, #0b1020);
+  --surface: light-dark(#ffffff, #111830);
+  --sunken: light-dark(#eceef3, #0d1328);
+  --raised: light-dark(#f8f9fb, #19223f);
+  --rule: light-dark(#dde1e9, #263256);
+  --edge: light-dark(#7f889e, #65739a);
+  --ink: light-dark(#0e1428, #e6ecff);
+  --ink-2: light-dark(#3a4461, #b3beda);
+  --ink-3: light-dark(#5a6683, #8e9bbe);
+  --accent: #ff3d6e;
+  --accent-ink: light-dark(#c4164a, #ff7c9c);
+  --accent-tint: light-dark(#ffeef2, #2c1430);
+  --on-accent: #0b1020;
+  --primary: light-dark(#0e1428, #e6ecff);
+  --on-primary: light-dark(#ffffff, #0b1020);
+  --focus: light-dark(#0e1428, #e6ecff);
+  --flag: light-dark(#9a3412, #fdba8c);
+  --flag-bg: light-dark(#fdf0e8, #33190f);
+  --flag-bar: light-dark(#c2410c, #f97316);
+  --ok: light-dark(#166534, #6ee7a8);
+  --teal: light-dark(#00695f, #3dd9c8);
+  --face-bg: light-dark(#e4e8f0, #18203d);
+  --face-dot: light-dark(#6b789e, #53659f);
+}
+
+.public {
+  --bg: light-dark(#f4f5f9, #0b1020);
+  --surface: light-dark(#ffffff, #0e1428);
+  --sunken: light-dark(#ebeef5, #0a0e1c);
+  --raised: light-dark(#e4e8f1, #141d38);
+  --rule: light-dark(#d3d9e6, #243056);
+  --edge: light-dark(#7f889e, #56648a);
+  --ink: light-dark(#0b1020, #e6ecff);
+  --ink-2: light-dark(#3a4461, #aebad6);
+  --ink-3: light-dark(#5a6683, #8391b5);
+  --accent: #ff3d6e;
+  --accent-ink: light-dark(#c4164a, #ff3d6e);
+  --accent-tint: light-dark(#ffe9ef, #2a1330);
+  --on-accent: #0b1020;
+  --primary: light-dark(#0b1020, #ff3d6e);
+  --on-primary: light-dark(#ffffff, #0b1020);
+  --focus: light-dark(#007a70, #00e5d0);
+  --flag: light-dark(#9a3412, #fdba8c);
+  --flag-bg: light-dark(#fdf0e8, #33190f);
+  --flag-bar: light-dark(#c2410c, #f97316);
+  --ok: light-dark(#166534, #6ee7a8);
+  --teal: light-dark(#00695f, #00e5d0);
+  --face-bg: light-dark(#e3e7f1, #0f1630);
+  --face-dot: light-dark(#5e6d9c, #4d60a0);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-raised: var(--raised);
+  --color-rule: var(--rule);
+  --color-edge: var(--edge);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
+  --color-on-accent: var(--on-accent);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-focus: var(--focus);
+  --color-flag: var(--flag);
+  --color-flag-bg: var(--flag-bg);
+  --color-flag-bar: var(--flag-bar);
+  --color-ok: var(--ok);
+  --color-teal: var(--teal);
+  --color-face-bg: var(--face-bg);
+  --color-face-dot: var(--face-dot);
+
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), Georgia, serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "Cascadia Mono", monospace;
+  --font-display: var(--font-archivo), var(--font-plex), sans-serif;
+
+  /* the type scale, in px, with its line heights */
+  --text-12: 12px;
+  --text-12--line-height: 16px;
+  --text-13: 13px;
+  --text-13--line-height: 18px;
+  --text-14: 14px;
+  --text-14--line-height: 20px;
+  --text-15: 15px;
+  --text-15--line-height: 22px;
+  --text-17: 17px;
+  --text-17--line-height: 28px;
+  --text-20: 20px;
+  --text-20--line-height: 26px;
+  --text-24: 24px;
+  --text-24--line-height: 30px;
+  --text-38: 38px;
+  --text-38--line-height: 44px;
+  --text-64: 64px;
+  --text-64--line-height: 68px;
+
+  /* two radii only: 4px for controls and panels, 2px for labels and tiles */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+
+  /* one shadow, for overlays only */
+  --shadow-overlay: 0 12px 32px -8px rgb(11 16 32 / 0.28), 0 2px 6px rgb(11 16 32 / 0.12);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    background: #f4f5f9;
+    background: light-dark(#f4f5f9, #0b1020);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum" 1;
+  }
+  .work,
+  .public {
+    background: var(--bg);
+    color: var(--ink);
+  }
+  ::selection {
+    background: var(--accent-tint);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  a {
+    text-underline-offset: 3px;
+  }
+}
+
+@layer components {
+  /* mono labels: ids, stages, the status strip */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* project faces: fills come from the tokens, so a mode switch repaints them */
+  .face {
+    display: block;
+    width: 100%;
+    height: auto;
+    shape-rendering: crispEdges;
+  }
+  .face .face-bg {
+    fill: var(--face-bg);
+  }
+  .face .face-dots {
+    fill: var(--face-dot);
+    transition: fill 120ms ease-out;
+  }
+  .lit .face .face-dots,
+  .tile:hover .face .face-dots,
+  .tile:focus-visible .face .face-dots {
+    fill: var(--accent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .face .face-dots {
+      transition: none;
+    }
+  }
+}
