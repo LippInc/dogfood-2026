@@ -2,7 +2,7 @@
 base_url = "http://localhost:8080"
 
 [tiers]
-claimed = ["T1"]
+claimed = ["T1", "T2"]
 pitch = "A self-hostable hackathon portal where every score, average and rank can show how it was made."
 
 [auth]
