@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound, unauthorized } from "next/navigation";
 import { Deadline } from "@/components/deadline";
 import { PublicShell } from "@/components/shell/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc } from "@/lib/format";
-import { actorNav, currentActor, getMyWork, NotFoundError, type MyWork } from "@/server/dal";
+import { actorNav, currentActor, getMyWork, myRecords, NotFoundError, type MyWork } from "@/server/dal";
+import { openOwnRecord } from "../../../records/actions";
 import { ProjectForm } from "./project-form";
 import { StartTeam, TeamPanel } from "./team-panel";
 
@@ -24,6 +26,8 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
   }
   const { event, team, project, open } = work;
   const closeLabel = formatUtc(event.submissionsCloseAt, { weekday: true });
+  const certificate = work.feedback ? myRecords(actor, key).find((r) => r.kind === "participant") : undefined;
+  const recordButton = "inline-flex h-10 items-center rounded-sm border border-edge px-4 text-14 font-medium hover:bg-surface";
 
   const side = (
     <>
@@ -64,7 +68,19 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
             {work.feedback.place !== null ? `Place ${work.feedback.place} in ${work.feedback.trackName}` : "Not ranked"}
             {work.feedback.score !== null ? <span className="font-normal text-ink-2"> · score {work.feedback.score.toFixed(2)}</span> : null}
           </h2>
-          <p className="mt-2 text-15 text-ink-2">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            {certificate ? (
+              <Link href={`/records/${certificate.id}`} className={recordButton}>
+                Your certificate
+              </Link>
+            ) : project?.status === "submitted" ? (
+              <form action={openOwnRecord.bind(null, event.slug, "participant")}>
+                <button className={recordButton}>Get your signed certificate</button>
+              </form>
+            ) : null}
+            <span className="text-14 text-ink-2">Signed by the portal, so anyone can check it is real.</span>
+          </div>
+          <p className="mt-4 text-15 text-ink-2">
             Every review of your project, judges unnamed. The score is the reviews&rsquo; weighted average, adjusted for each judge&rsquo;s leniency across the event.
           </p>
           <ol className="mt-6 grid gap-4 md:grid-cols-2">

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { Face } from "@/components/face";
 import { WorkShell } from "@/components/shell/work-shell";
 import { formatUtc } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, getJudgeConsole } from "@/server/dal";
+import { currentActor, getJudgeConsole, myRecords } from "@/server/dal";
+import { openOwnRecord } from "../../records/actions";
 import { JudgeConsoleView } from "./console";
 import { KeysButton } from "./keys-button";
 
@@ -31,6 +33,9 @@ export default async function JudgePage({ params, searchParams }: PageProps<"/ju
     : data.event.resultsPublishedAt
       ? `Results published ${formatUtc(data.event.resultsPublishedAt)}`
       : "Judging stays open until the organizers publish results";
+  const record = data.event.resultsPublishedAt ? myRecords(actor, key).find((r) => r.kind === "judge") : undefined;
+  const finished = data.items.some((i) => i.status === "done");
+  const recordButton = "inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium whitespace-nowrap hover:bg-raised";
   return (
     <WorkShell
       eventName={data.event.name}
@@ -39,6 +44,15 @@ export default async function JudgePage({ params, searchParams }: PageProps<"/ju
       tools={
         <>
           <span className="hidden text-13 whitespace-nowrap text-ink-2 xl:inline">{closes}</span>
+          {record ? (
+            <Link href={`/records/${record.id}`} className={recordButton}>
+              Your judging record
+            </Link>
+          ) : data.event.resultsPublishedAt && finished ? (
+            <form action={openOwnRecord.bind(null, data.event.slug, "judge")}>
+              <button className={recordButton}>Get your signed judging record</button>
+            </form>
+          ) : null}
           <KeysButton />
         </>
       }
