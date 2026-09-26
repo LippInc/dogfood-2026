@@ -23,6 +23,7 @@ import {
   voidVoter,
   type Client,
 } from "@/server/dal/voting";
+import { auditCsv, getAuditLog } from "@/server/dal/audit-log";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -349,6 +350,28 @@ describe("tallies", () => {
       expect(t.find((x) => x.projectId === "prj_08")?.votes).toBe(0); // its only ballot was voided: listed with 0, not dropped
       expect(t).toHaveLength(41);
     }
+  });
+});
+
+describe("the audit log keeps what a ballot holds sealed until voting closes", () => {
+  beforeEach(() => {
+    openVoting();
+  });
+
+  it("names no pick on the log page or in the CSV while voting is open, and names them once it closes", () => {
+    castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_07"] }, CLIENT);
+    const title = (h.sqlite.prepare("SELECT title FROM projects WHERE id = 'prj_07'").get() as { title: string }).title;
+    const text = () => getAuditLog(org(), "evt_01").lines.filter((l) => l.action === "vote.cast").map((l) => l.parts.map((p) => p.text).join(""));
+
+    expect(text()).toHaveLength(1);
+    expect(text()[0]).toMatch(/hidden until voting closes/);
+    expect(text()[0]).not.toContain(title);
+    expect(auditCsv(h.db, "evt_01")).not.toContain("prj_07");
+
+    h.sqlite.prepare("UPDATE events SET voting_close_at = '2026-01-02T00:00:00.000Z' WHERE id = 'evt_01'").run();
+    expect(text()[0]).toContain(title); // positive control: the same row, readable once closed
+    expect(auditCsv(h.db, "evt_01")).toContain("prj_07");
+    expect(verifyAuditChain(h.db).ok).toBe(true);
   });
 });
 

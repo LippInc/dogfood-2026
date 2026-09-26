@@ -3,14 +3,19 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { verifyAuditChain } from "../audit";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignments, auditLog, projects, rubricCriteria, teams, tracks, users } from "../db/schema";
+import { formatUtc } from "@/lib/format";
+import { assignments, auditLog, events, projects, rubricCriteria, teams, tracks, users, voters } from "../db/schema";
 import { guardRead } from "../mutate";
 import { toCsv } from "../csv";
 import { eventFacts, requireEvent } from "./events";
+import { votingState } from "./voting";
 
 // The audit log read as sentences ("Jonas Vogel changed Innovation for Paper Anchor
 // from 4 to 5"), for the organizer's overview card and the full log page. The
 // sentence is built from the row's own before/after, with ids turned into names.
+// What a ballot holds stays out of every view of the log until voting closes, the
+// same moment the count appears: otherwise an organizer could add up the running
+// total from the log. The rows are still stored and hashed in full.
 
 export type Part = { text: string; strong?: boolean; mono?: boolean };
 
@@ -34,7 +39,12 @@ type Names = {
   track: Map<string, string>;
   criterion: Map<string, string>;
   assignment: Map<string, { judgeId: string; projectId: string }>;
+  voter: Map<string, string>;
+  /** True until the event's voting window has closed: ballot contents are not shown. */
+  sealed: boolean;
 };
+
+const SEALED = "hidden until voting closes";
 
 function loadNames(db: DbOrTx, eventId: string): Names {
   return {
@@ -53,8 +63,27 @@ function loadNames(db: DbOrTx, eventId: string): Names {
         .all()
         .map((a) => [a.id, { judgeId: a.judgeId, projectId: a.projectId }]),
     ),
+    voter: new Map(
+      db
+        .select({ id: voters.id, kind: voters.kind, name: users.name })
+        .from(voters)
+        .leftJoin(users, eq(users.id, voters.userId))
+        .where(eq(voters.eventId, eventId))
+        .all()
+        .map((v) => [v.id, v.kind === "account" && v.name ? v.name : `${v.kind === "listed" ? "Listed" : "Link"} voter ${v.id.slice(-6)}`]),
+    ),
+    sealed: ballotsSealed(db, eventId),
   };
 }
+
+function ballotsSealed(db: DbOrTx, eventId: string): boolean {
+  const e = db.select({ votingOpenAt: events.votingOpenAt, votingCloseAt: events.votingCloseAt }).from(events).where(eq(events.id, eventId)).get();
+  return !e || votingState(e) !== "closed";
+}
+
+const MODE_WORDS: Record<string, string> = { account: "signed-in accounts", listed: "the voter list", link: "the open link" };
+const LIMIT_WORDS: Record<string, string> = { ballot: "ballot saves", comment: "comments", "open-link entry": "open-link entries", "sign-in": "sign-in attempts" };
+const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
 const quote = (s: unknown) => `“${String(s ?? "")}”`;
@@ -67,6 +96,7 @@ function sentence(r: Row, n: Names): Part[] {
   const project = (id: unknown): Part => ({ text: n.project.get(String(id)) ?? String(id), strong: true });
   const person = (id: unknown): Part => ({ text: n.user.get(String(id)) ?? String(id), strong: true });
   const t = (text: string): Part => ({ text });
+  const voter = (id: unknown): Part => ({ text: n.voter.get(String(id)) ?? String(id), strong: true });
   const target = r.targetId ?? "";
   switch (r.action) {
     case "fixtures.import":
@@ -152,6 +182,41 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" published the results")];
     case "authz.refused":
       return [actor, t(` was refused: ${after.attempted ?? "an action"} (${after.code ?? after.status})`)];
+    case "voting.settings":
+      return after.votingOpenAt && after.votingCloseAt
+        ? [
+            actor,
+            t(
+              ` set community voting from ${formatUtc(String(after.votingOpenAt))} to ${formatUtc(String(after.votingCloseAt))}, ` +
+                `${after.votesPerVoter} votes each, for ${andList(((after.modes as string[] | undefined) ?? []).map((m) => MODE_WORDS[m] ?? m))}`,
+            ),
+          ]
+        : [actor, t(" cleared the community voting window")];
+    case "voting.link":
+      return [actor, t(after.replaced ? " made a new open voting link; the old one stopped working" : " made the open voting link")];
+    case "voting.voters_added": {
+      const added = Number(after.added ?? 0);
+      const skipped = Number(after.skipped ?? 0);
+      return [actor, t(` added ${added} ${added === 1 ? "person" : "people"} to the voter list${skipped ? ` (${skipped} already on it)` : ""}`)];
+    }
+    case "voter.join_link":
+      return [actor, t(" entered voting with the open link")];
+    case "vote.cast": {
+      if (n.sealed) return [actor, t(` changed their ballot (${SEALED})`)];
+      const picks = ((after.picks as string[] | undefined) ?? []).map(project);
+      if (!picks.length) return [actor, t(" cleared their ballot")];
+      return [actor, t(" voted for "), ...picks.flatMap((p, i) => (i === 0 ? [p] : [t(i === picks.length - 1 ? " and " : ", "), p]))];
+    }
+    case "voter.void":
+      return [actor, t(" set aside the ballot of "), voter(target), t(`: ${quote(after.reason)}`)];
+    case "voter.restore":
+      return [actor, t(" counted the ballot of "), voter(target), t(" again")];
+    case "comment.post":
+      return [actor, t(" commented on "), project(target)];
+    case "comment.hide":
+      return [actor, t(" hid a comment on "), project(target), t(`: ${quote(after.reason)}`)];
+    case "ratelimit.refused":
+      return [actor, t(` was asked to slow down (too many ${LIMIT_WORDS[target] ?? target}; wait ${after.retryAfter} s)`)];
     default:
       return [actor, t(` ${r.action}`)];
   }
@@ -197,6 +262,8 @@ export function auditCsv(db: DbOrTx, eventId: string): string {
   const rows = db.select().from(auditLog).where(eq(auditLog.eventId, eventId)).orderBy(auditLog.id).all();
   const text = lines(db, eventId, rows);
   const head = verifyAuditChain(db);
+  const sealed = ballotsSealed(db, eventId);
+  const payload = (r: Row, v: unknown) => (v === null ? "" : sealed && r.action === "vote.cast" ? SEALED : JSON.stringify(v));
   return toCsv(
     ["id", "at", "actor", "action", "sentence", "target_type", "target_id", "before", "after", "prev_hash", "hash", "chain_ok", "chain_head"],
     rows.map((r, i) => [
@@ -207,8 +274,8 @@ export function auditCsv(db: DbOrTx, eventId: string): string {
       text[i]!.parts.map((p) => p.text).join(""),
       r.targetType ?? "",
       r.targetId ?? "",
-      r.before === null ? "" : JSON.stringify(r.before),
-      r.after === null ? "" : JSON.stringify(r.after),
+      payload(r, r.before),
+      payload(r, r.after),
       r.prevHash,
       r.hash,
       head.ok ? "yes" : "no",
