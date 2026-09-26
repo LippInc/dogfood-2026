@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ModeToggle } from "@/components/mode-toggle";
+import { PlainShell } from "@/components/shell/plain-shell";
 import { demoIdentities } from "@/server/dal";
 import { demoSignIn } from "./actions";
 import { PasswordForm } from "./password-form";
@@ -20,16 +20,8 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
   const next = typeof sp.next === "string" && sp.next.startsWith("/") && !sp.next.startsWith("//") ? sp.next : null;
   const demo = demoIdentities();
   return (
-    <div className="public min-h-dvh">
-      <header className="border-b border-rule">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center px-4 sm:px-8 xl:px-16">
-          <Link href="/" className="font-display text-20 uppercase">
-            Dogfood portal
-          </Link>
-          <ModeToggle className="ml-auto" />
-        </div>
-      </header>
-      <main id="main" className="mx-auto grid max-w-[1040px] gap-12 px-4 py-12 sm:px-8 md:grid-cols-2 md:py-20">
+    <PlainShell>
+      <div className="grid gap-12 md:grid-cols-2">
         <section aria-labelledby="signin-title">
           <h1 id="signin-title" className="font-display text-38">
             Sign in
@@ -38,6 +30,12 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
           <div className="mt-8">
             <PasswordForm next={next} />
           </div>
+          <p className="mt-6 text-14 text-ink-2">
+            New here?{" "}
+            <Link href={next ? `/sign-up?next=${encodeURIComponent(next)}` : "/sign-up"} className="underline decoration-edge underline-offset-4">
+              Create an account
+            </Link>
+          </p>
         </section>
         {demo.length > 0 ? (
           <section aria-labelledby="demo-title" className="rounded-sm border border-rule bg-surface p-6">
@@ -69,7 +67,7 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
             </ul>
           </section>
         ) : null}
-      </main>
-    </div>
+      </div>
+    </PlainShell>
   );
 }
