@@ -113,7 +113,7 @@ export function privateAddress(ip: string): boolean {
  * are refused (so an organizer cannot make the portal call the machines around it)
  * unless WEBHOOKS_ALLOW_PRIVATE=true, for a test receiver on the same host.
  */
-export async function targetProblem(url: string): Promise<string | null> {
+export async function targetProblem(url: string, opts: { forDelivery?: boolean } = {}): Promise<string | null> {
   let u: URL;
   try {
     u = new URL(url);
@@ -129,7 +129,9 @@ export async function targetProblem(url: string): Promise<string | null> {
   try {
     addresses = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true })).map((a) => a.address);
   } catch {
-    return "its host name does not resolve";
+    // When a webhook is added a name that does not resolve yet (or an offline portal)
+    // proves nothing either way; each delivery checks again and does not send.
+    return opts.forDelivery ? "its host name does not resolve" : null;
   }
   return addresses.some(privateAddress) ? "it resolves to a private or local address" : null;
 }
@@ -155,7 +157,7 @@ export async function deliverDue(opts: { now?: Date; limit?: number; fetchImpl?:
     let status: number | null = null;
     let text = "";
     let error: string | null = null;
-    const problem = disabledAt ? "the webhook is turned off" : await targetProblem(url);
+    const problem = disabledAt ? "the webhook is turned off" : await targetProblem(url, { forDelivery: true });
     if (problem) {
       error = `not sent: ${problem}`;
     } else {
