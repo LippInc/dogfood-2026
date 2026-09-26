@@ -331,11 +331,13 @@ describe("tallies", () => {
     const t2 = linkToken();
     castBallot(null, "evt_01", t1, { projectIds: ["prj_07"] }, CLIENT);
     const second = castBallot(null, "evt_01", t2, { projectIds: ["prj_07"] }, CLIENT);
+    const only = castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_08"] }, CLIENT);
 
     expect(getVotingAdmin(org(), "evt_01").tally).toBeNull();
     expect(getCommunityResults("evt_01").tally).toBeNull();
 
     voidVoter(org(), "evt_01", { voterId: second.voterId, reason: "Same browser as another ballot" });
+    voidVoter(org(), "evt_01", { voterId: only.voterId, reason: "Same browser as another ballot" });
     h.sqlite.prepare("UPDATE events SET voting_close_at = '2026-01-02T00:00:00.000Z' WHERE id = 'evt_01'").run();
 
     const admin = getVotingAdmin(org(), "evt_01");
@@ -344,6 +346,8 @@ describe("tallies", () => {
     for (const t of [admin.tally!, results.tally!]) {
       expect(t.map((x) => x.votes)).toEqual([...t.map((x) => x.votes)].sort((a, b) => b - a));
       expect(t.find((x) => x.projectId === "prj_07")?.votes).toBe(1); // one of the two prj_07 ballots was voided
+      expect(t.find((x) => x.projectId === "prj_08")?.votes).toBe(0); // its only ballot was voided: listed with 0, not dropped
+      expect(t).toHaveLength(41);
     }
   });
 });

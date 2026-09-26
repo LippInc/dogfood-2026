@@ -409,12 +409,13 @@ export type Tally = { projectId: string; title: string; teamName: string; votes:
 /** Counted votes per project: voided voters left out. DAL-internal; callers decide who may see it. */
 function tally(db: DbOrTx, eventId: string): Tally[] {
   const rows = db
-    .select({ projectId: projects.id, title: projects.title, teamName: teams.name, n: sql<number>`count(${votes.voterId})` })
+    // The "not set aside" test sits in the join, not the WHERE: a project whose only votes were set aside keeps its row, with 0.
+    .select({ projectId: projects.id, title: projects.title, teamName: teams.name, n: sql<number>`count(${voters.id})` })
     .from(projects)
     .innerJoin(teams, eq(teams.id, projects.teamId))
     .leftJoin(votes, eq(votes.projectId, projects.id))
-    .leftJoin(voters, eq(voters.id, votes.voterId))
-    .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted"), isNull(projects.duplicateOf), sql`(${voters.id} is null or ${voters.voidedAt} is null)`))
+    .leftJoin(voters, and(eq(voters.id, votes.voterId), isNull(voters.voidedAt)))
+    .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted"), isNull(projects.duplicateOf)))
     .groupBy(projects.id)
     .all()
     .sort((a, b) => b.n - a.n || a.title.localeCompare(b.title));
