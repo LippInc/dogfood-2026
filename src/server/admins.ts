@@ -10,8 +10,8 @@ import { newSecret, sha256 } from "./util";
 // proves nothing: signing up with a named address needs the one-time setup code the
 // portal prints in its own log at start (only the operator sees it), and without it
 // the sign-up is refused, so nobody can take the address first. The code lives only
-// in this process, as a hash; a restart prints a new one while a named address has
-// no account. Existing accounts are never promoted.
+// in this process, as a hash, and works once: a restart prints a new one while a
+// named address still has no account. Existing accounts are never promoted.
 
 const SETUP = Symbol.for("dogfood.admin-setup-hash");
 const store = globalThis as typeof globalThis & { [SETUP]?: string };
@@ -46,6 +46,11 @@ export function openAdminSetup(db: Db): { code: string; waiting: string[] } | nu
   const code = newSecret(24);
   store[SETUP] = sha256(code);
   return { code, waiting };
+}
+
+/** Used: the code made its administrator and makes no other. */
+export function consumeSetupCode(): void {
+  delete store[SETUP];
 }
 
 /** Does this match the setup code printed at start? */

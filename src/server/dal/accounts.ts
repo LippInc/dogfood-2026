@@ -1,7 +1,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { adminEmails, setupCodeValid } from "../admins";
+import { adminEmails, consumeSetupCode, setupCodeValid } from "../admins";
 import { appendAudit } from "../audit";
 import { getDb } from "../db/client";
 import { users } from "../db/schema";
@@ -53,6 +53,7 @@ export async function signUp(body: unknown, client?: Client): Promise<{ userId: 
     appendAudit(tx, { actorUserId: id, actorLabel: name, action: "user.sign_up", targetType: "user", targetId: id, after: isAdmin ? { isAdmin: true, by: "ADMIN_EMAILS" } : null });
     return { id, ...createLoginSession(tx, id) };
   });
+  if (isAdmin) consumeSetupCode();
   await setSessionCookie(session.token, session.expires);
   return { userId: session.id };
 }

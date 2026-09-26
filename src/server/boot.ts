@@ -76,7 +76,7 @@ export async function boot(): Promise<void> {
   const setup = openAdminSetup(h.db);
   if (setup) {
     lines.push(`administrator setup: open ${base}/sign-up?setup=${setup.code}`);
-    lines.push(`  and sign up as ${setup.waiting.join(" or ")} (only this link makes an administrator; it changes at every start)`);
+    lines.push(`  and sign up as ${setup.waiting.join(" or ")} (only this link makes an administrator; it works once, and each start prints a new one while a named address has no account)`);
   }
   startWebhookWorker();
   lines.push(`portal ready: ${event ? `${base}/events/${event.slug}` : `${base}/sign-up`}  (boot took ${Date.now() - started} ms)`);

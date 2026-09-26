@@ -178,7 +178,7 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 | `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
 | `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
 | `WEBHOOKS_ALLOW_PRIVATE` | `"true"` lets webhooks reach private and local addresses; leave it unset unless the receiver is on your own network |
-| `ADMIN_EMAILS` | Addresses (comma separated) for the portal's administrators, who create and import events. Each signs up through the one-time setup link the portal prints in its log at start (a new one at every start, while a named address has no account yet); the sign-up's audit row records it |
+| `ADMIN_EMAILS` | Addresses (comma separated) for the portal's administrators, who create and import events. Each signs up through the one-time setup link the portal prints in its log at start; a link works once, and each start prints a new one while a named address has no account yet. The sign-up's audit row records it |
 | `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file each start imports (idempotently: rows already there are left as they are); `"none"` starts without the sample event |
 
 `docker-compose.yml` publishes the portal on `127.0.0.1:8080` only; put it behind

@@ -79,6 +79,18 @@ describe("the administrator of a real event", () => {
     expect(isAdmin("chair@example.org")).toBeUndefined(); // no account was made
   });
 
+  it("known-bad: the code works once; a second named address needs the next start's code", async () => {
+    process.env.ADMIN_EMAILS = "chair@example.org, second@example.org";
+    const setup = openAdminSetup(h.db)!;
+    await signUp({ name: "Chair", email: "chair@example.org", password: PASSWORD, setup: setup.code });
+    const reused = await refused(signUp({ name: "Second", email: "second@example.org", password: PASSWORD, setup: setup.code }));
+    expect([reused.status, reused.code]).toEqual([403, "admin_setup_required"]);
+    const next = openAdminSetup(h.db)!; // the next start
+    expect(next.waiting).toEqual(["second@example.org"]);
+    await signUp({ name: "Second", email: "second@example.org", password: PASSWORD, setup: next.code });
+    expect(isAdmin("second@example.org")).toBe(1);
+  });
+
   it("the code makes no one else an administrator, and ordinary sign-up is untouched", async () => {
     process.env.ADMIN_EMAILS = "chair@example.org";
     const setup = openAdminSetup(h.db)!;
