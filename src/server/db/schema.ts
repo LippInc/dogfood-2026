@@ -600,6 +600,66 @@ export const signedRecords = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// Webhooks
+// ---------------------------------------------------------------------------
+
+// An organizer's subscription: audited actions in one event, POSTed to a URL and
+// signed with the webhook's own secret (HMAC-SHA256). actions is ["*"] for all.
+export const webhooks = sqliteTable(
+  "webhooks",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").notNull().references(() => events.id),
+    url: text("url").notNull(),
+    secret: text("secret").notNull(),
+    actions: text("actions", { mode: "json" }).$type<string[]>().notNull(),
+    createdAt: text("created_at").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id),
+    disabledAt: text("disabled_at"),
+  },
+  (t) => [
+    index("webhooks_event_idx").on(t.eventId),
+    check("webhooks_url_scheme", sql`${t.url} like 'http://%' or ${t.url} like 'https://%'`),
+    check("webhooks_created_iso", isoTimestamp(t.createdAt)),
+  ],
+);
+
+export const DELIVERY_STATUSES = ["pending", "delivered", "failed"] as const;
+export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
+
+// The outbox and delivery log: a row is written in the same transaction as the
+// audited change, and the worker (../webhooks.ts) sends it, with retries.
+export const webhookDeliveries = sqliteTable(
+  "webhook_deliveries",
+  {
+    id: text("id").primaryKey(),
+    webhookId: text("webhook_id")
+      .notNull()
+      .references(() => webhooks.id),
+    auditId: integer("audit_id"),
+    action: text("action").notNull(),
+    payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    status: text("status", { enum: DELIVERY_STATUSES }).notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: text("next_attempt_at"),
+    lastAttemptAt: text("last_attempt_at"),
+    responseStatus: integer("response_status"),
+    responseBody: text("response_body"),
+    error: text("error"),
+    createdAt: text("created_at").notNull(),
+    deliveredAt: text("delivered_at"),
+  },
+  (t) => [
+    index("webhook_deliveries_due_idx").on(t.status, t.nextAttemptAt),
+    index("webhook_deliveries_hook_idx").on(t.webhookId, t.createdAt),
+    check("webhook_deliveries_status", sql`${t.status} in ('pending', 'delivered', 'failed')`),
+    check("webhook_deliveries_attempts", sql`${t.attempts} between 0 and 20`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Audit and imports
 // ---------------------------------------------------------------------------
 

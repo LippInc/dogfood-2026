@@ -158,6 +158,31 @@ export const OPERATIONS: Operation[] = [
   { method: "POST", path: "/api/projects/{project}/comments", tag: "Comments", summary: "Comment on a submitted project", access: "signed in", body: In.CommentInput, ok: 201, also: [429] },
   { method: "POST", path: "/api/comments/{comment}/hide", tag: "Comments", summary: "Hide a comment, with a reason shown in its place", access: "organizer", body: In.HideInput },
 
+  // Webhooks
+  { method: "GET", path: "/api/events/{event}/webhooks", tag: "Webhooks", summary: "The event's webhooks and their delivery counts", access: "organizer" },
+  {
+    method: "POST",
+    path: "/api/events/{event}/webhooks",
+    tag: "Webhooks",
+    summary: "Add a webhook for some audited actions or all (\"*\"); its signing secret comes back this once",
+    access: "organizer",
+    body: In.WebhookInput,
+    ok: 201,
+  },
+  { method: "POST", path: "/api/events/{event}/webhooks/{webhook}/disable", tag: "Webhooks", summary: "Turn a webhook off", access: "organizer" },
+  { method: "POST", path: "/api/events/{event}/webhooks/{webhook}/enable", tag: "Webhooks", summary: "Turn a webhook back on", access: "organizer" },
+  { method: "POST", path: "/api/events/{event}/webhooks/{webhook}/rotate-secret", tag: "Webhooks", summary: "Replace the signing secret (returned once)", access: "organizer" },
+  { method: "POST", path: "/api/events/{event}/webhooks/{webhook}/test", tag: "Webhooks", summary: "Send a webhook.test delivery to this webhook", access: "organizer", also: [422] },
+  { method: "GET", path: "/api/events/{event}/webhooks/{webhook}/deliveries", tag: "Webhooks", summary: "The last 50 deliveries: payload, answer, attempts", access: "organizer" },
+  {
+    method: "POST",
+    path: "/api/events/{event}/webhooks/{webhook}/deliveries/{delivery}/retry",
+    tag: "Webhooks",
+    summary: "Send a delivery again",
+    access: "organizer",
+    also: [422],
+  },
+
   // Records
   { method: "GET", path: "/api/events/{event}/records", tag: "Records", summary: "Every signed record issued for the event", access: "organizer" },
   {

@@ -6,6 +6,7 @@ import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
 import { ensureSigningKey } from "./signing";
+import { startWebhookWorker } from "./webhooks";
 import { nowIso } from "./util";
 
 // Runs once per server start, from instrumentation.ts: migrate, re-assert the
@@ -56,6 +57,7 @@ export async function boot(): Promise<void> {
       `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}.`,
     );
   }
+  startWebhookWorker();
   lines.push(`portal ready: ${base}/events/${event.slug}  (boot took ${Date.now() - started} ms)`);
   console.log(lines.join("\n"));
 }

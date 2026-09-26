@@ -3,6 +3,7 @@ import { desc } from "drizzle-orm";
 import type { DbOrTx } from "./db/client";
 import { auditLog } from "./db/schema";
 import { canonicalJson, nowIso, sha256 } from "./util";
+import { enqueueForAudit } from "./webhooks";
 
 export const GENESIS_HASH = "0".repeat(64);
 
@@ -48,7 +49,8 @@ export function appendAudit(tx: DbOrTx, entry: AuditEntry, at: string = nowIso()
   const prevHash = head?.hash ?? GENESIS_HASH;
   const row: ChainedFields = { ...entry, at };
   const hash = chainHash(prevHash, row);
-  tx.insert(auditLog)
+  const inserted = tx
+    .insert(auditLog)
     .values({
       at,
       actorUserId: entry.actorUserId,
@@ -63,6 +65,20 @@ export function appendAudit(tx: DbOrTx, entry: AuditEntry, at: string = nowIso()
       hash,
     })
     .run();
+  // Webhooks subscribed to this action get a delivery queued in the same transaction.
+  enqueueForAudit(tx, {
+    id: Number(inserted.lastInsertRowid),
+    at,
+    action: entry.action,
+    eventId: entry.eventId ?? null,
+    actorUserId: entry.actorUserId,
+    actorLabel: entry.actorLabel,
+    targetType: entry.targetType ?? null,
+    targetId: entry.targetId ?? null,
+    before: entry.before ?? null,
+    after: entry.after ?? null,
+    hash,
+  });
   return hash;
 }
 

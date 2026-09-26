@@ -223,6 +223,18 @@ function sentence(r: Row, n: Names): Part[] {
     }
     case "records.issue_all":
       return [actor, t(` issued ${after.judges} judging records and ${after.participants} certificates`)];
+    case "webhook.create":
+      return [actor, t(` added a webhook to ${after.url} for ${(after.actions as string[] | undefined)?.includes("*") ? "every action" : andList((after.actions as string[] | undefined) ?? [])}`)];
+    case "webhook.disable":
+      return [actor, t(" turned off webhook "), { text: target, mono: true }];
+    case "webhook.enable":
+      return [actor, t(" turned on webhook "), { text: target, mono: true }];
+    case "webhook.rotate_secret":
+      return [actor, t(" gave webhook "), { text: target, mono: true }, t(" a new secret")];
+    case "webhook.test":
+      return [actor, t(" sent a test to webhook "), { text: target, mono: true }];
+    case "webhook.redeliver":
+      return [actor, t(" asked webhook "), { text: target, mono: true }, t(` to send ${after.delivery} again`)];
     case "signing_key.create":
       return [actor, t(" made the signing key "), { text: target, mono: true }];
     case "ratelimit.refused":

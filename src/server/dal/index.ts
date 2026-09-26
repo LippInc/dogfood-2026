@@ -123,3 +123,13 @@ export {
 } from "./records";
 export type { Verification } from "../signing";
 export { OPERATIONS, openApiDocument, operationId, type Access, type Operation } from "../openapi";
+export {
+  createWebhook,
+  listDeliveries,
+  listWebhooks,
+  retryDelivery,
+  rotateWebhookSecret,
+  setWebhookEnabled,
+  testWebhook,
+  type WebhookView,
+} from "./webhooks";

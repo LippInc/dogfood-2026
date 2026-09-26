@@ -14,3 +14,4 @@ export { RecordRequest } from "./records";
 export { RecuseInput, ReviewInput } from "./reviews";
 export { TeamName } from "./teams";
 export { BallotInput, RestoreInput, SettingsInput, VoidInput, VoterList } from "./voting";
+export { WebhookInput } from "./webhooks";
