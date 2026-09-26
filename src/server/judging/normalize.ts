@@ -211,3 +211,50 @@ export function normalize(obs: readonly Obs[], opts: { fixedK?: number } = {}): 
   const kUsed = opts.fixedK ?? variance.k;
   return { ...variance, kUsed, ...fitLeniency(obs, kUsed) };
 }
+
+/** Sample variance of the project means. */
+function varianceOfMeans(obs: readonly Obs[], ys: readonly number[]): number {
+  const sums = new Map<string, [number, number]>();
+  obs.forEach((o, i) => {
+    const s = sums.get(o.projectId) ?? [0, 0];
+    s[0] += ys[i]!;
+    s[1] += 1;
+    sums.set(o.projectId, s);
+  });
+  const means = [...sums.values()].map(([s, n]) => s / n);
+  if (means.length < 2) return 0;
+  const m = means.reduce((a, b) => a + b, 0) / means.length;
+  return means.reduce((a, b) => a + (b - m) ** 2, 0) / (means.length - 1);
+}
+
+export type SignalCheck = { share: number; trials: number; seed: number; observed: number };
+
+/**
+ * The signal check: do the projects differ by more than chance? Shuffle the review
+ * totals across reviews (same judges, same projects) and count how often the
+ * shuffled project means spread at least as much as the real ones. A share near 0
+ * means real differences; near 0.5 or above, the scores cannot tell the projects
+ * apart better than a shuffle.
+ */
+export function permutationShare(obs: readonly Obs[], trials = 2000, seed = 20260924): SignalCheck {
+  const ys = obs.map((o) => o.y);
+  const observed = varianceOfMeans(obs, ys);
+  let a = seed >>> 0;
+  const random = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  let hits = 0;
+  const s = [...ys];
+  for (let k = 0; k < trials; k++) {
+    for (let i = s.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [s[i], s[j]] = [s[j]!, s[i]!];
+    }
+    if (varianceOfMeans(obs, s) >= observed - 1e-12) hits++;
+  }
+  return { share: hits / trials, trials, seed, observed };
+}

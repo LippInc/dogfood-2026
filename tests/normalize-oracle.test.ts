@@ -143,3 +143,21 @@ describe("the engine's self-test (planted leniency)", () => {
     for (const [p, s] of base.scores) expect(moved.scores.get(p)).toBeCloseTo(2 * s + 1, 9);
   });
 });
+
+describe("the signal check (permutation share)", () => {
+  it("on the fixture finds no project differences beyond chance (planning run: 0.767)", async () => {
+    const { permutationShare } = await import("@/server/judging/normalize");
+    const s = permutationShare(kept);
+    console.log(`fixture permutation share ${s.share.toFixed(3)} over ${s.trials} shuffles`);
+    expect(s.share).toBeGreaterThan(0.7);
+    expect(s.share).toBeLessThan(0.84);
+  });
+
+  it("positive control: planted project differences are detected (share at most 0.05)", async () => {
+    const { permutationShare } = await import("@/server/judging/normalize");
+    const quality = new Map<string, number>();
+    [...new Set(kept.map((o) => o.projectId))].sort().forEach((p, i) => quality.set(p, (i % 7) * 0.35));
+    const planted = kept.map((o) => ({ ...o, y: o.y * 0.3 + quality.get(o.projectId)! }));
+    expect(permutationShare(planted, 500).share).toBeLessThanOrEqual(0.05);
+  });
+});

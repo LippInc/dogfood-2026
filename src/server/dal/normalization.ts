@@ -6,7 +6,7 @@ import { getDb, type DbOrTx } from "../db/client";
 import { assignments, events, judgeOverrides, normalizationRuns, normalizedScores, projects, teams, tracks, userRoles, users } from "../db/schema";
 import { ConflictError, NotFoundError } from "../errors";
 import type { FlatFlag } from "../judging/flat";
-import { averageRanks, normalize, type Obs } from "../judging/normalize";
+import { averageRanks, normalize, permutationShare, type Obs, type SignalCheck } from "../judging/normalize";
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -115,6 +115,8 @@ export type Normalized = {
   moved: number;
   biggestMove: { id: string; title: string; from: number; to: number } | null;
   excluded: string[];
+  /** the permutation signal check, when asked for (it costs 2,000 shuffles) */
+  signal: SignalCheck | null;
 };
 
 /** One observation per judge and project; a judge who scored both copies of a merged duplicate counts once. */
@@ -153,7 +155,7 @@ function rankWithin<T extends { id: string }>(rows: T[], value: (r: T) => number
   return out;
 }
 
-export function computeNormalization(db: DbOrTx, event: EventRow, opts: { exclude?: string[] } = {}): Normalized {
+export function computeNormalization(db: DbOrTx, event: EventRow, opts: { exclude?: string[]; signal?: boolean } = {}): Normalized {
   const info = submittedProjects(db, event.id);
   const { obs: allObs, own, reviews } = observations(db, event, info);
   const set = judgeSet(db, event.id, reviews);
@@ -262,6 +264,7 @@ export function computeNormalization(db: DbOrTx, event: EventRow, opts: { exclud
     moved,
     biggestMove: biggest,
     excluded: [...excluded].sort(),
+    signal: opts.signal && keptObs.length > 1 ? permutationShare(keptObs) : null,
   };
 }
 
@@ -411,7 +414,7 @@ export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
   guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
-  const now = computeNormalization(db, event);
+  const now = computeNormalization(db, event, { signal: true });
   return { event, method: METHOD_LABEL, normalization: now, decisions: decisions(db, event, now) };
 }
 
@@ -589,6 +592,7 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
         judges: n.judges.filter((j) => !j.excluded && j.n > 0).map((j) => ({ id: j.id, n: j.n, leniency: j.leniency })),
         ranked: n.ranked,
         moved: n.moved,
+        signal: n.signal,
       },
       computedAt: at,
       computedBy: actor.userId,
@@ -610,7 +614,7 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
 export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
   return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     notPublished(event);
-    const n = computeNormalization(tx, event);
+    const n = computeNormalization(tx, event, { signal: true });
     const open = decisions(tx, event, n).filter((d) => !d.resolved);
     if (open.length) {
       throw new ConflictError("decisions_open", `${open.length} ${open.length === 1 ? "decision is" : "decisions are"} still open. Settle ${open.length === 1 ? "it" : "them"} before publishing.`);
