@@ -468,6 +468,8 @@ export const normalizedScores = sqliteTable(
     n: integer("n").notNull(),
     rawMean: real("raw_mean"),
     normalizedMean: real("normalized_mean"),
+    // one standard error of the normalized mean (JUDGING.md); null in runs stored before it existed
+    se: real("se"),
     rankRaw: real("rank_raw"),
     rankNormalized: real("rank_normalized"),
   },

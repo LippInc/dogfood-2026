@@ -1,0 +1,1 @@
+ALTER TABLE `normalized_scores` ADD `se` real;

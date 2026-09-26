@@ -1,6 +1,6 @@
 # Data model
 
-SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations in `drizzle/` (0000_init through 0006_api_tokens) are applied at boot; right after them, the audit-log and score-range triggers are re-asserted from `src/server/db/triggers.ts`. All timestamps are ISO 8601 text in UTC, and several carry a `julianday(...) is not null` CHECK so a malformed date cannot be stored. Ids are text: rows created in the app get a prefixed random string (`usr_`, `prj_`, `evt_`, ...), while rows imported from the organizers' fixture keep the fixture's ids (`evt_01`, `trk_03`, `prj_32`); imported team members, who have no id in the fixture, get `usr_` and a hash of their email, so a second import finds the same row. JSON columns hold settings, lists and documents (event settings, gallery and tag lists, rubric anchors, run parameters, audit snapshots, webhook payloads, signed envelopes); every relation is a real table. Enum-like and range columns carry real CHECK constraints (Drizzle's TypeScript-only enums are not trusted).
+SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations in `drizzle/` (0000_init through 0007_normalized_se) are applied at boot; right after them, the audit-log and score-range triggers are re-asserted from `src/server/db/triggers.ts`. All timestamps are ISO 8601 text in UTC, and several carry a `julianday(...) is not null` CHECK so a malformed date cannot be stored. Ids are text: rows created in the app get a prefixed random string (`usr_`, `prj_`, `evt_`, ...), while rows imported from the organizers' fixture keep the fixture's ids (`evt_01`, `trk_03`, `prj_32`); imported team members, who have no id in the fixture, get `usr_` and a hash of their email, so a second import finds the same row. JSON columns hold settings, lists and documents (event settings, gallery and tag lists, rubric anchors, run parameters, audit snapshots, webhook payloads, signed envelopes); every relation is a real table. Enum-like and range columns carry real CHECK constraints (Drizzle's TypeScript-only enums are not trusted).
 
 ## People and sessions
 
@@ -52,7 +52,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 **`normalization_runs`** — one run of the normalization engine. `id`; `event_id`; `method`; `params` json (W, β̂², σ̂², k, the judges left out, the flat-judge flags, the overrides with their reasons, the merges, and each counted judge's n and leniency); `computed_at`; `computed_by`.
 
-**`normalized_scores`** — one project's result within one run. `run_id`, `project_id` (pk); `n`; `raw_mean`; `normalized_mean`; `rank_raw`; `rank_normalized` (reals, null where not computable).
+**`normalized_scores`** — one project's result within one run. `run_id`, `project_id` (pk); `n`; `raw_mean`; `normalized_mean`; `se`, one standard error of the normalized mean (null in runs stored before it existed); `rank_raw`; `rank_normalized` (reals, null where not computable).
 
 ## Community vote and comments
 

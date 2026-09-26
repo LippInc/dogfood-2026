@@ -66,7 +66,13 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           <p className="label-mono text-accent-ink">Results are published</p>
           <h2 id="feedback-title" className="mt-2 text-24 font-semibold">
             {work.feedback.place !== null ? `Place ${work.feedback.place} in ${work.feedback.trackName}` : "Not ranked"}
-            {work.feedback.score !== null ? <span className="font-normal text-ink-2"> · score {work.feedback.score.toFixed(2)}</span> : null}
+            {work.feedback.score !== null ? (
+              <span className="font-normal text-ink-2">
+                {" "}
+                · score {work.feedback.score.toFixed(2)}
+                {work.feedback.se !== null ? ` ± ${work.feedback.se.toFixed(2)}` : ""}
+              </span>
+            ) : null}
           </h2>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {certificate ? (

@@ -244,6 +244,8 @@ export type MyWork = {
 export type TeamFeedback = {
   place: number | null;
   score: number | null;
+  /** one standard error of the score */
+  se: number | null;
   trackName: string;
   reviews: { values: { label: string; value: number }[]; total: number; feedback: string; counted: boolean }[];
 };
@@ -272,6 +274,7 @@ function teamFeedback(db: DbOrTx, event: EventRow, projectId: string): TeamFeedb
   return {
     place: row?.place ?? null,
     score: row?.score ?? null,
+    se: row?.se ?? null,
     trackName: track?.name ?? "",
     reviews: reviews.map((r) => ({
       values: criteria.map((c, i) => ({ label: c.label, value: r.values[i]! })),

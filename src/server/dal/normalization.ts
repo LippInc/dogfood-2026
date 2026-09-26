@@ -722,7 +722,7 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
   for (const p of n.projects) {
     if (p.duplicateOf) continue;
     tx.insert(normalizedScores)
-      .values({ runId: id, projectId: p.id, n: p.n, rawMean: p.rawAll, normalizedMean: p.score, rankRaw: p.rankRaw, rankNormalized: p.rankNormalized })
+      .values({ runId: id, projectId: p.id, n: p.n, rawMean: p.rawAll, normalizedMean: p.score, se: p.se, rankRaw: p.rankRaw, rankNormalized: p.rankNormalized })
       .run();
   }
   return id;
@@ -769,7 +769,18 @@ export type PublishedResults =
       tracks: {
         id: string;
         name: string;
-        rows: { projectId: string; title: string; teamName: string; n: number; score: number | null; raw: number | null; place: number | null; rankOverall: number | null }[];
+        rows: {
+          projectId: string;
+          title: string;
+          teamName: string;
+          n: number;
+          score: number | null;
+          /** one standard error of the score, as stored with the run */
+          se: number | null;
+          raw: number | null;
+          place: number | null;
+          rankOverall: number | null;
+        }[];
       }[];
     };
 
@@ -786,6 +797,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
       projectId: normalizedScores.projectId,
       n: normalizedScores.n,
       score: normalizedScores.normalizedMean,
+      se: normalizedScores.se,
       raw: normalizedScores.rawMean,
       rankOverall: normalizedScores.rankNormalized,
       title: projects.title,
@@ -823,6 +835,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
           teamName: r.teamName,
           n: r.n,
           score: r.score,
+          se: r.se,
           raw: r.raw,
           place: places.get(r.projectId) ?? null,
           rankOverall: r.rankOverall,

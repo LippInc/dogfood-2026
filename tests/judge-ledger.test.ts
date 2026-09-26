@@ -7,7 +7,17 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { requireEvent } from "@/server/dal/events";
-import { computeNormalization, getNormalization, mergeDuplicate, revokeJudgeOverride, setJudgeOverride, type Normalized } from "@/server/dal/normalization";
+import {
+  acceptUnderReviewed,
+  computeNormalization,
+  getNormalization,
+  getPublishedResults,
+  mergeDuplicate,
+  publishResults,
+  revokeJudgeOverride,
+  setJudgeOverride,
+  type Normalized,
+} from "@/server/dal/normalization";
 import type { Actor } from "@/server/authz";
 
 // The judge ledger on the fixture: each judge's leniency ± its standard error, the
@@ -131,6 +141,23 @@ describe("the judge ledger", () => {
     mergeDuplicate(organizer(), "evt_01", { keepId: "prj_41", duplicateId: "prj_07" });
     notes = getNormalization(organizer(), "evt_01").notes;
     expect(notes.find((x) => x.note === "Same repository as prj_41.")?.projectId).toBe("prj_41");
+  });
+
+  it("publishing stores each score's ± with the run, and the public results carry exactly the ± the organizer saw", () => {
+    const org = organizer();
+    setJudgeOverride(org, "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    const preview = new Map(getNormalization(org, "evt_01").normalization.projects.map((p) => [p.id, p.se]));
+    publishResults(org, "evt_01");
+    const published = getPublishedResults("evt_01");
+    if (!published.published) throw new Error("expected published results");
+    const rows = published.tracks.flatMap((t) => t.rows);
+    expect(rows.length).toBe(40);
+    for (const r of rows) {
+      expect(r.se, r.projectId).not.toBeNull();
+      expect(r.se).toBeCloseTo(preview.get(r.projectId)!, 12);
+    }
   });
 
   it("known-bad: comparing a run with itself finds nothing to predict", () => {

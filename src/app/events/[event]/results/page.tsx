@@ -34,8 +34,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
         <>
           <p className="mt-6 max-w-[760px] text-17 text-ink-2">
             Published {formatUtc(results.publishedAt)}. Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge
-            proved to be across the event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. Places compare within a track. Close scores are close:
-            read small gaps as ties.
+            proved to be across the event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. Places compare within a track. The ± under each score
+            is one standard error: scores closer than about two of them are not told apart, so read small gaps as ties.
           </p>
           <div className="mt-10 flex flex-col gap-12">
             {results.tracks.map((t) => {
@@ -69,6 +69,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           <span className="text-right">
                             <span className="block text-20 font-semibold tnum">{r.score === null ? "–" : r.score.toFixed(2)}</span>
                             <span className="block text-12 text-ink-2 tnum">
+                              {r.se !== null ? `± ${r.se.toFixed(2)} · ` : ""}
                               {r.n} {r.n === 1 ? "review" : "reviews"}
                             </span>
                           </span>

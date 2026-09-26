@@ -120,7 +120,7 @@ function projectsCsv(db: DbOrTx, event: EventRow): string {
 function normalizedCsv(db: DbOrTx, event: EventRow): string {
   const n = computeNormalization(db, event);
   return toCsv(
-    ["project_id", "title", "track", "team", "duplicate_of", "reviews_all", "reviews_counted", "raw_mean", "raw_mean_kept", "normalized", "rank_raw", "rank_kept", "rank_normalized", "track_rank", "under_reviewed", "k", "beta2", "sigma2", "excluded_judges"],
+    ["project_id", "title", "track", "team", "duplicate_of", "reviews_all", "reviews_counted", "raw_mean", "raw_mean_kept", "normalized", "normalized_se", "rank_raw", "rank_kept", "rank_normalized", "track_rank", "under_reviewed", "k", "beta2", "sigma2", "excluded_judges"],
     n.projects.map((p) => [
       p.id,
       p.title,
@@ -132,6 +132,7 @@ function normalizedCsv(db: DbOrTx, event: EventRow): string {
       p.rawAll === null ? "" : p.rawAll.toFixed(4),
       p.rawKept === null ? "" : p.rawKept.toFixed(4),
       p.score === null ? "" : p.score.toFixed(4),
+      p.se === null ? "" : p.se.toFixed(4),
       p.rankRaw ?? "",
       p.rankKept ?? "",
       p.rankNormalized ?? "",
