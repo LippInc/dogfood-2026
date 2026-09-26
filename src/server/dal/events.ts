@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import type { EventFacts } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { events, projects, teams, tracks, userRoles } from "../db/schema";
+import { events, prizes, projects, rubricCriteria, teams, tracks, userRoles } from "../db/schema";
 import { NotFoundError } from "../errors";
 
 export type EventRow = typeof events.$inferSelect;
@@ -135,5 +135,42 @@ export function getGallery(idOrSlug: string): Gallery {
       tracks: trackRows.length,
       judges: judges?.n ?? 0,
     },
+  };
+}
+
+export type About = {
+  event: PublicEvent;
+  tracks: { id: string; name: string; count: number }[];
+  prizes: { id: string; name: string; description: string }[];
+  rubric: { key: string; label: string; prompt: string; weight: number; scaleMin: number; scaleMax: number }[];
+};
+
+/** The event's public facts: dates, tracks, prizes and how projects are judged. */
+export function getAbout(idOrSlug: string): About {
+  const gallery = getGallery(idOrSlug);
+  const db = getDb();
+  const id = gallery.event.id;
+  return {
+    event: gallery.event,
+    tracks: gallery.tracks,
+    prizes: db
+      .select({ id: prizes.id, name: prizes.name, description: prizes.description })
+      .from(prizes)
+      .where(eq(prizes.eventId, id))
+      .orderBy(asc(prizes.position))
+      .all(),
+    rubric: db
+      .select({
+        key: rubricCriteria.key,
+        label: rubricCriteria.label,
+        prompt: rubricCriteria.prompt,
+        weight: rubricCriteria.weight,
+        scaleMin: rubricCriteria.scaleMin,
+        scaleMax: rubricCriteria.scaleMax,
+      })
+      .from(rubricCriteria)
+      .where(eq(rubricCriteria.eventId, id))
+      .orderBy(asc(rubricCriteria.position))
+      .all(),
   };
 }
