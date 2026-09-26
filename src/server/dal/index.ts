@@ -7,7 +7,7 @@ import "server-only";
 export { currentActor } from "../session";
 export type { Actor } from "../authz";
 export { HttpError, AuthzError, NotFoundError, ValidationError, ConflictError } from "../errors";
-export { getAbout, getGallery, listEvents, type About, type Gallery, type GalleryProject, type PublicEvent } from "./events";
+export { eventRef, getAbout, getGallery, listEvents, type About, type Gallery, type GalleryProject, type PublicEvent } from "./events";
 export {
   createProject,
   updateProject,

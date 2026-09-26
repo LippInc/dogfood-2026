@@ -190,3 +190,9 @@ export function getAbout(idOrSlug: string): About {
       .all(),
   };
 }
+
+/** An event's id and slug, for routes that key cookies by id. Public. */
+export function eventRef(idOrSlug: string): { id: string; slug: string } {
+  const e = requireEvent(getDb(), idOrSlug);
+  return { id: e.id, slug: e.slug };
+}
