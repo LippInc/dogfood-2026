@@ -157,8 +157,9 @@ The portal starts without the sample event and prints, in its own log, a
 one-time link: `administrator setup: open https://hack.example.org/sign-up?setup=...`.
 Open it and sign up with the address in `ADMIN_EMAILS`: that account is an
 administrator, and on **Your events** it creates your event (dates, tracks,
-prizes, rubric) or imports one from a `fixtures.json`-format file. Organizers,
-judges and teams join through the links the portal gives you. Accounts are not
+prizes, rubric) or imports one from a `fixtures.json`-format file. Judges and
+teams join through the links the portal gives you; co-organizers sign up and you
+add them by their email on the event's **Settings** tab. Accounts are not
 email-verified, so the address alone proves nothing: without the setup link a
 sign-up with a named address is refused, and an account that already exists is
 never promoted, so name an address that has no account yet.

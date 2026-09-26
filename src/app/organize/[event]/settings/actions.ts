@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import {
   actionError,
+  addOrganizer,
   currentActor,
+  removeOrganizer,
   savePrizes,
   saveQuestions,
   saveRubric,
@@ -67,4 +69,16 @@ export async function saveQuestionsAction(_prev: ActionResult, form: FormData): 
 export async function saveRubricAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const actor = await currentActor();
   return run(form, (slug) => saveRubric(actor, slug, rows(form, "rubric")), "Rubric saved. Totals are recomputed from the stored scores.");
+}
+
+export async function addOrganizerAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  let added = false;
+  const result = await run(form, (slug) => void (added = addOrganizer(actor, slug, { email: form.get("email") }).added), "Added: they see this event under Your events now.");
+  return result.ok && !added ? { ok: true, message: "They already organize this event." } : result;
+}
+
+export async function removeOrganizerAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  return run(form, (slug) => removeOrganizer(actor, slug, String(form.get("user") ?? "")), "Removed.");
 }

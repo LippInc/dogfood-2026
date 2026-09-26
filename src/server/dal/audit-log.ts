@@ -170,6 +170,10 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(after.mode === "include" ? " reinstated " : " left out "), person(target), t(`: ${quote(after.reason)}`)];
     case "judge.override_revoke":
       return [actor, t(" undid the override on "), person(target)];
+    case "event.organizer_added":
+      return [actor, t(" made "), person(target), t(" an organizer")];
+    case "event.organizer_removed":
+      return [actor, t(" removed "), person(target), t(" as an organizer")];
     case "project.merge":
       return [actor, t(" merged "), project(target), { text: ` ${target}`, mono: true }, t(" into "), { text: String(after.into), mono: true }];
     case "project.unmerge":

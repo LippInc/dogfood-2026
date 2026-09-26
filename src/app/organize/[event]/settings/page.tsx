@@ -4,8 +4,10 @@ import { RowsEditor } from "@/components/rows-editor";
 import { SectionForm } from "@/components/section-form";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { guardPage, utcInput } from "@/lib/page-guard";
-import { currentActor, getOrganizerEvent } from "@/server/dal";
-import { savePrizesAction, saveQuestionsAction, saveRubricAction, saveDetailsAction, saveTracksAction } from "./actions";
+import { formatUtc } from "@/lib/format";
+import { currentActor, getOrganizerEvent, listOrganizers } from "@/server/dal";
+import { addOrganizerAction, savePrizesAction, saveQuestionsAction, saveRubricAction, saveDetailsAction, saveTracksAction } from "./actions";
+import { RemoveOrganizer } from "./remove-organizer";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Settings" };
@@ -18,6 +20,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
   if (!actor) unauthorized();
   const o = guardPage(() => getOrganizerEvent(actor, key));
   const { event } = o;
+  const organizers = listOrganizers(actor, event.id);
   const hidden = { event: event.slug };
   const totalWeight = o.rubric.reduce((s, c) => s + c.weight, 0);
   return (
@@ -63,6 +66,36 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               <input type="number" name="maxTeamSize" min={1} max={20} defaultValue={event.settings.maxTeamSize ?? 4} className={input} />
             </label>
           </div>
+        </SectionForm>
+
+        <SectionForm
+          id="organizers"
+          title="Organizers"
+          description="Everyone here can change this event, settle its decisions and publish its results. Add someone by the email of their account: they sign up first, since the portal sends no mail. The last organizer cannot be removed."
+          action={addOrganizerAction}
+          hidden={hidden}
+          submitLabel="Add organizer"
+        >
+          <ul className="mb-4 divide-y divide-rule rounded-sm border border-rule">
+            {organizers.map((g) => (
+              <li key={g.userId} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
+                <span className="min-w-0">
+                  <span className="block text-14 font-medium">
+                    {g.name}
+                    {g.userId === actor.userId ? <span className="ml-2 text-12 font-normal text-ink-2">you</span> : null}
+                  </span>
+                  <span className="block truncate text-13 text-ink-2">
+                    {g.email} · since {formatUtc(g.since)}
+                  </span>
+                </span>
+                {organizers.length > 1 ? <RemoveOrganizer eventSlug={event.slug} userId={g.userId} name={g.name} /> : null}
+              </li>
+            ))}
+          </ul>
+          <label className="flex flex-col gap-1 text-13 text-ink-2 sm:max-w-[420px]">
+            Email of their account
+            <input name="email" type="email" autoComplete="off" className={input} />
+          </label>
         </SectionForm>
 
         <SectionForm

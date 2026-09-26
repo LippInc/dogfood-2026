@@ -76,6 +76,7 @@ export {
   type Receipt,
 } from "./normalization";
 export { getOverview, type Overview, type Stage } from "./overview";
+export { addOrganizer, listOrganizers, removeOrganizer, type Organizer } from "./organizers";
 export { getAuditLog, type AuditLine, type Part } from "./audit-log";
 export { getSubmissions, type SubmissionRow } from "./submissions";
 export {

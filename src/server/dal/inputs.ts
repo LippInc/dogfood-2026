@@ -17,4 +17,5 @@ export { BallotInput, RestoreInput, SettingsInput, VoidInput, VoterList } from "
 export { WebhookInput } from "./webhooks";
 export { ClaimInput } from "./claims";
 export { TokenInput } from "./tokens";
+export { OrganizerInput } from "./organizers";
 export { FixtureSchema } from "../db/import-fixtures";
