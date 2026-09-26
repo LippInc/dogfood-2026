@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Circle, Lock } from "lucide-react";
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,8 +66,16 @@ export function ProjectForm({
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,680px)_320px] lg:justify-between">
       <form
-        action={action}
+        // Submitted by hand instead of action={...}: React resets a form after an
+        // action, which would drop the chosen track and the checklist with it.
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          const submitter = (ev.nativeEvent as SubmitEvent).submitter;
+          const data = new FormData(ev.currentTarget, submitter);
+          startTransition(() => action(data));
+        }}
         onInput={(ev) => setChecklist(needed(ev.currentTarget, questions, project))}
+        onChange={(ev) => setChecklist(needed(ev.currentTarget, questions, project))}
         className="flex flex-col gap-6"
         noValidate
       >
