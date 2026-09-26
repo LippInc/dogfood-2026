@@ -26,10 +26,21 @@ export type EventTimes = {
   submissionsCloseAt: string;
   judgingCloseAt: string | null;
   resultsPublishedAt: string | null;
+  votingOpenAt?: string | null;
+  votingCloseAt?: string | null;
 };
 
 /** The event's phase in the organizers' dossier voice, for the status strip. */
 export function eventPhase(e: EventTimes, now = new Date()): { key: string; parts: string[] } {
+  const base = phaseOf(e, now);
+  const t = now.getTime();
+  if (e.votingOpenAt && e.votingCloseAt && t >= Date.parse(e.votingOpenAt) && t < Date.parse(e.votingCloseAt)) {
+    return { key: base.key, parts: [...base.parts, `Voting open until ${formatUtc(e.votingCloseAt)}`] };
+  }
+  return base;
+}
+
+function phaseOf(e: EventTimes, now: Date): { key: string; parts: string[] } {
   const t = now.getTime();
   const close = formatUtc(e.submissionsCloseAt);
   if (e.resultsPublishedAt) {
