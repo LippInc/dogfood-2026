@@ -4,7 +4,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 ## People and sessions
 
-**`users`** — one row per person. `id` text pk; `email` text unique, stored lowercased (CHECK: equals its lowercase and contains `@`); `name` text; `password_hash` text, null for imported people who have no password yet (argon2id hash, never the password); `is_admin` int boolean, default false (true for the addresses in `ADMIN_EMAILS` and for the demo organizer; administrators create and import events); `created_at` text.
+**`users`** — one row per person. `id` text pk; `email` text unique, stored lowercased (CHECK: equals its lowercase and contains `@`); `name` text; `password_hash` text, null for imported people who have no password yet (argon2id hash, never the password); `is_admin` int boolean, default false (true for an address in `ADMIN_EMAILS` that signed up through the one-time setup link, and for the demo organizer; administrators create and import events); `created_at` text.
 
 **`user_roles`** — one role of one person in one event. Roles are rows, not a column, so a judge who is also a team member is one user with two rows. `user_id`, `event_id`, `role` (`organizer` | `judge` | `participant`), `created_at`; pk (`user_id`, `event_id`, `role`).
 

@@ -1,13 +1,20 @@
 import "server-only";
-import { and, eq, inArray } from "drizzle-orm";
-import { appendAudit } from "./audit";
+import { timingSafeEqual } from "node:crypto";
+import { inArray } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { users } from "./db/schema";
+import { newSecret, sha256 } from "./util";
 
 // Who administers a portal run for a real event: the addresses in ADMIN_EMAILS
-// (comma or space separated). An account with one of them is an administrator from
-// sign-up on, and an existing one becomes one at the next start; each grant is
-// audited. Taking an address out of the list later does not take the role away.
+// (comma or space separated). Accounts are not email-verified, so an address alone
+// proves nothing: signing up with a named address needs the one-time setup code the
+// portal prints in its own log at start (only the operator sees it), and without it
+// the sign-up is refused, so nobody can take the address first. The code lives only
+// in this process, as a hash; a restart prints a new one while a named address has
+// no account. Existing accounts are never promoted.
+
+const SETUP = Symbol.for("dogfood.admin-setup-hash");
+const store = globalThis as typeof globalThis & { [SETUP]?: string };
 
 export function adminEmails(): Set<string> {
   return new Set(
@@ -18,24 +25,34 @@ export function adminEmails(): Set<string> {
   );
 }
 
-/** Make every existing account named in ADMIN_EMAILS an administrator; returns the addresses changed. */
-export function grantNamedAdmins(db: Db, now: string): string[] {
+/**
+ * At start: when ADMIN_EMAILS names an address that has no account yet, make this
+ * process's setup code and return it for the log. Null when there is nothing to set up.
+ */
+export function openAdminSetup(db: Db): { code: string; waiting: string[] } | null {
   const named = [...adminEmails()];
-  if (!named.length) return [];
-  return db.transaction((tx) => {
-    const rows = tx
-      .select({ id: users.id, email: users.email })
+  delete store[SETUP];
+  if (!named.length) return null;
+  const taken = new Set(
+    db
+      .select({ email: users.email })
       .from(users)
-      .where(and(inArray(users.email, named), eq(users.isAdmin, false)))
-      .all();
-    for (const u of rows) {
-      tx.update(users).set({ isAdmin: true }).where(eq(users.id, u.id)).run();
-      appendAudit(
-        tx,
-        { actorUserId: null, actorLabel: "system", action: "user.admin_granted", targetType: "user", targetId: u.id, before: { isAdmin: false }, after: { isAdmin: true, by: "ADMIN_EMAILS" } },
-        now,
-      );
-    }
-    return rows.map((u) => u.email);
-  });
+      .where(inArray(users.email, named))
+      .all()
+      .map((u) => u.email),
+  );
+  const waiting = named.filter((e) => !taken.has(e));
+  if (!waiting.length) return null;
+  const code = newSecret(24);
+  store[SETUP] = sha256(code);
+  return { code, waiting };
+}
+
+/** Does this match the setup code printed at start? */
+export function setupCodeValid(code: unknown): boolean {
+  const hash = store[SETUP];
+  if (typeof hash !== "string" || typeof code !== "string" || !code) return false;
+  const given = Buffer.from(sha256(code));
+  const wanted = Buffer.from(hash);
+  return given.length === wanted.length && timingSafeEqual(given, wanted);
 }

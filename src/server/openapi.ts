@@ -32,7 +32,7 @@ export const OPERATIONS: Operation[] = [
   { method: "GET", path: "/api/openapi.json", tag: "Portal", summary: "This document", access: "anyone" },
 
   // Accounts
-  { method: "POST", path: "/api/auth/sign-up", tag: "Accounts", summary: "Create an account and sign in (sets the session cookie)", access: "anyone", body: In.SignUp, ok: 201, also: [409] },
+  { method: "POST", path: "/api/auth/sign-up", tag: "Accounts", summary: "Create an account and sign in (sets the session cookie)", access: "anyone", body: In.SignUp, ok: 201, also: [403, 409], note: "An address named in ADMIN_EMAILS signs up only with the one-time setup code from the server log (403 without it)." },
   { method: "POST", path: "/api/auth/sign-in", tag: "Accounts", summary: "Sign in with email and password (sets the session cookie)", access: "anyone", body: credentials, also: [401, 429] },
   { method: "POST", path: "/api/auth/sign-out", tag: "Accounts", summary: "End the session", access: "anyone" },
 

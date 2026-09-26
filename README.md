@@ -153,11 +153,15 @@ On a fresh volume, set these in `docker-compose.yml` and start it:
       COOKIE_SECURE: "true"
 ```
 
-The portal starts without the sample event (`portal ready: .../sign-up`). Sign up
-with the address in `ADMIN_EMAILS`: that account is an administrator, and on
-**Your events** it creates your event (dates, tracks, prizes, rubric) or imports
-one from a `fixtures.json`-format file. Organizers, judges and teams join through
-the links the portal gives you.
+The portal starts without the sample event and prints, in its own log, a
+one-time link: `administrator setup: open https://hack.example.org/sign-up?setup=...`.
+Open it and sign up with the address in `ADMIN_EMAILS`: that account is an
+administrator, and on **Your events** it creates your event (dates, tracks,
+prizes, rubric) or imports one from a `fixtures.json`-format file. Organizers,
+judges and teams join through the links the portal gives you. Accounts are not
+email-verified, so the address alone proves nothing: without the setup link a
+sign-up with a named address is refused, and an account that already exists is
+never promoted, so name an address that has no account yet.
 
 Why `SEED_CHECKER_SESSIONS: "false"`: the checker's four
 session tokens are public in `.dogfood.toml`. They are derived from
@@ -173,7 +177,7 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 | `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
 | `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
 | `WEBHOOKS_ALLOW_PRIVATE` | `"true"` lets webhooks reach private and local addresses; leave it unset unless the receiver is on your own network |
-| `ADMIN_EMAILS` | Addresses (comma separated) whose accounts are administrators: from sign-up on, or at the next start for an account that exists; each grant is in the audit log. Administrators create and import events |
+| `ADMIN_EMAILS` | Addresses (comma separated) for the portal's administrators, who create and import events. Each signs up through the one-time setup link the portal prints in its log at start (a new one at every start, while a named address has no account yet); the sign-up's audit row records it |
 | `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file each start imports (idempotently: rows already there are left as they are); `"none"` starts without the sample event |
 
 `docker-compose.yml` publishes the portal on `127.0.0.1:8080` only; put it behind

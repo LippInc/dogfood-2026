@@ -7,12 +7,18 @@ import { Input } from "@/components/ui/input";
 import type { ActionResult } from "@/server/dal";
 import { signUpAction } from "./actions";
 
-export function SignUpForm({ next }: { next: string | null }) {
+export function SignUpForm({ next, setup }: { next: string | null; setup: string | null }) {
   const [state, action, pending] = useActionState<ActionResult, FormData>(signUpAction, { ok: false, message: null });
   const e = state.fieldErrors ?? {};
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>
       {next ? <input type="hidden" name="next" value={next} /> : null}
+      {setup ? <input type="hidden" name="setup" value={setup} /> : null}
+      {setup ? (
+        <p className="border-l-[3px] border-edge bg-sunken px-3 py-2 text-14">
+          Administrator setup: sign up with the address named in <code className="font-mono text-13">ADMIN_EMAILS</code> to administer this portal.
+        </p>
+      ) : null}
       <Field id="name" label="Your name" error={e.name}>
         {(a) => <Input {...a} name="name" autoComplete="name" required />}
       </Field>

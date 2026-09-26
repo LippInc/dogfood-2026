@@ -1,6 +1,6 @@
 import "server-only";
 import path from "node:path";
-import { grantNamedAdmins } from "./admins";
+import { openAdminSetup } from "./admins";
 import { checkerSessionsEnabled, checkerToml, ensureDemoOrganizer, seedCheckerSessions, writeCheckerFile } from "./checker";
 import { databasePath, handle, type Handle } from "./db/client";
 import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
@@ -11,8 +11,8 @@ import { startWebhookWorker } from "./webhooks";
 import { nowIso } from "./util";
 
 // Runs once per server start, from instrumentation.ts: migrate, re-assert the
-// triggers, import the fixtures (idempotent; FIXTURES_PATH=none skips them), grant
-// the administrators named in ADMIN_EMAILS, upsert the checker sessions, and
+// triggers, import the fixtures (idempotent; FIXTURES_PATH=none skips them), open
+// the administrator setup for ADMIN_EMAILS, upsert the checker sessions, and
 // print the readiness lines. Everything here is synchronous better-sqlite3 work.
 // Next opens its port before this finishes; the line to wait for is ours.
 
@@ -50,8 +50,6 @@ export async function boot(): Promise<void> {
 
   const now = nowIso();
   const eventId = bootFixture(h, now);
-  const granted = grantNamedAdmins(h.db, now);
-  if (granted.length) console.log(`[boot] administrators from ADMIN_EMAILS: ${granted.join(", ")}`);
   const key = ensureSigningKey(h.db, now);
   console.log(`[boot] records are signed with Ed25519 key ${key.id}; public key at /.well-known/dogfood-keys.json`);
 
@@ -74,6 +72,11 @@ export async function boot(): Promise<void> {
     lines.push(
       `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}.`,
     );
+  }
+  const setup = openAdminSetup(h.db);
+  if (setup) {
+    lines.push(`administrator setup: open ${base}/sign-up?setup=${setup.code}`);
+    lines.push(`  and sign up as ${setup.waiting.join(" or ")} (only this link makes an administrator; it changes at every start)`);
   }
   startWebhookWorker();
   lines.push(`portal ready: ${event ? `${base}/events/${event.slug}` : `${base}/sign-up`}  (boot took ${Date.now() - started} ms)`);

@@ -1,11 +1,11 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { adminEmails } from "../admins";
+import { adminEmails, setupCodeValid } from "../admins";
 import { appendAudit } from "../audit";
 import { getDb } from "../db/client";
 import { users } from "../db/schema";
-import { ConflictError, ValidationError } from "../errors";
+import { ConflictError, HttpError, ValidationError } from "../errors";
 import { createLoginSession, hashPassword, setSessionCookie } from "../session";
 import { newId } from "../util";
 
@@ -13,17 +13,24 @@ export const SignUp = z.object({
   name: z.string().trim().min(1, "your name is required").max(80),
   email: z.string().trim().toLowerCase().email("that is not an email address").max(254),
   password: z.string().min(10, "at least 10 characters").max(200),
+  /** the one-time administrator setup code from the server log, for an address in ADMIN_EMAILS */
+  setup: z.string().max(200).optional(),
 });
 
 /**
  * Create an account and sign it in. An account has no role of its own: roles come
  * from joining a team (participant), a judge invite (judge) or creating an event
- * (organizer). An address named in ADMIN_EMAILS signs up as an administrator.
+ * (organizer). An address named in ADMIN_EMAILS signs up as an administrator, and
+ * only with the setup code the portal printed in its log at start (admins.ts).
  */
 export async function signUp(body: unknown): Promise<{ userId: string }> {
   const parsed = SignUp.safeParse(body);
   if (!parsed.success) throw new ValidationError("Check the highlighted fields.", z.flattenError(parsed.error).fieldErrors);
-  const { name, email, password } = parsed.data;
+  const { name, email, password, setup } = parsed.data;
+  const isAdmin = adminEmails().has(email);
+  if (isAdmin && !setupCodeValid(setup)) {
+    throw new HttpError(403, "admin_setup_required", "This address is kept for the portal's administrator. Open the setup link from the server log to sign up with it.");
+  }
   const passwordHash = hashPassword(password);
   const db = getDb();
   const session = db.transaction((tx) => {
@@ -33,7 +40,6 @@ export async function signUp(body: unknown): Promise<{ userId: string }> {
     }
     if (existing) throw new ConflictError("email_taken", "An account with that email already exists. Sign in instead.");
     const id = newId("usr");
-    const isAdmin = adminEmails().has(email);
     tx.insert(users).values({ id, email, name, passwordHash, isAdmin, createdAt: new Date().toISOString() }).run();
     appendAudit(tx, { actorUserId: id, actorLabel: name, action: "user.sign_up", targetType: "user", targetId: id, after: isAdmin ? { isAdmin: true, by: "ADMIN_EMAILS" } : null });
     return { id, ...createLoginSession(tx, id) };

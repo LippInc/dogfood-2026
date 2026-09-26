@@ -9,6 +9,7 @@ export const metadata: Metadata = { title: "Create an account" };
 export default async function SignUpPage({ searchParams }: PageProps<"/sign-up">) {
   const sp = await searchParams;
   const next = typeof sp.next === "string" && sp.next.startsWith("/") && !sp.next.startsWith("//") ? sp.next : null;
+  const setup = typeof sp.setup === "string" && sp.setup.length <= 200 ? sp.setup : null;
   return (
     <PlainShell width="max-w-[520px]">
       <h1 className="font-display text-38">Create an account</h1>
@@ -17,7 +18,7 @@ export default async function SignUpPage({ searchParams }: PageProps<"/sign-up">
         invites you to judge.
       </p>
       <div className="mt-8">
-        <SignUpForm next={next} />
+        <SignUpForm next={next} setup={setup} />
       </div>
       <p className="mt-6 text-14 text-ink-2">
         Already have an account?{" "}

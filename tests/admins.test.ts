@@ -6,19 +6,22 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
-import { grantNamedAdmins } from "@/server/admins";
+import { openAdminSetup, setupCodeValid } from "@/server/admins";
 import { bootFixture } from "@/server/boot";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
+import { HttpError } from "@/server/errors";
 import { signUp } from "@/server/dal/accounts";
 import { healthCheck } from "@/server/dal/auth";
 
-// Running the portal for a real event: the administrators come from ADMIN_EMAILS
-// (at sign-up, or at the next start for an existing account, audited), and
-// FIXTURES_PATH=none starts a portal without the sample event that still reports
-// healthy.
+// Running the portal for a real event. The administrator is named in ADMIN_EMAILS,
+// but accounts are not email-verified, so signing up with that address needs the
+// one-time setup code the portal prints in its log at start; anyone else trying the
+// address is refused. FIXTURES_PATH=none starts a portal without the sample event
+// that still reports healthy.
 
 const NOW = "2026-09-27T00:00:00.000Z";
+const PASSWORD = "a long enough password";
 let h: Handle;
 const saved = { admins: process.env.ADMIN_EMAILS, fixtures: process.env.FIXTURES_PATH };
 
@@ -41,35 +44,66 @@ afterEach(() => {
 });
 
 const isAdmin = (email: string) => (h.sqlite.prepare("SELECT is_admin AS a FROM users WHERE email = ?").get(email) as { a: number } | undefined)?.a;
-const audits = (action: string) => (h.sqlite.prepare("SELECT count(*) AS n FROM audit_log WHERE action = ?").get(action) as { n: number }).n;
 
-describe("administrators for a real event", () => {
-  it("an address in ADMIN_EMAILS signs up as an administrator, recorded in the audit row; any other address does not", async () => {
-    process.env.ADMIN_EMAILS = "Chair@Example.org, second@example.org";
-    await signUp({ name: "Chair", email: "chair@example.org", password: "a long enough password" });
-    await signUp({ name: "Someone", email: "someone@example.org", password: "a long enough password" });
+async function refused(p: Promise<unknown>): Promise<HttpError> {
+  try {
+    await p;
+  } catch (err) {
+    expect(err).toBeInstanceOf(HttpError);
+    return err as HttpError;
+  }
+  throw new Error("expected a refusal");
+}
+
+describe("the administrator of a real event", () => {
+  it("signs up with the address in ADMIN_EMAILS and the setup code from the log, and the audit row says so", async () => {
+    process.env.ADMIN_EMAILS = "Chair@Example.org";
+    const setup = openAdminSetup(h.db)!;
+    expect(setup.waiting).toEqual(["chair@example.org"]);
+    await signUp({ name: "Chair", email: "chair@example.org", password: PASSWORD, setup: setup.code });
     expect(isAdmin("chair@example.org")).toBe(1);
-    expect(isAdmin("someone@example.org")).toBe(0);
-    const row = h.sqlite.prepare("SELECT after FROM audit_log WHERE action = 'user.sign_up' AND target_id = (SELECT id FROM users WHERE email = 'chair@example.org')").get() as { after: string };
+    const row = h.sqlite.prepare("SELECT after FROM audit_log WHERE action = 'user.sign_up'").get() as { after: string };
     expect(JSON.parse(row.after)).toEqual({ isAdmin: true, by: "ADMIN_EMAILS" });
+    // once every named address has an account there is nothing left to set up
+    expect(openAdminSetup(h.db)).toBeNull();
+    expect(setupCodeValid(setup.code)).toBe(false);
   });
 
-  it("an existing account named in ADMIN_EMAILS becomes an administrator at the next start, once, audited", async () => {
-    await signUp({ name: "Early", email: "early@example.org", password: "a long enough password" });
+  it("known-bad: someone else taking the named address first is refused with 403, without the code or with a wrong one", async () => {
+    process.env.ADMIN_EMAILS = "chair@example.org";
+    openAdminSetup(h.db);
+    const bare = await refused(signUp({ name: "Mallory", email: "chair@example.org", password: PASSWORD }));
+    expect([bare.status, bare.code]).toEqual([403, "admin_setup_required"]);
+    const guessed = await refused(signUp({ name: "Mallory", email: "chair@example.org", password: PASSWORD, setup: "guess" }));
+    expect(guessed.status).toBe(403);
+    expect(isAdmin("chair@example.org")).toBeUndefined(); // no account was made
+  });
+
+  it("the code makes no one else an administrator, and ordinary sign-up is untouched", async () => {
+    process.env.ADMIN_EMAILS = "chair@example.org";
+    const setup = openAdminSetup(h.db)!;
+    await signUp({ name: "Someone", email: "someone@example.org", password: PASSWORD, setup: setup.code });
+    await signUp({ name: "Other", email: "other@example.org", password: PASSWORD });
+    expect(isAdmin("someone@example.org")).toBe(0);
+    expect(isAdmin("other@example.org")).toBe(0);
+  });
+
+  it("known-bad: an existing account named later is not promoted, and a restart makes a new code", async () => {
+    await signUp({ name: "Early", email: "early@example.org", password: PASSWORD });
+    process.env.ADMIN_EMAILS = "early@example.org, chair@example.org";
+    const first = openAdminSetup(h.db)!;
+    expect(first.waiting).toEqual(["chair@example.org"]);
     expect(isAdmin("early@example.org")).toBe(0);
-    process.env.ADMIN_EMAILS = "early@example.org";
-    expect(grantNamedAdmins(h.db, NOW)).toEqual(["early@example.org"]);
-    expect(isAdmin("early@example.org")).toBe(1);
-    expect(audits("user.admin_granted")).toBe(1);
-    expect(grantNamedAdmins(h.db, NOW)).toEqual([]); // nothing left to change
-    expect(audits("user.admin_granted")).toBe(1);
+    const second = openAdminSetup(h.db)!;
+    expect(second.code).not.toBe(first.code);
+    expect(setupCodeValid(first.code)).toBe(false);
+    expect(setupCodeValid(second.code)).toBe(true);
   });
 
-  it("known-bad: without ADMIN_EMAILS nobody is made an administrator", async () => {
+  it("without ADMIN_EMAILS there is no setup and no code works", () => {
     delete process.env.ADMIN_EMAILS;
-    await signUp({ name: "Chair", email: "chair@example.org", password: "a long enough password" });
-    expect(grantNamedAdmins(h.db, NOW)).toEqual([]);
-    expect(isAdmin("chair@example.org")).toBe(0);
+    expect(openAdminSetup(h.db)).toBeNull();
+    expect(setupCodeValid("anything")).toBe(false);
   });
 });
 
