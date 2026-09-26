@@ -59,7 +59,7 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 | T4 | Certificate and record generation | Built | After publishing: a certificate for each member of a submitting team (podium places and a community-vote win on it) and a record for each judge, at `/records/<id>`, printable. Organizers issue them all on the Results tab; people can fetch their own from their project page or the judge console | Publish the sample event (Overview: make the three decisions, then Publish), then Results tab, "Issue every record", and open one |
 | T4 | Signed, publicly verifiable judge participation records | Built | Ed25519 over the record's canonical JSON; the public key at `/.well-known/dogfood-keys.json` (open to any site); checked in the browser with WebCrypto on each record page and on `/verify`, by `POST /api/records/verify`, or offline with `node scripts/verify-record.mjs <record URL or file> [--keys <saved key file>]` | Download a record, change one letter, paste it into `/verify`: "Not valid" from the browser and the portal; the script exits 1 |
 | T4 | Embeddable gallery widget | Built | `<script src="http://localhost:8080/embed.js" data-event="sample-hack-2026" async></script>`; the frame is `/embed/sample-hack-2026` | `curl -sI localhost:8080/embed/sample-hack-2026` shows `frame-ancestors *`; every other page answers `frame-ancestors 'none'` |
-| T4 | Bulk import and export | Partly built | CSV exports and `event.json` on the organizer's Overview; fixture import at first start | No bulk import from the interface or the API yet |
+| T4 | Bulk import and export | Built | Export at every stage: scores, projects, normalized ranking and audit log as CSV, `event.json`, and `fixtures.json` in the organizers' own fixture format. Import: an administrator uploads such a file on Your events (or `POST /api/imports`), through the same idempotent importer the portal boots with; people who come in that way get personal links to set a password (Integrations tab) | Export `fixtures.json` from the Integrations tab, import it on a fresh portal: the same tables and a byte-identical `normalized.csv` (`tests/import-claims.test.ts` does exactly this) |
 
 ## What it does
 
@@ -100,6 +100,11 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   route and the document disagree. Webhooks send any audited action to your URL,
   signed with HMAC-SHA256 and retried with backoff; each delivery is written in
   the same transaction as the change, so none is lost or invented.
+- **Import and export.** Every stage exports as CSV, and a whole event as
+  `event.json` or as `fixtures.json`, the organizers' own fixture format, which
+  an administrator can import into another portal to get the same event, scores
+  and ranking. Imported people get into their accounts through one-time personal
+  links the organizer sends.
 - **Audit log.** Every change and every refused request is recorded in the same
   transaction as the change; the database refuses edits and deletes of the log,
   and each row carries the hash of the one before.
@@ -121,8 +126,9 @@ documented on purpose; set your own when the flag is on anywhere public.
   same machine), but a host name whose DNS answer changes between the check and
   the request is not caught. Webhook secrets are kept in the database as they
   are, because the portal signs with them.
-- No email: invitations, voter links and reminders are links the organizer copies
-  and sends. Accounts are not email-verified.
+- No email: invitations, voter links, personal links for imported people and
+  reminders are links the organizer copies and sends. Accounts are not
+  email-verified.
 - Rate limits and duplicate-ballot flags key on the client address from
   `X-Forwarded-For`; run the portal behind a reverse proxy that overwrites it, or
   a client can pick its own. The limits live in memory and reset on restart.
