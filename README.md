@@ -56,8 +56,8 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 | T3 | Randomized project ordering on ballots | Built | Each voter's ballot, seeded per voter | B4: two ballots, two different orders |
 | T3 | Anti abuse: rate limits, duplicate detection, audit trail | Built | Limits on ballots, link entries, comments, sign-in; flags on the organizer's Voting tab; the audit log | B5, B7, B9 (429 with `Retry-After`), B12 (every step is in the audit log) |
 | T4 | REST API and webhooks | Partly built | JSON routes under `/api` for the actions above | No OpenAPI document and no webhooks yet |
-| T4 | Certificate and record generation | Not built | | |
-| T4 | Signed, publicly verifiable judge participation records | Not built | | |
+| T4 | Certificate and record generation | Built | After publishing: a certificate for each member of a submitting team (podium places and a community-vote win on it) and a record for each judge, at `/records/<id>`, printable. Organizers issue them all on the Results tab; people can fetch their own from their project page or the judge console | Publish the sample event (Overview: make the three decisions, then Publish), then Results tab, "Issue every record", and open one |
+| T4 | Signed, publicly verifiable judge participation records | Built | Ed25519 over the record's canonical JSON; the public key at `/.well-known/dogfood-keys.json` (open to any site); checked in the browser with WebCrypto on each record page and on `/verify`, by `POST /api/records/verify`, or offline with `node scripts/verify-record.mjs <record URL or file> [--keys <saved key file>]` | Download a record, change one letter, paste it into `/verify`: "Not valid" from the browser and the portal; the script exits 1 |
 | T4 | Embeddable gallery widget | Built | `<script src="http://localhost:8080/embed.js" data-event="sample-hack-2026" async></script>`; the frame is `/embed/sample-hack-2026` | `curl -sI localhost:8080/embed/sample-hack-2026` shows `frame-ancestors *`; every other page answers `frame-ancestors 'none'` |
 | T4 | Bulk import and export | Partly built | CSV exports and `event.json` on the organizer's Overview; fixture import at first start | No bulk import from the interface or the API yet |
 
@@ -88,6 +88,12 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   ballots are flagged for an audited set-aside; ballots, link entries, comments
   and sign-in are rate limited. Signed-in visitors can comment on projects, and an
   organizer can hide a comment with a reason that stays in its place.
+- **Signed certificates and judging records.** Once results are published, each
+  team member can get a certificate and each judge a record of their judging,
+  signed with the portal's Ed25519 key. Anyone holding one can check it: on its
+  page (the browser verifies the signature itself), on `/verify`, or offline with
+  `scripts/verify-record.mjs`. The key is made at first start and kept in the
+  database; back up the data volume to keep it.
 - **Audit log.** Every change and every refused request is recorded in the same
   transaction as the change; the database refuses edits and deletes of the log,
   and each row carries the hash of the one before.
