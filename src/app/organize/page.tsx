@@ -4,6 +4,7 @@ import { unauthorized } from "next/navigation";
 import { WorkShell } from "@/components/shell/work-shell";
 import { formatUtc } from "@/lib/format";
 import { currentActor, organizedEvents } from "@/server/dal";
+import { ImportEventForm } from "./import-form";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your events" };
@@ -40,6 +41,19 @@ export default async function OrganizeHome() {
             ))}
           </ul>
         )}
+        {canCreate ? (
+          <section aria-labelledby="import-title" className="mt-10 flex flex-col gap-3 border-t border-rule pt-8">
+            <h2 id="import-title" className="text-20 font-semibold">
+              Import an event
+            </h2>
+            <p className="max-w-[680px] text-15 text-ink-2">
+              From a file in the organizers&rsquo; fixture format: the <code className="font-mono text-13">fixtures.json</code> any event here
+              exports, or one you wrote. Tracks, judges, teams, projects and scores come in; importing the same file again changes nothing. People
+              who come in this way get into their accounts through personal links, made on the event&rsquo;s Integrations tab.
+            </p>
+            <ImportEventForm />
+          </section>
+        ) : null}
       </div>
     </WorkShell>
   );

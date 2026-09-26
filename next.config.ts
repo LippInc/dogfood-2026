@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
   // A native module: loaded from node_modules at run time, never bundled.
   serverExternalPackages: ["better-sqlite3"],
   // forbidden() / unauthorized(): designed 403 and 401 pages with real status codes.
-  experimental: { authInterrupts: true },
+  // Event files come in through a server action on /organize: allow 5 MB, as the API does.
+  experimental: { authInterrupts: true, serverActions: { bodySizeLimit: "5mb" } },
   poweredByHeader: false,
   async headers() {
     const common = [

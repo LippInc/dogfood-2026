@@ -191,12 +191,78 @@ function eventJson(db: DbOrTx, event: EventRow): string {
   );
 }
 
+/**
+ * The event in the organizers' own fixture format, the format importEventFile reads:
+ * export here, import on another portal. Submitted projects and finished reviews
+ * only, since the format has no drafts; decisions and settings stay in event.json.
+ */
+function fixturesJson(db: DbOrTx, event: EventRow): string {
+  const judgeRows = db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(userRoles)
+    .innerJoin(users, eq(users.id, userRoles.userId))
+    .where(and(eq(userRoles.eventId, event.id), eq(userRoles.role, "judge")))
+    .orderBy(asc(users.id))
+    .all();
+  const judgeTrackRows = db.select().from(judgeTracks).where(eq(judgeTracks.eventId, event.id)).all();
+  const teamRows = db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, event.id)).orderBy(asc(teams.id)).all();
+  const memberRows = db
+    .select({ teamId: teamMembers.teamId, email: users.email, role: teamMembers.role })
+    .from(teamMembers)
+    .innerJoin(users, eq(users.id, teamMembers.userId))
+    .where(eq(teamMembers.eventId, event.id))
+    .orderBy(asc(teamMembers.joinedAt), asc(users.email))
+    .all();
+  const projectRows = db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.eventId, event.id), eq(projects.status, "submitted")))
+    .orderBy(asc(projects.id))
+    .all();
+  const submitted = new Set(projectRows.map((p) => p.id));
+  const scoreRows = judgeRows.flatMap((j) =>
+    reviewsOf(db, j.id)
+      .filter((r) => r.eventId === event.id && r.status === "done" && submitted.has(r.projectId))
+      .map((r) => ({
+        judge: j.id,
+        project: r.projectId,
+        criteria: Object.fromEntries(r.items.map((i) => [i.key, i.value])),
+        ...(r.feedback ? { comment: r.feedback } : {}),
+      })),
+  );
+  return JSON.stringify(
+    {
+      event: { id: event.id, name: event.name, submissions_close: event.submissionsCloseAt },
+      tracks: db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, event.id)).orderBy(asc(tracks.id)).all(),
+      judges: judgeRows.map((j) => ({ ...j, tracks: judgeTrackRows.filter((t) => t.judgeUserId === j.id).map((t) => t.trackId).sort() })),
+      teams: teamRows.map((t) => ({
+        ...t,
+        // the captain first, as the importer makes the first member captain
+        members: memberRows.filter((m) => m.teamId === t.id).sort((a, b) => Number(b.role === "captain") - Number(a.role === "captain")).map((m) => m.email),
+      })),
+      projects: projectRows.map((p) => ({
+        id: p.id,
+        team: p.teamId,
+        track: p.trackId,
+        title: p.title,
+        summary: p.summary,
+        repo_url: p.repoUrl ?? "",
+        submitted_at: p.submittedAt,
+      })),
+      scores: scoreRows,
+    },
+    null,
+    2,
+  );
+}
+
 const EXPORTS: Record<string, Exporter> = {
   "scores.csv": scoresCsv,
   "projects.csv": projectsCsv,
   "normalized.csv": normalizedCsv,
   "audit.csv": (db, event) => auditCsv(db, event.id),
   "event.json": eventJson,
+  "fixtures.json": fixturesJson,
 };
 
 export const EXPORT_FILES = Object.keys(EXPORTS);
