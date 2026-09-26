@@ -1,0 +1,19 @@
+[portal]
+base_url = "http://localhost:8080"
+
+[tiers]
+claimed = ["T1"]
+pitch = "A self-hostable hackathon portal where every score, average and rank can show how it was made."
+
+[auth]
+organizer   = "Cookie: session=orgd06d53eac2b2061c514020674bcbbf1b"
+judge_a     = "Cookie: session=jda4d393188549c1dfbf8cd3a2a899ba0c7"
+judge_b     = "Cookie: session=jdb4a7712829005eada67841c188639537e"
+participant = "Cookie: session=prte053419851227128f688366a3e3c8c90"
+
+[routes]
+gallery      = "/events/sample-hack-2026"
+submit       = "/api/events/evt_01/projects"
+judge_scores = "/api/judge/scores"
+peer_scores  = "/api/judge/scores?judge=jdg_24"
+csv_export   = "/api/events/evt_01/export/scores.csv"
