@@ -1,6 +1,6 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { Slot } from "radix-ui";
 
 // Buttons restyled to the tokens (DESIGN.md): flat, 4px radius, no gradients or

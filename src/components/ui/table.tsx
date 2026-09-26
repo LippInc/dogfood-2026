@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 // Hairline tables: rules do all the separation, a sticky header, numbers right-
 // aligned with tabular figures (give a numeric cell className="num").
