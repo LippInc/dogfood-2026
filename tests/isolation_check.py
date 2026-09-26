@@ -536,6 +536,12 @@ def run_checks(cfg):
                    f"ratelimit.refused targets {limited!r}", f"a refusal row for {what!r}")
     checks.append(c)
 
+    # ============ Section C: T4 (tests/isolation_t4.py; it publishes the results) ============
+    from isolation_t4 import section_c
+
+    people = {"visitor": visitor, "participant": participant, "judge_a": judge_a, "judge_b": judge_b, "organizer": organizer}
+    checks += section_c(u, people, cfg)
+
     return checks
 
 
@@ -551,8 +557,8 @@ def main():
 
     print("DOGFOOD 2026 isolation hand-check")
     print(f"portal: {base}")
-    print("warning: this check writes data (votes, comments, voting settings);")
-    print("run it on a fresh instance, after run.py, never on one you care about.")
+    print("warning: this check writes data (votes, comments, voting settings) and publishes")
+    print("the sample event's results; run it on a fresh instance, after run.py, never on one you care about.")
     print()
 
     checks = run_checks(cfg)
@@ -573,6 +579,11 @@ def main():
     b_ran = [c for c in checks if c.section == "B" and not c.skipped]
     verified = all(c.ok for c in b_ran)
     print(f"T3 behaviour: {'verified' if verified else 'NOT verified'}")
+    c_all = [c for c in checks if c.section == "C"]
+    c_ran = [c for c in c_all if not c.skipped]
+    skipped = len(c_all) - len(c_ran)
+    note = f" ({skipped} skipped, see above)" if skipped else ""
+    print(f"T4 behaviour: {'verified' if c_ran and all(c.ok for c in c_ran) else 'NOT verified'}{note}")
 
     return 0 if passed == len(ran) else 1
 
