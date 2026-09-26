@@ -3,7 +3,7 @@ import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { Face } from "@/components/face";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, isPast } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { currentActor, getSubmissions } from "@/server/dal";
 
@@ -22,7 +22,7 @@ export default async function SubmissionsPage({ params }: PageProps<"/organize/[
           <div>
             <h1 className="text-24 font-semibold">Submissions</h1>
             <p className="mt-2 text-15 text-ink-2 tnum">
-              {submitted} submitted · {drafts} {drafts === 1 ? "draft" : "drafts"} · submissions {Date.now() < Date.parse(event.submissionsCloseAt) ? "close" : "closed"}{" "}
+              {submitted} submitted · {drafts} {drafts === 1 ? "draft" : "drafts"} · submissions {isPast(event.submissionsCloseAt) ? "closed" : "close"}{" "}
               {formatUtc(event.submissionsCloseAt)}
             </p>
           </div>

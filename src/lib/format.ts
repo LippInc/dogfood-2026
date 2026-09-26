@@ -51,3 +51,8 @@ export function eventPhase(e: EventTimes, now = new Date()): { key: string; part
     ],
   };
 }
+
+/** Whether a moment has passed (server pages ask this once per request). */
+export function isPast(iso: string, now: number = Date.now()): boolean {
+  return now >= Date.parse(iso);
+}
