@@ -45,6 +45,11 @@ rules, the assignment engine, the normalization engine and its Monte Carlo
 validation, voting and comments, the audit log's append-only triggers and hash
 chain.
 
+How it is built: `ARCHITECTURE.md` (a request's path through the one permission
+check, the audit log, boot, the API) and `DATA-MODEL.md` (every table, its
+constraints and what personal data it keeps). How judging works and why:
+`JUDGING.md`.
+
 ## Beyond the checker
 
 Every T3 and T4 bullet from the event site, what exists, and how to check it by
@@ -119,11 +124,12 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 Set `SEED_CHECKER_SESSIONS: "false"` in `docker-compose.yml`: the checker's four
 session tokens are public in `.dogfood.toml`. They are derived from
 `DOGFOOD_SEED_SECRET`, whose default (`dogfood-2026-public-demo-secret`) is
-documented on purpose; set your own when the flag is on anywhere public.
+documented on purpose; set your own when the flag is on anywhere public. The
+same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
+"Privacy"), so a real event sets its own in any case.
 
 ## What it does not do yet
 
-- T4 is partly built; see "Beyond the checker" for what is missing.
 - Webhook targets on private or local addresses are refused, when added and at
   every delivery (`WEBHOOKS_ALLOW_PRIVATE=true` lifts that for a receiver on the
   same machine), but a host name whose DNS answer changes between the check and
@@ -140,7 +146,6 @@ documented on purpose; set your own when the flag is on anywhere public.
   the interface; a record keeps what was true when it was issued.
 - No calibrated prize probabilities or rank intervals: normalized ranks compare
   within a track, and close scores should be read as ties.
-- `ARCHITECTURE.md` and `DATA-MODEL.md` are still to come.
 
 ## Licence
 
