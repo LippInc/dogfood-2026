@@ -44,7 +44,7 @@ Monte Carlo validation, the audit log's append-only triggers and hash chain.
   organizer's overview shows progress live and lists the decisions that must be
   made before results can go out: a flat judge, a duplicate entry, an
   under-reviewed project. Scores are normalized for judge leniency with a method
-  documented in `JUDGING.md` (draft in progress), and each project's normalized
+  documented and defended in `JUDGING.md`, and each project's normalized
   score comes with its receipt, judge by judge.
 - **Results and exports.** Publishing is locked until every decision is made; it
   stores the exact normalization run it publishes. Teams then see their place,
@@ -71,7 +71,7 @@ documented on purpose; set your own when the flag is on anywhere public.
 - Results cannot be unpublished from the interface.
 - No calibrated prize probabilities or rank intervals: normalized ranks compare
   within a track, and close scores should be read as ties.
-- `ARCHITECTURE.md`, `DATA-MODEL.md` and the final `JUDGING.md` are still to come.
+- `ARCHITECTURE.md` and `DATA-MODEL.md` are still to come.
 
 ## Licence
 
