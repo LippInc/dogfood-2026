@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { unauthorized } from "next/navigation";
+import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,6 +29,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
       eventName={event.name}
       eventHref={`/organize/${event.slug}`}
       tabs={organizerTabs(event.slug, "Judges")}
+      tools={<LiveRefresh />}
       person={actor.name}
       role="Organizer"
     >
