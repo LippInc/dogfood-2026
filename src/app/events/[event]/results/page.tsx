@@ -5,6 +5,7 @@ import { Face } from "@/components/face";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
 import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, type Gallery } from "@/server/dal";
+import { competitionPlaces, ordinal } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Results" };
@@ -17,18 +18,6 @@ function load(key: string): Gallery {
     throw err;
   }
 }
-
-/** Competition-style places for display: tied projects share the first place of their group. */
-function places(rows: { score: number | null }[]): { place: number | null; joint: boolean }[] {
-  return rows.map((r, i) => {
-    if (r.score === null) return { place: null, joint: false };
-    const first = rows.findIndex((x) => x.score !== null && Math.abs(x.score - r.score!) <= 1e-9);
-    const joint = rows.filter((x) => x.score !== null && Math.abs(x.score - r.score!) <= 1e-9).length > 1;
-    return { place: first + 1, joint: joint || first !== i };
-  });
-}
-
-const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
 
 export default async function ResultsPage({ params }: PageProps<"/events/[event]/results">) {
   const { event: key } = await params;
@@ -50,7 +39,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
           </p>
           <div className="mt-10 flex flex-col gap-12">
             {results.tracks.map((t) => {
-              const shown = places(t.rows);
+              const shown = competitionPlaces(t.rows);
               return (
                 <section key={t.id} aria-labelledby={`track-${t.id}`}>
                   <h2 id={`track-${t.id}`} className="border-b border-rule pb-2 text-24 font-semibold">
