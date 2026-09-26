@@ -123,5 +123,6 @@ export function homeFor(userId: string): string {
 export function healthCheck(): { ok: boolean; events: number } {
   const row = getDb().select({ n: sql<number>`count(*)` }).from(events).get();
   const n = row?.n ?? 0;
-  return { ok: n > 0, events: n };
+  // seeded means ready, unless the portal was asked to start empty (FIXTURES_PATH=none)
+  return { ok: n > 0 || process.env.FIXTURES_PATH === "none", events: n };
 }

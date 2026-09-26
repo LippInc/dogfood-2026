@@ -1,7 +1,8 @@
 import "server-only";
 import path from "node:path";
+import { grantNamedAdmins } from "./admins";
 import { checkerSessionsEnabled, checkerToml, ensureDemoOrganizer, seedCheckerSessions, writeCheckerFile } from "./checker";
-import { databasePath, handle } from "./db/client";
+import { databasePath, handle, type Handle } from "./db/client";
 import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
@@ -10,7 +11,8 @@ import { startWebhookWorker } from "./webhooks";
 import { nowIso } from "./util";
 
 // Runs once per server start, from instrumentation.ts: migrate, re-assert the
-// triggers, import the fixtures (idempotent), upsert the checker sessions, and
+// triggers, import the fixtures (idempotent; FIXTURES_PATH=none skips them), grant
+// the administrators named in ADMIN_EMAILS, upsert the checker sessions, and
 // print the readiness lines. Everything here is synchronous better-sqlite3 work.
 // Next opens its port before this finishes; the line to wait for is ours.
 
@@ -18,14 +20,16 @@ export function fixturesPath(): string {
   return process.env.FIXTURES_PATH ?? path.join(process.cwd(), "fixtures.json");
 }
 
-export async function boot(): Promise<void> {
-  const started = Date.now();
-  const h = handle();
-  const triggers = runMigrations(h);
-  if (triggers.restored.length > 0) console.warn(`[boot] triggers restored: ${triggers.restored.join(", ")}`);
-
-  const now = nowIso();
+/**
+ * The start-up fixture import (idempotent); returns the fixture event's id, or null
+ * when FIXTURES_PATH=none asks for a portal that starts empty.
+ */
+export function bootFixture(h: Handle, now: string): string | null {
   const file = fixturesPath();
+  if (file === "none") {
+    console.log("[boot] no fixture import (FIXTURES_PATH=none): the portal starts without the sample event");
+    return null;
+  }
   const { fixture, sha256 } = loadFixtureFile(file);
   const report = importFixtures(h.db, fixture, { source: path.basename(file), sha256, now });
   const inserted = Object.values(report.inserted).reduce((a, b) => a + b, 0);
@@ -35,15 +39,29 @@ export async function boot(): Promise<void> {
       : `[boot] fixtures already imported (${path.basename(file)}, sha256 ${sha256.slice(0, 12)}); nothing changed`,
   );
   for (const s of report.skipped) console.warn(`[boot] fixture ${s.kind} ${s.id} skipped: ${s.reason}`);
+  return report.eventId;
+}
+
+export async function boot(): Promise<void> {
+  const started = Date.now();
+  const h = handle();
+  const triggers = runMigrations(h);
+  if (triggers.restored.length > 0) console.warn(`[boot] triggers restored: ${triggers.restored.join(", ")}`);
+
+  const now = nowIso();
+  const eventId = bootFixture(h, now);
+  const granted = grantNamedAdmins(h.db, now);
+  if (granted.length) console.log(`[boot] administrators from ADMIN_EMAILS: ${granted.join(", ")}`);
   const key = ensureSigningKey(h.db, now);
   console.log(`[boot] records are signed with Ed25519 key ${key.id}; public key at /.well-known/dogfood-keys.json`);
 
   const base = process.env.PUBLIC_URL ?? "http://localhost:8080";
-  const event = requireEvent(h.db, report.eventId);
+  const event = eventId ? requireEvent(h.db, eventId) : null;
   const lines: string[] = [];
   if (checkerSessionsEnabled()) {
-    ensureDemoOrganizer(h.db, report.eventId, now);
-    const seeded = seedCheckerSessions(h.db, report.eventId, now);
+    if (!eventId || !event) throw new Error("SEED_CHECKER_SESSIONS=true needs the fixture event: set FIXTURES_PATH to a fixture file, or turn the flag off");
+    ensureDemoOrganizer(h.db, eventId, now);
+    const seeded = seedCheckerSessions(h.db, eventId, now);
     if (seeded.enabled) {
       const written = writeCheckerFile(path.dirname(databasePath()), checkerToml(seeded.identities, event));
       lines.push("seeded. test logins:");
@@ -52,13 +70,13 @@ export async function boot(): Promise<void> {
       lines.push(`  the [auth] and [routes] blocks for .dogfood.toml are in ${written}`);
     }
   } else {
-    const seeded = seedCheckerSessions(h.db, report.eventId, now);
+    const seeded = seedCheckerSessions(h.db, eventId ?? "", now);
     lines.push(
       `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}.`,
     );
   }
   startWebhookWorker();
-  lines.push(`portal ready: ${base}/events/${event.slug}  (boot took ${Date.now() - started} ms)`);
+  lines.push(`portal ready: ${event ? `${base}/events/${event.slug}` : `${base}/sign-up`}  (boot took ${Date.now() - started} ms)`);
   console.log(lines.join("\n"));
 }
 

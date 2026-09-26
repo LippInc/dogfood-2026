@@ -142,7 +142,24 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 
 ## Running it for a real event
 
-Set `SEED_CHECKER_SESSIONS: "false"` in `docker-compose.yml`: the checker's four
+On a fresh volume, set these in `docker-compose.yml` and start it:
+
+```yaml
+      SEED_CHECKER_SESSIONS: "false"
+      FIXTURES_PATH: "none"
+      ADMIN_EMAILS: "you@example.org"
+      DOGFOOD_SEED_SECRET: "a long random string of your own"
+      PUBLIC_URL: "https://hack.example.org"
+      COOKIE_SECURE: "true"
+```
+
+The portal starts without the sample event (`portal ready: .../sign-up`). Sign up
+with the address in `ADMIN_EMAILS`: that account is an administrator, and on
+**Your events** it creates your event (dates, tracks, prizes, rubric) or imports
+one from a `fixtures.json`-format file. Organizers, judges and teams join through
+the links the portal gives you.
+
+Why `SEED_CHECKER_SESSIONS: "false"`: the checker's four
 session tokens are public in `.dogfood.toml`. They are derived from
 `DOGFOOD_SEED_SECRET`, whose default (`dogfood-2026-public-demo-secret`) is
 documented on purpose; set your own when the flag is on anywhere public. The
@@ -156,7 +173,8 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 | `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
 | `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
 | `WEBHOOKS_ALLOW_PRIVATE` | `"true"` lets webhooks reach private and local addresses; leave it unset unless the receiver is on your own network |
-| `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file each start imports (idempotently: rows already there are left as they are) |
+| `ADMIN_EMAILS` | Addresses (comma separated) whose accounts are administrators: from sign-up on, or at the next start for an account that exists; each grant is in the audit log. Administrators create and import events |
+| `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file each start imports (idempotently: rows already there are left as they are); `"none"` starts without the sample event |
 
 `docker-compose.yml` publishes the portal on `127.0.0.1:8080` only; put it behind
 a reverse proxy that terminates HTTPS and overwrites `X-Forwarded-For` (see the

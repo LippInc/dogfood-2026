@@ -1,6 +1,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { adminEmails } from "../admins";
 import { appendAudit } from "../audit";
 import { getDb } from "../db/client";
 import { users } from "../db/schema";
@@ -17,7 +18,7 @@ export const SignUp = z.object({
 /**
  * Create an account and sign it in. An account has no role of its own: roles come
  * from joining a team (participant), a judge invite (judge) or creating an event
- * (organizer).
+ * (organizer). An address named in ADMIN_EMAILS signs up as an administrator.
  */
 export async function signUp(body: unknown): Promise<{ userId: string }> {
   const parsed = SignUp.safeParse(body);
@@ -32,8 +33,9 @@ export async function signUp(body: unknown): Promise<{ userId: string }> {
     }
     if (existing) throw new ConflictError("email_taken", "An account with that email already exists. Sign in instead.");
     const id = newId("usr");
-    tx.insert(users).values({ id, email, name, passwordHash, isAdmin: false, createdAt: new Date().toISOString() }).run();
-    appendAudit(tx, { actorUserId: id, actorLabel: name, action: "user.sign_up", targetType: "user", targetId: id });
+    const isAdmin = adminEmails().has(email);
+    tx.insert(users).values({ id, email, name, passwordHash, isAdmin, createdAt: new Date().toISOString() }).run();
+    appendAudit(tx, { actorUserId: id, actorLabel: name, action: "user.sign_up", targetType: "user", targetId: id, after: isAdmin ? { isAdmin: true, by: "ADMIN_EMAILS" } : null });
     return { id, ...createLoginSession(tx, id) };
   });
   await setSessionCookie(session.token, session.expires);
