@@ -249,6 +249,21 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", () =>
     }
   });
 
+  it("reports how often the flat-judge rule flags an honest judge (the rule is a reversible flag for this reason)", () => {
+    const lines: string[] = [];
+    for (const sc of SCENARIOS.slice(0, 3)) {
+      let panels = 0;
+      for (let r = 0; r < RUNS; r++) {
+        const { reviews } = simulate(sc, r);
+        const flags = flatJudges(reviews.map((x) => ({ judgeId: String(x.j), projectId: String(x.p), values: x.v })));
+        if (flags.some((f) => Number(f.judgeId) !== flatJ)) panels++;
+      }
+      lines.push(`${sc.key}: an honest judge flagged in ${((panels / RUNS) * 100).toFixed(1)} % of ${RUNS} simulated panels`);
+    }
+    console.log(lines.join("\n"));
+    expect(lines).toHaveLength(3);
+  });
+
   it("known-bad: an engine with shifted project indices fails assertion (1)", () => {
     const control = SCENARIOS[0]!;
     const r = run(control, { raw: rawMean, shifted: engine(undefined, 1) }, 100);
