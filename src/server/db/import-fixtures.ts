@@ -83,24 +83,21 @@ export type Fixture = z.infer<typeof FixtureSchema>;
 // Report
 // ---------------------------------------------------------------------------
 
-const TABLE_KEYS = [
-  "events",
-  "tracks",
-  "rubricCriteria",
-  "users",
-  "userRoles",
-  "judgeTracks",
-  "teams",
-  "teamMembers",
-  "projects",
-  "assignmentRuns",
-  "assignments",
-  "scores",
-  "scoreItems",
-  "scoreComments",
-] as const;
-
-type TableKey = (typeof TABLE_KEYS)[number];
+type TableKey =
+  | "events"
+  | "tracks"
+  | "rubricCriteria"
+  | "users"
+  | "userRoles"
+  | "judgeTracks"
+  | "teams"
+  | "teamMembers"
+  | "projects"
+  | "assignmentRuns"
+  | "assignments"
+  | "scores"
+  | "scoreItems"
+  | "scoreComments";
 
 function emptyCounts(): Record<TableKey, number> {
   return {

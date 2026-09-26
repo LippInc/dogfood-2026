@@ -23,7 +23,6 @@ export type Operation = {
   note?: string;
 };
 
-const reason = z.object({ reason: z.string().trim().min(3).max(500) });
 const envelope = z.object({ record: z.record(z.string(), z.unknown()), signature: z.string() });
 const credentials = z.object({ email: z.string(), password: z.string() });
 
