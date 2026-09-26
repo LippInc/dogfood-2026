@@ -1,0 +1,28 @@
+# docker compose up  ->  a seeded portal on http://localhost:8080, no network needed at run time.
+# docker compose down -v  ->  back to a clean slate (the next up re-imports the fixtures).
+services:
+  portal:
+    build: .
+    image: dogfood-portal:local
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      PORT: "8080"
+      HOSTNAME: "0.0.0.0"
+      NEXT_TELEMETRY_DISABLED: "1"
+      PUBLIC_URL: "http://localhost:8080"
+      # Demo and judging only: seeds the four public checker sessions and the demo
+      # sign-in buttons. Set to "false" in production (README, "Running it for real").
+      SEED_CHECKER_SESSIONS: "true"
+      DOGFOOD_SEED_SECRET: "${DOGFOOD_SEED_SECRET:-dogfood-2026-public-demo-secret}"
+    volumes:
+      - portal-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+volumes:
+  portal-data:

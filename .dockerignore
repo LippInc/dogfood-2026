@@ -1,0 +1,10 @@
+.git
+.next
+node_modules
+data
+kickoff
+coverage
+*.log
+.env*
+Dockerfile
+compose.yaml
