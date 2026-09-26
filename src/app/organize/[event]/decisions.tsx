@@ -47,18 +47,21 @@ function Result({ state }: { state: ActionResult }) {
 }
 
 /** A secondary action that needs a reason: the button reveals the box. */
-function WithReason({
+export function WithReason({
   label,
   submit,
   action,
   hidden,
   eventSlug,
+  idKey,
 }: {
   label: string;
   submit: string;
   action: (prev: ActionResult, form: FormData) => Promise<ActionResult>;
   hidden: Record<string, string | string[]>;
   eventSlug: string;
+  /** makes the reason box's id unique when the same label appears more than once */
+  idKey?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [state, run, pending] = useActionState(action, idle);
@@ -77,11 +80,11 @@ function WithReason({
           <input key={`${k}-${x}`} type="hidden" name={k} value={x} />
         )),
       )}
-      <label className="text-13 font-medium" htmlFor={`reason-${label}`}>
+      <label className="text-13 font-medium" htmlFor={`reason-${idKey ?? label}`}>
         Reason, for the audit log
       </label>
       <Textarea
-        id={`reason-${label}`}
+        id={`reason-${idKey ?? label}`}
         name="reason"
         rows={2}
         autoFocus
@@ -98,7 +101,7 @@ function WithReason({
   );
 }
 
-function OneClick({
+export function OneClick({
   label,
   action,
   fields,

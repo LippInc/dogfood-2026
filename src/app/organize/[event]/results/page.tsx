@@ -8,13 +8,15 @@ import { guardPage } from "@/lib/page-guard";
 import { formatUtc } from "@/lib/format";
 import { currentActor, getNormalization, listRecords, METHOD_LABEL, type ProjectRow } from "@/server/dal";
 import { issueEveryRecord } from "../../../records/actions";
+import { JudgeLedger } from "./judge-ledger";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Results and their working" };
 
 const f2 = (v: number | null) => (v === null ? "–" : v.toFixed(2));
 const rk = (v: number | null) => (v === null ? "–" : Number.isInteger(v) ? String(v) : v.toFixed(1));
-const signed = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`;
+/** Signed to two decimals; a value that rounds to zero shows as 0.00, never −0.00. */
+const signed = (v: number) => (Math.abs(v) < 0.005 ? "0.00" : `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`);
 
 function Move({ p }: { p: ProjectRow }) {
   if (p.rankRaw === null || p.rankNormalized === null) return <span className="text-ink-3">–</span>;
@@ -24,6 +26,24 @@ function Move({ p }: { p: ProjectRow }) {
 }
 
 const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+/** The change from raw, split into what leaving judges out did and what the leniency correction did. */
+function Change({ p }: { p: ProjectRow }) {
+  if (p.score === null || p.rawAll === null || p.rawKept === null) return null;
+  const out = p.rawKept - p.rawAll;
+  const lean = p.score - p.rawKept;
+  return (
+    <p className="mt-1 text-13 text-ink-2">
+      Change from raw: {f2(p.rawAll)} with every judge → {f2(p.score)} normalized
+      {Math.abs(p.score - p.rawAll) < 0.005
+        ? ", no change at two decimals"
+        : Math.abs(out) >= 0.005
+          ? `, ${signed(p.score - p.rawAll)}: ${signed(out)} from leaving judges out, ${signed(lean)} from leniency`
+          : `, ${signed(p.score - p.rawAll)}, all of it from leniency`}
+      .
+    </p>
+  );
+}
 
 export default async function ResultsWorkingPage({ params, searchParams }: PageProps<"/organize/[event]/results">) {
   const { event: key } = await params;
@@ -221,9 +241,18 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                               </tbody>
                             </table>
                             {p.score !== null ? (
-                              <p className="mt-2 font-mono text-12 text-ink-2">
-                                ({p.receipts.filter((r) => !r.excluded).map((r) => f2(r.adjusted)).join(" + ")}) ÷ {p.n} = {f2(p.score)}
-                              </p>
+                              <>
+                                <p className="mt-2 font-mono text-12 text-ink-2">
+                                  ({p.receipts.filter((r) => !r.excluded).map((r) => f2(r.adjusted)).join(" + ")}) ÷ {p.n} = {f2(p.score)}
+                                </p>
+                                <Change p={p} />
+                                {p.se !== null ? (
+                                  <p className="mt-1 text-13 text-ink-2">
+                                    ± {f2(p.se)}: one standard error, from σ̂² = {n.variance.sigma2.toFixed(3)}, the {p.n} counted {p.n === 1 ? "review" : "reviews"} and
+                                    how well their judges&rsquo; leniency is known. Scores closer than about two of these are not told apart.
+                                  </p>
+                                ) : null}
+                              </>
                             ) : null}
                           </div>
                         ) : (
@@ -237,8 +266,11 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                       {f2(p.rawAll)} <span className="text-12 text-ink-3">#{rk(p.rankRaw)}</span>
                     </td>
                     <td className="px-3 py-2 text-right tnum">{f2(p.rawKept)}</td>
-                    <td className="px-3 py-2 text-right font-semibold tnum">{f2(p.score)}</td>
-                    <td className="px-3 py-2 text-right tnum">{p.duplicateOf ? "" : <Move p={p} />}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tnum">
+                      <span className="font-semibold">{f2(p.score)}</span>
+                      {p.se !== null ? <span className="ml-1 text-12 text-ink-3">±{f2(p.se)}</span> : null}
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tnum">{p.duplicateOf ? "" : <Move p={p} />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -249,6 +281,8 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             Normalized ranks compare within a track; tracks compare only through judges who score in both.
           </p>
         </section>
+
+        <JudgeLedger n={n} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} />
 
         {flat?.kind === "flat_judge" && !flat.resolved ? (
           <p className="text-14">

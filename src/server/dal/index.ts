@@ -67,6 +67,7 @@ export {
   setJudgeOverride,
   unmergeDuplicate,
   type Decision,
+  type Influence,
   type JudgeStanding,
   type Normalized,
   type ProjectRow,

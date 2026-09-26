@@ -77,7 +77,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   made before results can go out: a flat judge, a duplicate entry, an
   under-reviewed project. Scores are normalized for judge leniency with a method
   documented and defended in `JUDGING.md`, and each project's normalized
-  score comes with its receipt, judge by judge.
+  score comes with its receipt, judge by judge: the change from the raw mean and
+  a ± of one standard error. A judge ledger shows each judge's leniency ± error
+  and, before any override, what leaving that judge out would move.
 - **Results and exports.** Publishing is locked until every decision is made; it
   stores the exact normalization run it publishes. Teams then see their place,
   score and each review's feedback, judges unnamed. CSV exports (scores,

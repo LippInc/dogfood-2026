@@ -84,6 +84,8 @@ export type ProjectRow = {
   rawAll: number | null;
   rawKept: number | null;
   score: number | null;
+  /** one standard error of the score: √(σ̂² × its entry of the fitted system's inverse) */
+  se: number | null;
   rankRaw: number | null;
   rankKept: number | null;
   rankNormalized: number | null;
@@ -93,11 +95,28 @@ export type ProjectRow = {
   receipts: Receipt[];
 };
 
+/** What one judge's reviews decide: the ranking with this judge's status flipped. */
+export type Influence = {
+  /** left out if counted now, counted again if left out now */
+  change: "leave_out" | "reinstate";
+  /** projects whose normalized rank moves by a place or more */
+  moved: number;
+  biggest: { id: string; title: string; from: number; to: number } | null;
+  /** projects that would have no counted review left */
+  unranked: number;
+  /** tracks whose first place changes */
+  leaders: { trackId: string; trackName: string; from: string[]; to: string[] }[];
+};
+
 export type JudgeStanding = {
   id: string;
   name: string;
+  /** reviews the engine counts / every finished review by this judge */
   n: number;
+  nAll: number;
   leniency: number;
+  /** one standard error of the leniency; null when no leniency is fitted for this judge */
+  se: number | null;
   /** n ÷ (n + k): how much of the judge's own tilt the engine keeps */
   shrink: number;
   /** the plain average of the judge's deviations from co-reviewers, unshrunk */
@@ -105,6 +124,8 @@ export type JudgeStanding = {
   flag: FlatFlag | null;
   override: ActiveOverride | null;
   excluded: boolean;
+  /** when asked for: the single-judge influence check */
+  influence: Influence | null;
 };
 
 export type Normalized = {
@@ -155,13 +176,83 @@ function rankWithin<T extends { id: string }>(rows: T[], value: (r: T) => number
   return out;
 }
 
-export function computeNormalization(db: DbOrTx, event: EventRow, opts: { exclude?: string[]; signal?: boolean } = {}): Normalized {
+/** The normalized ranking of one judge set: overall and within each track. */
+function rankingOf(keptObs: Obs[], canonicalRows: ProjectInfo[], errors = false) {
+  const fit = normalize(keptObs, { errors });
+  const score = new Map(canonicalRows.filter((p) => fit.scores.has(p.id)).map((p) => [p.id, fit.scores.get(p.id)!]));
+  return {
+    fit,
+    score,
+    overall: averageRanks(score),
+    track: rankWithin(canonicalRows, (p) => score.get(p.id) ?? null, (p) => p.trackId),
+  };
+}
+
+/** The ids holding first place in each track. */
+function firstPlaces(canonicalRows: ProjectInfo[], track: Map<string, number>): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const p of canonicalRows) {
+    const r = track.get(p.id);
+    if (r === undefined) continue;
+    const best = out.get(p.trackId);
+    const bestRank = best?.length ? track.get(best[0]!)! : Infinity;
+    if (r < bestRank - 1e-9) out.set(p.trackId, [p.id]);
+    else if (Math.abs(r - bestRank) <= 1e-9) best!.push(p.id);
+  }
+  return out;
+}
+
+/** The single-judge influence check: rank again with this judge's status flipped and say what moves. */
+function influenceOf(judgeId: string, excluded: Set<string>, allObs: Obs[], canonicalRows: ProjectInfo[], base: ReturnType<typeof rankingOf>): Influence {
+  const change = excluded.has(judgeId) ? "reinstate" : "leave_out";
+  const flipped = new Set(excluded);
+  if (change === "reinstate") flipped.delete(judgeId);
+  else flipped.add(judgeId);
+  const next = rankingOf(
+    allObs.filter((o) => !flipped.has(o.judgeId)),
+    canonicalRows,
+  );
+  const title = new Map(canonicalRows.map((p) => [p.id, p.title]));
+  let moved = 0;
+  let unranked = 0;
+  let biggest: Influence["biggest"] = null;
+  for (const [id, from] of base.overall) {
+    const to = next.overall.get(id);
+    if (to === undefined) {
+      unranked++;
+      continue;
+    }
+    const d = Math.abs(to - from);
+    if (d >= 1) moved++;
+    if (d >= 1 && (!biggest || d > Math.abs(biggest.to - biggest.from))) biggest = { id, title: title.get(id)!, from, to };
+  }
+  const before = firstPlaces(canonicalRows, base.track);
+  const after = firstPlaces(canonicalRows, next.track);
+  const trackName = new Map(canonicalRows.map((p) => [p.trackId, p.trackName]));
+  const leaders: Influence["leaders"] = [];
+  for (const trackId of new Set([...before.keys(), ...after.keys()])) {
+    const a = [...(before.get(trackId) ?? [])].sort();
+    const b = [...(after.get(trackId) ?? [])].sort();
+    if (a.join("|") !== b.join("|")) {
+      leaders.push({ trackId, trackName: trackName.get(trackId)!, from: a.map((id) => title.get(id)!), to: b.map((id) => title.get(id)!) });
+    }
+  }
+  return { change, moved, biggest, unranked, leaders };
+}
+
+export function computeNormalization(
+  db: DbOrTx,
+  event: EventRow,
+  opts: { exclude?: string[]; signal?: boolean; influence?: boolean } = {},
+): Normalized {
   const info = submittedProjects(db, event.id);
   const { obs: allObs, own, reviews } = observations(db, event, info);
   const set = judgeSet(db, event.id, reviews);
   const excluded = new Set(opts.exclude ?? set.excluded);
   const keptObs = allObs.filter((o) => !excluded.has(o.judgeId));
-  const fit = normalize(keptObs);
+  const canonicalRows = info.filter((p) => !p.duplicateOf);
+  const base = rankingOf(keptObs, canonicalRows, true);
+  const fit = base.fit;
   const names = judgeNames(db, event.id);
 
   const byProjectAll = new Map<string, Obs[]>();
@@ -169,14 +260,13 @@ export function computeNormalization(db: DbOrTx, event: EventRow, opts: { exclud
   const byProjectKept = new Map<string, Obs[]>();
   for (const o of keptObs) byProjectKept.set(o.projectId, [...(byProjectKept.get(o.projectId) ?? []), o]);
 
-  const canonicalRows = info.filter((p) => !p.duplicateOf);
   const rawAll = new Map(canonicalRows.filter((p) => byProjectAll.has(p.id)).map((p) => [p.id, mean(byProjectAll.get(p.id)!.map((o) => o.y))]));
   const rawKept = new Map(canonicalRows.filter((p) => byProjectKept.has(p.id)).map((p) => [p.id, mean(byProjectKept.get(p.id)!.map((o) => o.y))]));
-  const score = new Map(canonicalRows.filter((p) => fit.scores.has(p.id)).map((p) => [p.id, fit.scores.get(p.id)!]));
+  const score = base.score;
   const rankRaw = averageRanks(rawAll);
   const rankKept = averageRanks(rawKept);
-  const rankNormalized = averageRanks(score);
-  const trackRank = rankWithin(canonicalRows, (p) => score.get(p.id) ?? null, (p) => p.trackId);
+  const rankNormalized = base.overall;
+  const trackRank = base.track;
   const trackRankRaw = rankWithin(canonicalRows, (p) => rawAll.get(p.id) ?? null, (p) => p.trackId);
 
   const rows: ProjectRow[] = info.map((p) => {
@@ -203,6 +293,7 @@ export function computeNormalization(db: DbOrTx, event: EventRow, opts: { exclud
       rawAll: merged ? (ownYs.length ? mean(ownYs) : null) : (rawAll.get(p.id) ?? null),
       rawKept: rawKept.get(p.id) ?? null,
       score: score.get(p.id) ?? null,
+      se: score.has(p.id) ? (fit.se?.scores.get(p.id) ?? null) : null,
       rankRaw: rankRaw.get(p.id) ?? null,
       rankKept: rankKept.get(p.id) ?? null,
       rankNormalized: rankNormalized.get(p.id) ?? null,
@@ -228,21 +319,27 @@ export function computeNormalization(db: DbOrTx, event: EventRow, opts: { exclud
   }
   const counts = new Map<string, number>();
   for (const o of keptObs) counts.set(o.judgeId, (counts.get(o.judgeId) ?? 0) + 1);
+  const countsAll = new Map<string, number>();
+  for (const o of allObs) countsAll.set(o.judgeId, (countsAll.get(o.judgeId) ?? 0) + 1);
   const judgeIds = [...new Set([...names.keys(), ...allObs.map((o) => o.judgeId)])];
   const judges: JudgeStanding[] = judgeIds
     .map((id) => {
       const n = counts.get(id) ?? 0;
       const t = tilts.get(id);
+      const fitted = fit.kUsed !== null && !excluded.has(id) && n > 0;
       return {
         id,
         name: names.get(id) ?? id,
         n,
+        nAll: countsAll.get(id) ?? 0,
         leniency: fit.leniency.get(id) ?? 0,
+        se: fitted ? (fit.se?.leniency.get(id) ?? null) : null,
         shrink: fit.kUsed === null || excluded.has(id) ? 0 : n / (n + fit.kUsed),
         tilt: t && t.length ? mean(t) : null,
         flag: set.flags.find((f) => f.judgeId === id) ?? null,
         override: [...set.overrides].reverse().find((o) => o.judgeId === id) ?? null,
         excluded: excluded.has(id),
+        influence: opts.influence && (countsAll.get(id) ?? 0) > 0 ? influenceOf(id, excluded, allObs, canonicalRows, base) : null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -414,7 +511,7 @@ export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
   guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
-  const now = computeNormalization(db, event, { signal: true });
+  const now = computeNormalization(db, event, { signal: true, influence: true });
   return { event, method: METHOD_LABEL, normalization: now, decisions: decisions(db, event, now) };
 }
 

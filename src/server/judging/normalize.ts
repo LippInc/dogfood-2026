@@ -15,6 +15,12 @@ import "server-only";
 // out before any of this (flat.ts). The fit solves the normal equations directly
 // (one Cholesky); fitByAlternation() reaches the same answer by alternating updates
 // and exists so the tests can hold one against the other.
+//
+// Each estimate's ± is one standard error from the same system (Henderson's
+// mixed-model equations): the error variance of a project's score, and of a judge's
+// leniency against the judge's true one, is σ̂² times that entry of the diagonal
+// of the inverse of the matrix the fit solves. It counts both the review noise and
+// how well the reviewers' leniencies are known.
 
 export type Obs = { judgeId: string; projectId: string; y: number };
 
@@ -34,6 +40,8 @@ export type Fit = {
   scores: Map<string, number>;
   /** judge id → estimated leniency (+ is generous) */
   leniency: Map<string, number>;
+  /** when asked for: the diagonal of the fitted system's inverse; times σ̂², each estimate's error variance */
+  factors?: { scores: Map<string, number>; leniency: Map<string, number> };
 };
 
 const SIGMA2_FLOOR = 0.05;
@@ -97,9 +105,9 @@ export function estimateVariance(obs: readonly Obs[]): Variance {
   return { beta2, W, sigma2, k: beta2 > 0 ? sigma2 / beta2 : null };
 }
 
-/** Solve A x = b for a symmetric positive-definite A (dense Cholesky). */
-export function choleskySolve(A: number[][], b: number[]): number[] {
-  const n = b.length;
+/** The Cholesky factor L of a symmetric positive-definite A (A = L Lᵀ). */
+function choleskyFactor(A: number[][]): number[][] {
+  const n = A.length;
   const L = A.map(() => new Array<number>(n).fill(0));
   for (let i = 0; i < n; i++) {
     for (let j = 0; j <= i; j++) {
@@ -113,6 +121,11 @@ export function choleskySolve(A: number[][], b: number[]): number[] {
       }
     }
   }
+  return L;
+}
+
+function solveFactored(L: number[][], b: number[]): number[] {
+  const n = b.length;
   const z = new Array<number>(n).fill(0);
   for (let i = 0; i < n; i++) {
     let sum = b[i]!;
@@ -128,19 +141,53 @@ export function choleskySolve(A: number[][], b: number[]): number[] {
   return x;
 }
 
+/** Solve A x = b for a symmetric positive-definite A (dense Cholesky). */
+export function choleskySolve(A: number[][], b: number[]): number[] {
+  return solveFactored(choleskyFactor(A), b);
+}
+
+/** The diagonal of A⁻¹ from A's Cholesky factor: (A⁻¹)ᵢᵢ = ‖L⁻¹ eᵢ‖². */
+export function inverseDiagonal(L: number[][]): number[] {
+  const n = L.length;
+  const out = new Array<number>(n).fill(0);
+  const z = new Array<number>(n).fill(0);
+  for (let i = 0; i < n; i++) {
+    let squares = 0;
+    for (let r = i; r < n; r++) {
+      let sum = r === i ? 1 : 0;
+      for (let c = i; c < r; c++) sum -= L[r]![c]! * z[c]!;
+      z[r] = sum / L[r]![r]!;
+      squares += z[r]! * z[r]!;
+    }
+    out[i] = squares;
+  }
+  return out;
+}
+
+/** The inverse's diagonal of a symmetric positive-definite A, for the tests. */
+export function choleskyInverseDiagonal(A: number[][]): number[] {
+  return inverseDiagonal(choleskyFactor(A));
+}
+
 const sortedIds = (ids: Iterable<string>) => [...new Set(ids)].sort();
 
 /**
  * Minimise Σ (y − θ_project − b_judge)² + k Σ b², projects unpenalised. With k null
- * no leniency is fitted and each project's level is its plain mean.
+ * no leniency is fitted and each project's level is its plain mean. With errors,
+ * also the inverse's diagonal (1 ÷ n for a plain mean; 0 for a leniency not fitted).
  */
-export function fitLeniency(obs: readonly Obs[], k: number | null): Fit {
+export function fitLeniency(obs: readonly Obs[], k: number | null, errors = false): Fit {
   const projects = sortedIds(obs.map((o) => o.projectId));
   const judges = sortedIds(obs.map((o) => o.judgeId));
   if (k === null) {
     const scores = new Map<string, number>();
-    for (const [p, list] of groupBy(obs, (o) => o.projectId)) scores.set(p, list.reduce((s, o) => s + o.y, 0) / list.length);
-    return { scores, leniency: new Map(judges.map((j) => [j, 0])) };
+    const factor = new Map<string, number>();
+    for (const [p, list] of groupBy(obs, (o) => o.projectId)) {
+      scores.set(p, list.reduce((s, o) => s + o.y, 0) / list.length);
+      factor.set(p, 1 / list.length);
+    }
+    const leniency = new Map(judges.map((j) => [j, 0]));
+    return errors ? { scores, leniency, factors: { scores: factor, leniency: new Map(leniency) } } : { scores, leniency };
   }
   const P = projects.length;
   const n = P + judges.length;
@@ -159,11 +206,17 @@ export function fitLeniency(obs: readonly Obs[], k: number | null): Fit {
     rhs[b]! += o.y;
   }
   for (let i = P; i < n; i++) A[i]![i]! += k;
-  const x = choleskySolve(A, rhs);
-  return {
+  const L = choleskyFactor(A);
+  const x = solveFactored(L, rhs);
+  const fit: Fit = {
     scores: new Map(projects.map((p, i) => [p, x[i]!])),
     leniency: new Map(judges.map((j, i) => [j, x[P + i]!])),
   };
+  if (errors) {
+    const d = inverseDiagonal(L);
+    fit.factors = { scores: new Map(projects.map((p, i) => [p, d[i]!])), leniency: new Map(judges.map((j, i) => [j, d[P + i]!])) };
+  }
+  return fit;
 }
 
 /** The same fit by alternating updates, to the given tolerance. For the tests. */
@@ -203,13 +256,20 @@ export function averageRanks(values: ReadonlyMap<string, number>): Map<string, n
   return ranks;
 }
 
-export type Normalization = Variance & Fit & { kUsed: number | null };
+export type Normalization = Variance &
+  Fit & {
+    kUsed: number | null;
+    /** when asked for: one standard error of each score and each leniency, √(σ̂² × factor) */
+    se: { scores: Map<string, number>; leniency: Map<string, number> } | null;
+  };
 
 /** Estimate k from the data (or use a fixed one, for the comparison row) and fit. */
-export function normalize(obs: readonly Obs[], opts: { fixedK?: number } = {}): Normalization {
+export function normalize(obs: readonly Obs[], opts: { fixedK?: number; errors?: boolean } = {}): Normalization {
   const variance = estimateVariance(obs);
   const kUsed = opts.fixedK ?? variance.k;
-  return { ...variance, kUsed, ...fitLeniency(obs, kUsed) };
+  const fit = fitLeniency(obs, kUsed, opts.errors ?? false);
+  const se = (m: Map<string, number>) => new Map([...m].map(([id, f]) => [id, Math.sqrt(variance.sigma2 * f)]));
+  return { ...variance, kUsed, ...fit, se: fit.factors ? { scores: se(fit.factors.scores), leniency: se(fit.factors.leniency) } : null };
 }
 
 /** Sample variance of the project means. */
