@@ -77,7 +77,7 @@ export async function runAssignmentAction(_prev: RunResult, form: FormData): Pro
       added: run.added,
       seed: run.seed,
       underReviewed: flagged,
-      message: `${run.added === 0 ? "Nothing to add" : `${run.added} reviews assigned`} (seed ${run.seed}).${
+      message: `${run.added === 0 ? "Nothing to add" : `${run.added} ${run.added === 1 ? "review" : "reviews"} assigned`} (seed ${run.seed}).${
         flagged ? ` ${flagged} under-reviewed ${flagged === 1 ? "project needs" : "projects need"} a judge by hand.` : ""
       }`,
     };
