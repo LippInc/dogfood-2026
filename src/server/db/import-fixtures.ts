@@ -160,7 +160,17 @@ function participantUserId(email: string): string {
 export function importFixtures(
   db: Db,
   fixture: Fixture,
-  opts: { source: string; sha256: string; now?: string },
+  opts: {
+    source: string;
+    sha256: string;
+    now?: string;
+    /** who imports (the audit row's actor); the system when absent */
+    actor?: { userId: string; label: string };
+    /** runs first inside the import's transaction: throw to refuse (the permission check) */
+    gate?: (tx: Parameters<Parameters<Db["transaction"]>[0]>[0]) => void;
+    /** runs last inside the transaction, before the audit row (e.g. make the importer an organizer) */
+    after?: (tx: Parameters<Parameters<Db["transaction"]>[0]>[0], report: ImportReport) => void;
+  },
 ): ImportReport {
   const now = opts.now ?? nowIso();
   const eventId = fixture.event.id;
@@ -178,6 +188,7 @@ export function importFixtures(
 
   // One synchronous transaction: Drizzle on better-sqlite3 throws on async callbacks.
   return db.transaction((tx) => {
+    opts.gate?.(tx);
     // Event
     bump(
       "events",
@@ -243,10 +254,10 @@ export function importFixtures(
     });
 
     // Judges: a user row, a judge role, and one track claim per listed track
-    const judgeByEmail = new Map<string, string>();
+    const judgeByEmail = new Map<string, string>(); // email -> the account that judges
     const judgeEmailById = new Map<string, string>(); // judges whose user row is present
+    const accountOf = new Map<string, string>(); // the file's judge id -> the account's user id
     for (const j of fixture.judges) {
-      judgeByEmail.set(j.email, j.id);
       const changes = insertOnce(
         tx
           .insert(users)
@@ -261,22 +272,26 @@ export function importFixtures(
           .onConflictDoNothing(),
       );
       bump("users", changes);
+      let userId = j.id;
       if (changes === 0 && !tx.select({ id: users.id }).from(users).where(eq(users.id, j.id)).get()) {
-        // the email belongs to a different user id: never invent a second account
-        report.skipped.push({
-          kind: "judge",
-          id: j.id,
-          reason: `email ${j.email} already belongs to a different user`,
-        });
-        continue;
+        // The email has an account under another id (the same person in another
+        // event, or someone who signed up): never invent a second account, use that one.
+        const present = tx.select({ id: users.id }).from(users).where(eq(users.email, j.email)).get();
+        if (!present) {
+          report.skipped.push({ kind: "judge", id: j.id, reason: `user ${j.id} could not be created` });
+          continue;
+        }
+        userId = present.id;
       }
+      accountOf.set(j.id, userId);
+      judgeByEmail.set(j.email, userId);
       judgeEmailById.set(j.id, j.email);
       bump(
         "userRoles",
         insertOnce(
           tx
             .insert(userRoles)
-            .values({ userId: j.id, eventId, role: "judge", createdAt: now })
+            .values({ userId, eventId, role: "judge", createdAt: now })
             .onConflictDoNothing(),
         ),
       );
@@ -294,7 +309,7 @@ export function importFixtures(
           insertOnce(
             tx
               .insert(judgeTracks)
-              .values({ judgeUserId: j.id, eventId, trackId })
+              .values({ judgeUserId: userId, eventId, trackId })
               .onConflictDoNothing(),
           ),
         );
@@ -496,7 +511,7 @@ export function importFixtures(
             .values({
               id: assignmentId,
               eventId,
-              judgeUserId: s.judge,
+              judgeUserId: accountOf.get(s.judge)!,
               projectId: s.project,
               runId,
               batchNo: 1,
@@ -556,14 +571,16 @@ export function importFixtures(
       .values({ source: opts.source, sha256: opts.sha256, importedAt: now, counts: report.inserted })
       .run();
 
+    opts.after?.(tx, report);
+
     // Exactly one audit row, and only when this import actually inserted something
     const total = Object.values(report.inserted).reduce((a, b) => a + b, 0);
     if (total > 0) {
       appendAudit(
         tx,
         {
-          actorUserId: null,
-          actorLabel: "system",
+          actorUserId: opts.actor?.userId ?? null,
+          actorLabel: opts.actor?.label ?? "system",
           action: "fixtures.import",
           eventId,
           targetType: "event",
