@@ -13,10 +13,12 @@ export function formatUtc(iso: string | null | undefined, opts: { weekday?: bool
   return opts.time === false ? day : `${day}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
 }
 
-/** "evt_01" -> "EVT / 01" for the mono event label. */
-export function idLabel(id: string): string {
+/** "evt_01" -> "EVT / 01" for the mono event label; null for long generated ids, which read as noise. */
+export function idLabel(id: string): string | null {
   const [prefix, ...rest] = id.split("_");
-  return rest.length ? `${prefix.toUpperCase()} / ${rest.join("_").toUpperCase()}` : id.toUpperCase();
+  const tail = rest.join("_");
+  if (!tail || tail.length > 6) return null;
+  return `${prefix.toUpperCase()} / ${tail.toUpperCase()}`;
 }
 
 export type EventTimes = {
