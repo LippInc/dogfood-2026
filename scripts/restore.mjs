@@ -15,6 +15,17 @@ if (!backup || !fs.existsSync(backup)) {
   console.error("Usage: node scripts/restore.mjs <backup file>");
   process.exit(2);
 }
+// Overwriting the file under a running portal would corrupt the live database. In
+// `docker compose run` the running service answers at http://portal:8080; outside
+// Compose that name does not resolve and this check passes quickly.
+const running = await fetch(process.env.PORTAL_HEALTH_URL ?? "http://portal:8080/api/health", { signal: AbortSignal.timeout(3000) }).then(
+  () => true,
+  () => false,
+);
+if (running) {
+  console.error("The portal is still running: stop it first (docker compose stop), then run this again.");
+  process.exit(3);
+}
 const check = new Database(backup, { readonly: true, fileMustExist: true });
 const ok = check.pragma("integrity_check", { simple: true });
 const rows = check.prepare("SELECT count(*) AS n FROM audit_log").get().n;

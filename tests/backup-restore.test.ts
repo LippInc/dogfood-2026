@@ -1,4 +1,5 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import http from "node:http";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -17,7 +18,7 @@ let dbPath: string;
 function run(script: string, args: string[]): { code: number; out: string } {
   try {
     const out = execFileSync(process.execPath, [path.join(process.cwd(), "scripts", script), ...args], {
-      env: { ...process.env, DATABASE_PATH: dbPath },
+      env: { ...process.env, DATABASE_PATH: dbPath, PORTAL_HEALTH_URL: "http://127.0.0.1:9/api/health" },
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -89,6 +90,27 @@ describe("backup and restore", () => {
     fs.writeFileSync(bad, "not a database");
     const restore = run("restore.mjs", [bad]);
     expect(restore.code).not.toBe(0);
+    expect(count(dbPath, "SELECT count(*) AS n FROM users")).toBe(users);
+  });
+
+  it("known-bad: a restore while the portal still answers is refused and changes nothing", async () => {
+    const users = count(dbPath, "SELECT count(*) AS n FROM users");
+    const backup = run("backup.mjs", [path.join(dir, "backups")]);
+    const file = backup.out.trim().split(/\s+/)[0]!;
+    const server = http.createServer((_req, res) => res.end("{}"));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const code = await new Promise<number>((resolve) => {
+        const child = execFile(process.execPath, [path.join(process.cwd(), "scripts", "restore.mjs"), file], {
+          env: { ...process.env, DATABASE_PATH: dbPath, PORTAL_HEALTH_URL: `http://127.0.0.1:${port}/api/health` },
+        });
+        child.on("exit", (c) => resolve(c ?? -1));
+      });
+      expect(code).toBe(3);
+    } finally {
+      server.close();
+    }
     expect(count(dbPath, "SELECT count(*) AS n FROM users")).toBe(users);
   });
 
