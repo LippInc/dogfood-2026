@@ -148,7 +148,7 @@ export default async function OverviewPage({
     >
       <Pipeline stages={o.pipeline} />
       <div className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
           <Decisions
             eventSlug={event.slug}
             decisions={o.decisions}
@@ -162,7 +162,7 @@ export default async function OverviewPage({
           />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
           <section
             aria-labelledby="judges-card"
             className="flex flex-col gap-3 rounded-sm border border-rule bg-surface p-5"
