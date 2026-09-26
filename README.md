@@ -55,7 +55,7 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 | T3 | Results hidden during the voting window | Built | `GET /api/events/evt_01/community` | B2: the count is `null` for everyone, organizers included, until the window closes; B10 after |
 | T3 | Randomized project ordering on ballots | Built | Each voter's ballot, seeded per voter | B4: two ballots, two different orders |
 | T3 | Anti abuse: rate limits, duplicate detection, audit trail | Built | Limits on ballots, link entries, comments, sign-in; flags on the organizer's Voting tab; the audit log | B5, B7, B9 (429 with `Retry-After`), B12 (every step is in the audit log) |
-| T4 | REST API and webhooks | Partly built | JSON routes under `/api` for the actions above | No OpenAPI document and no webhooks yet |
+| T4 | REST API and webhooks | Partly built | A JSON route for every action in the interface (61 operations), through the same data access layer and permission checks; OpenAPI 3.1 at `/api/openapi.json`, readable at `/api-docs`; the session cookie or `Authorization: Bearer <token>`. No webhooks yet | `curl localhost:8080/api/openapi.json`; `curl -H "Authorization: Bearer <organizer token from .dogfood.toml>" localhost:8080/api/events/sample-hack-2026/overview` (200), the same as the participant (403) and with no header (401) |
 | T4 | Certificate and record generation | Built | After publishing: a certificate for each member of a submitting team (podium places and a community-vote win on it) and a record for each judge, at `/records/<id>`, printable. Organizers issue them all on the Results tab; people can fetch their own from their project page or the judge console | Publish the sample event (Overview: make the three decisions, then Publish), then Results tab, "Issue every record", and open one |
 | T4 | Signed, publicly verifiable judge participation records | Built | Ed25519 over the record's canonical JSON; the public key at `/.well-known/dogfood-keys.json` (open to any site); checked in the browser with WebCrypto on each record page and on `/verify`, by `POST /api/records/verify`, or offline with `node scripts/verify-record.mjs <record URL or file> [--keys <saved key file>]` | Download a record, change one letter, paste it into `/verify`: "Not valid" from the browser and the portal; the script exits 1 |
 | T4 | Embeddable gallery widget | Built | `<script src="http://localhost:8080/embed.js" data-event="sample-hack-2026" async></script>`; the frame is `/embed/sample-hack-2026` | `curl -sI localhost:8080/embed/sample-hack-2026` shows `frame-ancestors *`; every other page answers `frame-ancestors 'none'` |
@@ -94,6 +94,10 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   page (the browser verifies the signature itself), on `/verify`, or offline with
   `scripts/verify-record.mjs`. The key is made at first start and kept in the
   database; back up the data volume to keep it.
+- **API.** Everything the interface does is also a JSON route: 61 operations,
+  documented at `/api-docs` and as OpenAPI 3.1 at `/api/openapi.json`. The
+  document is built from the server's own validators, and a test fails if a
+  route and the document disagree.
 - **Audit log.** Every change and every refused request is recorded in the same
   transaction as the change; the database refuses edits and deletes of the log,
   and each row carries the hash of the one before.
@@ -107,8 +111,9 @@ documented on purpose; set your own when the flag is on anywhere public.
 
 ## What it does not do yet
 
-- T4 is partly built; see "Beyond the checker" for what is missing. The JSON
-  routes under `/api` are not a documented, stable API yet.
+- T4 is partly built; see "Beyond the checker" for what is missing.
+- No API tokens yet: scripts use a session token (the cookie from signing in) as
+  a Bearer token.
 - No email: invitations, voter links and reminders are links the organizer copies
   and sends. Accounts are not email-verified.
 - Rate limits and duplicate-ballot flags key on the client address from
