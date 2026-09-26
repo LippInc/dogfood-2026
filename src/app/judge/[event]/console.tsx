@@ -408,7 +408,7 @@ export function JudgeConsoleView({
   const body = paragraphs(p.description);
 
   return (
-    <div className="grid lg:h-[calc(100dvh-3rem)] lg:grid-cols-[288px_minmax(0,1fr)_416px]">
+    <div className="grid grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-3rem)] lg:grid-cols-[288px_minmax(0,1fr)_416px]">
       {/* Rail: the judge's own order */}
       <aside aria-label="Your batch" className="flex flex-col border-b border-rule bg-surface lg:min-h-0 lg:border-r lg:border-b-0">
         <div className="border-b border-rule px-5 pt-6 pb-4">
@@ -446,7 +446,7 @@ export function JudgeConsoleView({
                 : `${left} still to review`}
           </p>
         </div>
-        <ol className="flex-1 overflow-y-auto max-lg:max-h-72">
+        <ol className="flex-1 overflow-y-auto max-lg:max-h-56">
           {items.map((i, n) => {
             const r = reviews[i.assignmentId]!;
             const t = totalOf(criteria, r.values);
@@ -489,7 +489,9 @@ export function JudgeConsoleView({
             </button>
             .
           </p>
-          <KeyHints lettersOn={lettersOn} />
+          <div className="max-lg:hidden">
+            <KeyHints lettersOn={lettersOn} />
+          </div>
         </div>
       </aside>
 
@@ -722,10 +724,10 @@ export function JudgeConsoleView({
             ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-4 border-t border-rule px-6 py-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule px-6 py-3">
           <Button size="lg" onClick={saveAndNext}>
             Save and open next
-            <kbd className="ml-2 rounded-[2px] border border-current/40 px-1 font-mono text-12">Ctrl ↵</kbd>
+            <kbd className="ml-2 rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">Ctrl ↵</kbd>
           </Button>
           <Button size="lg" variant="ghost" onClick={() => go(index + 1)}>
             Skip for now
