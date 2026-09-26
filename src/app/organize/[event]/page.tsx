@@ -126,7 +126,6 @@ export default async function OverviewPage({
     )
     .join("\n\n");
 
-  const snippet = `<script src="${origin}/embed.js" data-event="${event.slug}" async></script>`;
 
   return (
     <WorkShell
@@ -328,34 +327,6 @@ export default async function OverviewPage({
             </div>
           </section>
         </div>
-
-        <section
-          aria-labelledby="share-card"
-          className="flex flex-col gap-3 rounded-sm border border-rule bg-surface p-5"
-        >
-          <div className="flex items-baseline justify-between">
-            <h2 id="share-card" className="text-15 font-semibold">
-              Put the gallery on your site
-            </h2>
-            <Link
-              href={`/embed/${event.slug}`}
-              className="text-13 underline underline-offset-4"
-            >
-              Preview
-            </Link>
-          </div>
-          <p className="text-14 text-ink-2">
-            Paste this where the gallery should appear; it grows to fit its
-            projects. Add <code className="font-mono text-13">{'data-track="Track name"'}</code>{" "}
-            to show one track.
-          </p>
-          <div className="flex flex-col items-start gap-2 sm:flex-row">
-            <pre className="w-full min-w-0 flex-1 whitespace-pre-wrap break-all rounded-sm border border-rule bg-raised px-3 py-2 font-mono text-12">
-              {snippet}
-            </pre>
-            <CopyButton text={snippet} label="Copy snippet" />
-          </div>
-        </section>
       </div>
     </WorkShell>
   );

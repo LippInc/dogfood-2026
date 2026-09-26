@@ -89,6 +89,7 @@ export function organizerTabs(slug: string, active: string): WorkTab[] {
     { href: `/organize/${slug}/voting`, label: "Voting" },
     { href: `/organize/${slug}/results`, label: "Results" },
     { href: `/organize/${slug}/audit`, label: "Audit log" },
+    { href: `/organize/${slug}/integrations`, label: "Integrations" },
     { href: `/organize/${slug}/settings`, label: "Settings" },
   ].map((t) => ({ ...t, active: t.label === active }));
 }
