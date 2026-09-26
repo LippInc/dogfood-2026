@@ -108,7 +108,7 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   and, before any override, what leaving that judge out would move.
 - **Results and exports.** Publishing is locked until every decision is made; it
   stores the exact normalization run it publishes. Teams then see their place,
-  score and each review's feedback, judges unnamed. CSV exports (scores,
+  their score with its ±, and each review's feedback, judges unnamed. CSV exports (scores,
   projects, normalized ranking, audit log) and a full `event.json` are available
   at every stage.
 - **Community vote and comments.** The organizer opens a voting window and chooses
@@ -123,7 +123,7 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   signed with the portal's Ed25519 key. Anyone holding one can check it: on its
   page (the browser verifies the signature itself), on `/verify`, or offline with
   `scripts/verify-record.mjs`. The key is made at first start and kept in the
-  database; back up the data volume to keep it.
+  database; back the database up (below) to keep it.
 - **API and webhooks.** Everything the interface does is also a JSON route,
   documented at `/api-docs` and as OpenAPI 3.1 at `/api/openapi.json`.
   The document is built from the server's own validators, and a test fails if a
@@ -156,10 +156,11 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 | `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
 | `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
 | `WEBHOOKS_ALLOW_PRIVATE` | `"true"` lets webhooks reach private and local addresses; leave it unset unless the receiver is on your own network |
-| `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file the first boot imports |
+| `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file each start imports (idempotently: rows already there are left as they are) |
 
-The container listens on `127.0.0.1:8080`; put it behind a reverse proxy that
-terminates HTTPS and overwrites `X-Forwarded-For` (see the next section).
+`docker-compose.yml` publishes the portal on `127.0.0.1:8080` only; put it behind
+a reverse proxy that terminates HTTPS and overwrites `X-Forwarded-For` (see the
+next section).
 
 Back up while it runs, with SQLite's online backup; the copy lands in the volume:
 
