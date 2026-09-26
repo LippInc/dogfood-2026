@@ -12,7 +12,7 @@ import { createLoginSession, endSession, setSessionCookie, verifyPassword } from
 const DUMMY_HASH =
   "$argon2id$v=19$m=19456,t=2,p=1$ZG9nZm9vZC1kdW1teS1ub25jZQ==$9Q0AU1DzI8Yw4lX8x1n8y0m5Jf9r3o0z2vS7iQ6bT5g=";
 
-export type SignInResult = { ok: true; userId: string } | { ok: false; message: string };
+export type SignInResult = { ok: true; userId: string } | { ok: false; message: string; retryAfter?: number };
 
 export async function signInWithPassword(emailRaw: string, password: string): Promise<SignInResult> {
   const email = emailRaw.trim().toLowerCase();
@@ -25,7 +25,7 @@ export async function signInWithPassword(emailRaw: string, password: string): Pr
         appendAudit(tx, { actorUserId: null, actorLabel: "anonymous", action: "ratelimit.refused", targetType: "limit", targetId: "sign-in", after: { retryAfter: t.retryAfter } }),
       );
     }
-    return { ok: false, message: `Too many attempts for this address. Try again in ${Math.ceil(t.retryAfter / 60)} min.` };
+    return { ok: false, message: `Too many attempts for this address. Try again in ${Math.ceil(t.retryAfter / 60)} min.`, retryAfter: t.retryAfter };
   }
   const user = db.select().from(users).where(eq(users.email, email)).get();
   const valid = verifyPassword(password, user?.passwordHash ?? DUMMY_HASH) && Boolean(user?.passwordHash);
