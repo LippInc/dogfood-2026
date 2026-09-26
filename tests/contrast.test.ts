@@ -103,7 +103,7 @@ describe("design token contrast (WCAG 2.2 AA)", () => {
   }
 
   it("known-bad: a token set with a failing pair is caught", () => {
-    const t = { ...tokens("public").dark, "ink-3": "#6b7a9e" };
-    expect(contrast(t["ink-3"], t.bg)).toBeLessThan(4.5);
+    const t: Record<string, string> = { ...tokens("public").dark, "ink-3": "#6b7a9e" };
+    expect(contrast(t["ink-3"], t["bg"])).toBeLessThan(4.5);
   });
 });
