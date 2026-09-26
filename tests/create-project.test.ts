@@ -150,7 +150,7 @@ describe("createProject through the real data access layer", () => {
     it("creates the project for a team without one: trimmed, submitted, audited, chain intact", () => {
       insertTeamWithoutProject();
 
-      const row = createProject(newMember, "evt_01", { title: "  New thing ", trackId: "trk_01" });
+      const row = createProject(newMember, "evt_01", { title: "  New thing ", summary: "One line.", trackId: "trk_01" });
 
       expect(row.id.startsWith("prj_")).toBe(true);
       expect(row.title).toBe("New thing");

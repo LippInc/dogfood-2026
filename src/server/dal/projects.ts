@@ -113,12 +113,12 @@ export function createProject(actor: Actor | null, eventIdOrSlug: string, body: 
     run: (tx) => {
       const input = parse(body);
       const t = team!;
-      requireTrack(tx, input.trackId, event.id);
-      if (input.status === "submitted") assertSubmittable(tx, event.id, input);
       const existing = tx.select({ id: projects.id }).from(projects).where(eq(projects.teamId, t.id)).get();
       if (existing) {
         throw new ConflictError("team_has_project", `Team ${t.name} already has project ${existing.id}; edit it instead.`);
       }
+      requireTrack(tx, input.trackId, event.id);
+      if (input.status === "submitted") assertSubmittable(tx, event.id, input);
       const now = new Date().toISOString();
       const row = {
         id: newId("prj"),
