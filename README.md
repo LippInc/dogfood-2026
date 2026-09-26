@@ -21,6 +21,27 @@ To look around, open `/sign-in`: while `SEED_CHECKER_SESSIONS=true` it offers
 one-click demo sign-ins as the organizer (Demo Organizer), two judges (Diego
 Herrera, Jonas Vogel) and a participant.
 
+### A five-minute tour
+
+1. Sign in as the organizer. The **Overview** lists the three decisions that
+   stand between the sample event's scores and published results: a judge who
+   scored every project 4 / 4 / 4, a project entered twice, and a project left
+   with one counted review. Each shows its evidence and is settled by one
+   audited action, with a written reason wherever it overrides a rule.
+2. **Results** shows the ranking and its working: open any project for its
+   receipt (each review, the judge's leniency, the arithmetic, the change from
+   the raw mean, the ± of the score). Below it, the **judge ledger** gives every
+   judge's leniency ± error and what leaving that judge out would move, before
+   you decide.
+3. Settle the decisions and publish. `/events/sample-hack-2026/results` shows each
+   place with its score ± error; signed in as the participant, **My project**
+   shows the team its reviews and a signed certificate, which `/verify` checks.
+4. Sign in as a judge: the keyboard-first console shows only that judge's own
+   scores; asking the API for another judge's is refused with 403.
+5. **Audit log** lists every change and every refused request from a signed-in
+   user, with the hash chain's head; **Integrations** has API tokens, webhooks and the `fixtures.json`
+   export; `/api-docs` is the API reference.
+
 ## Check it
 
 ```bash
