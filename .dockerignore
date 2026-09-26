@@ -7,4 +7,4 @@ coverage
 *.log
 .env*
 Dockerfile
-compose.yaml
+docker-compose.yml
