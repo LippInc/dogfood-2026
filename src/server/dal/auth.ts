@@ -6,17 +6,36 @@ import { getDb } from "../db/client";
 import { events, sessions, teamMembers, teams, userRoles, users } from "../db/schema";
 import { LIMITS, take } from "../rate-limit";
 import { createLoginSession, endSession, setSessionCookie, verifyPassword } from "../session";
+import type { Client } from "./voting";
 
 // A stored hash for "no such user", so an unknown email costs the same argon2 time
 // as a wrong password and the timing does not reveal which emails exist.
 const DUMMY_HASH =
   "$argon2id$v=19$m=19456,t=2,p=1$ZG9nZm9vZC1kdW1teS1ub25jZQ==$9Q0AU1DzI8Yw4lX8x1n8y0m5Jf9r3o0z2vS7iQ6bT5g=";
 
+/**
+ * The per-address bucket shared by sign-up and password sign-in (each costs an argon2
+ * hash). Returns the seconds to wait when the address has run dry, else null. The
+ * first refusal for an address is audited.
+ */
+export function addressLimit(client: Client | undefined): number | null {
+  const t = take(`account:${client?.ip ?? "none"}`, LIMITS.accountAddress);
+  if (t.ok) return null;
+  if (t.firstRefusal) {
+    getDb().transaction((tx) =>
+      appendAudit(tx, { actorUserId: null, actorLabel: "anonymous", action: "ratelimit.refused", targetType: "limit", targetId: "account-address", after: { retryAfter: t.retryAfter } }),
+    );
+  }
+  return t.retryAfter;
+}
+
 export type SignInResult = { ok: true; userId: string } | { ok: false; message: string; retryAfter?: number };
 
-export async function signInWithPassword(emailRaw: string, password: string): Promise<SignInResult> {
+export async function signInWithPassword(emailRaw: string, password: string, client?: Client): Promise<SignInResult> {
   const email = emailRaw.trim().toLowerCase();
   const db = getDb();
+  const byAddress = addressLimit(client);
+  if (byAddress) return { ok: false, message: `Too many sign-in attempts from your network. Try again in ${Math.ceil(byAddress / 60)} min.`, retryAfter: byAddress };
   // Password guessing: at most 10 tries per address per 15 minutes, whoever sends them.
   const t = take(`signin:${email}`, LIMITS.signIn);
   if (!t.ok) {

@@ -15,6 +15,12 @@ export const LIMITS = {
   comment: { capacity: 5, perSeconds: 600 },
   /** password sign-in attempts per email address */
   signIn: { capacity: 10, perSeconds: 900 },
+  /**
+   * sign-ups and password sign-ins together, per network address: each one costs an
+   * argon2 hash, so this bounds what one address can make the server compute. Roomy
+   * enough for a venue where everyone shares one address.
+   */
+  accountAddress: { capacity: 60, perSeconds: 600 },
 } satisfies Record<string, Limit>;
 
 type Bucket = { tokens: number; at: number; refused: boolean };
