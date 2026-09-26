@@ -51,9 +51,23 @@ export const OPERATIONS: Operation[] = [
     method: "GET",
     path: "/api/events/{event}/export/{file}",
     tag: "Events",
-    summary: "Export: scores.csv, projects.csv, normalized.csv, audit.csv or event.json",
+    summary: "Export: scores.csv, projects.csv, normalized.csv, audit.csv, event.json, or fixtures.json (the import format)",
     access: "organizer",
   },
+
+  {
+    method: "POST",
+    path: "/api/imports",
+    tag: "Events",
+    summary: "Import an event file in the fixture format (the fixtures.json export); importing twice changes nothing",
+    access: "administrator",
+    body: In.FixtureSchema,
+    ok: 201,
+    also: [413],
+  },
+  { method: "POST", path: "/api/events/{event}/claims", tag: "Accounts", summary: "Personal links for everyone in the event without a password, returned once", access: "organizer", ok: 201 },
+  { method: "GET", path: "/api/claims/{token}", tag: "Accounts", summary: "Whose personal link this is (410 once used or expired)", access: "anyone", also: [410] },
+  { method: "POST", path: "/api/claims/{token}", tag: "Accounts", summary: "Set your password with your personal link and sign in", access: "anyone", body: In.ClaimInput, also: [410] },
 
   // Teams and projects
   { method: "POST", path: "/api/events/{event}/teams", tag: "Teams and projects", summary: "Start a team (you become its captain)", access: "signed in", body: In.TeamName, ok: 201 },
@@ -216,6 +230,8 @@ const REFUSAL: Record<number, string> = {
   403: "Signed in, but not allowed; the reason is in the error code",
   404: "No such item",
   409: "Not possible in the current state",
+  410: "The link was used already or has expired",
+  413: "The body is too large",
   422: "The body failed validation; details lists the fields",
   429: "Too many requests; wait the Retry-After seconds",
 };

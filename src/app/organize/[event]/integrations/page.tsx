@@ -6,10 +6,10 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, listDeliveries, listWebhooks } from "@/server/dal";
+import { countWithoutPassword, currentActor, EXPORT_FILES, listDeliveries, listWebhooks } from "@/server/dal";
 import { CopyButton } from "../judges/forms";
 import { retry, sendTest, toggleWebhook } from "./actions";
-import { AddWebhookForm, RotateSecretForm } from "./forms";
+import { AddWebhookForm, ClaimLinksForm, RotateSecretForm } from "./forms";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Integrations" };
@@ -24,6 +24,7 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
   const deliveries = Object.fromEntries(webhooks.map((w) => [w.id, listDeliveries(actor, key, w.id).slice(0, 10)]));
   const origin = process.env.PUBLIC_URL ?? "http://localhost:8080";
   const snippet = `<script src="${origin}/embed.js" data-event="${event.slug}" async></script>`;
+  const waiting = countWithoutPassword(actor, key);
 
   return (
     <WorkShell
@@ -154,6 +155,33 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
           <div className="rounded-sm border border-rule p-5">
             <h3 className="mb-4 text-15 font-semibold">Add a webhook</h3>
             <AddWebhookForm eventSlug={event.slug} />
+          </div>
+        </section>
+
+        <section aria-labelledby="io-title" className="flex flex-col gap-4">
+          <div>
+            <h2 id="io-title" className="text-20 font-semibold">
+              Import and export
+            </h2>
+            <p className="mt-1 max-w-[760px] text-15 text-ink-2">
+              Take everything out at any stage. <code className="font-mono text-13">fixtures.json</code> is the organizers&rsquo; fixture format:
+              an administrator can import it into another portal (Your events, Import an event) and get the same event, scores and ranking.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {EXPORT_FILES.map((f) => (
+              <a key={f} href={`/api/events/${event.id}/export/${f}`} className="inline-flex h-8 items-center rounded-sm border border-edge px-3 font-mono text-12 hover:bg-raised">
+                {f}
+              </a>
+            ))}
+          </div>
+          <div className="flex flex-col gap-2 rounded-sm border border-rule p-5">
+            <h3 className="text-15 font-semibold">Personal links for imported people</h3>
+            <p className="max-w-[760px] text-14 text-ink-2">
+              People who came in through an import have an account but no password. The portal sends no mail: make each of them a personal link
+              here and send it; it lets that one person set a password, once, within 14 days.
+            </p>
+            <ClaimLinksForm eventSlug={event.slug} waiting={waiting} />
           </div>
         </section>
 

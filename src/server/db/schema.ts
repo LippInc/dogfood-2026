@@ -600,6 +600,36 @@ export const signedRecords = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// Account claims
+// ---------------------------------------------------------------------------
+
+// People who came in through an import have no password. An organizer makes each
+// a personal link (the token is shown once; only its SHA-256 is stored); opening it
+// lets that person set a password. One unused claim per person: a new link replaces it.
+export const accountClaims = sqliteTable(
+  "account_claims",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: text("created_at").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+  },
+  (t) => [
+    index("account_claims_user_idx").on(t.userId),
+    check("account_claims_expiry", sql`julianday(${t.expiresAt}) > julianday(${t.createdAt})`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Webhooks
 // ---------------------------------------------------------------------------
 

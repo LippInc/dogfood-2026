@@ -102,7 +102,7 @@ describe("signUp", () => {
     await expectHttpRejection(
       signUp({ name: "Priya", email: "priya1@example.org", password: "long enough pass" }), // first member of tm_01
       409,
-      "email_taken",
+      "account_imported", // it has no password: the answer points to the organizers' personal link
     );
   });
 });

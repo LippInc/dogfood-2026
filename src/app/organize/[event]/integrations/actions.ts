@@ -5,6 +5,8 @@ import {
   actionError,
   createWebhook,
   currentActor,
+  makeClaimLinks,
+  type ClaimLink,
   retryDelivery,
   rotateWebhookSecret,
   setWebhookEnabled,
@@ -56,4 +58,22 @@ export async function sendTest(slug: string, webhookId: string) {
 export async function retry(slug: string, webhookId: string, deliveryId: string) {
   retryDelivery(await currentActor(), slug, webhookId, deliveryId);
   refresh(slug);
+}
+
+export type ClaimResult = ActionResult & { links?: ClaimLink[] };
+
+/** Personal links for everyone in the event without a password; shown once. */
+export async function claimLinksAction(_prev: ClaimResult, form: FormData): Promise<ClaimResult> {
+  const slug = String(form.get("event") ?? "");
+  try {
+    const { links } = makeClaimLinks(await currentActor(), slug);
+    refresh(slug);
+    return {
+      ok: true,
+      message: links.length ? `${links.length} personal links. Copy or download them now: they are shown only this once.` : "Everyone in this event has a password already.",
+      links,
+    };
+  } catch (err) {
+    return actionError(err);
+  }
 }

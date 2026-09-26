@@ -36,6 +36,13 @@
       "when": 1790460081762,
       "tag": "0004_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790460813023,
+      "tag": "0005_account_claims",
+      "breakpoints": true
     }
   ]
 }

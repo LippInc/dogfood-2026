@@ -26,9 +26,11 @@ export async function signUp(body: unknown): Promise<{ userId: string }> {
   const passwordHash = hashPassword(password);
   const db = getDb();
   const session = db.transaction((tx) => {
-    if (tx.select({ id: users.id }).from(users).where(eq(users.email, email)).get()) {
-      throw new ConflictError("email_taken", "An account with that email already exists. Sign in instead.");
+    const existing = tx.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.email, email)).get();
+    if (existing && !existing.passwordHash) {
+      throw new ConflictError("account_imported", "The organizers added this address to an event. Open the personal link they sent you to set your password.");
     }
+    if (existing) throw new ConflictError("email_taken", "An account with that email already exists. Sign in instead.");
     const id = newId("usr");
     tx.insert(users).values({ id, email, name, passwordHash, isAdmin: false, createdAt: new Date().toISOString() }).run();
     appendAudit(tx, { actorUserId: id, actorLabel: name, action: "user.sign_up", targetType: "user", targetId: id });

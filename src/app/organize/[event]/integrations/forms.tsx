@@ -5,7 +5,7 @@ import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "../judges/forms";
-import { addWebhookAction, rotateSecretAction, type SecretResult } from "./actions";
+import { addWebhookAction, claimLinksAction, rotateSecretAction, type ClaimResult, type SecretResult } from "./actions";
 
 const idle: SecretResult = { ok: false, message: null };
 
@@ -89,5 +89,68 @@ export function RotateSecretForm({ eventSlug, webhookId }: { eventSlug: string; 
         </div>
       ) : null}
     </form>
+  );
+}
+
+const noLinks: ClaimResult = { ok: false, message: null };
+
+function csvCell(v: string) {
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+export function ClaimLinksForm({ eventSlug, waiting }: { eventSlug: string; waiting: number }) {
+  const [state, action, pending] = useActionState(claimLinksAction, noLinks);
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const links = state.links ?? [];
+  const download = () => {
+    const rows = ["name,email,link", ...links.map((l) => [l.name, l.email, origin + l.path].map(csvCell).join(","))];
+    const url = URL.createObjectURL(new Blob([rows.join("\n") + "\n"], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${eventSlug}-personal-links.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <div className="flex flex-col gap-3">
+      <form action={action} className="flex flex-wrap items-center gap-3">
+        <input type="hidden" name="event" value={eventSlug} />
+        <Button type="submit" variant="outline" disabled={pending || waiting === 0}>
+          Make personal links
+        </Button>
+        <span className="text-14 text-ink-2">
+          {waiting === 1 ? "1 person has" : `${waiting} people have`} no password yet. A new batch replaces the links not used so far.
+        </span>
+      </form>
+      {state.message ? (
+        <p role="status" className={`text-14 ${state.ok ? "" : "text-flag"}`}>
+          {state.message}
+        </p>
+      ) : null}
+      {links.length ? (
+        <div className="flex flex-col gap-2">
+          <div>
+            <Button type="button" size="sm" variant="outline" onClick={download}>
+              Download as CSV (for a mail merge)
+            </Button>
+          </div>
+          <div className="max-h-[360px] overflow-y-auto rounded-sm border border-rule">
+            <table className="w-full text-13">
+              <tbody className="divide-y divide-rule">
+                {links.map((l) => (
+                  <tr key={l.path}>
+                    <td className="px-3 py-1.5">{l.name}</td>
+                    <td className="px-3 py-1.5 text-ink-2 max-sm:hidden">{l.email}</td>
+                    <td className="px-3 py-1.5 text-right">
+                      <CopyButton text={origin + l.path} label="Copy link" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

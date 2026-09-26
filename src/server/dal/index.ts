@@ -133,3 +133,5 @@ export {
   testWebhook,
   type WebhookView,
 } from "./webhooks";
+export { claimAccount, countWithoutPassword, describeClaim, makeClaimLinks, type ClaimLink } from "./claims";
+export { importEventFile, type EventImport } from "./imports";
