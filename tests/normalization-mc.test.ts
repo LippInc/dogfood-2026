@@ -208,7 +208,9 @@ function resultsFor(key: string) {
   return results.get(key)!;
 }
 
-describe("normalization Monte Carlo on the fixture's pairs (decision 11)", () => {
+// 1,000 simulated events per scenario: the first test to ask pays for them, which
+// takes over 5 s when the whole suite runs in parallel, so this file gets 60 s.
+describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { timeout: 60_000 }, () => {
   it("uses the fixture's design: 126 pairs, one flat judge, two confound judges", () => {
     expect(pairs).toHaveLength(126);
     expect(flatJ).not.toBeNull();
