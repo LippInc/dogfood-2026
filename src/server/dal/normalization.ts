@@ -440,7 +440,7 @@ function notPublished(event: EventRow) {
 }
 
 const Reason = z.string().trim().min(3, "say why, in a few words").max(500);
-const OverrideInput = z.object({ judgeUserId: z.string().min(1), mode: z.enum(["include", "exclude"]), reason: Reason });
+export const OverrideInput = z.object({ judgeUserId: z.string().min(1), mode: z.enum(["include", "exclude"]), reason: Reason });
 
 /** Reinstate a flagged judge or exclude one by hand; the reason is required and audited. */
 export function setJudgeOverride(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
@@ -475,11 +475,13 @@ export function setJudgeOverride(actor: Actor | null, eventIdOrSlug: string, bod
   });
 }
 
+export const RevokeInput = z.object({ judgeUserId: z.string().min(1) });
+
 /** Undo the active override on a judge: the flat-judge rule applies again. */
 export function revokeJudgeOverride(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     notPublished(event);
-    const { judgeUserId } = parse(z.object({ judgeUserId: z.string().min(1) }), body);
+    const { judgeUserId } = parse(RevokeInput, body);
     const active = tx
       .select()
       .from(judgeOverrides)
@@ -494,7 +496,7 @@ export function revokeJudgeOverride(actor: Actor | null, eventIdOrSlug: string, 
   });
 }
 
-const MergeInput = z.object({ keepId: z.string().min(1), duplicateId: z.string().min(1) });
+export const MergeInput = z.object({ keepId: z.string().min(1), duplicateId: z.string().min(1) });
 
 /**
  * Mark one copy a duplicate of the other: the engine treats them as one project,
@@ -524,10 +526,12 @@ export function mergeDuplicate(actor: Actor | null, eventIdOrSlug: string, body:
   });
 }
 
+export const UnmergeInput = z.object({ duplicateId: z.string().min(1) });
+
 export function unmergeDuplicate(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     notPublished(event);
-    const { duplicateId } = parse(z.object({ duplicateId: z.string().min(1) }), body);
+    const { duplicateId } = parse(UnmergeInput, body);
     const row = tx
       .select({ duplicateOf: projects.duplicateOf })
       .from(projects)
@@ -543,7 +547,7 @@ export function unmergeDuplicate(actor: Actor | null, eventIdOrSlug: string, bod
   });
 }
 
-const PairInput = z.object({ ids: z.array(z.string().min(1)).min(2), reason: Reason });
+export const PairInput = z.object({ ids: z.array(z.string().min(1)).min(2), reason: Reason });
 
 /** The organizer rules that same-titled projects of one team are different projects. */
 export function dismissDuplicate(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
@@ -561,11 +565,13 @@ export function dismissDuplicate(actor: Actor | null, eventIdOrSlug: string, bod
   });
 }
 
+export const AcceptInput = z.object({ projectId: z.string().min(1), reason: Reason });
+
 /** Publish an under-reviewed project as it is; the results mark it. */
 export function acceptUnderReviewed(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     notPublished(event);
-    const { projectId, reason } = parse(z.object({ projectId: z.string().min(1), reason: Reason }), body);
+    const { projectId, reason } = parse(AcceptInput, body);
     const accepted = [...new Set([...(event.settings.acceptedUnderReviewed ?? []), projectId])].sort();
     tx.update(events).set({ settings: { ...event.settings, acceptedUnderReviewed: accepted } }).where(eq(events.id, event.id)).run();
     return {

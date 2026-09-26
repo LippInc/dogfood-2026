@@ -152,7 +152,7 @@ function limitOrThrow(key: string, limit: Limit, audit: { eventId: string; label
   throw new RateLimitedError(t.retryAfter);
 }
 
-const BallotInput = z.object({ projectIds: z.array(z.string().min(1)).max(50) });
+export const BallotInput = z.object({ projectIds: z.array(z.string().min(1)).max(50) });
 
 export function castBallot(actor: Actor | null, eventIdOrSlug: string, token: string | null, body: unknown, client: Client) {
   const db = getDb();
@@ -279,7 +279,7 @@ const utc = z
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "use the date picker")
   .transform((v) => `${v}:00.000Z`);
 
-const SettingsInput = z
+export const SettingsInput = z
   .object({
     votingOpenAt: z.union([z.literal(""), utc]),
     votingCloseAt: z.union([z.literal(""), utc]),
@@ -341,7 +341,7 @@ export function makeVotingLink(actor: Actor | null, eventIdOrSlug: string) {
   });
 }
 
-const VoterList = z.object({ emails: z.string().max(200_000) });
+export const VoterList = z.object({ emails: z.string().max(200_000) });
 
 /** Add people to the voter list; each gets a personal link, shown once. Known addresses are skipped. */
 export function addListedVoters(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
@@ -379,7 +379,7 @@ export function addListedVoters(actor: Actor | null, eventIdOrSlug: string, body
   });
 }
 
-const VoidInput = z.object({ voterId: z.string().min(1), reason: z.string().trim().min(3, "say why, in a few words").max(500) });
+export const VoidInput = z.object({ voterId: z.string().min(1), reason: z.string().trim().min(3, "say why, in a few words").max(500) });
 
 /** Set a ballot aside (a suspected duplicate), with a reason; its votes stop counting. */
 export function voidVoter(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
@@ -393,9 +393,11 @@ export function voidVoter(actor: Actor | null, eventIdOrSlug: string, body: unkn
   });
 }
 
+export const RestoreInput = z.object({ voterId: z.string().min(1) });
+
 export function restoreVoter(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizer(actor, eventIdOrSlug, (tx, event) => {
-    const { voterId } = parse(z.object({ voterId: z.string().min(1) }), body);
+    const { voterId } = parse(RestoreInput, body);
     const v = tx.select().from(voters).where(and(eq(voters.id, voterId), eq(voters.eventId, event.id))).get();
     if (!v) throw new NotFoundError("Voter");
     if (!v.voidedAt) return { result: { voterId }, audit: null };

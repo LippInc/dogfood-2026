@@ -8,7 +8,7 @@ import { ConflictError, ValidationError } from "../errors";
 import { createLoginSession, hashPassword, setSessionCookie } from "../session";
 import { newId } from "../util";
 
-const SignUp = z.object({
+export const SignUp = z.object({
   name: z.string().trim().min(1, "your name is required").max(80),
   email: z.string().trim().toLowerCase().email("that is not an email address").max(254),
   password: z.string().min(10, "at least 10 characters").max(200),

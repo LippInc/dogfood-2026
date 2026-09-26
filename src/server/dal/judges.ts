@@ -17,7 +17,7 @@ import { parse } from "./parse";
 // judge for those tracks. A link made for an email address only works for that
 // address. Links are single-use; only their SHA-256 is stored.
 
-const InviteInput = z.object({
+export const InviteInput = z.object({
   name: z.string().trim().max(80).default(""),
   email: z
     .string()
@@ -29,7 +29,7 @@ const InviteInput = z.object({
   trackIds: z.array(z.string().min(1)).min(1, "choose at least one track"),
 });
 
-const TrackIds = z.object({ trackIds: z.array(z.string().min(1)).min(1, "choose at least one track") });
+export const TrackIds = z.object({ trackIds: z.array(z.string().min(1)).min(1, "choose at least one track") });
 
 function eventTrackIds(db: DbOrTx, eventId: string): Set<string> {
   return new Set(db.select({ id: tracks.id }).from(tracks).where(eq(tracks.eventId, eventId)).all().map((t) => t.id));

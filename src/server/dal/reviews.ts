@@ -195,7 +195,7 @@ function pace(times: (string | null)[]): number | null {
   return gaps.length % 2 ? gaps[mid]! : (gaps[mid - 1]! + gaps[mid]!) / 2;
 }
 
-const ReviewInput = z.object({
+export const ReviewInput = z.object({
   values: z.record(z.string(), z.number().int().nullable()).default({}),
   feedback: z.string().max(4000).optional(),
   privateNote: z.string().max(4000).optional(),
@@ -340,7 +340,7 @@ export function saveReview(actor: Actor | null, assignmentId: string, body: unkn
   });
 }
 
-const RecuseInput = z.object({ reason: z.string().trim().min(3, "say why, in a few words").max(500) });
+export const RecuseInput = z.object({ reason: z.string().trim().min(3, "say why, in a few words").max(500) });
 
 /** The judge declares a conflict of interest: the assignment leaves their batch and the engine. */
 export function recuseAssignment(actor: Actor | null, assignmentId: string, body: unknown) {

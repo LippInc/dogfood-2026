@@ -51,7 +51,7 @@ export function listComments(actor: Actor | null, projectId: string): CommentVie
     }));
 }
 
-const CommentInput = z.object({ body: z.string().trim().min(1, "write something first").max(2000, "at most 2,000 characters") });
+export const CommentInput = z.object({ body: z.string().trim().min(1, "write something first").max(2000, "at most 2,000 characters") });
 
 export function postComment(actor: Actor | null, projectId: string, body: unknown) {
   const db = getDb();
@@ -93,7 +93,7 @@ export function postComment(actor: Actor | null, projectId: string, body: unknow
   });
 }
 
-const HideInput = z.object({ reason: z.string().trim().min(3, "say why, in a few words").max(300) });
+export const HideInput = z.object({ reason: z.string().trim().min(3, "say why, in a few words").max(300) });
 
 export function hideComment(actor: Actor | null, commentId: string, body: unknown) {
   let comment: typeof comments.$inferSelect;

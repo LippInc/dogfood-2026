@@ -15,7 +15,7 @@ import { eventFacts, requireEvent, type EventRow } from "./events";
 
 const DEFAULT_MAX_TEAM_SIZE = 4;
 
-const TeamName = z.object({ name: z.string().trim().min(1, "a team name is required").max(60) });
+export const TeamName = z.object({ name: z.string().trim().min(1, "a team name is required").max(60) });
 
 function onTeamIn(tx: DbOrTx, userId: string, eventId: string): boolean {
   return Boolean(

@@ -23,7 +23,7 @@ import { parse } from "./parse";
 export const DEFAULT_REVIEWS_PER_PROJECT = 3;
 export const DEFAULT_BRIDGE_PER_TRACK = 2;
 
-const RunInput = z.object({
+export const RunInput = z.object({
   mode: z.enum(["fresh", "topup"]),
   seed: z.coerce.number().int().min(1).max(2 ** 31 - 2).optional(),
   reviewsPerProject: z.coerce.number().int().min(1).max(10).optional(),
@@ -31,7 +31,7 @@ const RunInput = z.object({
   maxPerJudge: z.coerce.number().int().min(1).max(500).nullable().optional(),
 });
 
-const ManualInput = z.object({
+export const ManualInput = z.object({
   projectId: z.string().min(1),
   judgeUserId: z.string().min(1),
   reason: z.string().trim().min(3, "say why, in a few words").max(500),

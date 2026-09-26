@@ -36,7 +36,7 @@ const optionalUtc = z
   .optional()
   .transform((v) => (v ? v : null));
 
-const Details = z
+export const Details = z
   .object({
     name: z.string().trim().min(3, "at least 3 characters").max(80),
     description: z.string().trim().max(5_000).default(""),
@@ -54,14 +54,14 @@ const Details = z
     }
   });
 
-const TrackRows = z
+export const TrackRows = z
   .array(z.object({ id: z.string().optional(), name: z.string().trim().min(1, "a track needs a name").max(60) }))
   .min(1, "an event needs at least one track")
   .max(40);
-const PrizeRows = z
+export const PrizeRows = z
   .array(z.object({ id: z.string().optional(), name: z.string().trim().min(1, "a prize needs a name").max(80), description: z.string().trim().max(500).default("") }))
   .max(40);
-const QuestionRows = z
+export const QuestionRows = z
   .array(
     z.object({
       id: z.string().optional(),
@@ -72,7 +72,7 @@ const QuestionRows = z
     }),
   )
   .max(20);
-const RubricRows = z
+export const RubricRows = z
   .array(
     z.object({
       id: z.string().optional(),
@@ -84,7 +84,7 @@ const RubricRows = z
   .min(1, "the rubric needs at least one criterion")
   .max(8);
 
-const NewEvent = z.object({
+export const NewEvent = z.object({
   details: Details,
   slug: z
     .string()

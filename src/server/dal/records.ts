@@ -141,9 +141,11 @@ export function issueOwnRecord(actor: Actor | null, eventIdOrSlug: string, kind:
   });
 }
 
+export const RecordRequest = z.object({ kind: z.enum(RECORD_KINDS) });
+
 /** The JSON route's form: { kind: "judge" | "participant" }. */
 export function issueOwnRecordRequest(actor: Actor | null, eventIdOrSlug: string, body: unknown): Issued {
-  const { kind } = parse(z.object({ kind: z.enum(RECORD_KINDS) }), body);
+  const { kind } = parse(RecordRequest, body);
   return issueOwnRecord(actor, eventIdOrSlug, kind);
 }
 
