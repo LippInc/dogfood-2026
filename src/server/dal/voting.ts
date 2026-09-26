@@ -1,0 +1,503 @@
+import "server-only";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { z } from "zod";
+import { appendAudit } from "../audit";
+import type { Actor, Resource, VoterKind } from "../authz";
+import { DEFAULT_SEED_SECRET } from "../checker";
+import { getDb, type DbOrTx } from "../db/client";
+import { events, projects, teams, tracks, voters, votes } from "../db/schema";
+import { NotFoundError, RateLimitedError, ValidationError } from "../errors";
+import { seededRng, shuffle } from "../judging/random";
+import { guardRead, mutate } from "../mutate";
+import { LIMITS, take, type Limit } from "../rate-limit";
+import { newId, newSecret, sha256 } from "../util";
+import { eventFacts, requireEvent, type EventRow } from "./events";
+import { parse } from "./parse";
+
+// Community voting (T3). The organizer opens a window and chooses who may vote:
+// signed-in accounts, people on a voter list (each gets a personal link), and/or
+// anyone holding the event's open voting link. Each voter picks up to N favourite
+// projects and may change the picks while the window is open. Each ballot lists the
+// projects in the voter's own seeded order. Tallies stay hidden from everyone,
+// organizers included, until the window closes. Link voters are counted per browser,
+// so voters sharing a network address and browser are flagged for the organizer,
+// who can set a ballot aside with a reason. Every ballot change is audited.
+
+export const DEFAULT_VOTES_PER_VOTER = 3;
+
+export type VotingSettings = { modes: VoterKind[]; votesPerVoter: number; linkHash: string | null };
+export type Client = { ip: string | null; agent: string | null };
+
+export function votingSettings(event: EventRow): VotingSettings {
+  const v = event.settings.voting;
+  return { modes: v?.modes ?? [], votesPerVoter: v?.votesPerVoter ?? DEFAULT_VOTES_PER_VOTER, linkHash: v?.linkHash ?? null };
+}
+
+export type VotingState = "not_set" | "upcoming" | "open" | "closed";
+
+export function votingState(event: Pick<EventRow, "votingOpenAt" | "votingCloseAt">, now = Date.now()): VotingState {
+  if (!event.votingOpenAt || !event.votingCloseAt) return "not_set";
+  if (now < Date.parse(event.votingOpenAt)) return "upcoming";
+  return now < Date.parse(event.votingCloseAt) ? "open" : "closed";
+}
+
+/** Salted hashes of the client's address and browser, only ever compared with each other. */
+function clientHash(value: string | null, eventId: string): string | null {
+  if (!value) return null;
+  return sha256(`voter-client:${process.env.DOGFOOD_SEED_SECRET || DEFAULT_SEED_SECRET}:${eventId}:${value}`);
+}
+
+type VoterRow = typeof voters.$inferSelect;
+
+function voterByToken(db: DbOrTx, eventId: string, token: string | null): VoterRow | undefined {
+  if (!token) return undefined;
+  return db
+    .select()
+    .from(voters)
+    .where(and(eq(voters.eventId, eventId), eq(voters.tokenHash, sha256(token))))
+    .get();
+}
+
+function accountVoter(db: DbOrTx, eventId: string, userId: string): VoterRow | undefined {
+  return db
+    .select()
+    .from(voters)
+    .where(and(eq(voters.eventId, eventId), eq(voters.userId, userId)))
+    .get();
+}
+
+/** An account voter's order seed is fixed by who they are, so the ballot looks the same before and after the first vote. */
+function accountSeed(eventId: string, userId: string): number {
+  return parseInt(sha256(`ballot-order:${eventId}:${userId}`).slice(0, 8), 16) & 0x7fffffff;
+}
+
+function ballotProjects(db: DbOrTx, eventId: string) {
+  return db
+    .select({ id: projects.id, title: projects.title, summary: projects.summary, teamName: teams.name, trackName: tracks.name })
+    .from(projects)
+    .innerJoin(teams, eq(teams.id, projects.teamId))
+    .innerJoin(tracks, eq(tracks.id, projects.trackId))
+    .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted"), isNull(projects.duplicateOf)))
+    .orderBy(asc(projects.id))
+    .all();
+}
+
+function picksOf(db: DbOrTx, voterId: string): string[] {
+  return db
+    .select({ p: votes.projectId })
+    .from(votes)
+    .where(eq(votes.voterId, voterId))
+    .orderBy(asc(votes.projectId))
+    .all()
+    .map((v) => v.p);
+}
+
+/** Who is voting: the event's voter token wins over the account, since a link names one ballot. */
+function resolveVoter(db: DbOrTx, event: EventRow, actor: Actor | null, token: string | null) {
+  const byToken = voterByToken(db, event.id, token);
+  if (byToken) return { row: byToken, kind: byToken.kind, viaAccount: false } as const;
+  if (actor) {
+    const row = accountVoter(db, event.id, actor.userId);
+    return { row: row ?? null, kind: "account" as const, viaAccount: true } as const;
+  }
+  return null;
+}
+
+export type BallotView = {
+  event: Pick<EventRow, "id" | "slug" | "name" | "votingOpenAt" | "votingCloseAt">;
+  state: VotingState;
+  modes: VoterKind[];
+  votesPerVoter: number;
+  /** null: this request proves no voter yet */
+  voter: { id: string | null; kind: VoterKind; voided: boolean } | null;
+  signedIn: boolean;
+  projects: { id: string; title: string; summary: string; teamName: string; trackName: string }[];
+  picks: string[];
+};
+
+/** The ballot page: public, but the picks shown are the requester's own. */
+export function getBallot(actor: Actor | null, eventIdOrSlug: string, token: string | null): BallotView {
+  const db = getDb();
+  const event = requireEvent(db, eventIdOrSlug);
+  const settings = votingSettings(event);
+  const who = resolveVoter(db, event, actor, token);
+  const usable = who && (who.viaAccount ? settings.modes.includes("account") : true) ? who : null;
+  const list = ballotProjects(db, event.id);
+  const seed = usable?.row?.orderSeed ?? (actor && usable ? accountSeed(event.id, actor.userId) : null);
+  return {
+    event: { id: event.id, slug: event.slug, name: event.name, votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt },
+    state: votingState(event),
+    modes: settings.modes,
+    votesPerVoter: settings.votesPerVoter,
+    voter: usable ? { id: usable.row?.id ?? null, kind: usable.kind, voided: Boolean(usable.row?.voidedAt) } : null,
+    signedIn: Boolean(actor),
+    projects: seed === null ? list : shuffle(list, seededRng(seed)),
+    picks: usable?.row ? picksOf(db, usable.row.id) : [],
+  };
+}
+
+function limitOrThrow(key: string, limit: Limit, audit: { eventId: string; label: string; userId: string | null; what: string }) {
+  const t = take(key, limit);
+  if (t.ok) return;
+  if (t.firstRefusal) {
+    // One audit row when a key first runs dry, not one per refused request.
+    getDb().transaction((tx) => {
+      appendAudit(
+        tx,
+        { actorUserId: audit.userId, actorLabel: audit.label, action: "ratelimit.refused", eventId: audit.eventId, targetType: "limit", targetId: audit.what, after: { retryAfter: t.retryAfter } },
+        new Date().toISOString(),
+      );
+    });
+  }
+  throw new RateLimitedError(t.retryAfter);
+}
+
+const BallotInput = z.object({ projectIds: z.array(z.string().min(1)).max(50) });
+
+export function castBallot(actor: Actor | null, eventIdOrSlug: string, token: string | null, body: unknown, client: Client) {
+  const db = getDb();
+  const event = requireEvent(db, eventIdOrSlug);
+  const settings = votingSettings(event);
+  const who = resolveVoter(db, event, actor, token);
+  const voterLabel = who && !who.viaAccount ? `${who.kind === "listed" ? "Listed" : "Link"} voter ${who.row.id.slice(-6)}` : null;
+  const limitKey = who?.row?.id ?? (actor ? `user:${actor.userId}` : `anon:${clientHash(client.ip, event.id)}`);
+  limitOrThrow(`ballot:${limitKey}`, LIMITS.ballot, {
+    eventId: event.id,
+    label: actor && who?.viaAccount ? actor.name : (voterLabel ?? "anonymous"),
+    userId: actor && who?.viaAccount ? actor.userId : null,
+    what: "ballot",
+  });
+  return mutate({
+    actor: who?.viaAccount ? actor : null,
+    as: voterLabel ? { label: voterLabel } : null,
+    action: "vote.cast",
+    load: (): Resource => ({
+      kind: "ballot",
+      event: eventFacts(event),
+      modes: settings.modes,
+      voter: who ? { id: who.row?.id ?? "new", kind: who.kind, voided: Boolean(who.row?.voidedAt) } : null,
+    }),
+    run: (tx) => {
+      const ids = [...new Set(parse(BallotInput, body).projectIds)].sort();
+      if (ids.length > settings.votesPerVoter) {
+        throw new ValidationError(`Pick at most ${settings.votesPerVoter} projects.`, { projectIds: [`at most ${settings.votesPerVoter}`] });
+      }
+      const valid = new Set(ballotProjects(tx, event.id).map((p) => p.id));
+      if (ids.some((id) => !valid.has(id))) throw new ValidationError("Check the picks.", { projectIds: ["a pick is not a project on this ballot"] });
+      const now = new Date().toISOString();
+      let voter = who!.row;
+      if (!voter) {
+        voter = {
+          id: newId("vtr"),
+          eventId: event.id,
+          kind: "account",
+          userId: actor!.userId,
+          email: null,
+          tokenHash: null,
+          orderSeed: accountSeed(event.id, actor!.userId),
+          ipHash: clientHash(client.ip, event.id),
+          agentHash: clientHash(client.agent, event.id),
+          createdAt: now,
+          lastVotedAt: null,
+          voidedAt: null,
+          voidedBy: null,
+          voidReason: null,
+        };
+        tx.insert(voters).values(voter).run();
+      }
+      const before = picksOf(tx, voter.id);
+      if (before.join() === ids.join()) return { result: { voterId: voter.id, picks: ids }, audit: null };
+      tx.delete(votes).where(eq(votes.voterId, voter.id)).run();
+      for (const projectId of ids) tx.insert(votes).values({ voterId: voter.id, projectId, createdAt: now }).run();
+      tx.update(voters)
+        .set({
+          lastVotedAt: now,
+          ipHash: voter.ipHash ?? clientHash(client.ip, event.id),
+          agentHash: voter.agentHash ?? clientHash(client.agent, event.id),
+        })
+        .where(eq(voters.id, voter.id))
+        .run();
+      return {
+        result: { voterId: voter.id, picks: ids },
+        audit: { action: "vote.cast", eventId: event.id, targetType: "voter", targetId: voter.id, before: { picks: before }, after: { picks: ids } },
+      };
+    },
+  });
+}
+
+/**
+ * Entering through a link: the event's open link makes a new link voter (one per
+ * browser, limited per network address); a personal link is the listed voter's own
+ * token. Returns the token for the browser to keep.
+ */
+export function enterVoting(code: string, client: Client): { eventSlug: string; eventId: string; token: string } {
+  const db = getDb();
+  const hash = sha256(code);
+  const listed = db.select().from(voters).where(eq(voters.tokenHash, hash)).get();
+  if (listed) {
+    const event = requireEvent(db, listed.eventId);
+    return { eventSlug: event.slug, eventId: event.id, token: code };
+  }
+  const event = db
+    .select()
+    .from(events)
+    .all()
+    .find((e) => e.settings.voting?.linkHash === hash);
+  if (!event || !votingSettings(event).modes.includes("link")) throw new NotFoundError("Voting link");
+  const ipHash = clientHash(client.ip, event.id);
+  limitOrThrow(`linkvoter:${event.id}:${ipHash ?? "none"}`, LIMITS.linkVoter, { eventId: event.id, label: "anonymous", userId: null, what: "open-link entry" });
+  const token = newSecret(24);
+  const id = newId("vtr");
+  db.transaction((tx) => {
+    tx.insert(voters)
+      .values({
+        id,
+        eventId: event.id,
+        kind: "link",
+        tokenHash: sha256(token),
+        orderSeed: parseInt(sha256(`ballot-order:${id}`).slice(0, 8), 16) & 0x7fffffff,
+        ipHash,
+        agentHash: clientHash(client.agent, event.id),
+        createdAt: new Date().toISOString(),
+      })
+      .run();
+    appendAudit(
+      tx,
+      { actorUserId: null, actorLabel: `Link voter ${id.slice(-6)}`, action: "voter.join_link", eventId: event.id, targetType: "voter", targetId: id },
+      new Date().toISOString(),
+    );
+  });
+  return { eventSlug: event.slug, eventId: event.id, token };
+}
+
+// ---------------------------------------------------------------------------
+// The organizer's side
+// ---------------------------------------------------------------------------
+
+const utc = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "use the date picker")
+  .transform((v) => `${v}:00.000Z`);
+
+const SettingsInput = z
+  .object({
+    votingOpenAt: z.union([z.literal(""), utc]),
+    votingCloseAt: z.union([z.literal(""), utc]),
+    modes: z.array(z.enum(["account", "listed", "link"])).default([]),
+    votesPerVoter: z.coerce.number().int().min(1).max(20),
+  })
+  .refine((v) => (v.votingOpenAt === "") === (v.votingCloseAt === ""), { message: "set both times or neither", path: ["votingCloseAt"] })
+  .refine((v) => !v.votingOpenAt || Date.parse(v.votingOpenAt) < Date.parse(v.votingCloseAt), { message: "closes after it opens", path: ["votingCloseAt"] });
+
+function organizer<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOrTx, event: EventRow) => { result: T; audit: Parameters<typeof mutate<T>>[0]["run"] extends (tx: never) => { audit: infer A } ? A : never }) {
+  let event: EventRow;
+  return mutate<T>({
+    actor,
+    action: "event.manage",
+    load: (tx) => {
+      event = requireEvent(tx, eventIdOrSlug);
+      return { kind: "event", event: eventFacts(event) };
+    },
+    run: (tx) => run(tx, event),
+  });
+}
+
+export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
+  return organizer(actor, eventIdOrSlug, (tx, event) => {
+    const input = parse(SettingsInput, body);
+    const before = { votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt, ...votingSettings(event), linkHash: undefined };
+    const voting = { ...votingSettings(event), modes: [...new Set(input.modes)].sort() as VoterKind[], votesPerVoter: input.votesPerVoter };
+    tx.update(events)
+      .set({ votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, settings: { ...event.settings, voting } })
+      .where(eq(events.id, event.id))
+      .run();
+    return {
+      result: { ok: true },
+      audit: {
+        action: "voting.settings",
+        eventId: event.id,
+        targetType: "event",
+        targetId: event.id,
+        before,
+        after: { votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, modes: voting.modes, votesPerVoter: voting.votesPerVoter },
+      },
+    };
+  });
+}
+
+/** A new open voting link; the old one stops working. The code is shown once. */
+export function makeVotingLink(actor: Actor | null, eventIdOrSlug: string) {
+  return organizer(actor, eventIdOrSlug, (tx, event) => {
+    const code = newSecret(18);
+    const current = votingSettings(event);
+    tx.update(events)
+      .set({ settings: { ...event.settings, voting: { ...current, linkHash: sha256(code) } } })
+      .where(eq(events.id, event.id))
+      .run();
+    return {
+      result: { code, path: `/vote/${code}` },
+      audit: { action: "voting.link", eventId: event.id, targetType: "event", targetId: event.id, after: { replaced: Boolean(current.linkHash) } },
+    };
+  });
+}
+
+const VoterList = z.object({ emails: z.string().max(200_000) });
+
+/** Add people to the voter list; each gets a personal link, shown once. Known addresses are skipped. */
+export function addListedVoters(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
+  return organizer(actor, eventIdOrSlug, (tx, event) => {
+    const raw = parse(VoterList, body).emails;
+    const emails = [...new Set(raw.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))];
+    const bad = emails.filter((e) => !z.email().safeParse(e).success);
+    if (bad.length) throw new ValidationError("Check the addresses.", { emails: [`not an email address: ${bad.slice(0, 3).join(", ")}`] });
+    if (emails.length === 0) throw new ValidationError("Check the addresses.", { emails: ["paste at least one address"] });
+    const existing = new Set(
+      tx
+        .select({ email: voters.email })
+        .from(voters)
+        .where(and(eq(voters.eventId, event.id), inArray(voters.email, emails)))
+        .all()
+        .map((v) => v.email),
+    );
+    const now = new Date().toISOString();
+    const links: { email: string; path: string }[] = [];
+    for (const email of emails) {
+      if (existing.has(email)) continue;
+      const token = newSecret(24);
+      const id = newId("vtr");
+      tx.insert(voters)
+        .values({ id, eventId: event.id, kind: "listed", email, tokenHash: sha256(token), orderSeed: parseInt(sha256(`ballot-order:${id}`).slice(0, 8), 16) & 0x7fffffff, createdAt: now })
+        .run();
+      links.push({ email, path: `/vote/${token}` });
+    }
+    return {
+      result: { links, skipped: emails.length - links.length },
+      audit: links.length
+        ? { action: "voting.voters_added", eventId: event.id, targetType: "event", targetId: event.id, after: { added: links.length, skipped: emails.length - links.length } }
+        : null,
+    };
+  });
+}
+
+const VoidInput = z.object({ voterId: z.string().min(1), reason: z.string().trim().min(3, "say why, in a few words").max(500) });
+
+/** Set a ballot aside (a suspected duplicate), with a reason; its votes stop counting. */
+export function voidVoter(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
+  return organizer(actor, eventIdOrSlug, (tx, event) => {
+    const { voterId, reason } = parse(VoidInput, body);
+    const v = tx.select().from(voters).where(and(eq(voters.id, voterId), eq(voters.eventId, event.id))).get();
+    if (!v) throw new NotFoundError("Voter");
+    if (v.voidedAt) return { result: { voterId }, audit: null };
+    tx.update(voters).set({ voidedAt: new Date().toISOString(), voidedBy: actor!.userId, voidReason: reason }).where(eq(voters.id, voterId)).run();
+    return { result: { voterId }, audit: { action: "voter.void", eventId: event.id, targetType: "voter", targetId: voterId, after: { reason } } };
+  });
+}
+
+export function restoreVoter(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
+  return organizer(actor, eventIdOrSlug, (tx, event) => {
+    const { voterId } = parse(z.object({ voterId: z.string().min(1) }), body);
+    const v = tx.select().from(voters).where(and(eq(voters.id, voterId), eq(voters.eventId, event.id))).get();
+    if (!v) throw new NotFoundError("Voter");
+    if (!v.voidedAt) return { result: { voterId }, audit: null };
+    tx.update(voters).set({ voidedAt: null, voidedBy: null, voidReason: null }).where(eq(voters.id, voterId)).run();
+    return { result: { voterId }, audit: { action: "voter.restore", eventId: event.id, targetType: "voter", targetId: voterId, before: { reason: v.voidReason } } };
+  });
+}
+
+export type Tally = { projectId: string; title: string; teamName: string; votes: number; place: number };
+
+/** Counted votes per project: voided voters left out. DAL-internal; callers decide who may see it. */
+function tally(db: DbOrTx, eventId: string): Tally[] {
+  const rows = db
+    .select({ projectId: projects.id, title: projects.title, teamName: teams.name, n: sql<number>`count(${votes.voterId})` })
+    .from(projects)
+    .innerJoin(teams, eq(teams.id, projects.teamId))
+    .leftJoin(votes, eq(votes.projectId, projects.id))
+    .leftJoin(voters, eq(voters.id, votes.voterId))
+    .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted"), isNull(projects.duplicateOf), sql`(${voters.id} is null or ${voters.voidedAt} is null)`))
+    .groupBy(projects.id)
+    .all()
+    .sort((a, b) => b.n - a.n || a.title.localeCompare(b.title));
+  return rows.map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, votes: r.n, place: rows.findIndex((x) => x.n === r.n) + 1 }));
+}
+
+export type DuplicateGroup = { key: string; voters: { id: string; kind: VoterKind; picks: number; createdAt: string; voided: boolean }[] };
+
+export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
+  const db = getDb();
+  const event = requireEvent(db, eventIdOrSlug);
+  guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
+  const settings = votingSettings(event);
+  const all = db.select().from(voters).where(eq(voters.eventId, event.id)).all();
+  const counts = new Map(
+    db
+      .select({ voterId: votes.voterId, n: sql<number>`count(*)` })
+      .from(votes)
+      .innerJoin(voters, eq(voters.id, votes.voterId))
+      .where(eq(voters.eventId, event.id))
+      .groupBy(votes.voterId)
+      .all()
+      .map((r) => [r.voterId, r.n]),
+  );
+  // Suspected duplicates: two or more ballots from the same network address and browser.
+  const groups = new Map<string, VoterRow[]>();
+  for (const v of all) {
+    if (!v.ipHash || !(counts.get(v.id) ?? 0)) continue;
+    const key = `${v.ipHash}:${v.agentHash ?? ""}`;
+    groups.set(key, [...(groups.get(key) ?? []), v]);
+  }
+  const suspected: DuplicateGroup[] = [...groups.entries()]
+    .filter(([, list]) => list.length >= 2)
+    .map(([key, list]) => ({
+      key: key.slice(0, 8),
+      voters: list.map((v) => ({ id: v.id, kind: v.kind, picks: counts.get(v.id) ?? 0, createdAt: v.createdAt, voided: Boolean(v.voidedAt) })),
+    }));
+  const state = votingState(event);
+  return {
+    event,
+    settings: { modes: settings.modes, votesPerVoter: settings.votesPerVoter, linkActive: Boolean(settings.linkHash) },
+    state,
+    turnout: {
+      voters: all.length,
+      ballots: all.filter((v) => (counts.get(v.id) ?? 0) > 0 && !v.voidedAt).length,
+      voided: all.filter((v) => v.voidedAt).length,
+      byKind: (["account", "listed", "link"] as const).map((kind) => ({ kind, ballots: all.filter((v) => v.kind === kind && (counts.get(v.id) ?? 0) > 0).length })),
+    },
+    listed: all
+      .filter((v) => v.kind === "listed")
+      .map((v) => ({ id: v.id, email: v.email!, voted: (counts.get(v.id) ?? 0) > 0, voided: Boolean(v.voidedAt) }))
+      .sort((a, b) => a.email.localeCompare(b.email)),
+    suspected,
+    // Hidden from everyone, organizers included, while the window is open.
+    tally: state === "closed" ? tally(db, event.id) : null,
+  };
+}
+
+export type CommunityResults = { state: VotingState; closesAt: string | null; tally: Tally[] | null };
+
+/** The public community vote: only after the window closes. */
+export function getCommunityResults(eventIdOrSlug: string): CommunityResults {
+  const db = getDb();
+  const event = requireEvent(db, eventIdOrSlug);
+  const state = votingState(event);
+  return { state, closesAt: event.votingCloseAt, tally: state === "closed" ? tally(db, event.id) : null };
+}
+
+/** What a voting link is, without using it: link previews and bots fetch URLs, so entering takes a click. */
+export function describeVotingCode(code: string): { event: { id: string; slug: string; name: string }; kind: "listed" | "link"; state: VotingState } {
+  const db = getDb();
+  const hash = sha256(code);
+  const listed = db.select({ eventId: voters.eventId }).from(voters).where(eq(voters.tokenHash, hash)).get();
+  const event = listed
+    ? requireEvent(db, listed.eventId)
+    : db
+        .select()
+        .from(events)
+        .all()
+        .find((e) => e.settings.voting?.linkHash === hash && votingSettings(e).modes.includes("link"));
+  if (!event) throw new NotFoundError("Voting link");
+  return { event: { id: event.id, slug: event.slug, name: event.name }, kind: listed ? "listed" : "link", state: votingState(event) };
+}
+
+/** The cookie that carries a voter's token for one event. */
+export const voteCookieName = (eventId: string) => `vote_${eventId}`;

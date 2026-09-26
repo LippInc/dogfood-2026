@@ -24,7 +24,11 @@ export type EventFacts = {
   resultsPublishedAt: string | null;
   /** null: judging stays open until results are published */
   judgingCloseAt?: string | null;
+  votingOpenAt?: string | null;
+  votingCloseAt?: string | null;
 };
+
+export type VoterKind = "account" | "listed" | "link";
 
 export type Action =
   | "event.create"
@@ -40,7 +44,9 @@ export type Action =
   | "judge.accept_invite"
   | "judging.console"
   | "review.save"
-  | "review.recuse";
+  | "review.recuse"
+  | "vote.cast"
+  | "comment.post";
 
 export type Resource =
   | { kind: "platform" }
@@ -54,7 +60,11 @@ export type Resource =
   /** email: the address the invitation was made for, or null for an open link */
   | { kind: "judge_invite"; event: EventFacts; email: string | null }
   /** one judge's assignment of one project */
-  | { kind: "assignment"; id: string; event: EventFacts; judgeUserId: string; status: "pending" | "done" | "recused" };
+  | { kind: "assignment"; id: string; event: EventFacts; judgeUserId: string; status: "pending" | "done" | "recused" }
+  /** a community ballot; voter: who the voting link or account proves, or null */
+  | { kind: "ballot"; event: EventFacts; modes: VoterKind[]; voter: { id: string; kind: VoterKind; voided: boolean } | null }
+  /** comments on one project */
+  | { kind: "project_comments"; event: EventFacts; projectId: string; submitted: boolean };
 
 export type Refusal = { ok: false; status: 401 | 403; code: string; message: string };
 export type Decision = { ok: true } | Refusal;
@@ -103,12 +113,32 @@ function windowRefusal(event: EventFacts, now: Date, what: string): Refusal {
     : refuse("submissions_not_open", `Submissions open at ${event.submissionsOpenAt}.`);
 }
 
+/**
+ * A ballot is proved by the voter's link token or by their account, so a voter may
+ * have no session at all: 401 means neither proof came with the request.
+ */
+function decideVote(resource: Resource, now: Date): Decision {
+  if (resource.kind !== "ballot") return refuse("bad_resource", "This action needs a ballot.");
+  const { event, voter } = resource;
+  if (!voter) {
+    return { ...unauthenticated, message: "Open your voting link, or sign in if this event lets accounts vote." };
+  }
+  if (!resource.modes.includes(voter.kind)) return refuse("voting_mode_off", "This event does not take votes this way.");
+  if (voter.voided) return refuse("voter_voided", "The organizers set this ballot aside as a suspected duplicate.");
+  if (!event.votingOpenAt || !event.votingCloseAt) return refuse("voting_not_set", "This event has no voting window.");
+  const t = now.getTime();
+  if (t < Date.parse(event.votingOpenAt)) return refuse("voting_not_open", `Voting opens at ${event.votingOpenAt}.`);
+  if (t >= Date.parse(event.votingCloseAt)) return refuse("voting_closed", `Voting closed at ${event.votingCloseAt}.`);
+  return allow;
+}
+
 export function authorize(
   actor: Actor | null,
   action: Action,
   resource: Resource,
   now: Date = new Date(),
 ): Decision {
+  if (action === "vote.cast") return decideVote(resource, now);
   if (!actor) return unauthenticated;
 
   switch (action) {
@@ -197,5 +227,11 @@ export function authorize(
       }
       return judgingRefusal(resource.event, now) ?? allow;
     }
+
+    case "comment.post": {
+      if (resource.kind !== "project_comments") return refuse("bad_resource", "This action needs a project.");
+      return resource.submitted ? allow : refuse("not_submitted", "Comments open once a project is submitted.");
+    }
+
   }
 }

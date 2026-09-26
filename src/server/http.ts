@@ -15,7 +15,12 @@ export async function route(work: () => Promise<Response> | Response): Promise<R
     return await work();
   } catch (err) {
     if (err instanceof HttpError) {
-      return json({ error: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) }, err.status);
+      const retry = err.status === 429 ? (err.details as { retryAfter?: number } | undefined)?.retryAfter : undefined;
+      return json(
+        { error: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) },
+        err.status,
+        retry ? { "retry-after": String(retry) } : undefined,
+      );
     }
     console.error("[api] unexpected error:", err);
     return json({ error: "internal", message: "Something went wrong on our side." }, 500);

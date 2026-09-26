@@ -14,6 +14,8 @@ export function eventFacts(e: EventRow): EventFacts {
     submissionsCloseAt: e.submissionsCloseAt,
     resultsPublishedAt: e.resultsPublishedAt,
     judgingCloseAt: e.judgingCloseAt,
+    votingOpenAt: e.votingOpenAt,
+    votingCloseAt: e.votingCloseAt,
   };
 }
 
@@ -34,7 +36,16 @@ export function requireEvent(db: DbOrTx, idOrSlug: string): EventRow {
 
 export type PublicEvent = Pick<
   EventRow,
-  "id" | "slug" | "name" | "description" | "submissionsOpenAt" | "submissionsCloseAt" | "judgingCloseAt" | "resultsPublishedAt"
+  | "id"
+  | "slug"
+  | "name"
+  | "description"
+  | "submissionsOpenAt"
+  | "submissionsCloseAt"
+  | "judgingCloseAt"
+  | "resultsPublishedAt"
+  | "votingOpenAt"
+  | "votingCloseAt"
 >;
 
 const publicEventColumns = {
@@ -46,6 +57,8 @@ const publicEventColumns = {
   submissionsCloseAt: events.submissionsCloseAt,
   judgingCloseAt: events.judgingCloseAt,
   resultsPublishedAt: events.resultsPublishedAt,
+  votingOpenAt: events.votingOpenAt,
+  votingCloseAt: events.votingCloseAt,
 };
 
 export function listEvents(): PublicEvent[] {
@@ -85,6 +98,8 @@ export function getGallery(idOrSlug: string): Gallery {
     description: found.description,
     submissionsOpenAt: found.submissionsOpenAt,
     submissionsCloseAt: found.submissionsCloseAt,
+    votingOpenAt: found.votingOpenAt,
+    votingCloseAt: found.votingCloseAt,
     judgingCloseAt: found.judgingCloseAt,
     resultsPublishedAt: found.resultsPublishedAt,
   };

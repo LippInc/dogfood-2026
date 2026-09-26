@@ -13,6 +13,8 @@ type AuditDetail = Omit<AuditEntry, "actorUserId" | "actorLabel" | "action"> & {
 
 export type MutationSpec<T> = {
   actor: Actor | null;
+  /** who the audit row names when there is no session: a voter holding a voting link */
+  as?: { label: string } | null;
   action: Action;
   /** Load the facts the decision needs, inside the transaction. May throw NotFoundError. */
   load: (tx: Tx) => Resource;
@@ -24,7 +26,9 @@ export type MutationSpec<T> = {
   now?: Date;
 };
 
-export function refusalAudit(actor: Actor, action: Action, resource: Resource, refusal: Refusal): AuditEntry {
+type Who = { userId: string | null; name: string };
+
+export function refusalAudit(actor: Who, action: Action, resource: Resource, refusal: Refusal): AuditEntry {
   const eventId = "event" in resource ? resource.event.id : null;
   return {
     actorUserId: actor.userId,
@@ -32,7 +36,16 @@ export function refusalAudit(actor: Actor, action: Action, resource: Resource, r
     action: "authz.refused",
     eventId,
     targetType: resource.kind,
-    targetId: resource.kind === "judge_scores" ? resource.judgeUserId : resource.kind === "assignment" ? resource.id : eventId,
+    targetId:
+      resource.kind === "judge_scores"
+        ? resource.judgeUserId
+        : resource.kind === "assignment"
+          ? resource.id
+          : resource.kind === "ballot"
+            ? (resource.voter?.id ?? eventId)
+            : resource.kind === "project_comments"
+              ? resource.projectId
+              : eventId,
     after: { attempted: action, status: refusal.status, code: refusal.code },
   };
 }
@@ -42,20 +55,22 @@ export function mutate<T>(spec: MutationSpec<T>): T {
   const outcome = getDb().transaction((tx): { refused: Refusal } | { result: T } => {
     const resource = spec.load(tx);
     const decision = authorize(spec.actor, spec.action, resource, now);
+    // A session actor, or (for a ballot) the voter the link proves.
+    const who: Who | null = spec.actor
+      ? { userId: spec.actor.userId, name: spec.actor.name }
+      : spec.as
+        ? { userId: null, name: spec.as.label }
+        : null;
     if (!decision.ok) {
-      if (decision.status === 403 && spec.actor) {
-        appendAudit(tx, refusalAudit(spec.actor, spec.action, resource, decision), now.toISOString());
+      if (decision.status === 403 && who) {
+        appendAudit(tx, refusalAudit(who, spec.action, resource, decision), now.toISOString());
       }
       return { refused: decision };
     }
-    const actor = spec.actor!; // authorize() refuses a null actor for every mutation
+    if (!who) throw new Error(`authorize() allowed ${spec.action} with nobody to record`);
     const { result, audit } = spec.run(tx);
     if (audit) {
-      appendAudit(
-        tx,
-        { ...audit, actorUserId: actor.userId, actorLabel: actor.name, action: audit.action ?? spec.action },
-        now.toISOString(),
-      );
+      appendAudit(tx, { ...audit, actorUserId: who.userId, actorLabel: who.name, action: audit.action ?? spec.action }, now.toISOString());
     }
     return { result };
   });
@@ -72,7 +87,7 @@ export function guardRead(actor: Actor | null, action: Action, resource: Resourc
   if (decision.ok) return actor!;
   if (decision.status === 403 && actor) {
     getDb().transaction((tx) => {
-      appendAudit(tx, refusalAudit(actor, action, resource, decision), now.toISOString());
+      appendAudit(tx, refusalAudit({ userId: actor.userId, name: actor.name }, action, resource, decision), now.toISOString());
     });
   }
   throw new AuthzError(decision);

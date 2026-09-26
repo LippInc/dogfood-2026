@@ -36,3 +36,9 @@ export class ConflictError extends HttpError {
     super(409, code, message);
   }
 }
+
+export class RateLimitedError extends HttpError {
+  constructor(public readonly retryAfter: number) {
+    super(429, "rate_limited", `Too many requests. Try again in ${retryAfter} s.`, { retryAfter });
+  }
+}

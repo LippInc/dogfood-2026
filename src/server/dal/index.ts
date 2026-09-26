@@ -76,6 +76,27 @@ export {
 export { getOverview, type Overview, type Stage } from "./overview";
 export { getAuditLog, type AuditLine, type Part } from "./audit-log";
 export { getSubmissions, type SubmissionRow } from "./submissions";
+export {
+  addListedVoters,
+  castBallot,
+  describeVotingCode,
+  enterVoting,
+  getBallot,
+  getCommunityResults,
+  getVotingAdmin,
+  makeVotingLink,
+  restoreVoter,
+  saveVotingSettings,
+  voidVoter,
+  voteCookieName,
+  votingState,
+  type BallotView,
+  type Client,
+  type CommunityResults,
+  type Tally,
+} from "./voting";
+export { hideComment, listComments, postComment, type CommentView } from "./comments";
+export { RateLimitedError } from "../errors";
 export { actionError, json, route, type ActionResult } from "../http";
 export { actorNav, type NavLink } from "./nav";
 export {

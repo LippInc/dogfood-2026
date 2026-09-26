@@ -108,6 +108,8 @@ export type EventSettings = {
   notDuplicates?: string[];
   /** Under-reviewed projects the organizer chose to publish as they are. */
   acceptedUnderReviewed?: string[];
+  /** Community voting (T3): who may vote, how many favourites each, the open link's hash. */
+  voting?: { modes: ("account" | "listed" | "link")[]; votesPerVoter: number; linkHash?: string | null };
 };
 
 export const events = sqliteTable(
@@ -470,6 +472,82 @@ export const normalizedScores = sqliteTable(
     rankNormalized: real("rank_normalized"),
   },
   (t) => [primaryKey({ columns: [t.runId, t.projectId] })],
+);
+
+// ---------------------------------------------------------------------------
+// Community voting and comments (T3)
+// ---------------------------------------------------------------------------
+
+// Who may vote is the organizer's choice, per event: signed-in accounts, people on
+// a voter list (each gets a personal link), or anyone holding the event's open
+// voting link. One voter row per person per event; the personal or browser token
+// is stored only as its SHA-256. The address and browser hashes (salted) exist
+// only to flag suspected duplicate voters for the organizer, never to identify.
+export const VOTER_KINDS = ["account", "listed", "link"] as const;
+
+export const voters = sqliteTable(
+  "voters",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").notNull().references(() => events.id),
+    kind: text("kind", { enum: VOTER_KINDS }).notNull(),
+    userId: text("user_id").references(() => users.id),
+    email: text("email"),
+    tokenHash: text("token_hash").unique(),
+    // seeds this voter's own shuffled ballot order
+    orderSeed: integer("order_seed").notNull(),
+    ipHash: text("ip_hash"),
+    agentHash: text("agent_hash"),
+    createdAt: text("created_at").notNull(),
+    lastVotedAt: text("last_voted_at"),
+    voidedAt: text("voided_at"),
+    voidedBy: text("voided_by"),
+    voidReason: text("void_reason"),
+  },
+  (t) => [
+    uniqueIndex("voters_event_user_uq").on(t.eventId, t.userId),
+    uniqueIndex("voters_event_email_uq").on(t.eventId, t.email),
+    index("voters_event_ip_idx").on(t.eventId, t.ipHash),
+    check("voters_kind_check", sql`${t.kind} in ('account', 'listed', 'link')`),
+    check(
+      "voters_kind_identity",
+      sql`(${t.kind} = 'account' and ${t.userId} is not null) or (${t.kind} = 'listed' and ${t.email} is not null and ${t.tokenHash} is not null) or (${t.kind} = 'link' and ${t.tokenHash} is not null)`,
+    ),
+    check("voters_email_lower", sql`${t.email} is null or ${t.email} = lower(${t.email})`),
+    check("voters_void_reason", sql`${t.voidedAt} is null or length(trim(coalesce(${t.voidReason}, ''))) >= 3`),
+  ],
+);
+
+export const votes = sqliteTable(
+  "votes",
+  {
+    voterId: text("voter_id").notNull().references(() => voters.id),
+    projectId: text("project_id").notNull().references(() => projects.id),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.voterId, t.projectId] }), index("votes_project_idx").on(t.projectId)],
+);
+
+export const comments = sqliteTable(
+  "comments",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").notNull().references(() => events.id),
+    projectId: text("project_id").notNull().references(() => projects.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    createdAt: text("created_at").notNull(),
+    hiddenAt: text("hidden_at"),
+    hiddenBy: text("hidden_by"),
+    hiddenReason: text("hidden_reason"),
+  },
+  (t) => [
+    index("comments_project_idx").on(t.projectId, t.createdAt),
+    check("comments_body_length", sql`length(trim(${t.body})) between 1 and 2000`),
+    check("comments_hidden_reason", sql`${t.hiddenAt} is null or length(trim(coalesce(${t.hiddenReason}, ''))) >= 3`),
+  ],
 );
 
 // ---------------------------------------------------------------------------
