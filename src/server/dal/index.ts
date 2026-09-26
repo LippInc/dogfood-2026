@@ -122,3 +122,4 @@ export {
   type RecordView,
 } from "./records";
 export type { Verification } from "../signing";
+export { OPERATIONS, openApiDocument, operationId, type Access, type Operation } from "../openapi";
