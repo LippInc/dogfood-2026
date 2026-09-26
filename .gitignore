@@ -42,3 +42,4 @@ next-env.d.ts
 
 # local database and checker headers (the container keeps them in its /data volume)
 /data/
+__pycache__/

@@ -8,3 +8,4 @@ coverage
 .env*
 Dockerfile
 docker-compose.yml
+__pycache__
