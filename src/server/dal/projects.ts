@@ -4,11 +4,13 @@ import { z } from "zod";
 import type { Actor } from "../authz";
 import { submissionsOpen } from "../authz";
 import { getDb, type DbOrTx, type Tx } from "../db/client";
-import { customAnswers, customQuestions, projects, teamMembers, teams, tracks } from "../db/schema";
+import { customAnswers, customQuestions, projects, scoreComments, teamMembers, teams, tracks } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
+import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
+import { getPublishedResults } from "./normalization";
 import { myTeam, type MyTeam } from "./teams";
 
 // A team's project: created and edited by its members while submissions are open,
@@ -235,7 +237,50 @@ export type MyWork = {
   questions: Question[];
   team: MyTeam | null;
   project: (typeof projects.$inferSelect & { answers: Record<string, string> }) | null;
+  /** after results are published: the team's place, score and every review, judges unnamed */
+  feedback: TeamFeedback | null;
 };
+
+export type TeamFeedback = {
+  place: number | null;
+  score: number | null;
+  trackName: string;
+  reviews: { values: { label: string; value: number }[]; total: number; feedback: string; counted: boolean }[];
+};
+
+/** The published outcome for one project, for its own team. DAL-internal: the caller checks membership. */
+function teamFeedback(db: DbOrTx, event: EventRow, projectId: string): TeamFeedback | null {
+  if (!event.resultsPublishedAt) return null;
+  const published = getPublishedResults(event.id);
+  if (!published.published) return null;
+  const track = published.tracks.find((t) => t.rows.some((r) => r.projectId === projectId));
+  const row = track?.rows.find((r) => r.projectId === projectId);
+  const criteria = rubricOf(db, event.id);
+  const merged = new Set([projectId, ...db.select({ id: projects.id }).from(projects).where(eq(projects.duplicateOf, projectId)).all().map((x) => x.id)]);
+  const excluded = new Set(judgeSet(db, event.id).excluded);
+  const reviews = finishedReviews(db, event.id, criteria).filter((r) => merged.has(r.projectId));
+  const notes = reviews.length
+    ? new Map(
+        db
+          .select({ scoreId: scoreComments.scoreId, feedback: scoreComments.feedback })
+          .from(scoreComments)
+          .where(inArray(scoreComments.scoreId, reviews.map((r) => r.scoreId)))
+          .all()
+          .map((c) => [c.scoreId, c.feedback]),
+      )
+    : new Map<string, string>();
+  return {
+    place: row?.place ?? null,
+    score: row?.score ?? null,
+    trackName: track?.name ?? "",
+    reviews: reviews.map((r) => ({
+      values: criteria.map((c, i) => ({ label: c.label, value: r.values[i]! })),
+      total: weightedTotal(criteria, r.values),
+      feedback: notes.get(r.scoreId) ?? "",
+      counted: !excluded.has(r.judgeId),
+    })),
+  };
+}
 
 /** Everything the "my project" page needs for the signed-in person in one event. */
 export function getMyWork(actor: Actor, eventIdOrSlug: string): MyWork {
@@ -265,6 +310,7 @@ export function getMyWork(actor: Actor, eventIdOrSlug: string): MyWork {
     questions: eventQuestions(db, event.id),
     team,
     project: project ? { ...project, answers } : null,
+    feedback: project && project.status === "submitted" ? teamFeedback(db, event, project.id) : null,
   };
 }
 

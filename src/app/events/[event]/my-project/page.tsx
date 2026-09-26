@@ -57,6 +57,34 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           </div>
         ) : null}
       </div>
+      {work.feedback ? (
+        <section aria-labelledby="feedback-title" className="mb-10 border-y border-rule py-8">
+          <p className="label-mono text-accent-ink">Results are published</p>
+          <h2 id="feedback-title" className="mt-2 text-24 font-semibold">
+            {work.feedback.place !== null ? `Place ${work.feedback.place} in ${work.feedback.trackName}` : "Not ranked"}
+            {work.feedback.score !== null ? <span className="font-normal text-ink-2"> · score {work.feedback.score.toFixed(2)}</span> : null}
+          </h2>
+          <p className="mt-2 text-15 text-ink-2">
+            Every review of your project, judges unnamed. The score is the reviews&rsquo; weighted average, adjusted for each judge&rsquo;s leniency across the event.
+          </p>
+          <ol className="mt-6 grid gap-4 md:grid-cols-2">
+            {work.feedback.reviews.map((r, i) => (
+              <li key={i} className={`rounded-sm border border-rule p-4 ${r.counted ? "" : "opacity-70"}`}>
+                <p className="flex flex-wrap items-baseline justify-between gap-2 text-14">
+                  <span className="font-semibold">Review {i + 1}</span>
+                  <span className="text-ink-2 tnum">
+                    {r.values.map((v) => `${v.label} ${v.value}`).join(" · ")} = {r.total.toFixed(2)}
+                  </span>
+                </p>
+                <p className="mt-3 font-serif text-17 leading-7">{r.feedback || <span className="text-ink-3">No written feedback.</span>}</p>
+                {r.counted ? null : (
+                  <p className="mt-2 text-12 text-ink-2">Not counted: this judge gave the same scores to every project, so the organizers left them out.</p>
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
       {!team ? (
         <StartTeam eventSlug={event.slug} open={open} />
       ) : (
