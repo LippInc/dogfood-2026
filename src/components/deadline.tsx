@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+// A clock that ticks every 30 s; the server has no clock (null), so the countdown
+// appears after hydration and server and client HTML agree.
+function subscribeClock(tick: () => void) {
+  const t = setInterval(tick, 30_000);
+  return () => clearInterval(t);
+}
+const clockNow = () => Math.floor(Date.now() / 30_000) * 30_000;
 
 function left(ms: number): string {
   if (ms <= 0) return "closed";
@@ -18,12 +26,7 @@ function left(ms: number): string {
  * countdown (filled in after hydration, so server and client HTML agree).
  */
 export function Deadline({ iso, utcLabel }: { iso: string; utcLabel: string }) {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(t);
-  }, []);
+  const now = useSyncExternalStore(subscribeClock, clockNow, () => null);
   const at = Date.parse(iso);
   const local =
     now === null
