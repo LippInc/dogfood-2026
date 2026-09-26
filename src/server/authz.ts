@@ -1,0 +1,124 @@
+import "server-only";
+import type { Role } from "./db/schema";
+
+// authorize(actor, action, resource) is the one place a permission is decided.
+// It is pure: callers load the facts (roles, event dates, team membership) inside
+// the transaction that will act on the answer, and pass them in. Convention: no or
+// invalid session is 401, a valid session without permission is 403. A refusal is
+// always a real 4xx from the route that was asked, never a redirect.
+
+export type Actor = {
+  userId: string;
+  name: string;
+  email: string;
+  isAdmin: boolean;
+  roles: { eventId: string; role: Role }[];
+  sessionKind: "login" | "checker";
+};
+
+/** The facts about an event that permissions depend on. */
+export type EventFacts = {
+  id: string;
+  submissionsOpenAt: string | null;
+  submissionsCloseAt: string;
+  resultsPublishedAt: string | null;
+};
+
+export type Action =
+  | "event.create"
+  | "event.manage"
+  | "event.export"
+  | "project.create"
+  | "project.edit"
+  | "scores.read_own"
+  | "scores.read_judge";
+
+export type Resource =
+  | { kind: "platform" }
+  | { kind: "event"; event: EventFacts }
+  /** onTeam: the actor is a member of a team in this event (create) or of this project's team (edit) */
+  | { kind: "team_work"; event: EventFacts; onTeam: boolean }
+  /** judgeUserId: whose scores are asked for; the peer route passes the requested id */
+  | { kind: "judge_scores"; judgeUserId: string };
+
+export type Refusal = { ok: false; status: 401 | 403; code: string; message: string };
+export type Decision = { ok: true } | Refusal;
+
+const allow: Decision = { ok: true };
+const unauthenticated: Refusal = {
+  ok: false,
+  status: 401,
+  code: "unauthenticated",
+  message: "Sign in first: this request carried no valid session.",
+};
+const refuse = (code: string, message: string): Refusal => ({ ok: false, status: 403, code, message });
+
+export function hasRole(actor: Actor, eventId: string, role: Role): boolean {
+  return actor.roles.some((r) => r.eventId === eventId && r.role === role);
+}
+
+export function isJudgeAnywhere(actor: Actor): boolean {
+  return actor.roles.some((r) => r.role === "judge");
+}
+
+/** Submissions are open from submissions_open_at (or creation) until submissions_close_at, exclusive. */
+export function submissionsOpen(event: EventFacts, now: Date): boolean {
+  const close = Date.parse(event.submissionsCloseAt);
+  const open = event.submissionsOpenAt ? Date.parse(event.submissionsOpenAt) : -Infinity;
+  const t = now.getTime();
+  return t >= open && t < close;
+}
+
+export function authorize(
+  actor: Actor | null,
+  action: Action,
+  resource: Resource,
+  now: Date = new Date(),
+): Decision {
+  if (!actor) return unauthenticated;
+
+  switch (action) {
+    case "event.create":
+      return actor.isAdmin ? allow : refuse("not_an_admin", "Only an administrator of this portal can create events.");
+
+    case "event.manage":
+    case "event.export": {
+      if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");
+      return hasRole(actor, resource.event.id, "organizer")
+        ? allow
+        : refuse("not_an_organizer", "Only this event's organizers can do this.");
+    }
+
+    case "project.create":
+    case "project.edit": {
+      if (resource.kind !== "team_work") return refuse("bad_resource", "This action needs a team and an event.");
+      if (!resource.onTeam) {
+        return action === "project.create"
+          ? refuse("not_on_a_team", "Join or create a team in this event before submitting a project.")
+          : refuse("not_your_project", "Only members of this project's team can edit it.");
+      }
+      if (!submissionsOpen(resource.event, now)) {
+        const closed = now.getTime() >= Date.parse(resource.event.submissionsCloseAt);
+        return closed
+          ? refuse(
+              "submissions_closed",
+              `Submissions closed at ${resource.event.submissionsCloseAt}; the project can no longer be submitted or edited.`,
+            )
+          : refuse("submissions_not_open", `Submissions open at ${resource.event.submissionsOpenAt}.`);
+      }
+      return allow;
+    }
+
+    case "scores.read_own":
+      return isJudgeAnywhere(actor) ? allow : refuse("not_a_judge", "Only judges have scores to read.");
+
+    case "scores.read_judge": {
+      if (resource.kind !== "judge_scores") return refuse("bad_resource", "This action needs a judge id.");
+      if (!isJudgeAnywhere(actor)) return refuse("not_a_judge", "Only judges have scores to read.");
+      // Never fall back to the caller's own rows: asking for someone else's is a refusal.
+      return resource.judgeUserId === actor.userId
+        ? allow
+        : refuse("not_your_scores", "A judge can read only their own scores.");
+    }
+  }
+}
