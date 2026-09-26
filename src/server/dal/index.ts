@@ -20,6 +20,17 @@ export {
 } from "./projects";
 export { createTeam, joinTeam, rotateInvite, inviteByCode, type InviteView, type MyTeam } from "./teams";
 export { signUp } from "./accounts";
+export {
+  createEvent,
+  getOrganizerEvent,
+  organizedEvents,
+  savePrizes,
+  saveQuestions,
+  saveRubric,
+  saveTracks,
+  updateEventDetails,
+  type OrganizerEvent,
+} from "./organize";
 export { getJudgeScores, type JudgeReview, type JudgeScores } from "./scores";
 export { exportFile, EXPORT_FILES } from "./exports";
 export { actionError, json, route, type ActionResult } from "../http";

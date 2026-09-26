@@ -16,8 +16,11 @@ export type MutationSpec<T> = {
   action: Action;
   /** Load the facts the decision needs, inside the transaction. May throw NotFoundError. */
   load: (tx: Tx) => Resource;
-  /** Make the change; return the result and what the audit row should say. Must be synchronous. */
-  run: (tx: Tx) => { result: T; audit: AuditDetail };
+  /**
+   * Make the change; return the result and what the audit row should say, or
+   * audit: null when nothing changed (no row is written). Must be synchronous.
+   */
+  run: (tx: Tx) => { result: T; audit: AuditDetail | null };
   now?: Date;
 };
 
@@ -47,11 +50,13 @@ export function mutate<T>(spec: MutationSpec<T>): T {
     }
     const actor = spec.actor!; // authorize() refuses a null actor for every mutation
     const { result, audit } = spec.run(tx);
-    appendAudit(
-      tx,
-      { ...audit, actorUserId: actor.userId, actorLabel: actor.name, action: audit.action ?? spec.action },
-      now.toISOString(),
-    );
+    if (audit) {
+      appendAudit(
+        tx,
+        { ...audit, actorUserId: actor.userId, actorLabel: actor.name, action: audit.action ?? spec.action },
+        now.toISOString(),
+      );
+    }
     return { result };
   });
   if ("refused" in outcome) throw new AuthzError(outcome.refused);
