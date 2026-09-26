@@ -1,6 +1,6 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openDatabase, useHandleForTests, type Handle } from "@/server/db/client";
+import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { auditLog } from "@/server/db/schema";
@@ -38,11 +38,11 @@ beforeEach(() => {
   if (!p || !j) throw new Error("checker actors did not resolve");
   participant = p;
   judge = j;
-  useHandleForTests(h); // createProject goes through getDb()
+  setHandleForTests(h); // createProject goes through getDb()
 });
 
 afterEach(() => {
-  useHandleForTests(null);
+  setHandleForTests(null);
   h.sqlite.close();
   if (oldSeed === undefined) delete process.env.SEED_CHECKER_SESSIONS;
   else process.env.SEED_CHECKER_SESSIONS = oldSeed;

@@ -43,6 +43,6 @@ export function getDb(): Db {
 }
 
 /** Tests swap in an in-memory database. */
-export function useHandleForTests(h: Handle | null): void {
+export function setHandleForTests(h: Handle | null): void {
   current = h;
 }

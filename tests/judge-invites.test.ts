@@ -1,7 +1,7 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { openDatabase, useHandleForTests, type Handle } from "@/server/db/client";
+import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { auditLog, userRoles } from "@/server/db/schema";
@@ -22,11 +22,11 @@ beforeEach(() => {
   const { fixture, sha256: fixtureSha } = loadFixtureFile(path.join(process.cwd(), "fixtures.json"));
   importFixtures(h.db, fixture, { source: "fixtures.json", sha256: fixtureSha, now: NOW });
   ensureDemoOrganizer(h.db, "evt_01", NOW);
-  useHandleForTests(h); // the judge DAL goes through getDb()
+  setHandleForTests(h); // the judge DAL goes through getDb()
 });
 
 afterEach(() => {
-  useHandleForTests(null);
+  setHandleForTests(null);
   h.sqlite.close();
 });
 

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { openDatabase, useHandleForTests, type Handle } from "@/server/db/client";
+import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { resetRateLimits } from "@/server/rate-limit";
 
@@ -16,12 +16,12 @@ let h: Handle;
 beforeEach(() => {
   h = openDatabase(":memory:");
   runMigrations(h, path.join(process.cwd(), "drizzle"));
-  useHandleForTests(h);
+  setHandleForTests(h);
   resetRateLimits();
 });
 
 afterEach(() => {
-  useHandleForTests(null);
+  setHandleForTests(null);
   h.sqlite.close();
 });
 
