@@ -21,7 +21,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${plex.variable} ${sourceSerif.variable} ${jetbrains.variable} ${archivo.variable}`}
       suppressHydrationWarning
     >
-      <body>
+      {/* The work tokens on body are the fallback for portals (dialogs, toasts) that render outside a page's .work or .public frame. */}
+      <body className="work">
         {children}
         <Toaster />
       </body>
