@@ -7,11 +7,22 @@ import "server-only";
 export { currentActor } from "../session";
 export type { Actor } from "../authz";
 export { HttpError, AuthzError, NotFoundError, ValidationError, ConflictError } from "../errors";
-export { getGallery, listEvents, type Gallery, type GalleryProject, type PublicEvent } from "./events";
-export { createProject, ProjectInput } from "./projects";
+export { getAbout, getGallery, listEvents, type About, type Gallery, type GalleryProject, type PublicEvent } from "./events";
+export {
+  createProject,
+  updateProject,
+  getMyWork,
+  getPublicProject,
+  ProjectInput,
+  type MyWork,
+  type PublicProject,
+  type Question,
+} from "./projects";
+export { createTeam, joinTeam, rotateInvite, inviteByCode, type InviteView, type MyTeam } from "./teams";
+export { signUp } from "./accounts";
 export { getJudgeScores, type JudgeReview, type JudgeScores } from "./scores";
 export { exportFile, EXPORT_FILES } from "./exports";
-export { json, route } from "../http";
+export { actionError, json, route, type ActionResult } from "../http";
 export { actorNav, type NavLink } from "./nav";
 export {
   demoIdentities,

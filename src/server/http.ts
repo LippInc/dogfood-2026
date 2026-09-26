@@ -21,3 +21,18 @@ export async function route(work: () => Promise<Response> | Response): Promise<R
     return json({ error: "internal", message: "Something went wrong on our side." }, 500);
   }
 }
+
+export type ActionResult = { ok: boolean; message: string | null; fieldErrors?: Record<string, string[]> };
+
+/**
+ * Server actions return refusals and validation errors as data for the form to
+ * show; anything else (including Next's own redirect signal) is rethrown.
+ */
+export function actionError(err: unknown): ActionResult {
+  if (err instanceof HttpError) {
+    const fieldErrors =
+      err.details && typeof err.details === "object" ? (err.details as Record<string, string[]>) : undefined;
+    return { ok: false, message: err.message, fieldErrors };
+  }
+  throw err;
+}

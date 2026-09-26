@@ -5,7 +5,7 @@ import { eventPhase, idLabel, type EventTimes } from "@/lib/format";
 import type { NavLink } from "@/server/dal";
 
 type ShellEvent = EventTimes & { id: string; slug: string; name: string };
-type Section = "projects" | "results" | "about";
+type Section = "projects" | "results" | "about" | "none";
 
 const SECTIONS: { key: Section; label: string; path: string }[] = [
   { key: "projects", label: "Projects", path: "" },
