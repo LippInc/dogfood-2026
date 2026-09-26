@@ -115,6 +115,8 @@ documented on purpose; set your own when the flag is on anywhere public.
   `X-Forwarded-For`; run the portal behind a reverse proxy that overwrites it, or
   a client can pick its own. The limits live in memory and reset on restart.
 - Results cannot be unpublished from the interface.
+- Signed records cannot be revoked, and the signing key cannot be rotated from
+  the interface; a record keeps what was true when it was issued.
 - No calibrated prize probabilities or rank intervals: normalized ranks compare
   within a track, and close scores should be read as ties.
 - `ARCHITECTURE.md` and `DATA-MODEL.md` are still to come.
