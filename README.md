@@ -27,9 +27,39 @@ Herrera, Jonas Vogel) and a participant.
 python run.py .dogfood.toml
 ```
 
-The organizers' suite covers T1 and T2. Our own tests (`npm test`, vitest) cover
-the permission rules, the assignment engine, the normalization engine and its
-Monte Carlo validation, the audit log's append-only triggers and hash chain.
+The organizers' suite covers T1 and T2 only; asked on Discord (#ask-everything,
+2026-09-25), the organizers said "T3 and T4 are judged by hand", so run.py prints
+"claimed but not verified" for T3 by design. Our hand check for role isolation
+and every T3 bullet is `tests/isolation_check.py` (standard library only). It
+writes votes and comments, so run it on a fresh instance after run.py:
+
+```bash
+python tests/isolation_check.py .dogfood.toml
+```
+
+Its output from a clean `docker compose down -v && docker compose up` is committed
+as `isolation-report.txt`. Our own tests (`npm test`, vitest) cover the permission
+rules, the assignment engine, the normalization engine and its Monte Carlo
+validation, voting and comments, the audit log's append-only triggers and hash
+chain.
+
+## Beyond the checker
+
+Every T3 and T4 bullet from the event site, what exists, and how to check it by
+hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
+
+| Tier | Bullet | Status | Where | Hand check |
+|---|---|---|---|---|
+| T3 | Community voting: email gated, link based or authenticated | Built | Organizer: Voting tab. Voters: `/events/sample-hack-2026/vote`, `/vote/<code>` | `isolation_check.py` B1, B3, B4, B6. Email gated means a voter list by address with one personal link each; the portal sends no mail, the organizer sends the links |
+| T3 | Project comments | Built | Each project page; `GET/POST /api/projects/<id>/comments` | B8: post, organizer hides with a reason, the reason stays in place |
+| T3 | Results hidden during the voting window | Built | `GET /api/events/evt_01/community` | B2: the count is `null` for everyone, organizers included, until the window closes; B10 after |
+| T3 | Randomized project ordering on ballots | Built | Each voter's ballot, seeded per voter | B4: two ballots, two different orders |
+| T3 | Anti abuse: rate limits, duplicate detection, audit trail | Built | Limits on ballots, link entries, comments, sign-in; flags on the organizer's Voting tab; the audit log | B5, B7, B9 (429 with `Retry-After`), B12 (every step is in the audit log) |
+| T4 | REST API and webhooks | Partly built | JSON routes under `/api` for the actions above | No OpenAPI document and no webhooks yet |
+| T4 | Certificate and record generation | Not built | | |
+| T4 | Signed, publicly verifiable judge participation records | Not built | | |
+| T4 | Embeddable gallery widget | Built | `<script src="http://localhost:8080/embed.js" data-event="sample-hack-2026" async></script>`; the frame is `/embed/sample-hack-2026` | `curl -sI localhost:8080/embed/sample-hack-2026` shows `frame-ancestors *`; every other page answers `frame-ancestors 'none'` |
+| T4 | Bulk import and export | Partly built | CSV exports and `event.json` on the organizer's Overview; fixture import at first start | No bulk import from the interface or the API yet |
 
 ## What it does
 
@@ -71,8 +101,8 @@ documented on purpose; set your own when the flag is on anywhere public.
 
 ## What it does not do yet
 
-- No documented REST API, webhooks, certificates or embeddable gallery (T4);
-  the JSON routes the pages use exist under `/api` but are not a stable API yet.
+- T4 is partly built; see "Beyond the checker" for what is missing. The JSON
+  routes under `/api` are not a documented, stable API yet.
 - No email: invitations, voter links and reminders are links the organizer copies
   and sends. Accounts are not email-verified.
 - Rate limits and duplicate-ballot flags key on the client address from

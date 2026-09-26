@@ -2,7 +2,7 @@
 
 This document states how the portal turns judge scores into results, and defends the choices with measurements. The scores pass through three steps: assignment of projects to judges, scoring against the organizer's rubric, and normalization, which estimates each judge's leniency from the event's own scores and subtracts it. It also states what the engine does not do and where the audit trail stops.
 
-The evidence is checkable. `tests/normalization-mc.test.ts` builds simulated events on the sample event's own 126 judge–project pairs and scores the engine against the raw mean; `tests/normalize-oracle.test.ts` checks the fit against the planning run's numbers and against planted leniency; the organizers' acceptance suite re-checks the score-refusal rule. On a running instance the organizer can export `normalized.csv`, `audit.csv` and `event.json`. Every number below about the sample event is recomputable from those exports.
+The evidence is checkable. `tests/normalization-mc.test.ts` builds simulated events on the sample event's own 126 judge–project pairs and scores the engine against the raw mean; `tests/normalize-oracle.test.ts` checks the fit against the planning run's numbers and against planted leniency; the organizers' acceptance suite re-checks the score-refusal rule. On a running instance the organizer can export `normalized.csv`, `audit.csv` and `event.json`. Every number below about the sample event is recomputable from those exports. Where each feature beyond the organizers' checker stands (community voting and the rest of T3, and T4) is in the README's "Beyond the checker" table, with the hand-check output in `isolation-report.txt`.
 
 ## The finding on the sample event
 
