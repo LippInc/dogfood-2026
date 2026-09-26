@@ -151,6 +151,12 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       "assignment.by_hand",
       "results.publish",
       "event.update",
+      "voting.settings",
+      "voting.link",
+      "voting.voters_added",
+      "voter.void",
+      "voter.restore",
+      "comment.hide",
       "fixtures.import",
     ]),
   };
