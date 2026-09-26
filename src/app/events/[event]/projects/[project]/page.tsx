@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
-import { actorNav, currentActor, getPublicProject, NotFoundError } from "@/server/dal";
+import Link from "next/link";
+import { actorNav, currentActor, getPublicProject, listComments, NotFoundError } from "@/server/dal";
+import { CommentForm, HideForm } from "./comments";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,9 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
   const { event: eventKey, project: projectKey } = await params;
   const { event, project: p } = load(eventKey, projectKey);
   const actor = await currentActor();
+  const comments = listComments(actor, p.id);
+  const canModerate = Boolean(actor?.roles.some((r) => r.eventId === event.id && r.role === "organizer"));
+  const path = `/events/${event.slug}/projects/${p.id}`;
   return (
     <PublicShell event={event} active="projects" signedInAs={actor?.name ?? null} links={actorNav(actor)}>
       <article className="pt-10">
@@ -117,6 +122,45 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             </p>
           </aside>
         </div>
+
+        <section aria-labelledby="comments-title" className="mt-12 max-w-[680px] border-t border-rule pt-8 pb-16">
+          <h2 id="comments-title" className="text-17 font-semibold">
+            Comments <span className="font-normal text-ink-2">· {comments.filter((c) => !c.hidden).length}</span>
+          </h2>
+          {comments.length ? (
+            <ol className="mt-4 flex flex-col divide-y divide-rule">
+              {comments.map((c) => (
+                <li key={c.id} className="py-4">
+                  <p className="flex flex-wrap items-baseline justify-between gap-2 text-13 text-ink-2">
+                    <span>
+                      <span className="font-semibold text-ink">{c.author}</span> · {formatUtc(c.createdAt)}
+                    </span>
+                    {canModerate && !c.hidden ? <HideForm commentId={c.id} path={path} /> : null}
+                  </p>
+                  {c.hidden ? (
+                    <p className="mt-2 text-14 text-ink-3 italic">Hidden by the organizers: {c.hidden.reason}</p>
+                  ) : (
+                    <p className="mt-2 font-serif text-17 leading-7 whitespace-pre-line">{c.body}</p>
+                  )}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="mt-3 text-15 text-ink-2">No comments yet.</p>
+          )}
+          <div className="mt-6">
+            {actor ? (
+              <CommentForm projectId={p.id} path={path} />
+            ) : (
+              <p className="text-15 text-ink-2">
+                <Link href={`/sign-in?next=${encodeURIComponent(path)}`} className="font-medium text-ink underline underline-offset-4">
+                  Sign in
+                </Link>{" "}
+                to comment.
+              </p>
+            )}
+          </div>
+        </section>
       </article>
     </PublicShell>
   );

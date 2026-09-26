@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
-import { actorNav, currentActor, getGallery, getPublishedResults, NotFoundError, type Gallery } from "@/server/dal";
+import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, type Gallery } from "@/server/dal";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Results" };
@@ -35,6 +35,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
   const { event, counts } = load(key);
   const actor = await currentActor();
   const results = getPublishedResults(event.id);
+  const community = getCommunityResults(event.id);
   return (
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor)}>
       <div className="pt-10">
@@ -101,6 +102,37 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             Judging covers {counts.projects} projects in {counts.tracks} tracks. Until the organizers publish, no score, average or rank leaves the judges&apos; and
             organizers&apos; screens, and the API refuses to hand them out. When they publish, this page shows each place with its score.
           </p>
+        </section>
+      )}
+      {community.state === "not_set" ? null : (
+        <section aria-labelledby="community-title" className="mt-16 max-w-[760px] border-t border-rule pt-8 pb-16">
+          <p className="label-mono text-accent-ink">Community vote</p>
+          <h2 id="community-title" className="mt-2 text-24 font-semibold">
+            {community.tally ? "The community's favourites" : "Hidden until voting closes"}
+          </h2>
+          {community.tally ? (
+            <ol className="mt-4 divide-y divide-rule border-y border-rule">
+              {community.tally.map((t) => (
+                <li key={t.projectId} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-baseline gap-3 py-2.5">
+                  <span className="font-display text-20 tnum">{t.place}</span>
+                  <span className="min-w-0 truncate">
+                    <Link href={`/events/${event.slug}/projects/${t.projectId}`} className="font-semibold hover:underline">
+                      {t.title}
+                    </Link>{" "}
+                    <span className="text-14 text-ink-2">· {t.teamName}</span>
+                  </span>
+                  <span className="text-15 font-semibold tnum">
+                    {t.votes} {t.votes === 1 ? "vote" : "votes"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="mt-3 text-17 text-ink-2">
+              Voting {community.state === "upcoming" ? "has not opened yet" : "is open"}; nobody, organizers included, sees a count until it closes
+              {community.closesAt ? ` on ${formatUtc(community.closesAt, { weekday: true })}` : ""}.
+            </p>
+          )}
         </section>
       )}
     </PublicShell>

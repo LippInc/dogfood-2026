@@ -4,11 +4,12 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { eventPhase, idLabel, type EventTimes } from "@/lib/format";
 import type { NavLink } from "@/server/dal";
 
-type ShellEvent = EventTimes & { id: string; slug: string; name: string };
-type Section = "projects" | "results" | "about" | "none";
+type ShellEvent = EventTimes & { id: string; slug: string; name: string; votingOpenAt?: string | null };
+type Section = "projects" | "vote" | "results" | "about" | "none";
 
 const SECTIONS: { key: Section; label: string; path: string }[] = [
   { key: "projects", label: "Projects", path: "" },
+  { key: "vote", label: "Vote", path: "/vote" },
   { key: "results", label: "Results", path: "/results" },
   { key: "about", label: "About", path: "/about" },
 ];
@@ -44,7 +45,7 @@ export function PublicShell({
             <span className="font-display text-20 leading-none tracking-[0.01em] uppercase">{event.name}</span>
           </Link>
           <nav aria-label="Event" className="hidden items-stretch gap-7 md:flex">
-            {SECTIONS.map((s) => (
+            {SECTIONS.filter((s) => s.key !== "vote" || event.votingOpenAt).map((s) => (
               <Link
                 key={s.key}
                 href={base + s.path}
@@ -83,7 +84,7 @@ export function PublicShell({
                 <span className="sr-only">Menu</span>
               </summary>
               <div className="absolute right-0 z-40 mt-1 w-64 rounded-sm border border-rule bg-surface p-2 shadow-overlay">
-                {SECTIONS.map((s) => (
+                {SECTIONS.filter((s) => s.key !== "vote" || event.votingOpenAt).map((s) => (
                   <Link
                     key={s.key}
                     href={base + s.path}
