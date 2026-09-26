@@ -161,6 +161,13 @@ export function JudgeConsoleView({
   const [recuseOpen, setRecuseOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
+  // Keys that jump into the feedback box put the caret after what is already there.
+  const focusFeedback = useCallback(() => {
+    const box = feedbackRef.current;
+    if (!box) return;
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+  }, []);
   const scorePaneRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<HTMLDivElement>(null);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -272,8 +279,8 @@ export function JudgeConsoleView({
       const c = criteria[criterionIndex];
       if (!c) return;
       const r = reviewsRef.current[current.assignmentId]!;
-      const next = r.values[c.key] === value ? null : value;
-      edit(current.assignmentId, { values: { ...r.values, [c.key]: next } });
+      if (r.values[c.key] === value) return;
+      edit(current.assignmentId, { values: { ...r.values, [c.key]: value } });
     },
     [criteria, current, edit],
   );
@@ -342,13 +349,13 @@ export function JudgeConsoleView({
         e.preventDefault();
         score(focus, value);
         if (focus < criteria.length - 1) setFocus(focus + 1);
-        else feedbackRef.current?.focus();
+        else focusFeedback();
         return;
       }
       const key = e.key.toLowerCase();
       if (key === "c" && !readOnly) {
         e.preventDefault();
-        feedbackRef.current?.focus();
+        focusFeedback();
       } else if (key === "j") {
         e.preventDefault();
         go(index + 1);
@@ -359,7 +366,7 @@ export function JudgeConsoleView({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [criteria, focus, go, index, keysOpen, lettersOn, readOnly, recuseOpen, saveAndNext, score]);
+  }, [criteria, focus, focusFeedback, go, index, keysOpen, lettersOn, readOnly, recuseOpen, saveAndNext, score]);
 
   const active = items.filter((i) => reviews[i.assignmentId]!.status !== "recused");
   const done = active.filter((i) => totalOf(criteria, reviews[i.assignmentId]!.values) !== null).length;
