@@ -600,6 +600,36 @@ export const signedRecords = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// API tokens
+// ---------------------------------------------------------------------------
+
+// A person's named tokens for scripts: sent as Authorization: Bearer <token>, they
+// act as that person with that person's permissions. Shown once; only the SHA-256
+// is stored. A token cannot be used to make or revoke tokens.
+export const apiTokens = sqliteTable(
+  "api_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    /** the first characters of the token, so a person can tell their tokens apart */
+    hint: text("hint").notNull(),
+    createdAt: text("created_at").notNull(),
+    expiresAt: text("expires_at"),
+    lastUsedAt: text("last_used_at"),
+    revokedAt: text("revoked_at"),
+  },
+  (t) => [
+    index("api_tokens_user_idx").on(t.userId),
+    check("api_tokens_name", sql`length(trim(${t.name})) between 1 and 60`),
+    check("api_tokens_expiry", sql`${t.expiresAt} is null or julianday(${t.expiresAt}) > julianday(${t.createdAt})`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Account claims
 // ---------------------------------------------------------------------------
 

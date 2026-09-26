@@ -13,7 +13,7 @@ export type Actor = {
   email: string;
   isAdmin: boolean;
   roles: { eventId: string; role: Role }[];
-  sessionKind: "login" | "checker";
+  sessionKind: "login" | "checker" | "api";
 };
 
 /** The facts about an event that permissions depend on. */
@@ -48,7 +48,8 @@ export type Action =
   | "vote.cast"
   | "comment.post"
   | "record.issue_own"
-  | "records.issue_all";
+  | "records.issue_all"
+  | "account.tokens";
 
 export type Resource =
   | { kind: "platform" }
@@ -247,6 +248,10 @@ export function authorize(
       }
       return resource.event.resultsPublishedAt ? allow : refuse("results_not_published", "Records and certificates are issued once the results are published.");
     }
+
+    case "account.tokens":
+      // a leaked token must not be able to mint more tokens or hide itself
+      return actor.sessionKind === "api" ? refuse("token_cannot_manage_tokens", "Sign in to make or revoke API tokens; a token cannot.") : allow;
 
     case "records.issue_all": {
       if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");

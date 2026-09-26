@@ -37,6 +37,19 @@ export const OPERATIONS: Operation[] = [
   { method: "POST", path: "/api/auth/sign-in", tag: "Accounts", summary: "Sign in with email and password (sets the session cookie)", access: "anyone", body: credentials, also: [401, 429] },
   { method: "POST", path: "/api/auth/sign-out", tag: "Accounts", summary: "End the session", access: "anyone" },
 
+  { method: "GET", path: "/api/tokens", tag: "Accounts", summary: "Your API tokens (never the tokens themselves)", access: "signed in", note: "From a signed-in session; an API token cannot manage tokens." },
+  {
+    method: "POST",
+    path: "/api/tokens",
+    tag: "Accounts",
+    summary: "Make an API token (returned once); it acts as you, with your permissions",
+    access: "signed in",
+    body: In.TokenInput,
+    ok: 201,
+    note: "From a signed-in session; an API token cannot manage tokens.",
+  },
+  { method: "POST", path: "/api/tokens/{token}/revoke", tag: "Accounts", summary: "Revoke one of your API tokens", access: "signed in", note: "From a signed-in session." },
+
   // Events
   { method: "GET", path: "/api/events", tag: "Events", summary: "Every event, public fields only", access: "anyone" },
   { method: "POST", path: "/api/events", tag: "Events", summary: "Create an event", access: "administrator", body: In.NewEvent, ok: 201 },
@@ -280,7 +293,7 @@ export function openApiDocument(serverUrl: string) {
       title: "Dogfood portal API",
       version: "1.0.0",
       description:
-        "Every action in the portal's interface, as JSON. Authenticate with the session cookie, or send the same token as Authorization: Bearer <token>. " +
+        "Every action in the portal's interface, as JSON. Authenticate with the session cookie, or with Authorization: Bearer <token>: an API token (made at /account/tokens or POST /api/tokens) or a session token. " +
         "Refusals are real 401 and 403 answers with a JSON error code, never redirects.",
     },
     servers: [{ url: serverUrl }],

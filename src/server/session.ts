@@ -4,15 +4,16 @@ import { eq } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import type { Actor } from "./authz";
 import { getDb, type DbOrTx } from "./db/client";
-import { sessions, userRoles, users } from "./db/schema";
+import { apiTokens, sessions, userRoles, users } from "./db/schema";
 import { newSecret, sha256 } from "./util";
 
 export const SESSION_COOKIE = "session";
 const LOGIN_SESSION_DAYS = 14;
 
-/** Resolve a raw session token to its actor, or null when it is unknown or expired. */
+/** Resolve a raw session token or API token to its actor, or null when it is unknown, expired or revoked. */
 export function actorForToken(db: DbOrTx, token: string, now = new Date()): Actor | null {
   if (!token || token.length > 256) return null;
+  if (token.startsWith(API_TOKEN_PREFIX)) return actorForApiToken(db, token, now);
   const row = db
     .select({
       userId: users.id,
@@ -40,6 +41,24 @@ export function actorForToken(db: DbOrTx, token: string, now = new Date()): Acto
     roles,
     sessionKind: row.kind,
   };
+}
+
+export const API_TOKEN_PREFIX = "dfk_";
+
+function actorForApiToken(db: DbOrTx, token: string, now: Date): Actor | null {
+  const row = db
+    .select({ id: apiTokens.id, userId: users.id, name: users.name, email: users.email, isAdmin: users.isAdmin, expiresAt: apiTokens.expiresAt, revokedAt: apiTokens.revokedAt, lastUsedAt: apiTokens.lastUsedAt })
+    .from(apiTokens)
+    .innerJoin(users, eq(users.id, apiTokens.userId))
+    .where(eq(apiTokens.tokenHash, sha256(token)))
+    .get();
+  if (!row || row.revokedAt || (row.expiresAt && Date.parse(row.expiresAt) <= now.getTime())) return null;
+  // "last used" to the minute: one small write a minute per token at most
+  if (!row.lastUsedAt || now.getTime() - Date.parse(row.lastUsedAt) > 60_000) {
+    db.update(apiTokens).set({ lastUsedAt: now.toISOString() }).where(eq(apiTokens.id, row.id)).run();
+  }
+  const roles = db.select({ eventId: userRoles.eventId, role: userRoles.role }).from(userRoles).where(eq(userRoles.userId, row.userId)).all();
+  return { userId: row.userId, name: row.name, email: row.email, isAdmin: row.isAdmin, roles, sessionKind: "api" };
 }
 
 /** The token a request carries: the session cookie, or an Authorization: Bearer header. */

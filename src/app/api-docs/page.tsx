@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PlainShell } from "@/components/shell/plain-shell";
 import { openApiDocument, OPERATIONS, operationId, type Operation } from "@/server/dal";
 
@@ -63,8 +64,11 @@ export default function ApiDocsPage() {
           the API can do nothing a person could not.
         </p>
         <p>
-          Authenticate with the <code className="font-mono text-13">session</code> cookie from signing in, or send that token as{" "}
-          <code className="font-mono text-13">Authorization: Bearer &lt;token&gt;</code>. A refusal is a real 401 (no valid session) or 403 (not allowed) with a
+          Authenticate with the <code className="font-mono text-13">session</code> cookie from signing in, or send an{" "}
+          <Link href="/account/tokens" className="underline underline-offset-4">
+            API token
+          </Link>{" "}
+          as <code className="font-mono text-13">Authorization: Bearer &lt;token&gt;</code>; it acts as the person who made it. A refusal is a real 401 (no valid session) or 403 (not allowed) with a
           JSON body <code className="font-mono text-13">{'{ "error": "<code>", "message": "..." }'}</code>, never a redirect.
         </p>
         <p>

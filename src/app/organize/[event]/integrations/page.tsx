@@ -49,8 +49,8 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
             API
           </h2>
           <p className="max-w-[760px] text-15 text-ink-2">
-            Every action here is also a JSON route, with the same permission checks. Scripts sign in like a person and send the session token as{" "}
-            <code className="font-mono text-13">Authorization: Bearer &lt;token&gt;</code>.
+            Every action here is also a JSON route, with the same permission checks. Scripts send an API token as{" "}
+            <code className="font-mono text-13">Authorization: Bearer &lt;token&gt;</code>; it acts as the person who made it.
           </p>
           <div className="flex flex-wrap gap-2">
             <Link href="/api-docs" className={small}>
@@ -59,6 +59,9 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
             <a href="/api/openapi.json" className={small}>
               OpenAPI document
             </a>
+            <Link href="/account/tokens" className={small}>
+              Your API tokens
+            </Link>
           </div>
         </section>
 
