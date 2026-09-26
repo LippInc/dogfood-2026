@@ -102,6 +102,12 @@ export type EventSettings = {
   reviewsPerProject?: number;
   /** Most people on one team (invite links refuse beyond it). Default 4. */
   maxTeamSize?: number;
+  /** The normalization run the published results come from. */
+  publishedRunId?: string;
+  /** Project pairs the organizer ruled are not duplicates, as "a|b" with the ids sorted. */
+  notDuplicates?: string[];
+  /** Under-reviewed projects the organizer chose to publish as they are. */
+  acceptedUnderReviewed?: string[];
 };
 
 export const events = sqliteTable(

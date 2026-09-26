@@ -1,12 +1,33 @@
 import "server-only";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { toCsv, type Cell } from "../csv";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignments, projects, rubricCriteria, teams, tracks, users } from "../db/schema";
+import {
+  assignmentRuns,
+  assignments,
+  customAnswers,
+  customQuestions,
+  judgeOverrides,
+  judgeTracks,
+  normalizationRuns,
+  prizes,
+  projects,
+  rubricCriteria,
+  scoreComments,
+  scoreItems,
+  scores,
+  teamMembers,
+  teams,
+  tracks,
+  userRoles,
+  users,
+} from "../db/schema";
 import { NotFoundError } from "../errors";
 import { guardRead } from "../mutate";
 import { eventFacts, requireEvent, type EventRow } from "./events";
+import { auditCsv } from "./audit-log";
+import { computeNormalization } from "./normalization";
 import { reviewsOf } from "./scores";
 
 // Organizer exports: CSV at every stage, and always a header row, even before
@@ -95,9 +116,87 @@ function projectsCsv(db: DbOrTx, event: EventRow): string {
   );
 }
 
+/** The engine's table: raw, raw without excluded judges, normalized, ranks and the move. */
+function normalizedCsv(db: DbOrTx, event: EventRow): string {
+  const n = computeNormalization(db, event);
+  return toCsv(
+    ["project_id", "title", "track", "team", "duplicate_of", "reviews_all", "reviews_counted", "raw_mean", "raw_mean_kept", "normalized", "rank_raw", "rank_kept", "rank_normalized", "track_rank", "under_reviewed", "k", "beta2", "sigma2", "excluded_judges"],
+    n.projects.map((p) => [
+      p.id,
+      p.title,
+      p.trackName,
+      p.teamName,
+      p.duplicateOf ?? "",
+      p.nAll,
+      p.n,
+      p.rawAll === null ? "" : p.rawAll.toFixed(4),
+      p.rawKept === null ? "" : p.rawKept.toFixed(4),
+      p.score === null ? "" : p.score.toFixed(4),
+      p.rankRaw ?? "",
+      p.rankKept ?? "",
+      p.rankNormalized ?? "",
+      p.trackRank ?? "",
+      p.underReviewed ? "yes" : "no",
+      n.variance.k === null ? "" : n.variance.k.toFixed(3),
+      n.variance.beta2.toFixed(4),
+      n.variance.sigma2.toFixed(4),
+      n.excluded.join(" "),
+    ]),
+  );
+}
+
+/** Everything about one event in one JSON document: leave with your data. */
+function eventJson(db: DbOrTx, event: EventRow): string {
+  const projectIds = db.select({ id: projects.id }).from(projects).where(eq(projects.eventId, event.id)).all().map((p) => p.id);
+  const assignmentRows = db.select().from(assignments).where(eq(assignments.eventId, event.id)).all();
+  const scoreRows = assignmentRows.length
+    ? db.select().from(scores).where(inArray(scores.assignmentId, assignmentRows.map((a) => a.id))).all()
+    : [];
+  const scoreIds = scoreRows.map((x) => x.id);
+  return JSON.stringify(
+    {
+      format: "dogfood-portal/event-export/v1",
+      exportedAt: new Date().toISOString(),
+      event,
+      tracks: db.select().from(tracks).where(eq(tracks.eventId, event.id)).all(),
+      prizes: db.select().from(prizes).where(eq(prizes.eventId, event.id)).all(),
+      rubric: db.select().from(rubricCriteria).where(eq(rubricCriteria.eventId, event.id)).all(),
+      questions: db.select().from(customQuestions).where(eq(customQuestions.eventId, event.id)).all(),
+      teams: db.select().from(teams).where(eq(teams.eventId, event.id)).all().map(({ inviteCode: _code, ...t }) => t),
+      members: db
+        .select({ teamId: teamMembers.teamId, role: teamMembers.role, email: users.email, name: users.name })
+        .from(teamMembers)
+        .innerJoin(users, eq(users.id, teamMembers.userId))
+        .where(eq(teamMembers.eventId, event.id))
+        .all(),
+      projects: db.select().from(projects).where(eq(projects.eventId, event.id)).all(),
+      answers: projectIds.length ? db.select().from(customAnswers).where(inArray(customAnswers.projectId, projectIds)).all() : [],
+      judges: db
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(userRoles)
+        .innerJoin(users, eq(users.id, userRoles.userId))
+        .where(and(eq(userRoles.eventId, event.id), eq(userRoles.role, "judge")))
+        .all(),
+      judgeTracks: db.select().from(judgeTracks).where(eq(judgeTracks.eventId, event.id)).all(),
+      assignmentRuns: db.select().from(assignmentRuns).where(eq(assignmentRuns.eventId, event.id)).all(),
+      assignments: assignmentRows,
+      scores: scoreRows,
+      scoreItems: scoreIds.length ? db.select().from(scoreItems).where(inArray(scoreItems.scoreId, scoreIds)).all() : [],
+      scoreComments: scoreIds.length ? db.select().from(scoreComments).where(inArray(scoreComments.scoreId, scoreIds)).all() : [],
+      judgeOverrides: db.select().from(judgeOverrides).where(eq(judgeOverrides.eventId, event.id)).all(),
+      normalizationRuns: db.select().from(normalizationRuns).where(eq(normalizationRuns.eventId, event.id)).all(),
+    },
+    null,
+    2,
+  );
+}
+
 const EXPORTS: Record<string, Exporter> = {
   "scores.csv": scoresCsv,
   "projects.csv": projectsCsv,
+  "normalized.csv": normalizedCsv,
+  "audit.csv": (db, event) => auditCsv(db, event.id),
+  "event.json": eventJson,
 };
 
 export const EXPORT_FILES = Object.keys(EXPORTS);

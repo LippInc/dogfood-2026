@@ -55,6 +55,26 @@ export {
   type SavedReview,
 } from "./reviews";
 export type { Criterion } from "./judging";
+export {
+  acceptUnderReviewed,
+  dismissDuplicate,
+  getNormalization,
+  getPublishedResults,
+  mergeDuplicate,
+  METHOD_LABEL,
+  publishResults,
+  revokeJudgeOverride,
+  setJudgeOverride,
+  unmergeDuplicate,
+  type Decision,
+  type JudgeStanding,
+  type Normalized,
+  type ProjectRow,
+  type PublishedResults,
+  type Receipt,
+} from "./normalization";
+export { getOverview, type Overview, type Stage } from "./overview";
+export { getAuditLog, type AuditLine, type Part } from "./audit-log";
 export { actionError, json, route, type ActionResult } from "../http";
 export { actorNav, type NavLink } from "./nav";
 export {
