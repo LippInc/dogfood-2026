@@ -216,7 +216,9 @@ start, and the fixture import never overwrites what the organizers changed.
   are, because the portal signs with them.
 - No email: invitations, voter links, personal links for imported people and
   reminders are links the organizer copies and sends. Accounts are not
-  email-verified.
+  email-verified, and a forgotten password cannot be reset from the interface
+  (a reset link made by an organizer would let one event's organizer take over
+  accounts that matter in another).
 - Rate limits and duplicate-ballot flags key on the client address from
   `X-Forwarded-For`; run the portal behind a reverse proxy that overwrites it, or
   a client can pick its own. The limits live in memory and reset on restart.
