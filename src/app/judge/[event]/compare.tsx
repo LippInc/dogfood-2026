@@ -444,13 +444,13 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
       {/* Phone and tablet: the three answers stay in reach while the judge scrolls through both projects. */}
       {q ? (
         <div className="sticky bottom-0 z-10 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 border-t border-rule bg-surface px-4 py-3 lg:hidden">
-          <Button size="lg" onClick={() => answer("left")} disabled={!canAnswer} aria-label={`This one: ${q.left.title}`} className="min-w-0">
+          <Button size="lg" onClick={() => answer("left")} disabled={!canAnswer} aria-label={`This one: ${q.left.title}`} className="min-w-0 px-3">
             <span className="truncate">{q.left.title}</span>
           </Button>
-          <Button size="lg" variant="outline" onClick={() => answer("tie")} disabled={!canAnswer}>
+          <Button size="lg" variant="outline" onClick={() => answer("tie")} disabled={!canAnswer} className="px-3">
             Too close
           </Button>
-          <Button size="lg" onClick={() => answer("right")} disabled={!canAnswer} aria-label={`This one: ${q.right.title}`} className="min-w-0">
+          <Button size="lg" onClick={() => answer("right")} disabled={!canAnswer} aria-label={`This one: ${q.right.title}`} className="min-w-0 px-3">
             <span className="truncate">{q.right.title}</span>
           </Button>
         </div>
