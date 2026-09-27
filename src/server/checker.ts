@@ -36,7 +36,27 @@ export const DEMO_ORGANIZER = {
 const NEVER = "2100-01-01T00:00:00.000Z";
 
 export function checkerSessionsEnabled(): boolean {
-  return process.env.SEED_CHECKER_SESSIONS === "true";
+  return process.env.SEED_CHECKER_SESSIONS === "true" && demoModeRefusal() === null;
+}
+
+/**
+ * Why demo mode is refused although SEED_CHECKER_SESSIONS=true asks for it, or null.
+ * With the public default secret anyone who reads this repository can derive the four
+ * session tokens, the organizer's (an administrator) among them; that is fine on the
+ * judges' own machines, not on a portal reachable from elsewhere.
+ */
+export function demoModeRefusal(env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.SEED_CHECKER_SESSIONS !== "true") return null;
+  if (env.DOGFOOD_SEED_SECRET && env.DOGFOOD_SEED_SECRET !== DEFAULT_SEED_SECRET) return null;
+  const url = env.PUBLIC_URL ?? "http://localhost:8080";
+  let host = "";
+  try {
+    host = new URL(url).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    host = "";
+  }
+  if (host === "localhost" || host.endsWith(".localhost") || host === "::1" || /^127\.\d+\.\d+\.\d+$/.test(host)) return null;
+  return `PUBLIC_URL (${url}) is not a local address and DOGFOOD_SEED_SECRET is the public default, so anyone could derive the organizer's session`;
 }
 
 /** Plain letters and digits, so both TOML parsers in run.py read it the same way. */

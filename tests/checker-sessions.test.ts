@@ -5,6 +5,8 @@ import { openDatabase, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import {
+  checkerSessionsEnabled,
+  demoModeRefusal,
   CHECKER_LABELS,
   checkerToken,
   DEMO_ORGANIZER,
@@ -136,6 +138,34 @@ describe("checker sessions (database)", () => {
     expect(after?.token).toBe(before.token);
     expect(actorForToken(h.db, before.token)?.userId).toBe(before.userId);
     expect(checkerSessionCount()).toBe(4);
+  });
+
+  it("refuses demo mode on a non-local PUBLIC_URL with the public default secret, and removes an earlier boot's sessions (controls: a local address, or an own secret)", () => {
+    const organizerToken = seed().find((i) => i.label === "organizer")!.token;
+    const oldUrl = process.env.PUBLIC_URL;
+    try {
+      delete process.env.DOGFOOD_SEED_SECRET; // the public default
+      process.env.PUBLIC_URL = "https://hack.example.org";
+      expect(demoModeRefusal()).toMatch(/not a local address/);
+      expect(checkerSessionsEnabled()).toBe(false);
+      expect(seedCheckerSessions(h.db, "evt_01", NOW)).toMatchObject({ enabled: false, removed: 4 });
+      expect(actorForToken(h.db, organizerToken)).toBeNull();
+      expect(checkerSessionCount()).toBe(0);
+
+      for (const local of ["http://localhost:8080", "http://127.0.0.1:8095", "http://[::1]:8080", "http://portal.localhost"]) {
+        process.env.PUBLIC_URL = local;
+        expect([local, checkerSessionsEnabled()]).toEqual([local, true]);
+      }
+      process.env.PUBLIC_URL = "https://hack.example.org";
+      process.env.DOGFOOD_SEED_SECRET = "an operator's own secret";
+      expect(checkerSessionsEnabled()).toBe(true);
+      process.env.DOGFOOD_SEED_SECRET = "";
+      process.env.PUBLIC_URL = "not a url";
+      expect(checkerSessionsEnabled()).toBe(false);
+    } finally {
+      if (oldUrl === undefined) delete process.env.PUBLIC_URL;
+      else process.env.PUBLIC_URL = oldUrl;
+    }
   });
 
   it("SEED_CHECKER_SESSIONS=false removes every checker session and the old tokens stop resolving", () => {

@@ -1,7 +1,7 @@
 import "server-only";
 import path from "node:path";
 import { openAdminSetup } from "./admins";
-import { checkerSessionsEnabled, checkerToml, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, writeCheckerFile } from "./checker";
+import { checkerSessionsEnabled, checkerToml, demoModeRefusal, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, writeCheckerFile } from "./checker";
 import { databasePath, handle, type Handle } from "./db/client";
 import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
@@ -73,8 +73,9 @@ export async function boot(): Promise<void> {
     }
   } else {
     const seeded = seedCheckerSessions(h.db, eventId ?? "", now);
+    const refusal = demoModeRefusal();
     lines.push(
-      `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}${!seeded.enabled && seeded.signedOut ? `; signed out ${seeded.signedOut} demo sign-in ${seeded.signedOut === 1 ? "session" : "sessions"}` : ""}${!seeded.enabled && seeded.demoted ? "; the demo organizer is no longer an administrator" : ""}.`,
+      `${refusal ? `checker sessions REFUSED: ${refusal}; set your own DOGFOOD_SEED_SECRET, or SEED_CHECKER_SESSIONS=false` : `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")`}${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}${!seeded.enabled && seeded.signedOut ? `; signed out ${seeded.signedOut} demo sign-in ${seeded.signedOut === 1 ? "session" : "sessions"}` : ""}${!seeded.enabled && seeded.demoted ? "; the demo organizer is no longer an administrator" : ""}.`,
     );
   }
   const setup = openAdminSetup(h.db);
