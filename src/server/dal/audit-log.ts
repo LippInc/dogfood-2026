@@ -127,6 +127,12 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" joined "), { text: n.team.get(target) ?? target, strong: true }];
     case "team.invite_rotated":
       return [actor, t(" replaced the invite link of "), { text: n.team.get(target) ?? target, strong: true }];
+    case "team.left":
+      return [actor, t(" left "), { text: n.team.get(target) ?? target, strong: true }];
+    case "team.member_removed":
+      return [actor, t(" took "), person(before.member), t(" off "), { text: n.team.get(target) ?? target, strong: true }];
+    case "team.captain_changed":
+      return [actor, t(" made "), person(after.captain), t(" captain of "), { text: n.team.get(target) ?? target, strong: true }];
     case "project.submit":
       return [actor, t(" submitted "), project(target), { text: ` ${target}`, mono: true }];
     case "project.create":

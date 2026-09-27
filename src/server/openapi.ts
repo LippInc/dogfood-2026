@@ -88,6 +88,9 @@ export const OPERATIONS: Operation[] = [
   // Teams and projects
   { method: "POST", path: "/api/events/{event}/teams", tag: "Teams and projects", summary: "Start a team (you become its captain)", access: "signed in", body: In.TeamName, ok: 201 },
   { method: "POST", path: "/api/teams/{team}/invite", tag: "Teams and projects", summary: "Make a new team invite code (the old one stops working)", access: "captain" },
+  { method: "POST", path: "/api/teams/{team}/leave", tag: "Teams and projects", summary: "Leave the team while submissions are open (the captain hands the captaincy over first; the last member cannot leave)", access: "team member", also: [409] },
+  { method: "DELETE", path: "/api/teams/{team}/members/{user}", tag: "Teams and projects", summary: "Take a member off the team while submissions are open", access: "captain", also: [409] },
+  { method: "PUT", path: "/api/teams/{team}/captain", tag: "Teams and projects", summary: "Hand the captaincy to another member while submissions are open; the old captain becomes a member", access: "captain", body: In.CaptainInput, also: [409] },
   { method: "POST", path: "/api/join/{code}", tag: "Teams and projects", summary: "Join a team with its invite code", access: "signed in" },
   { method: "GET", path: "/api/events/{event}/me", tag: "Teams and projects", summary: "Your team and project in this event", access: "signed in" },
   { method: "GET", path: "/api/events/{event}/projects", tag: "Teams and projects", summary: "The submitted projects (the gallery)", access: "anyone" },

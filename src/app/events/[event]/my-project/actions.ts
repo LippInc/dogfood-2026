@@ -6,6 +6,9 @@ import {
   createProject,
   createTeam,
   currentActor,
+  leaveTeam,
+  makeCaptain,
+  removeMember,
   rotateInvite,
   updateProject,
   type ActionResult,
@@ -30,6 +33,33 @@ export async function rotateInviteAction(_prev: ActionResult, form: FormData): P
   }
   revalidatePath(`/events/${String(form.get("event") ?? "")}/my-project`);
   return { ok: true, message: "New link made. The old one no longer works." };
+}
+
+/** Leave the team, take a member off it, or hand the captaincy over: the form's "do" says which. */
+export async function teamMemberAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const team = String(form.get("team") ?? "");
+  const user = String(form.get("user") ?? "");
+  const what = String(form.get("do") ?? "");
+  let message: string;
+  try {
+    const actor = await currentActor();
+    if (what === "leave") {
+      leaveTeam(actor, team);
+      message = "You left the team. You can start or join another while submissions are open.";
+    } else if (what === "remove") {
+      removeMember(actor, team, user);
+      message = "Taken off the team.";
+    } else if (what === "captain") {
+      makeCaptain(actor, team, { userId: user });
+      message = "Captaincy handed over.";
+    } else {
+      return { ok: false, message: "Nothing to do." };
+    }
+  } catch (err) {
+    return actionError(err);
+  }
+  revalidatePath(`/events/${String(form.get("event") ?? "")}/my-project`);
+  return { ok: true, message };
 }
 
 export async function saveProjectAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {

@@ -39,6 +39,8 @@ export type Action =
   | "team.create"
   | "team.join"
   | "team.manage"
+  | "team.leave"
+  | "team.members"
   | "project.create"
   | "project.edit"
   | "scores.read_own"
@@ -187,6 +189,21 @@ export function authorize(
     case "team.manage": {
       if (resource.kind !== "team") return refuse("bad_resource", "This action needs a team.");
       return resource.isCaptain ? allow : refuse("not_the_captain", "Only the team's captain can do this.");
+    }
+
+    // Who is on a team changes only while submissions are open: the team that submitted is the team judged.
+    case "team.leave": {
+      if (resource.kind !== "team") return refuse("bad_resource", "This action needs a team.");
+      if (!resource.isMember) return refuse("not_on_this_team", "You are not on this team.");
+      if (!submissionsOpen(resource.event, now)) return windowRefusal(resource.event, now, "Teams can no longer change");
+      return allow;
+    }
+
+    case "team.members": {
+      if (resource.kind !== "team") return refuse("bad_resource", "This action needs a team.");
+      if (!resource.isCaptain) return refuse("not_the_captain", "Only the team's captain can do this.");
+      if (!submissionsOpen(resource.event, now)) return windowRefusal(resource.event, now, "Teams can no longer change");
+      return allow;
     }
 
     case "project.create":

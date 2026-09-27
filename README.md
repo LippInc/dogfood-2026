@@ -110,7 +110,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 
 - **Events and teams.** An administrator creates an event with dates, tracks,
   prizes, custom questions and a weighted rubric. People sign up, form a team,
-  share an invite link, draft and edit a project until the deadline (name,
+  share an invite link (until the deadline a member can leave, and the captain
+  can take a member off or hand the captaincy over), draft and edit a project
+  until the deadline (name,
   tagline, description, repository, demo video and live links, a thumbnail, an
   image gallery, tech tags, the track and the organizer's questions); the server
   refuses changes after it. The public gallery shows every submitted project,

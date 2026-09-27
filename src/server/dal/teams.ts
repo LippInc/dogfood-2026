@@ -159,12 +159,125 @@ export function rotateInvite(actor: Actor | null, teamId: string) {
   });
 }
 
+/** The team, its event and the actor's place on it, for a team action's permission check. */
+function loadTeam(tx: DbOrTx, actor: Actor | null, teamId: string) {
+  const team = tx.select({ id: teams.id, name: teams.name, eventId: teams.eventId }).from(teams).where(eq(teams.id, teamId)).get();
+  if (!team) throw new NotFoundError("Team");
+  const membership = actor
+    ? tx.select({ role: teamMembers.role }).from(teamMembers).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, actor.userId))).get()
+    : undefined;
+  const resource = {
+    kind: "team" as const,
+    event: eventFacts(requireEvent(tx, team.eventId)),
+    isMember: Boolean(membership),
+    isCaptain: membership?.role === "captain",
+  };
+  return { team, resource };
+}
+
+const memberOf = (tx: DbOrTx, teamId: string, userId: string) =>
+  tx
+    .select({ userId: teamMembers.userId, role: teamMembers.role })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
+    .get();
+
+/**
+ * A member leaves the team (their participant role stays, so they can join another). The
+ * captain hands the captaincy over first, and the last member cannot leave, so a team and
+ * its project are never left with nobody.
+ */
+export function leaveTeam(actor: Actor | null, teamId: string) {
+  let team: { id: string; eventId: string };
+  return mutate({
+    actor,
+    action: "team.leave",
+    load: (tx) => {
+      const loaded = loadTeam(tx, actor, teamId);
+      team = loaded.team;
+      return loaded.resource;
+    },
+    run: (tx) => {
+      const me = memberOf(tx, team.id, actor!.userId)!;
+      const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, team.id)).get()!.n;
+      if (size === 1) {
+        throw new ConflictError("last_member", "You are the team's only member, so you cannot leave it: a team and its project are never left with nobody.");
+      }
+      if (me.role === "captain") throw new ConflictError("captain_hands_over_first", "Make another member captain first, then leave.");
+      tx.delete(teamMembers).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, actor!.userId))).run();
+      return {
+        result: { teamId: team.id },
+        audit: { action: "team.left", eventId: team.eventId, targetType: "team", targetId: team.id, before: { member: actor!.userId } },
+      };
+    },
+  });
+}
+
+/** The captain takes a member off the team (to leave themselves, they hand the captaincy over and leave). */
+export function removeMember(actor: Actor | null, teamId: string, userId: string) {
+  let team: { id: string; eventId: string };
+  return mutate({
+    actor,
+    action: "team.members",
+    load: (tx) => {
+      const loaded = loadTeam(tx, actor, teamId);
+      team = loaded.team;
+      return loaded.resource;
+    },
+    run: (tx) => {
+      if (userId === actor!.userId) throw new ConflictError("cannot_remove_yourself", "To leave, make another member captain first, then leave.");
+      if (!memberOf(tx, team.id, userId)) throw new NotFoundError("Team member");
+      tx.delete(teamMembers).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, userId))).run();
+      return {
+        result: { teamId: team.id, removed: userId },
+        audit: { action: "team.member_removed", eventId: team.eventId, targetType: "team", targetId: team.id, before: { member: userId } },
+      };
+    },
+  });
+}
+
+export const CaptainInput = z.object({ userId: z.string().min(1) });
+
+/** The captain hands the captaincy to another member and becomes a member. */
+export function makeCaptain(actor: Actor | null, teamId: string, body: unknown) {
+  let team: { id: string; eventId: string };
+  return mutate({
+    actor,
+    action: "team.members",
+    load: (tx) => {
+      const loaded = loadTeam(tx, actor, teamId);
+      team = loaded.team;
+      return loaded.resource;
+    },
+    run: (tx) => {
+      const parsed = CaptainInput.safeParse(body);
+      if (!parsed.success) throw new ValidationError("Name the member who becomes captain.", issuesOf(parsed.error));
+      const next = parsed.data.userId;
+      if (next === actor!.userId) throw new ConflictError("already_captain", "You are this team's captain already.");
+      if (!memberOf(tx, team.id, next)) throw new NotFoundError("Team member");
+      tx.update(teamMembers).set({ role: "member" }).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, actor!.userId))).run();
+      tx.update(teamMembers).set({ role: "captain" }).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, next))).run();
+      return {
+        result: { teamId: team.id, captain: next },
+        audit: {
+          action: "team.captain_changed",
+          eventId: team.eventId,
+          targetType: "team",
+          targetId: team.id,
+          before: { captain: actor!.userId },
+          after: { captain: next },
+        },
+      };
+    },
+  });
+}
+
 export type MyTeam = {
   id: string;
   name: string;
   role: "captain" | "member";
   inviteCode: string | null;
-  members: { name: string; role: "captain" | "member" }[];
+  members: { userId: string; name: string; role: "captain" | "member" }[];
   projectId: string | null;
 };
 
@@ -178,7 +291,7 @@ export function myTeam(db: DbOrTx, actor: Actor, eventId: string): MyTeam | null
     .get();
   if (!mine) return null;
   const members = db
-    .select({ name: users.name, role: teamMembers.role })
+    .select({ userId: users.id, name: users.name, role: teamMembers.role })
     .from(teamMembers)
     .innerJoin(users, eq(users.id, teamMembers.userId))
     .where(eq(teamMembers.teamId, mine.id))

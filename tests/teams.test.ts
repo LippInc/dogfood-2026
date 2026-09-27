@@ -8,7 +8,7 @@ import { auditLog, userRoles } from "@/server/db/schema";
 import { verifyAuditChain } from "@/server/audit";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
-import { createTeam, inviteByCode, joinTeam, rotateInvite } from "@/server/dal/teams";
+import { createTeam, inviteByCode, joinTeam, leaveTeam, makeCaptain, removeMember, rotateInvite } from "@/server/dal/teams";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -281,5 +281,79 @@ describe("rotateInvite", () => {
       expect(view.teamId).toBe(team.id);
       expect(view.members).toBe(2);
     });
+  });
+});
+
+describe("leaving a team, taking a member off, handing the captaincy over", () => {
+  beforeEach(() => {
+    openEvent();
+  });
+
+  /** A captain and two members, all new people, on one new team. */
+  function teamOfThree() {
+    const captain = addUser("usr_cap", "cap@example.org", "Cara Captain");
+    const a = addUser("usr_a", "a@example.org", "Avi Member");
+    const b = addUser("usr_b", "b@example.org", "Bo Member");
+    const teamId = createTeam(captain, "evt_01", { name: "Three Of Us" }).id;
+    joinTeam(a, inviteCodeOf(teamId));
+    joinTeam(b, inviteCodeOf(teamId));
+    return { teamId, captain: actorById("usr_cap"), a: actorById("usr_a"), b: actorById("usr_b") };
+  }
+  const lastAction = () => auditRows().at(-1)!;
+
+  it("a member leaves: off the team, still a participant, one team.left row; they can then start another team", () => {
+    const { teamId, a } = teamOfThree();
+    leaveTeam(a, teamId);
+    expect(roleIn(teamId, a.userId)).toBeUndefined();
+    expect(memberCount(teamId)).toBe(2);
+    expect(hasParticipantRole(a.userId)).toBe(true);
+    expect(lastAction().action).toBe("team.left");
+    expect(createTeam(actorById(a.userId), "evt_01", { name: "Solo Now" }).id).toBeTruthy();
+    expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
+  it("known-bad: the captain cannot leave while others are on the team (409), the last member never (409), and an outsider is 403", () => {
+    const { teamId, captain } = teamOfThree();
+    expectHttpError(() => leaveTeam(captain, teamId), 409, "captain_hands_over_first");
+    const outsider = addUser("usr_out", "out@example.org", "Out Sider");
+    expectHttpError(() => leaveTeam(outsider, teamId), 403, "not_on_this_team");
+    const solo = addUser("usr_solo", "solo@example.org", "Solo Captain");
+    const soloTeam = createTeam(solo, "evt_01", { name: "Just Me" }).id;
+    expectHttpError(() => leaveTeam(actorById("usr_solo"), soloTeam), 409, "last_member");
+    expect(memberCount(teamId)).toBe(3);
+    expect(memberCount(soloTeam)).toBe(1);
+  });
+
+  it("the captain takes a member off (team.member_removed); a member cannot (403), nor can the captain remove themselves (409)", () => {
+    const { teamId, captain, a, b } = teamOfThree();
+    expectHttpError(() => removeMember(a, teamId, b.userId), 403, "not_the_captain");
+    expectHttpError(() => removeMember(captain, teamId, captain.userId), 409, "cannot_remove_yourself");
+    removeMember(captain, teamId, b.userId);
+    expect(roleIn(teamId, b.userId)).toBeUndefined();
+    expect(lastAction().action).toBe("team.member_removed");
+    expect(lastAction().before).toEqual({ member: b.userId });
+    expectHttpError(() => removeMember(captain, teamId, b.userId), 404, "not_found");
+  });
+
+  it("the captain hands the captaincy over: the roles swap, one team.captain_changed row, and the old captain may then leave", () => {
+    const { teamId, captain, a } = teamOfThree();
+    expectHttpError(() => makeCaptain(a, teamId, { userId: a.userId }), 403, "not_the_captain");
+    makeCaptain(captain, teamId, { userId: a.userId });
+    expect(roleIn(teamId, a.userId)).toBe("captain");
+    expect(roleIn(teamId, captain.userId)).toBe("member");
+    expect(lastAction()).toMatchObject({ action: "team.captain_changed", before: { captain: captain.userId }, after: { captain: a.userId } });
+    leaveTeam(actorById(captain.userId), teamId);
+    expect(roleIn(teamId, captain.userId)).toBeUndefined();
+    expect(h.sqlite.prepare("SELECT count(*) AS n FROM team_members WHERE team_id = ? AND role = 'captain'").get(teamId)).toEqual({ n: 1 });
+  });
+
+  it("known-bad: once submissions close, leaving, taking off and handing over are 403 submissions_closed and nothing changes", () => {
+    const { teamId, captain, a, b } = teamOfThree();
+    closeEvent();
+    expectHttpError(() => leaveTeam(a, teamId), 403, "submissions_closed");
+    expectHttpError(() => removeMember(captain, teamId, b.userId), 403, "submissions_closed");
+    expectHttpError(() => makeCaptain(captain, teamId, { userId: a.userId }), 403, "submissions_closed");
+    expect(memberCount(teamId)).toBe(3);
+    expect(roleIn(teamId, captain.userId)).toBe("captain");
   });
 });

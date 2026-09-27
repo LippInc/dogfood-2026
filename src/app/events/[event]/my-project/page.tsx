@@ -40,7 +40,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           <Deadline iso={event.submissionsCloseAt} utcLabel={closeLabel} />
         </div>
       </section>
-      {team ? <TeamPanel team={team} eventSlug={event.slug} open={open} /> : null}
+      {team ? <TeamPanel team={team} eventSlug={event.slug} open={open} me={actor.userId} /> : null}
     </>
   );
 

@@ -6,11 +6,13 @@ import { useFormAction } from "@/components/use-form-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionResult, MyTeam } from "@/server/dal";
-import { createTeamAction, rotateInviteAction } from "./actions";
+import { createTeamAction, rotateInviteAction, teamMemberAction } from "./actions";
 
 /** The team block of the side column: members, and for the captain the invite link. */
-export function TeamPanel({ team, eventSlug, open }: { team: MyTeam; eventSlug: string; open: boolean }) {
+export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSlug: string; open: boolean; me: string }) {
   const [state, form, pending] = useFormAction<ActionResult>(rotateInviteAction, { ok: false, message: null });
+  const [change, changeForm, changing] = useFormAction<ActionResult>(teamMemberAction, { ok: false, message: null });
+  const captain = team.role === "captain";
   const [copied, setCopied] = useState(false);
   const link = team.inviteCode && typeof window !== "undefined" ? `${window.location.origin}/join/${team.inviteCode}` : null;
   return (
@@ -19,13 +21,43 @@ export function TeamPanel({ team, eventSlug, open }: { team: MyTeam; eventSlug: 
         Team {team.name}
       </h2>
       <ul className="mt-3 flex flex-col gap-1.5">
-        {team.members.map((m, i) => (
-          <li key={`${m.name}-${i}`} className="flex items-baseline justify-between gap-3 text-14">
-            <span className="min-w-0 wrap-anywhere">{m.name}</span>
-            <span className="shrink-0 text-12 text-ink-3">{m.role}</span>
+        {team.members.map((m) => (
+          <li key={m.userId} className="flex flex-col gap-1 text-14">
+            <span className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 wrap-anywhere">{m.name}</span>
+              <span className="shrink-0 text-12 text-ink-3">{m.role}</span>
+            </span>
+            {open && captain && m.userId !== me ? (
+              <form {...changeForm} className="flex gap-1">
+                <input type="hidden" name="team" value={team.id} />
+                <input type="hidden" name="user" value={m.userId} />
+                <input type="hidden" name="event" value={eventSlug} />
+                <Button variant="ghost" size="sm" name="do" value="captain" disabled={changing} className="-ml-2.5 h-7 text-13">
+                  Make captain
+                </Button>
+                <Button variant="ghost" size="sm" name="do" value="remove" disabled={changing} className="h-7 text-13">
+                  Remove
+                </Button>
+              </form>
+            ) : null}
           </li>
         ))}
       </ul>
+      {open && !captain ? (
+        <form {...changeForm} className="mt-3">
+          <input type="hidden" name="team" value={team.id} />
+          <input type="hidden" name="event" value={eventSlug} />
+          <Button variant="ghost" size="sm" name="do" value="leave" disabled={changing} className="-ml-2.5">
+            Leave team
+          </Button>
+        </form>
+      ) : null}
+      {open && captain && team.members.length > 1 ? <p className="mt-2 text-12 text-ink-3">To leave, make another member captain first.</p> : null}
+      {change.message ? (
+        <p aria-live="polite" className={`mt-2 text-13 ${change.ok ? "text-ink-2" : "text-flag"}`}>
+          {change.message}
+        </p>
+      ) : null}
       {team.inviteCode ? (
         <div className="mt-4 flex flex-col gap-2">
           <label htmlFor="invite" className="text-13 text-ink-2">

@@ -18,7 +18,7 @@ export {
   type PublicProject,
   type Question,
 } from "./projects";
-export { createTeam, joinTeam, rotateInvite, inviteByCode, type InviteView, type MyTeam } from "./teams";
+export { createTeam, joinTeam, leaveTeam, makeCaptain, removeMember, rotateInvite, inviteByCode, type InviteView, type MyTeam } from "./teams";
 export { signUp } from "./accounts";
 export {
   createEvent,

@@ -12,7 +12,7 @@ export { Details, NewEvent, PrizeRows, QuestionRows, RubricRows, TrackRows } fro
 export { ProjectInput } from "./projects";
 export { RecordRequest } from "./records";
 export { RecuseInput, ReviewInput } from "./reviews";
-export { TeamName } from "./teams";
+export { CaptainInput, TeamName } from "./teams";
 export { BallotInput, RestoreInput, SettingsInput, VoidInput, VoterList } from "./voting";
 export { WebhookInput } from "./webhooks";
 export { ClaimInput } from "./claims";
