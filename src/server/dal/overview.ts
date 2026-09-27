@@ -9,7 +9,7 @@ import { latestAudit, type AuditLine } from "./audit-log";
 import { eventFacts, getGallery, requireEvent, type EventRow } from "./events";
 import { judgeRows } from "./judges";
 import { computeNormalization, decisions, eventDecisions, type Decision } from "./normalization";
-import { judgingModeOf } from "./pairwise";
+import { judgingModeOf, pairwiseProgress } from "./pairwise";
 
 // The organizer's overview (DESIGN.md: one focal point, three levels, details on
 // request): the decisions that stand between the scores and the results, the
@@ -56,7 +56,9 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
   guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
   const now = Date.now();
   const n = computeNormalization(db, event);
-  const list = judgingModeOf(event) === "pairwise" ? eventDecisions(db, event) : decisions(db, event, n);
+  const pairwise = judgingModeOf(event) === "pairwise";
+  const progress = pairwise ? pairwiseProgress(db, event) : null;
+  const list = pairwise ? eventDecisions(db, event) : decisions(db, event, n);
   const open = list.filter((d) => !d.resolved);
   const gallery = getGallery(event.id);
   const judges = judgeRows(db, event.id);
@@ -94,23 +96,35 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
     },
     {
       no: "06",
-      name: "Scoring",
-      state: openAt("06") ? `${openAt("06")} to decide` : assigned ? `${done} of ${assigned}` : "waiting",
+      name: progress ? "Comparing" : "Scoring",
+      state: openAt("06")
+        ? `${openAt("06")} to decide`
+        : progress
+          ? progress.total
+            ? `${progress.placed} of ${progress.total} placed`
+            : "waiting"
+          : assigned
+            ? `${done} of ${assigned}`
+            : "waiting",
       open: openAt("06"),
-      done: assigned > 0 && done === assigned && !openAt("06"),
+      done: progress ? progress.total > 0 && progress.placed === progress.total && !openAt("06") : assigned > 0 && done === assigned && !openAt("06"),
     },
     {
       no: "07",
-      name: "Normalization",
+      name: progress ? "Ranking" : "Normalization",
       state: openAt("07")
         ? `${openAt("07")} to decide`
-        : n.ranked === 0
-          ? "waiting"
-          : n.variance.k === null
-            ? "no leniency found"
-            : `k = ${n.variance.k.toFixed(1)}`,
+        : progress
+          ? progress.answers || n.ranked
+            ? `${plural(progress.answers, "answer")}`
+            : "waiting"
+          : n.ranked === 0
+            ? "waiting"
+            : n.variance.k === null
+              ? "no leniency found"
+              : `k = ${n.variance.k.toFixed(1)}`,
       open: openAt("07"),
-      done: n.ranked > 0 && !openAt("07"),
+      done: (progress ? progress.answers > 0 || n.ranked > 0 : n.ranked > 0) && !openAt("07"),
     },
     {
       no: "08",

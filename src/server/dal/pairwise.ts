@@ -164,6 +164,20 @@ function trackStates(db: DbOrTx, event: EventRow, judgeUserId: string): Pairwise
   });
 }
 
+/** Every judge's progress in pairwise mode: projects placed into their own lists, of all their projects, and answers given. */
+export function pairwiseProgress(db: DbOrTx, event: EventRow): { placed: number; total: number; answers: number } {
+  const judges = db.selectDistinct({ id: assignments.judgeUserId }).from(assignments).where(eq(assignments.eventId, event.id)).all();
+  const sum = { placed: 0, total: 0, answers: 0 };
+  for (const j of judges) {
+    for (const t of trackStates(db, event, j.id)) {
+      sum.placed += t.placed;
+      sum.total += t.total;
+      sum.answers += t.answered;
+    }
+  }
+  return sum;
+}
+
 export type PairwiseState = {
   event: { id: string; slug: string; name: string; judgingCloseAt: string | null; resultsPublishedAt: string | null };
   judge: { id: string; name: string };
@@ -443,6 +457,8 @@ export type PairwiseRanking = {
   left: PairwiseFit["left"];
   fresh: PairwiseFit["fresh"];
   flags: CoinFlipFlag[];
+  /** judges whose answers and scores are out of the fit: the flat-judge rule or an organizer's decision */
+  leftOut: string[];
   tracks: {
     trackId: string;
     name: string;
@@ -480,6 +496,10 @@ export function getPairwiseRanking(actor: Actor | null, eventIdOrSlug: string): 
     left: pw.fit.left,
     fresh: pw.fit.fresh,
     flags: pw.flags,
+    leftOut: (() => {
+      const names = judgeNames(db, event.id);
+      return pw.excluded.map((id) => names.get(id) ?? id).sort();
+    })(),
     tracks: pw.fit.tracks.map((t) => ({
       trackId: t.trackId,
       name: trackNames.get(t.trackId) ?? t.trackId,

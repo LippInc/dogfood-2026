@@ -52,6 +52,7 @@ export function PairwiseResults({
           placed by answers). A project&rsquo;s win % is its chance to beat an average project of its track; ± is one standard error. Coin-flip rule: a judge
           with 6 or more answers who agrees with the rest of the panel no better than chance, or calls more than half of them too close, is flagged for
           you to keep or leave out, with a reason.
+          {r.leftOut.length ? ` Left out of the fit: ${r.leftOut.join(", ")} (the flat-judge rule or your decision).` : " Nobody is left out of the fit."}
         </p>
         {r.flags.length ? (
           <ul className="flex flex-col gap-1 text-14 text-ink-2 wrap-anywhere">

@@ -8,6 +8,7 @@ import { runMigrations } from "@/server/db/migrate";
 import { auditLog, comparisons, judgeTracks } from "@/server/db/schema";
 import { setJudgeTracks } from "@/server/dal/judges";
 import { acceptUnderReviewed, getPublishedResults, mergeDuplicate, publishResults, setJudgeOverride } from "@/server/dal/normalization";
+import { getOverview } from "@/server/dal/overview";
 import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { authorize, type EventFacts } from "@/server/authz";
 import { getPairwiseRanking, getPairwiseState, pickPairwise, setJudgingMode, undoPairwise, PAIRWISE_METHOD } from "@/server/dal/pairwise";
@@ -123,6 +124,19 @@ describe("pairwise mode: who may do what", () => {
     undoPairwise(judge, "evt_01", { trackId: q.trackId });
     expect(firstQuestion(judge)).toEqual(q);
     expect(h.db.select().from(comparisons).where(eq(comparisons.trackId, q.trackId)).all()[0]!.voidedAt).not.toBeNull();
+  });
+
+  it("the Overview pipeline says Comparing and Ranking in pairwise mode and counts what judges placed", () => {
+    const stage = (no: string) => getOverview(checker("organizer"), "evt_01").pipeline.find((s) => s.no === no)!;
+    expect(stage("06").name).toBe("Scoring");
+    toPairwise();
+    expect([stage("06").name, stage("07").name]).toEqual(["Comparing", "Ranking"]);
+    const before = stage("06").state;
+    const judge = checker("judge_a");
+    pickPairwise(judge, "evt_01", { ...firstQuestion(judge), outcome: "left" });
+    const placed = (state: string) => Number(state.split(" of ")[0]);
+    expect(placed(stage("06").state)).toBe(placed(before) + 1);
+    expect(stage("07").state).toBe("1 answer");
   });
 
   it("a track taken from the judge leaves their pairwise lists too", () => {
