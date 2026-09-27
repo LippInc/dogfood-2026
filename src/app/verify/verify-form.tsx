@@ -53,9 +53,11 @@ async function compareWithCopy(record: Record<string, unknown>, signature: strin
 }
 
 /** A value with the part that differs from the other one marked: the common start and end stay plain. */
-function Marked({ value, other }: { value: string | null; other: string | null }) {
-  if (value === null) return <span className="font-sans italic text-ink-3">not there</span>;
-  if (other === null) return <mark className="rounded-[2px] bg-accent-tint px-0.5 text-ink">{value}</mark>;
+function Marked({ value, other, tone }: { value: string | null; other: string | null; tone: "changed" | "signed" }) {
+  // The changed letters in the alarm colour, the signed ones in the accent (the page's colour for "genuine").
+  const mark = tone === "changed" ? "rounded-[2px] bg-flag-bar px-0.5 text-surface" : "rounded-[2px] bg-accent-tint px-0.5 text-ink";
+  if (value === null) return <span className="font-sans text-13 italic text-ink-3">not there</span>;
+  if (other === null) return <mark className={mark}>{value}</mark>;
   let a = 0;
   while (a < value.length && a < other.length && value[a] === other[a]) a++;
   let b = 0;
@@ -63,10 +65,20 @@ function Marked({ value, other }: { value: string | null; other: string | null }
   return (
     <>
       {value.slice(0, a)}
-      <mark className="rounded-[2px] bg-accent-tint px-0.5 text-ink">{value.slice(a, value.length - b)}</mark>
+      <mark className={mark}>{value.slice(a, value.length - b)}</mark>
       {value.slice(value.length - b)}
     </>
   );
+}
+
+/** The refusal in one plain sentence: only what the evidence on this page shows. */
+function refusalOf(o: Outcome): string {
+  if (o.copy?.at === "changed") return "Changed after it was signed.";
+  if (o.copy?.at === "signature") return "Its signature was replaced.";
+  if (o.copy?.at === "none") return "Not issued by this portal.";
+  if (o.portal.reason === "unknown_key") return "Signed with a key this portal does not publish.";
+  if (o.portal.reason === "malformed") return "Not a well-formed signed record.";
+  return "It does not match its signature.";
 }
 
 function envelopeOf(text: string): Envelope | null {
@@ -358,48 +370,66 @@ export function VerifyForm() {
                 </p>
               </article>
             ) : (
-              <div className="stamp mt-2 rounded-sm border-y border-r border-l-4 border-flag-bar bg-flag-bg px-4 py-3 text-15">
-                <p>
-                  <strong className="font-semibold text-flag">Not valid.</strong> {outcome.portal.message ?? "The signature does not match this record."}
-                </p>
+              <article
+                aria-label="Result"
+                className="corner-marks stamp mt-2 flex flex-col gap-5 rounded-sm border border-flag-bar bg-flag-bg px-6 py-7 [--mark:var(--flag-bar)] sm:px-9 sm:py-8"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                  <p className="label-mono flex items-center gap-2 text-flag">
+                    <X className="size-4" aria-hidden /> Not valid · {outcome.record.kind === "judge" ? "Judging record" : "Certificate"}
+                  </p>
+                  {id ? <p className="font-mono text-12 text-ink-3">{id}</p> : null}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <p className="font-serif text-24 leading-[1.2] sm:text-38 sm:leading-[1.1]">{refusalOf(outcome)}</p>
+                  <p className="text-15 text-ink-2">{outcome.portal.message ?? "The signature does not match this record."}</p>
+                </div>
                 {outcome.copy?.at === "changed" ? (
-                  <div className="mt-4">
+                  <div className="flex flex-col gap-2 border-t border-rule pt-5">
                     <p className="text-14">
                       Against the portal&rsquo;s own copy of <span className="font-mono text-13">{outcome.copy.id}</span>,{" "}
-                      {outcome.copy.changes.length === 1 ? "one field was changed" : `${outcome.copy.changes.length} fields were changed`}:
+                      {outcome.copy.changes.length === 1 ? "one field differs" : `${outcome.copy.changes.length} fields differ`}:
                     </p>
-                    <ul className="mt-2 flex flex-col divide-y divide-rule rounded-sm border border-rule bg-surface">
+                    <ul className="flex flex-col divide-y divide-rule rounded-sm border border-rule bg-surface">
                       {outcome.copy.changes.slice(0, 6).map((c) => (
-                        <li key={c.path} className="grid gap-1 px-4 py-3 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
-                          <span className="font-mono text-12 leading-5 text-ink-3 wrap-anywhere">{c.path}</span>
-                          <span className="grid grid-cols-[64px_minmax(0,1fr)] gap-x-3 gap-y-1 text-13">
-                            <span className="text-ink-2">Pasted</span>
-                            <span className="font-mono wrap-anywhere">
-                              <Marked value={c.pasted} other={c.signed} />
+                        <li key={c.path} className="grid gap-1.5 px-4 py-3 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
+                          <span className="font-mono text-12 leading-6 text-ink-3 wrap-anywhere">{c.path}</span>
+                          <span className="grid grid-cols-[72px_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+                            <span className="text-13 text-ink-2">This copy</span>
+                            <span className="font-mono text-15 wrap-anywhere">
+                              <Marked value={c.pasted} other={c.signed} tone="changed" />
                             </span>
-                            <span className="text-ink-2">Signed</span>
-                            <span className="font-mono wrap-anywhere">
-                              <Marked value={c.signed} other={c.pasted} />
+                            <span className="text-13 text-ink-2">As signed</span>
+                            <span className="font-mono text-15 wrap-anywhere">
+                              <Marked value={c.signed} other={c.pasted} tone="signed" />
                             </span>
                           </span>
                         </li>
                       ))}
                     </ul>
-                    {outcome.copy.changes.length > 6 ? <p className="mt-2 text-13 text-ink-2">And {outcome.copy.changes.length - 6} more.</p> : null}
+                    {outcome.copy.changes.length > 6 ? <p className="text-13 text-ink-2">And {outcome.copy.changes.length - 6} more.</p> : null}
                   </div>
                 ) : outcome.copy?.at === "signature" ? (
-                  <p className="mt-2 text-14 text-ink-2">
-                    Every field matches the portal&rsquo;s own copy of <span className="font-mono text-13">{outcome.copy.id}</span>: the signature itself was changed.
+                  <p className="border-t border-rule pt-5 text-14 text-ink-2">
+                    Every field matches the portal&rsquo;s own copy of <span className="font-mono text-13">{outcome.copy.id}</span>: only the signature differs.
                   </p>
                 ) : outcome.copy?.at === "none" ? (
-                  <p className="mt-2 text-14 text-ink-2">
+                  <p className="border-t border-rule pt-5 text-14 text-ink-2">
                     This portal holds no record with the id <span className="font-mono text-13">{outcome.copy.id}</span>, so it did not issue this one.
                   </p>
                 ) : null}
-                <p className="mt-3 text-14 text-ink-2">
-                  The signature covers every byte: one changed letter is enough to fail the check.
+                <p className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-t border-rule pt-4 text-14 text-ink-2">
+                  <span>The signature covers every byte: one changed letter is enough to fail the check.</span>
+                  {outcome.copy && outcome.copy.at !== "none" ? (
+                    <a
+                      href={`/records/${encodeURIComponent(outcome.copy.id)}`}
+                      className="rounded-xs text-15 font-medium text-ink underline decoration-edge underline-offset-4 hover:decoration-ink"
+                    >
+                      Open the signed original
+                    </a>
+                  ) : null}
                 </p>
-              </div>
+              </article>
             )
           ) : null}
         </div>
