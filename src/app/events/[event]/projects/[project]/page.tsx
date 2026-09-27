@@ -5,8 +5,9 @@ import { Face } from "@/components/face";
 import { ProjectImage } from "@/components/project-cover";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
+import { competitionPlaces, ordinal } from "@/lib/places";
 import Link from "next/link";
-import { actorNav, currentActor, getPublicProject, listComments, NotFoundError } from "@/server/dal";
+import { actorNav, currentActor, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
 import { CommentForm, HideForm } from "./comments";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,16 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
   const comments = listComments(actor, p.id);
   const canModerate = Boolean(actor?.roles.some((r) => r.eventId === event.id && r.role === "organizer"));
   const path = `/events/${event.slug}/projects/${p.id}`;
+  // Once published, this project's own row of the published run: its place, score and ±, as the results page shows them.
+  const results = event.resultsPublishedAt ? getPublishedResults(event.id) : null;
+  const standing = (() => {
+    if (!results?.published) return null;
+    for (const t of results.tracks) {
+      const i = t.rows.findIndex((r) => r.projectId === p.id);
+      if (i >= 0) return { track: t, row: t.rows[i]!, place: competitionPlaces(t.rows)[i]!, pairwise: results.method === PAIRWISE_METHOD };
+    }
+    return null;
+  })();
   return (
     <PublicShell event={event} active="projects" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       <article className="pt-10">
@@ -92,9 +103,18 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               {!p.repoUrl && !p.videoUrl && !p.liveUrl ? <p className="text-14 text-ink-3">No links submitted.</p> : null}
             </div>
           </header>
-          <div className="overflow-hidden rounded-xs border border-rule">
-            {p.thumbnailUrl ? <ProjectImage src={p.thumbnailUrl} alt={`The team's picture of ${p.title}`} fallback={<Face id={p.id} />} /> : <Face id={p.id} />}
-          </div>
+          <figure className="flex flex-col gap-2">
+            <div className={`tile relative ${standing?.place.place === 1 ? "lit" : ""}`}>
+              <div className="overflow-hidden rounded-xs border border-rule">
+                {p.thumbnailUrl ? <ProjectImage src={p.thumbnailUrl} alt={`The team's picture of ${p.title}`} fallback={<Face id={p.id} />} /> : <Face id={p.id} />}
+              </div>
+              <span className="crop-marks" aria-hidden="true" />
+            </div>
+            <figcaption className="flex items-baseline justify-between gap-4 pt-1">
+              <span className="label-mono text-ink">Fig. {p.id}</span>
+              <span className="text-13 text-ink-3">{p.thumbnailUrl ? "the team’s picture" : "its face, drawn from its id"}</span>
+            </figcaption>
+          </figure>
         </div>
 
         <div className="mt-12 grid gap-10 border-t border-rule pt-10 md:grid-cols-[minmax(0,680px)_1fr] md:gap-16">
@@ -150,11 +170,44 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               <dt className="text-ink-3">Team</dt>
               <dd>{p.team.name}</dd>
             </dl>
-            <p className="border-t border-rule pt-5 text-13 text-ink-3">
-              {event.resultsPublishedAt
-                ? "Results are published: see the results page for this project's place."
-                : "Scores stay with the judges and organizers until the results are published."}
-            </p>
+            {standing && standing.place.place !== null ? (
+              <section aria-labelledby="standing-title" className="border-t-2 border-ink pt-3">
+                <h2 id="standing-title" className="label-mono text-ink">
+                  Published result
+                </h2>
+                <div className="mt-3 flex items-end gap-4">
+                  <span className={`font-display text-64 leading-none tnum ${standing.place.place === 1 ? "text-accent-ink" : ""}`}>{standing.place.place}</span>
+                  <span className="pb-1">
+                    <span className="block text-15 font-semibold">
+                      {standing.place.joint ? "Joint " : ""}
+                      {ordinal(standing.place.place)} in {standing.track.name}
+                    </span>
+                    <span className="block text-14 text-ink-2 tnum">
+                      {standing.row.score === null
+                        ? ""
+                        : standing.pairwise
+                          ? `${Math.round(standing.row.score * 100)} % to win`
+                          : `${standing.row.score.toFixed(2)}`}
+                      {standing.row.se !== null
+                        ? standing.pairwise
+                          ? ` ± ${Math.max(1, Math.round(standing.row.se * 100))}`
+                          : ` ± ${standing.row.se.toFixed(2)}`
+                        : ""}
+                      {` · ${standing.row.n} ${standing.pairwise ? (standing.row.n === 1 ? "judge" : "judges") : standing.row.n === 1 ? "review" : "reviews"}`}
+                    </span>
+                  </span>
+                </div>
+                <Link href={`/events/${event.slug}/results#track-${standing.track.id}`} className="mt-3 inline-block text-14 underline decoration-edge underline-offset-4 hover:decoration-ink">
+                  See it among its track, with the working
+                </Link>
+              </section>
+            ) : (
+              <p className="border-t border-rule pt-5 text-13 text-ink-3">
+                {event.resultsPublishedAt
+                  ? "Results are published: see the results page for this project's place."
+                  : "Scores stay with the judges and organizers until the results are published."}
+              </p>
+            )}
           </aside>
         </div>
 
