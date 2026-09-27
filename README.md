@@ -174,7 +174,10 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 - **Audit log.** Every change, and every request refused to someone signed in
   or holding a voting link, is recorded in the same transaction as the change
   (past 60 refusals in 10 minutes a person gets 429 and no row, so the log
-  cannot be flooded); the database refuses edits and deletes of the log,
+  cannot be flooded). Each event's entries are on its Audit log tab; the
+  entries no event owns (accounts, sign-ins, API tokens, the signing key,
+  demo mode) are on Your events, Portal log, for administrators; both are in
+  the API (`GET /api/events/{event}/audit`, `GET /api/audit`); the database refuses edits and deletes of the log,
   and each row carries the hash of the one before.
 
 ## Running it for a real event

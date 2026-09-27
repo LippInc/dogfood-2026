@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { verifyAuditChain } from "../audit";
 import { getDb, type DbOrTx } from "../db/client";
@@ -330,6 +330,49 @@ export function getAuditLog(actor: Actor | null, eventIdOrSlug: string, opts: { 
     .all();
   const total = db.select({ n: sql<number>`count(*)` }).from(auditLog).where(eq(auditLog.eventId, event.id)).get()!.n;
   return { event, lines: lines(db, event.id, rows), total, chain: verifyAuditChain(db) };
+}
+
+/** One entry as the API gives it: the sentence the log page shows, as plain text, and the row's own fields. */
+export type AuditEntryView = Omit<AuditLine, "parts"> & { sentence: string };
+const plain = (l: AuditLine): AuditEntryView => ({
+  id: l.id,
+  at: l.at,
+  action: l.action,
+  actor: l.actor,
+  sentence: l.parts.map((p) => p.text).join(""),
+  targetType: l.targetType,
+  targetId: l.targetId,
+  hash: l.hash,
+});
+
+/** The event's log for the API: what its log page shows (a ballot's picks sealed until voting closes). Organizers. */
+export function getAuditEntries(actor: Actor | null, eventIdOrSlug: string, opts: { limit?: number } = {}) {
+  const { lines: rows, total, chain } = getAuditLog(actor, eventIdOrSlug, opts);
+  return { total, chain, entries: rows.map(plain) };
+}
+
+/**
+ * The portal's own log: the rows no event owns (accounts made, sign-ins, API tokens, the
+ * signing key, demo mode, refusals outside any event), newest first. Administrators only.
+ */
+export function getPortalLog(actor: Actor | null, opts: { limit?: number } = {}) {
+  const db = getDb();
+  guardRead(actor, "portal.audit", { kind: "platform" });
+  const rows = db
+    .select()
+    .from(auditLog)
+    .where(isNull(auditLog.eventId))
+    .orderBy(desc(auditLog.id))
+    .limit(opts.limit ?? 500)
+    .all();
+  const total = db.select({ n: sql<number>`count(*)` }).from(auditLog).where(isNull(auditLog.eventId)).get()!.n;
+  return { lines: lines(db, "", rows), total, chain: verifyAuditChain(db) };
+}
+
+/** The portal's log for the API. Administrators only. */
+export function getPortalEntries(actor: Actor | null, opts: { limit?: number } = {}) {
+  const { lines: rows, total, chain } = getPortalLog(actor, opts);
+  return { total, chain, entries: rows.map(plain) };
 }
 
 /** The event's log as CSV, oldest first, every row with its own hash and the one before. */

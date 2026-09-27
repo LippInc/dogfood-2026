@@ -19,9 +19,14 @@ export default async function OrganizeHome() {
         <div className="flex items-end justify-between gap-4">
           <h1 className="text-24 font-semibold">Your events</h1>
           {canCreate ? (
-            <Link href="/organize/new" className="inline-flex h-8 items-center rounded-sm border border-primary bg-primary px-3 text-14 font-medium text-on-primary">
-              New event
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href="/organize/log" className="text-14 font-medium underline underline-offset-4">
+                Portal log
+              </Link>
+              <Link href="/organize/new" className="inline-flex h-8 items-center rounded-sm border border-primary bg-primary px-3 text-14 font-medium text-on-primary">
+                New event
+              </Link>
+            </div>
           ) : null}
         </div>
         {events.length === 0 ? (

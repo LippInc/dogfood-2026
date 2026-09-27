@@ -30,6 +30,7 @@ export const OPERATIONS: Operation[] = [
   // Portal
   { method: "GET", path: "/api/health", tag: "Portal", summary: "Liveness and database check", access: "anyone" },
   { method: "GET", path: "/api/openapi.json", tag: "Portal", summary: "This document", access: "anyone" },
+  { method: "GET", path: "/api/audit", tag: "Portal", summary: "The portal's own audit log: the entries no event owns (accounts, sign-ins, API tokens, the signing key, demo mode), newest first, each as a sentence with its row id and hash, and the chain's state; ?limit= up to 5000 (default 500)", access: "administrator" },
 
   // Accounts
   { method: "POST", path: "/api/auth/sign-up", tag: "Accounts", summary: "Create an account and sign in (sets the session cookie)", access: "anyone", body: In.SignUp, ok: 201, also: [403, 409, 429], note: "An address named in ADMIN_EMAILS signs up only with the one-time setup code from the server log (403 without it). One network address gets 60 sign-ups and password sign-ins per 10 minutes (429)." },
@@ -60,6 +61,7 @@ export const OPERATIONS: Operation[] = [
   { method: "PUT", path: "/api/events/{event}/questions", tag: "Events", summary: "Replace the custom submission questions", access: "organizer", body: In.QuestionRows },
   { method: "PUT", path: "/api/events/{event}/rubric", tag: "Events", summary: "Replace the weighted scoring rubric", access: "organizer", body: In.RubricRows },
   { method: "GET", path: "/api/events/{event}/overview", tag: "Events", summary: "Progress, open decisions and the latest audit lines", access: "organizer" },
+  { method: "GET", path: "/api/events/{event}/audit", tag: "Events", summary: "The event's audit log, newest first, as its log page shows it (a ballot's picks sealed until voting closes), each entry a sentence with its row id and hash, and the chain's state; ?limit= up to 5000 (default 500)", access: "organizer" },
   {
     method: "GET",
     path: "/api/events/{event}/export/{file}",
