@@ -305,15 +305,18 @@ def run_checks(cfg):
     ballot_url = u(f"/api/events/{EVENT_ID}/ballot")
     s, _, _ = visitor.request("PUT", ballot_url, {"projectIds": ["prj_01"]})
     expect(c, s == 401, visitor, "PUT", ballot_url, s, "401 without a session or link")
-    s, _, _ = participant.request("PUT", ballot_url, {"projectIds": ["prj_01", "prj_02", "prj_03", "prj_04"]})
+    s, _, _ = participant.request("PUT", ballot_url, {"projectIds": ["prj_02", "prj_03", "prj_04", "prj_05"]})
     expect(c, s == 422, participant, "PUT", ballot_url, s, "422 over the limit of 3")
-    s, body, _ = participant.request("PUT", ballot_url, {"projectIds": ["prj_01", "prj_02"]})
+    # the participant's own team made prj_01: no vote for it
+    s, _, _ = participant.request("PUT", ballot_url, {"projectIds": ["prj_01", "prj_02"]})
+    expect(c, s == 422, participant, "PUT", ballot_url, s, "422 for a pick of their own team's project")
+    s, body, _ = participant.request("PUT", ballot_url, {"projectIds": ["prj_02", "prj_06"]})
     expect(c, s == 200, participant, "PUT", ballot_url, s, "200 with two picks")
     s, body, _ = participant.request("GET", ballot_url)
     if expect(c, s == 200, participant, "GET", ballot_url, s, "200"):
         data = as_json(body)
-        expect(c, data.get("picks") == ["prj_01", "prj_02"], participant, "GET", ballot_url,
-               f"picks {data.get('picks')!r}", "picks ['prj_01', 'prj_02']")
+        expect(c, data.get("picks") == ["prj_02", "prj_06"], participant, "GET", ballot_url,
+               f"picks {data.get('picks')!r}", "picks ['prj_02', 'prj_06'] (the refused save changed nothing)")
         expect(c, (data.get("voter") or {}).get("kind") == "account", participant, "GET", ballot_url,
                f"voter {(data.get('voter') or {}).get('kind')!r}", "voter.kind 'account'")
     checks.append(c)
@@ -489,9 +492,9 @@ def run_checks(cfg):
             expect(c, votes.get("prj_03") == 0, visitor, "GET", community_url,
                    f"prj_03 has {votes.get('prj_03')} votes (only the voided voter picked it)",
                    "prj_03 with 0 votes")
-            expect(c, votes.get("prj_01") == 1, visitor, "GET", community_url,
-                   f"prj_01 has {votes.get('prj_01')} votes (the participant picked it)",
-                   "prj_01 with 1 vote, as a positive control")
+            expect(c, votes.get("prj_02") == 1, visitor, "GET", community_url,
+                   f"prj_02 has {votes.get('prj_02')} votes (the participant picked it)",
+                   "prj_02 with 1 vote, as a positive control")
     checks.append(c)
 
     # B11 -- results stay hidden until the organizers publish them
