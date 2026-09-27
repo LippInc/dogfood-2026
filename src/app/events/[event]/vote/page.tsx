@@ -26,6 +26,7 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
   }
   const { event } = gallery;
   const faces = Object.fromEntries(ballot.projects.map((p) => [p.id, <Face key={p.id} id={p.id} className="block h-[68px] w-[120px]" />]));
+  const slotFaces = Object.fromEntries(ballot.projects.map((p) => [p.id, <Face key={p.id} id={p.id} cols={32} rows={18} />]));
   const canVote = ballot.state === "open" && ballot.voter !== null && !ballot.voter.voided;
   const here = `/events/${event.slug}/vote`;
 
@@ -92,7 +93,15 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
       ) : null}
       {/* Once voting has closed, only a voter's own ballot is still worth showing. */}
       {ballot.state === "not_set" || (ballot.state === "closed" && ballot.voter === null) ? null : (
-        <Ballot eventId={event.id} projects={ballot.projects} initialPicks={ballot.picks} max={ballot.votesPerVoter} canVote={canVote} faces={faces} />
+        <Ballot
+          eventId={event.id}
+          projects={ballot.projects}
+          initialPicks={ballot.picks}
+          max={ballot.votesPerVoter}
+          canVote={canVote}
+          faces={faces}
+          slotFaces={slotFaces}
+        />
       )}
     </PublicShell>
   );

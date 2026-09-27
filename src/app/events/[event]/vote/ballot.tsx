@@ -17,6 +17,7 @@ export function Ballot({
   max,
   canVote,
   faces,
+  slotFaces,
 }: {
   eventId: string;
   projects: Project[];
@@ -24,6 +25,8 @@ export function Ballot({
   max: number;
   canVote: boolean;
   faces: Record<string, React.ReactNode>;
+  /** small faces for the ballot slots in the sticky bar */
+  slotFaces: Record<string, React.ReactNode>;
 }) {
   const [picks, setPicks] = useState<string[]>(initialPicks);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
@@ -56,12 +59,25 @@ export function Ballot({
   return (
     <div className="flex flex-col gap-4">
       <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-bg/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8 xl:-mx-16 xl:px-16">
-        <p className="text-15">
-          <span className="font-semibold tnum">
-            {picks.length} of {max}
-          </span>{" "}
-          {max === 1 ? "vote" : "votes"} used{canVote && left > 0 ? `, ${left} left` : ""}
-        </p>
+        <div className="flex items-center gap-4">
+          {/* the ballot's slots: each pick drops its face into the next one */}
+          <ol className="flex gap-1.5" aria-hidden="true">
+            {Array.from({ length: Math.min(max, 10) }, (_, i) => {
+              const id = picks[i];
+              return (
+                <li key={id ?? `empty-${i}`} className={`h-[27px] w-12 overflow-hidden rounded-xs ${id ? "lit stamp border border-accent" : "border border-dashed border-edge"}`}>
+                  {id ? slotFaces[id] : <span className="flex h-full items-center justify-center font-mono text-12 text-ink-3">{i + 1}</span>}
+                </li>
+              );
+            })}
+          </ol>
+          <p className="text-15">
+            <span className="font-semibold tnum">
+              {picks.length} of {max}
+            </span>{" "}
+            {max === 1 ? "vote" : "votes"} used{canVote && left > 0 ? `, ${left} left` : ""}
+          </p>
+        </div>
         <p role="status" aria-live="polite" className={`text-14 ${status ? (status.ok ? "text-ok" : "text-flag") : "text-ink-2"}`}>
           {pending ? "Saving…" : (status?.text ?? "")}
         </p>
