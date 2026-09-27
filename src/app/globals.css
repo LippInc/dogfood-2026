@@ -349,4 +349,15 @@
       transform: scaleX(0);
     }
   }
+  /* hashes drawn as bits (the audit chain): ones in ink, zeros as faint cells */
+  .hash-glyph {
+    display: block;
+    flex: none;
+  }
+  .hash-glyph .hash-glyph-ones {
+    fill: var(--ink);
+  }
+  .hash-glyph .hash-glyph-zeros {
+    fill: var(--rule);
+  }
 }
