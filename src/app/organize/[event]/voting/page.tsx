@@ -21,7 +21,7 @@ const CHANNEL: Record<string, string> = {
 
 /** The count's rows: place, face, title, bar (wide screens), votes; and the open link's column when it is a way in. */
 const COUNT_ROW = "grid-cols-[28px_32px_minmax(0,1fr)_40px] md:grid-cols-[28px_32px_minmax(0,300px)_minmax(0,1fr)_40px]";
-const COUNT_ROW_LINK = "grid-cols-[28px_32px_minmax(0,1fr)_40px_104px] md:grid-cols-[28px_32px_minmax(0,300px)_minmax(0,1fr)_40px_104px]";
+const COUNT_ROW_LINK = "grid-cols-[28px_32px_minmax(0,1fr)_40px_64px] md:grid-cols-[28px_32px_minmax(0,300px)_minmax(0,1fr)_40px_120px]";
 
 export default async function VotingPage({ params }: PageProps<"/organize/[event]/voting">) {
   const { event: key } = await params;
@@ -34,7 +34,8 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
   const over = !closed && Boolean(event.resultsPublishedAt);
   // the open link's column shows while it is a way in, or once any of its ballots exist
   const withLink = v.settings.modes.includes("link") || Boolean(v.tally?.some((t) => t.openLink > 0));
-  const top = v.tally ? Math.max(0, ...v.tally.map((t) => t.votes)) : 0;
+  // the bars share one scale: counted votes, plus the open link's hatched tail when it is counted apart
+  const top = v.tally ? Math.max(0, ...v.tally.map((t) => t.votes + (v.settings.countLink ? 0 : t.openLink))) : 0;
   // a row for every project with a vote of either kind; the rest share the "not picked" row
   const anyVotes = Boolean(v.tally?.some((t) => t.votes > 0 || t.openLink > 0));
   const zeros = v.tally ? v.tally.filter((t) => t.votes === 0 && t.openLink === 0) : [];
@@ -202,7 +203,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             {v.state === "open" ? <p className="mt-1 text-14 text-ink-2">Live, and hidden from everyone but organizers until the window closes.</p> : null}
             {withLink ? (
               <p className="mt-1 text-14 text-ink-2">
-                Open-link ballots are counted apart, on the right of each row:{" "}
+                Open-link ballots are hatched and counted apart, on the right of each row:{" "}
                 {v.settings.countLink ? "they are included in the count." : "they change no place."}
               </p>
             ) : null}
@@ -249,14 +250,24 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                     <span className="min-w-0 truncate">
                       <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
                     </span>
-                    {/* the bar: votes against the leader's, so the gaps between places are seen, not read */}
-                    <span aria-hidden className="h-2.5 max-md:hidden">
-                      <span className={`block h-full ${t.votes ? "bg-ink" : ""}`} style={{ width: `${top ? (t.votes / top) * 100 : 0}%` }} />
+                    {/* the bar: votes against the leader's, so the gaps between places are seen, not read; the open
+                        link's ballots hatched, as in the turnout bar: inside the bar when they count, a tail when they do not */}
+                    <span aria-hidden className="flex h-2.5 gap-[2px] max-md:hidden">
+                      {t.votes - (v.settings.countLink ? t.openLink : 0) > 0 ? (
+                        <span className="bg-ink" style={{ width: `${((t.votes - (v.settings.countLink ? t.openLink : 0)) / top) * 100}%` }} />
+                      ) : null}
+                      {t.openLink > 0 ? <span className={CHANNEL.link} style={{ width: `${(t.openLink / top) * 100}%` }} /> : null}
                     </span>
                     <span className="text-right font-semibold tnum">{t.votes}</span>
                     {withLink ? (
-                      <span className="text-right font-mono text-12 text-ink-2 tnum">
-                        {t.openLink > 0 ? `${v.settings.countLink ? "incl. " : "+"}${t.openLink} open link` : null}
+                      <span className="inline-flex items-center justify-end gap-1.5 font-mono text-12 whitespace-nowrap text-ink-2 tnum">
+                        {t.openLink > 0 ? (
+                          <>
+                            <span aria-hidden className={`inline-block size-2.5 shrink-0 ${CHANNEL.link}`} />
+                            {`${v.settings.countLink ? "incl. " : "+"}${t.openLink}`}
+                            <span className="max-md:sr-only"> open link</span>
+                          </>
+                        ) : null}
                       </span>
                     ) : null}
                   </li>
