@@ -41,7 +41,7 @@ export default async function VoteLinkPage({ params }: PageProps<"/vote/[code]">
         <h1 className="mt-3 font-display text-38">{closed ? "The vote has closed" : "Pick your favourites"}</h1>
         <p className="mt-3 text-17 text-ink-2">
           {closed
-            ? `The community vote for ${info.event.name} closed ${formatUtc(info.closesAt)}, and the count is final.`
+            ? `The community vote for ${info.event.name} is over, and the count is final.`
             : info.kind === "listed"
               ? "This is your personal voting link. It opens your own ballot; please do not share it."
               : "This link lets you vote once, from this browser. The organizers can set aside ballots that look like duplicates."}
