@@ -250,6 +250,15 @@ describe("castBallot over the open link", () => {
     expect(getBallot(null, "evt_01", null).projects.some((x) => x.own)).toBe(false);
     // the gap JUDGING.md names: signed out, an open link cannot know whose team it is
     expect(castBallot(null, "evt_01", token, { projectIds: [own] }, CLIENT).voterId).toBeTruthy();
+
+    // a voter-list link is a known address: the team member's own link cannot pick their project,
+    // an outsider's link can (positive control), and the member's ballot marks it
+    const { links } = addListedVoters(org(), "evt_01", { emails: `${p.email}, outsider@example.org` });
+    const tokenOf = (email: string) => links.find((l) => l.email === email)!.path.slice("/vote/".length);
+    expectHttpError(() => castBallot(null, "evt_01", tokenOf(p.email), { projectIds: [own] }, CLIENT), 422, "invalid");
+    expect(castBallot(null, "evt_01", tokenOf("outsider@example.org"), { projectIds: [own] }, CLIENT).voterId).toBeTruthy();
+    expect(getBallot(null, "evt_01", tokenOf(p.email)).projects.filter((x) => x.own).map((x) => x.id)).toEqual([own]);
+    expect(getBallot(null, "evt_01", tokenOf("outsider@example.org")).projects.some((x) => x.own)).toBe(false);
   });
 
   it("with account mode off, a participant's ballot is 403 voting_mode_off with one new authz.refused row", () => {
