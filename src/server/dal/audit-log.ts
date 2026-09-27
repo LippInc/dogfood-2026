@@ -221,6 +221,16 @@ function sentence(r: Row, n: Names): Part[] {
             ),
           ]
         : [actor, t(" cleared the community voting window")];
+    case "voting.demo_opened":
+      return after.votingCloseAt
+        ? [
+            actor,
+            t(
+              ` opened the demo community vote until ${formatUtc(String(after.votingCloseAt))}, ${after.votesPerVoter} votes each, ` +
+                `for ${andList(((after.modes as string[] | undefined) ?? []).map((m) => MODE_WORDS[m] ?? m))}`,
+            ),
+          ]
+        : [actor, t(" opened the demo community vote")];
     case "voting.link":
       return [actor, t(after.replaced ? " made a new open voting link; the old one stopped working" : " made the open voting link")];
     case "voting.voters_added": {
@@ -266,6 +276,16 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" asked webhook "), { text: target, mono: true }, t(` to send ${after.delivery} again`)];
     case "signing_key.create":
       return [actor, t(" made the signing key "), { text: target, mono: true }];
+    case "token.create":
+      return [actor, t(" made the API token "), { text: String(after.name ?? target), mono: true }];
+    case "token.revoke":
+      return [actor, t(" revoked the API token "), { text: String(after.name ?? target), mono: true }];
+    case "claims.issue": {
+      const links = Number(after.links ?? 0);
+      return [actor, t(` made ${links} set-a-password ${links === 1 ? "link" : "links"} for people who came in through an import`)];
+    }
+    case "user.claim":
+      return [actor, t(" set a password with their link")];
     case "ratelimit.refused":
       return [actor, t(` was asked to slow down (too many ${LIMIT_WORDS[target] ?? target}; wait ${after.retryAfter} s)`)];
     default:
