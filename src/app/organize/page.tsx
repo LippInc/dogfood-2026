@@ -18,20 +18,20 @@ export default async function OrganizeHome() {
   return (
     <WorkShell eventName="Dogfood portal" eventHref="/organize" crumb="Your events" person={actor.name} role={actor.isAdmin ? "Administrator" : "Organizer"}>
       <div className="mx-auto max-w-[960px]">
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="label-mono text-ink-2">{events.length === 1 ? "1 event" : `${events.length} events`}</p>
             <h1 className="mt-1 text-24 font-semibold">Your events</h1>
           </div>
           {canCreate ? (
-            <div className="flex items-center gap-3">
-              <Link href="/organize/log" className="text-14 font-medium underline underline-offset-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <Link href="/organize/log" className="text-14 font-medium whitespace-nowrap underline underline-offset-4">
                 Portal log
               </Link>
-              <Link href="/organize/accounts" className="text-14 font-medium underline underline-offset-4">
+              <Link href="/organize/accounts" className="text-14 font-medium whitespace-nowrap underline underline-offset-4">
                 Accounts
               </Link>
-              <Link href="/organize/new" className="inline-flex h-8 items-center rounded-sm border border-primary bg-primary px-3 text-14 font-medium text-on-primary">
+              <Link href="/organize/new" className="inline-flex h-8 items-center rounded-sm border border-primary bg-primary px-3 text-14 font-medium whitespace-nowrap text-on-primary max-sm:order-first">
                 New event
               </Link>
             </div>
