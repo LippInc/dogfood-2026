@@ -8,8 +8,10 @@ import { startTransition, useActionState, useEffect, useRef } from "react";
  * sends the form from onSubmit instead and resets it only after a success, so a
  * refused sign-up, comment or vote setting keeps its fields while a posted one
  * clears as before. Forms that show saved values (settings, the project form) pass
- * resetOnSuccess: false and never reset. The action prop stays, so the form also
- * works before hydration. Spread the second value onto the form: <form {...form}>.
+ * resetOnSuccess: false and never reset. A form with a controlled input puts its
+ * state back in onReset, since the reset changes the DOM only. The action prop
+ * stays, so the form also works before hydration. Spread the second value onto
+ * the form: <form {...form}>.
  */
 export function useFormAction<S>(
   action: (prev: Awaited<S>, form: FormData) => Promise<S>,

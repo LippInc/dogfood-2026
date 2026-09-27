@@ -39,7 +39,8 @@ export function AddWebhookForm({ eventSlug }: { eventSlug: string }) {
   const [every, setEvery] = useState(true);
   const e = state.fieldErrors ?? {};
   return (
-    <form {...form} className="flex flex-col gap-4">
+    // onReset: the reset after a successful add ticks "every" again in the DOM, so the state follows
+    <form {...form} onReset={() => setEvery(true)} className="flex flex-col gap-4">
       <input type="hidden" name="event" value={eventSlug} />
       <Field id="webhook-url" label="Send to (URL)" error={e.url} help="The portal POSTs JSON there, signed with the webhook's secret.">
         {(a) => <Input {...a} name="url" type="url" required placeholder="https://example.org/hooks/dogfood" className="max-w-[560px]" />}
