@@ -4,7 +4,7 @@ import { Check } from "lucide-react";
 import { useState, useTransition } from "react";
 import { castAction } from "./actions";
 
-type Project = { id: string; title: string; summary: string; teamName: string; trackName: string };
+type Project = { id: string; title: string; summary: string; teamName: string; trackName: string; own: boolean };
 
 /**
  * One ballot, in this voter's own shuffled order. A pick saves at once; the server
@@ -79,22 +79,26 @@ export function Ballot({
                 </span>
                 {p.summary ? <span className="mt-1 block text-15">{p.summary}</span> : null}
               </span>
-              <button
-                type="button"
-                onClick={() => toggle(p.id)}
-                disabled={!canVote || pending}
-                aria-pressed={chosen}
-                aria-label={`${chosen ? "Take back your vote for" : "Vote for"} ${p.title}`}
-                className="inline-flex h-11 min-w-[104px] items-center justify-center gap-2 rounded-sm border border-edge px-4 text-15 font-medium hover:bg-raised aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {chosen ? (
-                  <>
-                    <Check className="size-4" aria-hidden /> Voted
-                  </>
-                ) : (
-                  "Vote"
-                )}
-              </button>
+              {p.own ? (
+                <span className="inline-flex h-11 min-w-[104px] items-center justify-center px-2 text-center text-13 text-ink-2">Your team&rsquo;s project</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => toggle(p.id)}
+                  disabled={!canVote || pending}
+                  aria-pressed={chosen}
+                  aria-label={`${chosen ? "Take back your vote for" : "Vote for"} ${p.title}`}
+                  className="inline-flex h-11 min-w-[104px] items-center justify-center gap-2 rounded-sm border border-edge px-4 text-15 font-medium hover:bg-raised aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {chosen ? (
+                    <>
+                      <Check className="size-4" aria-hidden /> Voted
+                    </>
+                  ) : (
+                    "Vote"
+                  )}
+                </button>
+              )}
             </li>
           );
         })}

@@ -5,7 +5,7 @@ import { appendAudit } from "../audit";
 import type { Actor, Resource, VoterKind } from "../authz";
 import { DEFAULT_SEED_SECRET } from "../checker";
 import { getDb, type DbOrTx } from "../db/client";
-import { events, projects, teams, tracks, voters, votes } from "../db/schema";
+import { events, projects, teamMembers, teams, tracks, voters, votes } from "../db/schema";
 import { formatUtc } from "@/lib/format";
 import { AuthzError, ConflictError, NotFoundError, RateLimitedError, ValidationError } from "../errors";
 import { seededRng, shuffle } from "../judging/random";
@@ -83,6 +83,19 @@ function ballotProjects(db: DbOrTx, eventId: string) {
     .all();
 }
 
+/** The event's projects whose team the signed-in person is on: no vote for their own. */
+function ownProjectIds(db: DbOrTx, eventId: string, userId: string): Set<string> {
+  return new Set(
+    db
+      .select({ id: projects.id })
+      .from(projects)
+      .innerJoin(teamMembers, eq(teamMembers.teamId, projects.teamId))
+      .where(and(eq(projects.eventId, eventId), eq(teamMembers.userId, userId)))
+      .all()
+      .map((p) => p.id),
+  );
+}
+
 function picksOf(db: DbOrTx, voterId: string): string[] {
   return db
     .select({ p: votes.projectId })
@@ -112,7 +125,8 @@ export type BallotView = {
   /** null: this request proves no voter yet */
   voter: { id: string | null; kind: VoterKind; voided: boolean } | null;
   signedIn: boolean;
-  projects: { id: string; title: string; summary: string; teamName: string; trackName: string }[];
+  /** own: the signed-in person's team made it, so it takes no vote from them */
+  projects: { id: string; title: string; summary: string; teamName: string; trackName: string; own: boolean }[];
   picks: string[];
 };
 
@@ -123,7 +137,8 @@ export function getBallot(actor: Actor | null, eventIdOrSlug: string, token: str
   const settings = votingSettings(event);
   const who = resolveVoter(db, event, actor, token);
   const usable = who && (who.viaAccount ? settings.modes.includes("account") : true) ? who : null;
-  const list = ballotProjects(db, event.id);
+  const own = actor ? ownProjectIds(db, event.id, actor.userId) : new Set<string>();
+  const list = ballotProjects(db, event.id).map((p) => ({ ...p, own: own.has(p.id) }));
   const seed = usable?.row?.orderSeed ?? (actor && usable ? accountSeed(event.id, actor.userId) : null);
   return {
     event: { id: event.id, slug: event.slug, name: event.name, votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt },
@@ -185,6 +200,13 @@ export function castBallot(actor: Actor | null, eventIdOrSlug: string, token: st
       }
       const valid = new Set(ballotProjects(tx, event.id).map((p) => p.id));
       if (ids.some((id) => !valid.has(id))) throw new ValidationError("Check the picks.", { projectIds: ["a pick is not a project on this ballot"] });
+      // Whoever is signed in is known, whichever way they vote: no vote for their own team.
+      if (actor) {
+        const own = ownProjectIds(tx, event.id, actor.userId);
+        if (ids.some((id) => own.has(id))) {
+          throw new ValidationError("You cannot vote for your own team's project.", { projectIds: ["your own team's project"] });
+        }
+      }
       const now = new Date().toISOString();
       let voter = who!.row;
       if (!voter) {

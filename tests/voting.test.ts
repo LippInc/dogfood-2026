@@ -225,6 +225,33 @@ describe("castBallot over the open link", () => {
     expect(after.projects.map((x) => x.id)).toEqual(before.projects.map((x) => x.id));
   });
 
+  it("known-bad: a signed-in voter cannot vote for their own team's project (422, nothing saved), by account or by link; the ballot marks it", () => {
+    openVoting();
+    const p = participant();
+    const own = (
+      h.sqlite
+        .prepare("SELECT p.id AS id FROM projects p JOIN team_members m ON m.team_id = p.team_id WHERE m.user_id = ? AND p.event_id = 'evt_01'")
+        .get(p.userId) as { id: string }
+    ).id;
+    const other = own === "prj_05" ? "prj_06" : "prj_05";
+    const votesBefore = count("SELECT count(*) AS n FROM votes");
+
+    expectHttpError(() => castBallot(p, "evt_01", null, { projectIds: [own] }, CLIENT), 422, "invalid");
+    expectHttpError(() => castBallot(p, "evt_01", null, { projectIds: [other, own] }, CLIENT), 422, "invalid");
+    const token = linkToken();
+    expectHttpError(() => castBallot(p, "evt_01", token, { projectIds: [own] }, CLIENT), 422, "invalid");
+    expect(count("SELECT count(*) AS n FROM votes")).toBe(votesBefore);
+
+    // positive controls: another project counts; the ballot marks only the own one, and only for them
+    castBallot(p, "evt_01", null, { projectIds: [other] }, CLIENT);
+    expect(count("SELECT count(*) AS n FROM votes")).toBe(votesBefore + 1);
+    const ballot = getBallot(p, "evt_01", null);
+    expect(ballot.projects.filter((x) => x.own).map((x) => x.id)).toEqual([own]);
+    expect(getBallot(null, "evt_01", null).projects.some((x) => x.own)).toBe(false);
+    // the gap JUDGING.md names: signed out, an open link cannot know whose team it is
+    expect(castBallot(null, "evt_01", token, { projectIds: [own] }, CLIENT).voterId).toBeTruthy();
+  });
+
   it("with account mode off, a participant's ballot is 403 voting_mode_off with one new authz.refused row", () => {
     saveVotingSettings(org(), "evt_01", {
       votingOpenAt: "2026-01-01T00:00",

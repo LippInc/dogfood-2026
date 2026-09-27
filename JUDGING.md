@@ -125,9 +125,9 @@ Every change and every refused request is written in the same database transacti
 
 ### Ballot stuffing
 
-**What is built:** each voter picks at most the organizer's number of favourites (3 by default), only among the event's submitted projects, and can change the picks while the window is open; the server checks all of it. Saving a ballot is limited to 30 times a minute per voter (429 with `Retry-After`; the first refusal is audited). Every ballot change is audited with the picks before and after. Each ballot lists the projects in the voter's own seeded order, so no project gets the top spot on every ballot. The count is hidden from everyone, organizers included, until the window closes, so there is no running total to chase; for the same reason the audit log page and its CSV show that a ballot changed but not what it holds until then (the rows are stored and hashed in full from the start).
+**What is built:** each voter picks at most the organizer's number of favourites (3 by default), only among the event's submitted projects, and can change the picks while the window is open; the server checks all of it. Nobody signed in can vote for their own team's project (422, whichever way they vote), and their ballot says so instead of offering the button. Saving a ballot is limited to 30 times a minute per voter (429 with `Retry-After`; the first refusal is audited). Every ballot change is audited with the picks before and after. Each ballot lists the projects in the voter's own seeded order, so no project gets the top spot on every ballot. The count is hidden from everyone, organizers included, until the window closes, so there is no running total to chase; for the same reason the audit log page and its CSV show that a ballot changed but not what it holds until then (the rows are stored and hashed in full from the start).
 
-**What is not:** a CAPTCHA or any browser fingerprint beyond the address and the user agent.
+**What is not:** a CAPTCHA or any browser fingerprint beyond the address and the user agent; and a signed-out voter on the open link cannot be matched to a team, so the own-project rule holds only for people who are signed in.
 
 ### Submission scraping
 
