@@ -12,7 +12,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 ## Events
 
-**`events`** — one event. `id`; `slug` unique (CHECK: lowercase letters, digits, hyphens); `name`; `description`; `submissions_open_at` (null: open from the start); `submissions_close_at`; `judging_close_at`; `voting_open_at`; `voting_close_at` (CHECK: voting opens before it closes); `results_published_at`; `settings` json (skin, `reviewsPerProject`, `maxTeamSize`, the published run, the organizer's not-duplicate pairs, the voting configuration); `created_at`. CHECK: submissions open before they close.
+**`events`** — one event. `id`; `slug` unique (CHECK: lowercase letters, digits, hyphens); `name`; `description`; `submissions_open_at` (null: open from the start); `submissions_close_at`; `judging_close_at`; `voting_open_at`; `voting_close_at` (CHECK: voting opens before it closes); `results_published_at`; `settings` json (skin, `reviewsPerProject`, `maxTeamSize`, `judgingMode` (`scores` | `pairwise`, absent means scores), the published run, the organizer's not-duplicate pairs, the voting configuration); `created_at`. CHECK: submissions open before they close.
 
 **`tracks`** — one track of an event. `id`; `event_id`; `name` (unique per event); `position`. (`id`, `event_id`) is also unique — it is the target of the composite foreign keys that keep a team, project or assignment inside its own event.
 
@@ -50,9 +50,11 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 **`judge_overrides`** — the organizer's audited decision to include a flagged judge or exclude an unflagged one. `id`; `event_id`; `judge_user_id`; `mode` (`include` | `exclude`); `reason` (at least 3 characters once trimmed); `created_at`; `created_by`; `revoked_at`; `revoked_by` (either override can be undone).
 
-**`normalization_runs`** — one run of the normalization engine. `id`; `event_id`; `method`; `params` json (W, β̂², σ̂², k, the judges left out, the flat-judge flags, the overrides with their reasons, the merges, and each counted judge's n and leniency); `computed_at`; `computed_by`.
+**`normalization_runs`** — one run of the normalization engine, or of the pairwise fit. `id`; `event_id`; `method` (`bradley-terry-v1` for a pairwise run); `params` json (W, β̂², σ̂², k, the judges left out, the flat-judge flags, the overrides with their reasons, the merges, and each counted judge's n and leniency); `computed_at`; `computed_by`.
 
-**`normalized_scores`** — one project's result within one run. `run_id`, `project_id` (pk); `n`; `raw_mean`; `normalized_mean`; `se`, one standard error of the normalized mean (null in runs stored before it existed); `rank_raw`; `rank_normalized` (reals, null where not computable).
+**`normalized_scores`** — one project's result within one run. `run_id`, `project_id` (pk); `n`; `raw_mean`; `normalized_mean`; `se`, one standard error of the normalized mean (null in runs stored before it existed); `rank_raw`; `rank_normalized` (reals, null where not computable). In a pairwise run the same columns hold: `n`, how many judges compared the project; `raw_mean`, the plain share of comparisons it won (ties half); `normalized_mean`, its win % against the track's average; `se`, that win %'s standard error; the ranks by each.
+
+**`comparisons`** — one pairwise answer: which of two projects of one track a judge found better. `id`; `event_id`; `judge_user_id`; `track_id` (composite-pinned); `left_project_id`, `right_project_id` (composite-pinned to the event's projects; CHECK: two different projects); `new_project_id`, the project being placed (CHECK: one of the two shown); `outcome` (`left` | `right` | `tie`); `created_at`; `voided_at`, set when the judge takes the answer back (CHECK: ISO timestamps). The data layer only ever sets `voided_at` and never deletes a row, so every answer ever given stays readable (`comparisons.csv`). A partial unique index keeps at most one live answer per judge and pair of sides.
 
 ## Community vote and comments
 
@@ -96,6 +98,7 @@ The chain: each row's `hash` is `sha256(prev_hash + "\n" + canonical JSON of the
 - User n—m event through `user_roles` (one row per role); a person can be organizer, judge and participant at once.
 - Team n—m users through `team_members`, one team per person per event; projects belong to one team and one track of the same event (composite foreign keys).
 - Assignment run 1—n assignments; assignment 1—1 score; score 1—n score items and 0—1 score comment.
+- Judge 1—n comparisons; a comparison names two projects of one track of the same event (composite foreign keys).
 - Normalization run 1—n normalized scores; publishing an event stores which run is published in `events.settings`.
 - Voter 1—n votes; voter is a user, a listed email, or a link holder.
 - Signing key 1—n signed records; webhook 1—n deliveries; delivery references the audit row it came from.

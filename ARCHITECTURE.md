@@ -62,7 +62,7 @@ The only background work is the webhook worker: `startWebhookWorker()` runs a ti
 - `src/components/` — UI: page shells, forms, figures, and shadcn-style primitives under `ui/`.
 - `src/lib/` — helpers for app code, client utilities, and `page-guard.ts` (server side).
 - `src/fonts/` — self-hosted woff2 fonts, each with its OFL licence file.
-- `src/server/` — everything private: the data access layer (`dal/`), the database (`db/`: schema, client, migration runner, triggers, fixture import), the judging engine (`judging/`), and the cross-cutting modules: `authz.ts`, `mutate.ts`, `audit.ts`, `session.ts`, `openapi.ts`, `webhooks.ts`, `signing.ts`, `rate-limit.ts`, `http.ts`, `errors.ts`, `boot.ts`, `checker.ts`.
+- `src/server/` — everything private: the data access layer (`dal/`), the database (`db/`: schema, client, migration runner, triggers, fixture import), the judging engines (`judging/`: normalization, assignment, and `pairwise.ts`, the Bradley-Terry fit and the binary insertion a judge's list is replayed with), and the cross-cutting modules: `authz.ts`, `mutate.ts`, `audit.ts`, `session.ts`, `openapi.ts`, `webhooks.ts`, `signing.ts`, `rate-limit.ts`, `http.ts`, `errors.ts`, `boot.ts`, `checker.ts`.
 - `src/instrumentation.ts` — the Next hook that starts the boot.
 - `drizzle/` — the SQL migrations.
 - `scripts/` — for operators, in the image too: `backup.mjs` and `restore.mjs` (README, "Running it for a real event") `verify-record.mjs`, which checks a signed record offline, and `webhook-receiver.mjs`, which prints webhook deliveries and checks their signatures.
