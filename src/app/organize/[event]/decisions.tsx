@@ -634,11 +634,13 @@ export function PublishPanel({
           </form>
           {total ? (
             <div className="flex items-center gap-3">
-              <span className="flex gap-1" aria-hidden>
+              {/* one cell per decision, in the Judges figure's language: filled ink when
+                  made, a dashed orange outline (the open wires' colour) while it waits */}
+              <span className="flex gap-[3px]" aria-hidden>
                 {Array.from({ length: total }, (_, i) => (
                   <span
                     key={i}
-                    className={`h-1.5 w-8 rounded-[1px] ${i < decided ? "bg-ink" : "bg-sunken"}`}
+                    className={`h-4 w-8 border ${i < decided ? "border-ink bg-ink" : "border-dashed border-flag-bar"}`}
                   />
                 ))}
               </span>
