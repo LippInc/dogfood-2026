@@ -137,7 +137,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
                 ) : null}
               </p>
             </div>
-            {rec.project ? <Face id={rec.project.id} cols={32} rows={18} className="block h-[135px] w-60 max-md:hidden print:block" /> : null}
+            {rec.project ? <Face id={rec.project.id} cols={32} rows={18} className="block h-auto w-full md:h-[135px] md:w-60 print:h-[135px] print:w-60" /> : null}
           </div>
 
           {awards.length ? (
@@ -166,7 +166,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
 
           <div className="grid gap-8 border-t border-rule pt-6 md:grid-cols-[minmax(0,1fr)_208px] md:items-start print:grid-cols-[minmax(0,1fr)_208px] print:items-start">
           <div className="flex flex-col gap-4">
-          <dl className="grid gap-4 text-14 sm:grid-cols-3 print:grid-cols-1! print:gap-1.5 print:[&>div]:grid print:[&>div]:grid-cols-[88px_minmax(0,1fr)] print:[&>div]:gap-3">
+          <dl className="grid gap-1.5 text-14 max-sm:[&>div]:grid max-sm:[&>div]:grid-cols-[80px_minmax(0,1fr)] max-sm:[&>div]:gap-3 sm:grid-cols-3 sm:gap-4 print:grid-cols-1! print:gap-1.5 print:[&>div]:grid print:[&>div]:grid-cols-[88px_minmax(0,1fr)] print:[&>div]:gap-3">
             <div>
               <dt className="text-ink-3">Issued</dt>
               <dd>{formatUtc(rec.issuedAt)}</dd>

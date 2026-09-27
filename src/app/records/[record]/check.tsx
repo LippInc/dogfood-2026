@@ -109,7 +109,10 @@ export function CheckedSheet({ className, children, ...rest }: React.ComponentPr
 export function LiveSeal({ signature }: { signature: string }) {
   const state = useContext(CheckState);
   return (
-    <figure className="flex flex-col gap-2" data-check={state.at}>
+    <figure
+      className="grid gap-2 max-md:grid-cols-[minmax(0,168px)_minmax(0,1fr)] max-md:items-end max-md:gap-x-4 print:grid-cols-1"
+      data-check={state.at}
+    >
       <div
         className={`overflow-hidden rounded-xs border transition-colors duration-500 motion-reduce:transition-none ${
           state.at === "invalid" ? "border-flag-bar" : state.at === "valid" ? "border-accent" : "border-rule"
