@@ -46,6 +46,13 @@ Herrera, Jonas Vogel) and a participant.
    `/events/sample-hack-2026/vote`, or open the link the start prints
    (`community vote (demo): ...`) in a private window. The count stays hidden
    from everyone, organizers included, until the window closes.
+7. Pairwise judging, on a fresh start (`docker compose down -v && docker compose
+   up`) or any time before you publish: as the organizer, **Settings**, "How
+   judges judge", choose Pairwise and give a reason. Sign in as a judge: the
+   console now asks "which is better?" about two projects at a time; answer with
+   ← and →, try **T** (too close to call) and **U** (undo). Back as the
+   organizer, **Results** shows the pairwise ranking: each project's win % with
+   its ±, the chance it is ahead of the next place, and its receipt.
 
 ## Check it
 
@@ -114,6 +121,17 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   score comes with its receipt, judge by judge: the change from the raw mean and
   a ± of one standard error. A judge ledger shows each judge's leniency ± error
   and, before any override, what leaving that judge out would move.
+- **Pairwise judging (optional).** An organizer can have judges answer "which
+  is better?" instead of scoring: the switch is on Settings, audited, with a
+  reason. Judges see two of their own projects at a time, may call it too close,
+  and place each project into their own order in about log₂ n answers, with the
+  arrow keys. The ranking is a Bradley-Terry fit of every answer, with the pull
+  of the left side and of the project just opened measured and taken out; each
+  place carries its chance of really being ahead of the next, each project a
+  receipt of the comparisons behind it, and scores given before the switch still
+  count as the order they imply. Judges whose answers look like coin flips are
+  flagged for the organizer to settle before publishing. The method, its limits
+  and its Monte Carlo proof are in `JUDGING.md`, "Pairwise mode".
 - **Results and exports.** Publishing is locked until every decision is made; it
   stores the exact normalization run it publishes. Teams then see their place,
   their score with its ±, and each review's feedback, judges unnamed. CSV exports (scores,

@@ -24,6 +24,8 @@ import {
 //      each project's strength relative to its track cover the truth in 90 to 99 % of cases;
 //  (e) the coin-flip flag fires on honest judges (6+ picks) in at most 15 % of cases.
 // Known-bad: a fit with its project labels shuffled must fail (a).
+// Measured 2026-09-27: (a) holds by +0.002 against a run-to-run sd of 0.044, so it reads as
+// a match with the win rate, not a win; JUDGING.md "The proof" says so.
 
 type Fixture = {
   tracks: { id: string }[];
