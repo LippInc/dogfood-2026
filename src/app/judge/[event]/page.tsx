@@ -53,8 +53,8 @@ export default async function JudgePage({ params, searchParams }: PageProps<"/ju
             </Link>
           ) : data.event.resultsPublishedAt && finished ? (
             <form action={openOwnRecord.bind(null, data.event.slug, "judge")}>
-              {/* on phones the long label pushed Sign out onto a line of its own */}
-              <button className={recordButton} aria-label="Get your signed judging record">
+              {/* on phones the long label pushed Sign out onto a line of its own; the name is the visible label at each width (WCAG 2.5.3) */}
+              <button className={recordButton}>
                 <span className="sm:hidden">Get your record</span>
                 <span className="max-sm:hidden">Get your signed judging record</span>
               </button>
@@ -107,8 +107,8 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
             </Link>
           ) : state.event.resultsPublishedAt && answered ? (
             <form action={openOwnRecord.bind(null, state.event.slug, "judge")}>
-              {/* on phones the long label pushed Sign out onto a line of its own */}
-              <button className={recordButton} aria-label="Get your signed judging record">
+              {/* on phones the long label pushed Sign out onto a line of its own; the name is the visible label at each width (WCAG 2.5.3) */}
+              <button className={recordButton}>
                 <span className="sm:hidden">Get your record</span>
                 <span className="max-sm:hidden">Get your signed judging record</span>
               </button>
