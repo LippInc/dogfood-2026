@@ -285,10 +285,11 @@ start, and the fixture import never overwrites what the organizers changed.
   copies and sends. Accounts are not email-verified. A forgotten password is
   reset only by a portal administrator's one-time link, never by an event's
   organizer. An organizer's personal links for imported people reach only
-  people whose every event that organizer runs (checked again when a link is
-  used), and making someone a co-organizer follows the same rule, so one
-  event's organizer cannot take over accounts that matter in another; anyone
-  else waits for the administrator's reset link.
+  people who hold no role and no team seat in any event that organizer does
+  not run (checked again when a link is used), and making someone a
+  co-organizer follows the same rule, so one event's organizer cannot take
+  over accounts that matter in another; anyone else waits for the
+  administrator's reset link.
 - The per-address limits (open-link entries; sign-ups and sign-ins) and the
   duplicate-ballot flags key on the client's network address, so people behind
   one address (an office, a venue's wifi) share a limit.
