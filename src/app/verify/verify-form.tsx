@@ -162,7 +162,7 @@ export function VerifyForm() {
                   <strong className="font-semibold text-flag">Not valid.</strong> {outcome.portal.message ?? "The signature does not match this record."}
                 </p>
                 <p className="mt-2 text-14 text-ink-2">
-                  Something in it changed after it was signed, or this portal never signed it. Every byte counts: one changed letter is enough.
+                  The signature covers every byte: one changed letter is enough to fail the check.
                 </p>
               </div>
             )

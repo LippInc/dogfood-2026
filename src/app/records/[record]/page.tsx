@@ -48,7 +48,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
       <div className="mx-auto flex max-w-[960px] flex-col gap-10 py-10 print:max-w-none print:py-0">
         <article
           aria-labelledby="record-name"
-          className="corner-marks relative flex flex-col gap-8 rounded-sm border border-rule p-6 outline outline-1 outline-offset-4 outline-rule sm:p-12 print:border-2 print:border-ink print:p-16"
+          className="corner-marks relative flex flex-col gap-8 rounded-sm border border-rule px-6 py-9 outline outline-1 outline-offset-4 outline-rule sm:p-12 print:border-2 print:border-ink print:p-16"
         >
           <div className="flex items-baseline justify-between gap-4">
             <span className="label-mono text-ink-3">[ signed record ]</span>
