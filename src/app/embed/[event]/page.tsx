@@ -31,19 +31,28 @@ export default async function EmbedPage({
   return (
     <div className="public min-h-0 p-4 wrap-anywhere">
       <ReportHeight />
-      <p className="label-mono text-ink-3">
-        {g.event.name} · {projects.length} {projects.length === 1 ? "project" : "projects"}
+      <p className="label-mono flex items-center text-ink-2">
+        <span className="mr-3 inline-block size-2 bg-accent" aria-hidden />
+        {g.event.name}
+        <span className="mx-3 text-ink-3" aria-hidden>
+          /
+        </span>
+        {projects.length} {projects.length === 1 ? "project" : "projects"}
       </p>
       <ul className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
         {projects.map((p) => (
-          <li key={p.id}>
+          <li key={p.id} className="flex">
             <a
               href={`${origin}/events/${g.event.slug}/projects/${p.id}`}
               target="_blank"
               rel="noopener"
-              className="tile block rounded-xs border border-rule bg-surface hover:border-edge"
+              className="tile relative flex w-full flex-col rounded-xs border border-rule bg-surface hover:border-edge"
             >
-              <Face id={p.id} className="block aspect-[16/9] w-full" />
+              <span className="relative block overflow-hidden rounded-t-xs">
+                <Face id={p.id} className="block aspect-[16/9] w-full" />
+                <span className="absolute left-2 top-2 rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2">{p.id}</span>
+              </span>
+              <span className="crop-marks" aria-hidden="true" />
               <span className="block p-3">
                 <span className="block font-display text-17 leading-6">{p.title}</span>
                 <span className="mt-1 block text-13 text-ink-2">
