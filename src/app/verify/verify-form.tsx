@@ -5,7 +5,7 @@ import { Check, FileText, Minus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DitherDigits } from "@/components/dither-digits";
-import { SignatureBits } from "@/components/signature-bits";
+import { SignatureBits, bitsOf } from "@/components/signature-bits";
 import { formatUtc } from "@/lib/format";
 import { checkInBrowser } from "../records/[record]/check";
 
@@ -20,7 +20,7 @@ type Outcome = {
 
 /** What the portal's own public copy of a failed record says: which fields differ, or that it never issued that id. */
 type Change = { path: string; pasted: string | null; signed: string | null };
-type Copy = { at: "none"; id: string } | { at: "changed"; id: string; changes: Change[] } | { at: "signature"; id: string };
+type Copy = { at: "none"; id: string } | { at: "changed"; id: string; changes: Change[] } | { at: "signature"; id: string; signed: string };
 
 /** Every leaf of a record as "path -> JSON value", arrays by index. */
 function leaves(v: unknown, path = "", out: Record<string, string> = {}): Record<string, string> {
@@ -49,7 +49,8 @@ async function compareWithCopy(record: Record<string, unknown>, signature: strin
     .filter((k) => mine[k] !== theirs[k])
     .map((k) => ({ path: k, pasted: mine[k] ?? null, signed: theirs[k] ?? null }));
   if (changes.length) return { at: "changed", id, changes };
-  return String(body.envelope.signature) !== signature ? { at: "signature", id } : undefined;
+  const signed = String(body.envelope.signature);
+  return signed !== signature ? { at: "signature", id, signed } : undefined;
 }
 
 /** A value with the part that differs from the other one marked: the common start and end stay plain. */
@@ -96,6 +97,16 @@ function placeOf(award: string): { place: number; ordinal: string; joint: boolea
   return m ? { joint: Boolean(m[1]), ordinal: m[2]!, place: Number(m[3]), track: m[4]! } : null;
 }
 
+/** How many of the bits of two signatures differ (every bit, when one cannot be read or the lengths differ). */
+function bitsApart(a: string, b: string): number {
+  const x = bitsOf(a);
+  const y = bitsOf(b);
+  if (!x || !y) return Math.max(x?.length ?? 0, y?.length ?? 0);
+  let n = Math.abs(x.length - y.length);
+  for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) n++;
+  return n;
+}
+
 const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 type Mark = "ok" | "bad" | "idle";
@@ -113,8 +124,8 @@ type SealState = "unchecked" | "checking" | "valid" | "invalid";
  * record is read its bits appear in grey; they light up when both checks pass, and the
  * frame turns to the alarm colour when they fail.
  */
-function SealFigure({ signature, state }: { signature: string | null; state: SealState }) {
-  const drawn = signature ? <SignatureBits signature={signature} lit={state === "valid"} /> : null;
+function SealFigure({ signature, state, against }: { signature: string | null; state: SealState; against?: string }) {
+  const drawn = signature ? <SignatureBits signature={signature} lit={state === "valid"} against={against} /> : null;
   return (
     <figure className="mt-4 flex flex-col gap-2 max-lg:max-w-[320px]" data-seal={drawn ? state : "empty"}>
       <div
@@ -411,7 +422,8 @@ export function VerifyForm() {
                   </div>
                 ) : outcome.copy?.at === "signature" ? (
                   <p className="border-t border-rule pt-5 text-14 text-ink-2">
-                    Every field matches the portal&rsquo;s own copy of <span className="font-mono text-13">{outcome.copy.id}</span>: only the signature differs.
+                    Every field matches the portal&rsquo;s own copy of <span className="font-mono text-13">{outcome.copy.id}</span>: only the signature differs, in{" "}
+                    {bitsApart(outcome.signature, outcome.copy.signed)} of its {bitsOf(outcome.copy.signed)?.length ?? "?"} bits, marked in the seal.
                   </p>
                 ) : outcome.copy?.at === "none" ? (
                   <p className="border-t border-rule pt-5 text-14 text-ink-2">
@@ -439,7 +451,11 @@ export function VerifyForm() {
         <h2 id="how-title" className="label-mono text-ink">
           Fig. 01 — What the check does
         </h2>
-        <SealFigure signature={pasted?.signature ?? null} state={sealState} />
+        <SealFigure
+          signature={pasted?.signature ?? null}
+          state={sealState}
+          against={outcome?.copy?.at === "signature" && pasted?.signature === outcome.signature ? outcome.copy.signed : undefined}
+        />
         <ol className="mt-4 flex flex-col divide-y divide-rule border-b border-rule">
           <li className="flex gap-3 py-3">
             <span className="font-mono text-12 leading-5 text-ink-3">01</span>
