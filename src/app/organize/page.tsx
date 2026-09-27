@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
+import { ArrowRight } from "lucide-react";
+import { Face } from "@/components/face";
 import { WorkShell } from "@/components/shell/work-shell";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, idLabel, isPast } from "@/lib/format";
 import { currentActor, organizedEvents } from "@/server/dal";
 import { ImportEventForm } from "./import-form";
 
@@ -17,7 +19,10 @@ export default async function OrganizeHome() {
     <WorkShell eventName="Dogfood portal" eventHref="/organize" crumb="Your events" person={actor.name} role={actor.isAdmin ? "Administrator" : "Organizer"}>
       <div className="mx-auto max-w-[960px]">
         <div className="flex items-end justify-between gap-4">
-          <h1 className="text-24 font-semibold">Your events</h1>
+          <div>
+            <p className="label-mono text-ink-2">{events.length === 1 ? "1 event" : `${events.length} events`}</p>
+            <h1 className="mt-1 text-24 font-semibold">Your events</h1>
+          </div>
           {canCreate ? (
             <div className="flex items-center gap-3">
               <Link href="/organize/log" className="text-14 font-medium underline underline-offset-4">
@@ -35,15 +40,34 @@ export default async function OrganizeHome() {
             {canCreate ? "Create one to start." : "An administrator of this portal creates events and adds organizers."}
           </p>
         ) : (
-          <ul className="mt-6 divide-y divide-rule border-y border-rule bg-surface">
-            {events.map((e) => (
-              <li key={e.id}>
-                <Link href={`/organize/${e.slug}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-raised">
-                  <span className="min-w-0 text-15 font-medium wrap-anywhere">{e.name}</span>
-                  <span className="text-13 text-ink-3">submissions close {formatUtc(e.submissionsCloseAt)}</span>
-                </Link>
-              </li>
-            ))}
+          // Each event as a specimen card: its own generated face (from the event's id, like a
+          // project's), its id label, its name and where it stands against its close.
+          <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+            {events.map((e) => {
+              const label = idLabel(e.id);
+              const closed = isPast(e.submissionsCloseAt);
+              return (
+                <li key={e.id}>
+                  <Link
+                    href={`/organize/${e.slug}`}
+                    className="tile group flex h-full flex-col rounded-sm border border-rule bg-surface hover:border-edge"
+                  >
+                    <Face id={e.id} cols={64} rows={28} className="aspect-[16/7] w-full rounded-t-sm" />
+                    <span className="flex flex-1 flex-col gap-1 border-t border-rule p-4">
+                      {label ? <span className="label-mono text-ink-3">{label}</span> : null}
+                      <span className="text-20 font-semibold wrap-anywhere">{e.name}</span>
+                      <span className="text-13 text-ink-2">
+                        {closed ? "Submissions closed" : "Submissions close"} {formatUtc(e.submissionsCloseAt)}
+                      </span>
+                      <span className="mt-3 inline-flex items-center gap-1.5 text-13 font-medium">
+                        Open the overview
+                        <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
         {canCreate ? (
