@@ -130,4 +130,16 @@ describe("the event's details", () => {
     updateEventDetails(organizer(), "evt_01", detailsAsSent({ judgingCloseAt: "2026-04-01T18:00" }));
     expect(requireEvent(h.db, "evt_01").judgingCloseAt).toBe("2026-04-01T18:00:00.000Z");
   });
+
+  it("known-bad: a date that does not exist is a 422 naming the field, not a crash, and changes nothing", () => {
+    for (const bad of ["2026-13-45T10:00", "2026-02-30T10:00", "2026-04-01T24:00"]) {
+      expectHttpError(() => updateEventDetails(organizer(), "evt_01", detailsAsSent({ judgingCloseAt: bad })), 422, "invalid");
+    }
+    expect(requireEvent(h.db, "evt_01").judgingCloseAt).toBeNull();
+  });
+
+  it("an API caller's full ISO time is taken as sent (positive control)", () => {
+    updateEventDetails(organizer(), "evt_01", detailsAsSent({ judgingCloseAt: "2026-04-01T18:00:00.000Z" }));
+    expect(requireEvent(h.db, "evt_01").judgingCloseAt).toBe("2026-04-01T18:00:00.000Z");
+  });
 });

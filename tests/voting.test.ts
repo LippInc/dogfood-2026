@@ -132,6 +132,20 @@ describe("saveVotingSettings", () => {
     expect(h.sqlite.prepare("SELECT voting_open_at AS o FROM events WHERE id = 'evt_01'").get()).toEqual({ o: null });
   });
 
+  it("takes an API caller's full ISO times like the date picker's, and refuses a day that does not exist (422)", () => {
+    saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00:00.000Z", votingCloseAt: "2999-01-01T12:30Z", modes: ["link"], votesPerVoter: "3" });
+    expect(h.sqlite.prepare("SELECT voting_open_at AS o, voting_close_at AS c FROM events WHERE id = 'evt_01'").get()).toEqual({
+      o: "2026-01-01T00:00:00.000Z",
+      c: "2999-01-01T12:30:00.000Z",
+    });
+    expectHttpError(
+      () => saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-02-30T10:00", votingCloseAt: "2999-01-01T00:00", modes: ["link"], votesPerVoter: "3" }),
+      422,
+      "invalid",
+    );
+    expect(h.sqlite.prepare("SELECT voting_open_at AS o FROM events WHERE id = 'evt_01'").get()).toEqual({ o: "2026-01-01T00:00:00.000Z" });
+  });
+
   it("stores a valid window and writes exactly one voting.settings audit row", () => {
     saveVotingSettings(org(), "evt_01", {
       votingOpenAt: "2026-01-01T00:00",

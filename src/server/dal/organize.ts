@@ -20,28 +20,20 @@ import { guardRead, mutate } from "../mutate";
 import { BUILTIN_CRITERIA, DEFAULT_CRITERIA } from "../rubric-defaults";
 import { newId, slugify } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { parse } from "./parse";
+import { parse, utcTime, utcTimeOrEmpty } from "./parse";
 
 // The organizer's side of an event: create it, then change its details, tracks,
 // prizes, questions for teams and the rubric. Every change is one audited mutate().
 // Times arrive from the form as "YYYY-MM-DDTHH:MM" and are read as UTC.
 
-const utc = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{3})?)?Z?$/, "use the date picker")
-  .transform((v) => new Date(v.endsWith("Z") ? v : `${v}Z`).toISOString());
-const optionalUtc = z
-  .union([utc, z.literal("")])
-  .optional()
-  .transform((v) => (v ? v : null));
+const optionalUtc = utcTimeOrEmpty.optional().transform((v) => (v ? v : null));
 
 export const Details = z
   .object({
     name: z.string().trim().min(3, "at least 3 characters").max(80),
     description: z.string().trim().max(5_000).default(""),
     submissionsOpenAt: optionalUtc,
-    submissionsCloseAt: utc,
+    submissionsCloseAt: utcTime,
     judgingCloseAt: optionalUtc,
     maxTeamSize: z.coerce.number().int().min(1).max(20).default(4),
   })

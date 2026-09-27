@@ -13,7 +13,7 @@ import { guardRead, mutate } from "../mutate";
 import { LIMITS, take, type Limit } from "../rate-limit";
 import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { parse } from "./parse";
+import { parse, utcTimeOrEmpty } from "./parse";
 
 // Community voting (T3). The organizer opens a window and chooses who may vote:
 // signed-in accounts, people on a voter list (each gets a personal link), and/or
@@ -358,15 +358,11 @@ export function enterVoting(code: string, client: Client): { eventSlug: string; 
 // The organizer's side
 // ---------------------------------------------------------------------------
 
-const utc = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "use the date picker")
-  .transform((v) => `${v}:00.000Z`);
 
 export const SettingsInput = z
   .object({
-    votingOpenAt: z.union([z.literal(""), utc]),
-    votingCloseAt: z.union([z.literal(""), utc]),
+    votingOpenAt: utcTimeOrEmpty,
+    votingCloseAt: utcTimeOrEmpty,
     modes: z.array(z.enum(["account", "listed", "link"])).default([]),
     votesPerVoter: z.coerce.number().int().min(1).max(20),
   })
