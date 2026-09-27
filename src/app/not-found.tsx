@@ -19,6 +19,7 @@ export default function NotFound() {
         </p>
       }
       status="404"
+      spoil={{ hollow: [1] }}
       rows={[
         { label: "Asked for", value: <AskedPath />, mono: true },
         { label: "Answer", value: "HTTP 404, sent as a real status, never a redirect" },

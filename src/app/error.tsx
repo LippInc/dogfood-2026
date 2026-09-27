@@ -23,6 +23,7 @@ export default function ErrorPage({ error, retry }: { error: Error & { digest?: 
         </p>
       }
       status="500"
+      spoil={{ tear: true }}
       rows={[
         { label: "Page", value: <AskedPath />, mono: true },
         digest

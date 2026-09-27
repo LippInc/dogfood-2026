@@ -28,11 +28,11 @@ export type SheetRow ={ label: string; value: React.ReactNode; mono?: boolean };
  * The status drawn as a sheet: the number in the faces' dither inside corner marks, and a
  * title block under it that shows the working (what was asked for, what came back).
  */
-function StatusSheetFigure({ status, rows }: { status: string; rows: SheetRow[] }) {
+function StatusSheetFigure({ status, rows, spoil }: { status: string; rows: SheetRow[]; spoil?: React.ComponentProps<typeof DitherDigits>["spoil"] }) {
   return (
     <figure className="corner-marks rounded-xs border border-rule p-6 sm:p-8">
       <div className="overflow-hidden rounded-xs border border-rule" aria-hidden="true">
-        <DitherDigits value={status} />
+        <DitherDigits value={status} spoil={spoil} />
       </div>
       <figcaption className="mt-5">
         <p className="label-mono border-b-2 border-ink pb-2 text-ink">Fig. {status}</p>
@@ -60,6 +60,7 @@ export function StatusSheet({
   title,
   lead,
   status,
+  spoil,
   rows,
   actions,
   steps = [],
@@ -69,6 +70,7 @@ export function StatusSheet({
   title: string;
   lead: React.ReactNode;
   status: string;
+  spoil?: React.ComponentProps<typeof DitherDigits>["spoil"];
   rows: SheetRow[];
   actions: React.ReactNode;
   steps?: NextStep[];
@@ -106,7 +108,7 @@ export function StatusSheet({
           ) : null}
         </div>
         <div className="max-md:max-w-[440px]">
-          <StatusSheetFigure status={status} rows={rows} />
+          <StatusSheetFigure status={status} rows={rows} spoil={spoil} />
         </div>
       </div>
     </PlainShell>
