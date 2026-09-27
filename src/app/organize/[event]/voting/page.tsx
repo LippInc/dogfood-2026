@@ -221,7 +221,8 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             ) : (
               <ul className="mt-3 flex flex-col gap-3">
                 {v.suspected.map((g) => (
-                  <li key={g.key} className="rounded-sm border border-rule border-l-[3px] border-l-flag-bar p-3">
+                  // orange means "needs you": once voting has closed nothing here can be acted on, so the bar goes neutral
+                  <li key={g.key} className={`rounded-sm border border-rule border-l-[3px] p-3 ${closed ? "border-l-edge" : "border-l-flag-bar"}`}>
                     <p className="text-13 text-ink-2">
                       {g.voters.length} ballots, same address and browser <span className="font-mono">#{g.key}</span>
                     </p>
