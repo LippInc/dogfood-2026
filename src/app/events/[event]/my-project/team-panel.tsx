@@ -1,12 +1,14 @@
 "use client";
 
 import { Copy, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useFormAction } from "@/components/use-form-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionResult, MyTeam } from "@/server/dal";
 import { createTeamAction, rotateInviteAction, teamMemberAction } from "./actions";
+
+const noSubscription = () => () => {};
 
 /** The team block of the side column: members, and for the captain the invite link. */
 export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSlug: string; open: boolean; me: string }) {
@@ -14,7 +16,10 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
   const [change, changeForm, changing] = useFormAction<ActionResult>(teamMemberAction, { ok: false, message: null });
   const captain = team.role === "captain";
   const [copied, setCopied] = useState(false);
-  const link = team.inviteCode && typeof window !== "undefined" ? `${window.location.origin}/join/${team.inviteCode}` : null;
+  // The full link needs this page's address, which only the browser knows: the server
+  // renders the short path and the browser fills in the rest after hydration.
+  const origin = useSyncExternalStore(noSubscription, () => window.location.origin, () => null);
+  const link = team.inviteCode && origin ? `${origin}/join/${team.inviteCode}` : null;
   return (
     <section aria-labelledby="team-title">
       <h2 id="team-title" className="label-mono text-ink-2 wrap-anywhere">
@@ -70,7 +75,6 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
               value={link ?? `/join/${team.inviteCode}`}
               className="h-9 font-mono text-12"
               onFocus={(e) => e.currentTarget.select()}
-              suppressHydrationWarning
             />
             <Button
               type="button"

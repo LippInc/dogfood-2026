@@ -28,6 +28,20 @@ export type FormProject = {
 
 type Needed = { key: string; label: string; done: boolean };
 
+/** A numbered part of the form, in the drawing's voice: "02 · Links". */
+function Part({ no, title, children }: { no: string; title: string; children: React.ReactNode }) {
+  const id = `part-${no}`;
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-5 border-t border-rule pt-5">
+      <h2 id={id} className="flex items-baseline gap-3">
+        <span className="font-mono text-12 text-accent-ink tnum">{no}</span>
+        <span className="label-mono text-ink-2">{title}</span>
+      </h2>
+      {children}
+    </section>
+  );
+}
+
 function needed(form: HTMLFormElement | null, questions: Question[], initial: FormProject | null): Needed[] {
   const value = (name: string, fallback: string) =>
     form ? String((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim() : fallback;
@@ -85,70 +99,75 @@ export function ProjectForm({
             Submissions are closed, so this project is locked. The server refuses every edit, not only this page.
           </p>
         ) : null}
-        <fieldset disabled={!open || pending} className="flex flex-col gap-6 disabled:opacity-100">
-          <Field id="title" label="Title" required error={e.title}>
-            {(a) => <Input {...a} name="title" defaultValue={project?.title ?? ""} maxLength={120} />}
-          </Field>
-          <Field id="summary" label="One-line summary" help="Shown under the title in the gallery." required error={e.summary}>
-            {(a) => <Input {...a} name="summary" defaultValue={project?.summary ?? ""} maxLength={280} />}
-          </Field>
-          <Field id="trackId" label="Track" required error={e.trackId}>
-            {(a) => (
-              <select
-                {...a}
-                name="trackId"
-                defaultValue={project?.trackId ?? ""}
-                className="h-10 w-full rounded-sm border border-edge bg-surface px-3 text-15 aria-invalid:border-l-[3px] aria-invalid:border-flag-bar disabled:bg-sunken"
-              >
-                <option value="" disabled>
-                  Choose a track
-                </option>
-                {tracks.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
+        <fieldset disabled={!open || pending} className="flex flex-col gap-8 disabled:opacity-100">
+          <Part no="01" title="Name and track">
+            <Field id="title" label="Title" required error={e.title}>
+              {(a) => <Input {...a} name="title" defaultValue={project?.title ?? ""} maxLength={120} />}
+            </Field>
+            <Field id="summary" label="One-line summary" help="Shown under the title in the gallery." required error={e.summary}>
+              {(a) => <Input {...a} name="summary" defaultValue={project?.summary ?? ""} maxLength={280} />}
+            </Field>
+            <Field id="trackId" label="Track" required error={e.trackId}>
+              {(a) => (
+                <select
+                  {...a}
+                  name="trackId"
+                  defaultValue={project?.trackId ?? ""}
+                  className="h-10 w-full rounded-sm border border-edge bg-surface px-3 text-15 aria-invalid:border-l-[3px] aria-invalid:border-flag-bar disabled:bg-sunken"
+                >
+                  <option value="" disabled>
+                    Choose a track
                   </option>
-                ))}
-              </select>
-            )}
-          </Field>
-          <Field id="description" label="What you built" help="Judges and visitors read this on your project page." error={e.description}>
-            {(a) => (
-              <Textarea
-                {...a}
-                name="description"
-                rows={10}
-                defaultValue={project?.description ?? ""}
-                className="font-serif text-17 leading-7"
-              />
-            )}
-          </Field>
-          <div className="grid gap-5 sm:grid-cols-3">
-            <Field id="repoUrl" label="Repository" error={e.repoUrl}>
-              {(a) => <Input {...a} name="repoUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.repoUrl ?? ""} />}
+                  {tracks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </Field>
-            <Field id="videoUrl" label="Demo video" error={e.videoUrl}>
-              {(a) => <Input {...a} name="videoUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.videoUrl ?? ""} />}
+          </Part>
+          <Part no="02" title="The write-up">
+            <Field id="description" label="What you built" help="Judges and visitors read this on your project page." error={e.description}>
+              {(a) => (
+                <Textarea
+                  {...a}
+                  name="description"
+                  rows={10}
+                  defaultValue={project?.description ?? ""}
+                  className="font-serif text-17 leading-7"
+                />
+              )}
             </Field>
-            <Field id="liveUrl" label="Live demo" error={e.liveUrl}>
-              {(a) => <Input {...a} name="liveUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.liveUrl ?? ""} />}
+          </Part>
+          <Part no="03" title="Links">
+            <div className="grid gap-5 sm:grid-cols-3">
+              <Field id="repoUrl" label="Repository" error={e.repoUrl}>
+                {(a) => <Input {...a} name="repoUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.repoUrl ?? ""} />}
+              </Field>
+              <Field id="videoUrl" label="Demo video" error={e.videoUrl}>
+                {(a) => <Input {...a} name="videoUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.videoUrl ?? ""} />}
+              </Field>
+              <Field id="liveUrl" label="Live demo" error={e.liveUrl}>
+                {(a) => <Input {...a} name="liveUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.liveUrl ?? ""} />}
+              </Field>
+            </div>
+          </Part>
+          <Part no="04" title="Pictures and tags">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field id="thumbnailUrl" label="Thumbnail" help="The address of one image, shown on your gallery card at 16:9." error={e.thumbnailUrl}>
+                {(a) => <Input {...a} name="thumbnailUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.thumbnailUrl ?? ""} />}
+              </Field>
+              <Field id="tags" label="Tech tags" help="Up to 8, separated by commas. Visitors can search for them." error={e.tags}>
+                {(a) => <Input {...a} name="tags" placeholder="rust, webgpu, accessibility" defaultValue={(project?.tags ?? []).join(", ")} />}
+              </Field>
+            </div>
+            <Field id="galleryUrls" label="Image gallery" help="Up to 6 image addresses, one per line, shown on your project page." error={e.galleryUrls}>
+              {(a) => <Textarea {...a} name="galleryUrls" rows={3} placeholder="https://" defaultValue={(project?.galleryUrls ?? []).join("\n")} className="font-mono text-14" />}
             </Field>
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field id="thumbnailUrl" label="Thumbnail" help="The address of one image, shown on your gallery card at 16:9." error={e.thumbnailUrl}>
-              {(a) => <Input {...a} name="thumbnailUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.thumbnailUrl ?? ""} />}
-            </Field>
-            <Field id="tags" label="Tech tags" help="Up to 8, separated by commas. Visitors can search for them." error={e.tags}>
-              {(a) => <Input {...a} name="tags" placeholder="rust, webgpu, accessibility" defaultValue={(project?.tags ?? []).join(", ")} />}
-            </Field>
-          </div>
-          <Field id="galleryUrls" label="Image gallery" help="Up to 6 image addresses, one per line, shown on your project page." error={e.galleryUrls}>
-            {(a) => <Textarea {...a} name="galleryUrls" rows={3} placeholder="https://" defaultValue={(project?.galleryUrls ?? []).join("\n")} className="font-mono text-14" />}
-          </Field>
+          </Part>
           {questions.length > 0 ? (
-            <section aria-labelledby="questions-title" className="flex flex-col gap-5 border-t border-rule pt-6">
-              <h2 id="questions-title" className="text-17 font-semibold">
-                The organizers ask
-              </h2>
+            <Part no="05" title="The organizers ask">
               {questions.map((q) => (
                 <Field key={q.id} id={`answer-${q.id}`} label={q.label} help={q.help || undefined} required={q.required} error={e[`answers.${q.id}`]}>
                   {(a) =>
@@ -160,7 +179,7 @@ export function ProjectForm({
                   }
                 </Field>
               ))}
-            </section>
+            </Part>
           ) : null}
           {open ? (
             <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
@@ -188,10 +207,25 @@ export function ProjectForm({
       </form>
       <aside className="flex flex-col gap-8 lg:sticky lg:top-6 lg:self-start">
         <section aria-labelledby="needs-title">
-          <h2 id="needs-title" className="label-mono text-ink-2">
-            {submitted ? "Submitted project" : "Before you submit"}
-          </h2>
-          <ul className="mt-3 flex flex-col gap-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 id="needs-title" className="label-mono text-ink-2">
+              {submitted ? "Submitted project" : "Before you submit"}
+            </h2>
+            <p className="text-13 text-ink-2 tnum">
+              {checklist.filter((n) => n.done).length} of {checklist.length}
+            </p>
+          </div>
+          <ol aria-hidden className="mt-3 flex gap-1">
+            {checklist.map((n) => (
+              <li
+                key={n.key}
+                className={`h-1.5 flex-1 rounded-[1px] border transition-colors duration-200 motion-reduce:transition-none ${
+                  n.done ? (submitted ? "border-ink bg-ink" : "border-accent bg-accent") : "border-edge"
+                }`}
+              />
+            ))}
+          </ol>
+          <ul className="mt-4 flex flex-col gap-2">
             {checklist.map((n) => (
               <li key={n.key} className="flex items-center gap-2 text-14">
                 {n.done ? <Check className="size-4 text-ok" aria-hidden /> : <Circle className="size-4 text-ink-3" aria-hidden />}
