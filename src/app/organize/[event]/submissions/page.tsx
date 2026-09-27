@@ -1,21 +1,47 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fragment } from "react";
 import { unauthorized } from "next/navigation";
 import { Face } from "@/components/face";
 import { Arrivals } from "@/components/figures/arrivals";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
-import { formatUtc, isPast } from "@/lib/format";
+import { formatUtc, isPast, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, getSubmissions } from "@/server/dal";
+import { currentActor, getOverview, getSubmissions, type SubmissionRow } from "@/server/dal";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Submissions" };
 
+/** "1 Mar, 10:24": the whole event sits in one year and the column head says UTC, so each row drops both. */
+const when = (iso: string) => formatUtc(iso).replace(/ \d{4},/, ",").replace(" UTC", "");
+
+/** One cell per assigned review, filled when finished: the judges page's load figure, per project. */
+function ReviewCells({ done, assigned }: { done: number; assigned: number }) {
+  return (
+    <span className="flex gap-[2px]" aria-hidden>
+      {Array.from({ length: assigned }, (_, i) => (
+        <span key={i} className={`h-2.5 w-[7px] ${i < done ? "bg-ink" : "border border-edge"}`} />
+      ))}
+    </span>
+  );
+}
+
 export default async function SubmissionsPage({ params }: PageProps<"/organize/[event]/submissions">) {
   const { event: key } = await params;
-  const actor = await currentActor();
+    const actor = await currentActor();
   if (!actor) unauthorized();
   const { event, rows, submitted, drafts } = guardPage(() => getSubmissions(actor, key));
+  // The under-reviewed projects the overview still asks about, from its own decisions, so the two pages never disagree.
+  const underOpen = new Set(
+    guardPage(() => getOverview(actor, key)).decisions.flatMap((d) => (d.kind === "under_reviewed" && d.resolved === null ? [d.projectId] : [])),
+  );
+  const flagOf = (r: SubmissionRow) => (r.suspectedDuplicate ? "suspected duplicate" : underOpen.has(r.id) ? "under-reviewed" : null);
+
+  const shown = rows;
+  const show = "all" as "all" | "needs" | "drafts";
+  const track: string | null = null;
+  const href = (_s: string, _t: string | null) => `/organize/${event.slug}/submissions`;
+
   const arrivals = rows
     .filter((r) => r.status === "submitted" && r.submittedAt)
     .map((r) => ({ id: r.id, title: r.title, at: r.submittedAt!, flagged: Boolean(r.suspectedDuplicate && !r.duplicateOf && !r.mergedIn.length) }));
@@ -26,7 +52,7 @@ export default async function SubmissionsPage({ params }: PageProps<"/organize/[
           <div>
             <h1 className="text-24 font-semibold">Submissions</h1>
             <p className="mt-2 text-15 text-ink-2 tnum">
-              {submitted} submitted · {drafts} {drafts === 1 ? "draft" : "drafts"} · submissions {isPast(event.submissionsCloseAt) ? "closed" : "close"}{" "}
+              {submitted} submitted · {plural(drafts, "draft")} · submissions {isPast(event.submissionsCloseAt) ? "closed" : "close"}{" "}
               {formatUtc(event.submissionsCloseAt)}
             </p>
           </div>
@@ -59,56 +85,104 @@ export default async function SubmissionsPage({ params }: PageProps<"/organize/[
             No projects yet. Teams appear here from their first saved draft; the public gallery shows only submitted ones.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-sm border border-rule bg-surface">
-            <table className="w-full text-14">
-              <thead>
-                <tr className="border-b border-rule text-left text-13 text-ink-2">
-                  <th className="px-3 py-2 font-medium" colSpan={2}>
-                    Project
-                  </th>
-                  <th className="px-3 py-2 font-medium">Track</th>
-                  <th className="px-3 py-2 font-medium">Team</th>
-                  <th className="px-3 py-2 font-medium">Submitted</th>
-                  <th className="px-3 py-2 text-right font-medium">Reviews</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-b border-rule align-top last:border-b-0">
-                    <td className="w-12 py-2 pl-3">
-                      <Face id={r.id} cols={32} rows={18} className="mt-0.5 block h-[18px] w-8" />
-                    </td>
-                    <td className="px-3 py-2">
-                      {r.status === "submitted" ? (
-                        <Link href={`/events/${event.slug}/projects/${r.id}`} className="font-medium hover:underline">
-                          {r.title}
-                        </Link>
-                      ) : (
-                        <span className="font-medium">{r.title || "Untitled draft"}</span>
-                      )}{" "}
-                      <span className="font-mono text-12 text-ink-3">{r.id}</span>
-                      {r.status === "draft" ? <span className="ml-2 text-12 text-ink-2">draft</span> : null}
-                      {r.duplicateOf ? (
-                        <span className="ml-2 text-12 text-ink-2">merged into {r.duplicateOf}</span>
-                      ) : r.mergedIn.length ? (
-                        <span className="ml-2 text-12 text-ink-2">{r.mergedIn.join(", ")} merged into this</span>
-                      ) : r.suspectedDuplicate ? (
-                        <Link href={`/organize/${event.slug}`} className="ml-2 text-12 text-flag underline underline-offset-2">
-                          suspected duplicate
-                        </Link>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2 text-ink-2">{r.trackName}</td>
-                    <td className="px-3 py-2">
-                      {r.teamName} <span className="text-13 text-ink-2">· {r.members}</span>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-12 whitespace-nowrap text-ink-2">{r.submittedAt ? formatUtc(r.submittedAt).replace(" UTC", "") : "–"}</td>
-                    <td className="px-3 py-2 text-right tnum">{r.reviewsAssigned ? `${r.reviewsDone} of ${r.reviewsAssigned}` : "–"}</td>
+          <section aria-labelledby="list-title" className="flex flex-col gap-3">
+            <h2 id="list-title" className="sr-only">
+              Every project
+            </h2>
+            <div className="rounded-sm border border-rule bg-surface">
+              <table className="w-full text-14 max-md:block">
+                <thead className="max-md:hidden">
+                  <tr className="border-b border-rule text-left text-13 text-ink-2">
+                    <th className="px-3 py-2 font-medium" colSpan={2}>
+                      Project
+                    </th>
+                    <th className="px-3 py-2 font-medium">Team</th>
+                    <th className="px-3 py-2 font-medium">Submitted, UTC</th>
+                    <th className="px-3 py-2 text-right font-medium">Reviews</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="max-md:block">
+                  {shown.length === 0 ? (
+                    <tr className="max-md:block">
+                      <td colSpan={5} className="px-4 py-6 text-15 text-ink-2 max-md:block">
+                        {show === "drafts" ? "No drafts" : "Nothing needs a look"}
+                        {track ? ` in ${track}` : ""}.{" "}
+                        <Link href={href("all", track)} className="underline underline-offset-2 hover:text-ink">
+                          Show all{track ? ` of ${track}` : ""}
+                        </Link>
+                      </td>
+                    </tr>
+                  ) : null}
+                  {shown.map((r, n) => {
+                    const flag = flagOf(r);
+                    const merged = Boolean(r.duplicateOf);
+                    const group = !track && (n === 0 || shown[n - 1].trackName !== r.trackName);
+                    return (
+                      <Fragment key={r.id}>
+                        {group ? (
+                          <tr className="border-b border-rule bg-sunken max-md:block">
+                            <th colSpan={5} scope="colgroup" className="px-3 py-1.5 text-left font-normal max-md:block max-md:px-4">
+                              <span className="label-mono text-ink-2">
+                                {r.trackName} · {shown.filter((x) => x.trackName === r.trackName).length}
+                              </span>
+                            </th>
+                          </tr>
+                        ) : null}
+                        {/* On phones each row stacks: face, title and reviews on one line, then the team and when it came in. */}
+                        <tr
+                          id={`row-${r.id}`}
+                          data-project={r.id}
+                          className={`border-b border-rule align-top last:border-b-0 max-md:grid max-md:grid-cols-[2rem_minmax(0,1fr)_auto] max-md:gap-x-3 max-md:gap-y-1 max-md:px-4 max-md:py-3 ${flag ? "max-md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}
+                        >
+                          <td className={`w-12 py-2.5 pl-3 max-md:row-span-2 max-md:w-auto max-md:p-0 ${flag ? "md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}>
+                            <Face id={r.id} cols={32} rows={18} className={`mt-0.5 block h-[18px] w-8 ${merged ? "opacity-40" : ""}`} />
+                          </td>
+                          <td className="px-3 py-2.5 max-md:col-start-2 max-md:p-0">
+                            {r.status === "submitted" ? (
+                              <Link href={`/events/${event.slug}/projects/${r.id}`} className={`font-medium hover:underline ${merged ? "text-ink-2" : ""}`}>
+                                {r.title}
+                              </Link>
+                            ) : (
+                              <span className="font-medium">{r.title || "Untitled draft"}</span>
+                            )}{" "}
+                            <span className="font-mono text-12 text-ink-3">{r.id}</span>
+                            {r.status === "draft" ? <span className="ml-2 rounded-sm border border-dashed border-edge px-1.5 text-12 text-ink-2">draft</span> : null}
+                            {merged ? (
+                              <span className="ml-2 text-12 text-ink-2">merged into {r.duplicateOf}</span>
+                            ) : r.mergedIn.length ? (
+                              <span className="ml-2 text-12 text-ink-2">{r.mergedIn.join(", ")} merged into this</span>
+                            ) : null}
+                            {flag ? (
+                              <Link href={`/organize/${event.slug}#decisions-title`} className="mt-0.5 block text-12 text-flag underline underline-offset-2 md:ml-2 md:inline">
+                                {flag}: decide on the overview
+                              </Link>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2.5 max-md:col-start-2 max-md:row-start-2 max-md:p-0 max-md:text-13 max-md:text-ink-2">
+                            {r.teamName} <span className="text-13 text-ink-3">· {plural(r.members, "member")}</span>
+                            {r.submittedAt ? <span className="mt-0.5 block font-mono text-12 text-ink-3 md:hidden">{when(r.submittedAt)}</span> : null}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-12 whitespace-nowrap text-ink-2 max-md:hidden">{r.submittedAt ? when(r.submittedAt) : "–"}</td>
+                          <td className="px-3 py-2.5 text-right tnum max-md:col-start-3 max-md:row-start-1 max-md:p-0">
+                            {r.reviewsAssigned ? (
+                              <span className="flex items-center justify-end gap-2.5">
+                                <ReviewCells done={r.reviewsDone} assigned={r.reviewsAssigned} />
+                                <span className="whitespace-nowrap">
+                                  {r.reviewsDone} of {r.reviewsAssigned}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-ink-3">–</span>
+                            )}
+                          </td>
+                        </tr>
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
       </div>
     </WorkShell>
