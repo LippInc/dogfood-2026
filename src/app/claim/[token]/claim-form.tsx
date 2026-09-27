@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormAction } from "@/components/use-form-action";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +10,10 @@ import { claimAction } from "./actions";
 const idle: ActionResult = { ok: false, message: null };
 
 export function ClaimForm({ token, name }: { token: string; name: string }) {
-  const [state, action, pending] = useActionState(claimAction.bind(null, token), idle);
+  const [state, action, pending] = useFormAction(claimAction.bind(null, token), idle);
   const e = state.fieldErrors ?? {};
   return (
-    <form action={action} className="flex max-w-[420px] flex-col gap-4">
+    <form {...action} className="flex max-w-[420px] flex-col gap-4">
       <Field id="claim-name" label="Your name" error={e.name}>
         {(a) => <Input {...a} name="name" defaultValue={name} autoComplete="name" />}
       </Field>

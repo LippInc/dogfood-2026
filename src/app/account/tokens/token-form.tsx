@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormAction } from "@/components/use-form-action";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +10,10 @@ import { createTokenAction, type TokenResult } from "./actions";
 const idle: TokenResult = { ok: false, message: null };
 
 export function TokenForm() {
-  const [state, action, pending] = useActionState(createTokenAction, idle);
+  const [state, action, pending] = useFormAction(createTokenAction, idle);
   const e = state.fieldErrors ?? {};
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form {...action} className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-4">
         <Field id="token-name" label="Name" error={e.name}>
           {(a) => <Input {...a} name="name" required maxLength={60} placeholder="Results sync script" className="w-72" />}

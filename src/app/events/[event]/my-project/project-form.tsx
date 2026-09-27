@@ -1,11 +1,12 @@
 "use client";
 
 import { Check, Circle, Lock } from "lucide-react";
-import { startTransition, useActionState, useState } from "react";
+import { useState } from "react";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormAction } from "@/components/use-form-action";
 import type { ActionResult, Question } from "@/server/dal";
 import { saveProjectAction } from "./actions";
 
@@ -57,7 +58,8 @@ export function ProjectForm({
   project: FormProject | null;
   side: React.ReactNode;
 }) {
-  const [state, action, pending] = useActionState<ActionResult, FormData>(saveProjectAction, { ok: false, message: null });
+  // Never reset, even after a save: a reset would drop the chosen track and the checklist with it.
+  const [state, form, pending] = useFormAction<ActionResult>(saveProjectAction, { ok: false, message: null }, { resetOnSuccess: false });
   const [checklist, setChecklist] = useState<Needed[]>(() => needed(null, questions, project));
   const e = state.fieldErrors ?? {};
   const submitted = project?.status === "submitted";
@@ -66,14 +68,7 @@ export function ProjectForm({
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,680px)_320px] lg:justify-between">
       <form
-        // Submitted by hand instead of action={...}: React resets a form after an
-        // action, which would drop the chosen track and the checklist with it.
-        onSubmit={(ev) => {
-          ev.preventDefault();
-          const submitter = (ev.nativeEvent as SubmitEvent).submitter;
-          const data = new FormData(ev.currentTarget, submitter);
-          startTransition(() => action(data));
-        }}
+        {...form}
         onInput={(ev) => setChecklist(needed(ev.currentTarget, questions, project))}
         onChange={(ev) => setChecklist(needed(ev.currentTarget, questions, project))}
         className="flex flex-col gap-6"

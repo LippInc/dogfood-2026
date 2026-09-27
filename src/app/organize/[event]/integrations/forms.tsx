@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
+import { useFormAction } from "@/components/use-form-action";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,11 +35,11 @@ function Secret({ state }: { state: SecretResult }) {
 }
 
 export function AddWebhookForm({ eventSlug }: { eventSlug: string }) {
-  const [state, action, pending] = useActionState(addWebhookAction, idle);
+  const [state, action, pending] = useFormAction(addWebhookAction, idle);
   const [every, setEvery] = useState(true);
   const e = state.fieldErrors ?? {};
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form {...action} className="flex flex-col gap-4">
       <input type="hidden" name="event" value={eventSlug} />
       <Field id="webhook-url" label="Send to (URL)" error={e.url} help="The portal POSTs JSON there, signed with the webhook's secret.">
         {(a) => <Input {...a} name="url" type="url" required placeholder="https://example.org/hooks/dogfood" className="max-w-[560px]" />}
@@ -75,9 +76,9 @@ export function AddWebhookForm({ eventSlug }: { eventSlug: string }) {
 }
 
 export function RotateSecretForm({ eventSlug, webhookId }: { eventSlug: string; webhookId: string }) {
-  const [state, action, pending] = useActionState(rotateSecretAction, idle);
+  const [state, action, pending] = useFormAction(rotateSecretAction, idle);
   return (
-    <form action={action} className="contents">
+    <form {...action} className="contents">
       <input type="hidden" name="event" value={eventSlug} />
       <input type="hidden" name="webhook" value={webhookId} />
       <Button type="submit" size="sm" variant="outline" disabled={pending}>
@@ -99,7 +100,7 @@ function csvCell(v: string) {
 }
 
 export function ClaimLinksForm({ eventSlug, waiting }: { eventSlug: string; waiting: number }) {
-  const [state, action, pending] = useActionState(claimLinksAction, noLinks);
+  const [state, action, pending] = useFormAction(claimLinksAction, noLinks);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const links = state.links ?? [];
   const download = () => {
@@ -113,7 +114,7 @@ export function ClaimLinksForm({ eventSlug, waiting }: { eventSlug: string; wait
   };
   return (
     <div className="flex flex-col gap-3">
-      <form action={action} className="flex flex-wrap items-center gap-3">
+      <form {...action} className="flex flex-wrap items-center gap-3">
         <input type="hidden" name="event" value={eventSlug} />
         <Button type="submit" variant="outline" disabled={pending || waiting === 0}>
           Make personal links

@@ -1,7 +1,8 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { useActionState, useState } from "react";
+import { useState } from "react";
+import { useFormAction } from "@/components/use-form-action";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,11 +56,11 @@ function TrackBoxes({ tracks, name, checked = [] }: { tracks: Track[]; name: str
 }
 
 export function InviteForm({ eventSlug, tracks }: { eventSlug: string; tracks: Track[] }) {
-  const [state, action, pending] = useActionState<InviteResult, FormData>(inviteJudgeAction, { ok: false, message: null });
+  const [state, action, pending] = useFormAction<InviteResult>(inviteJudgeAction, { ok: false, message: null });
   const e = state.fieldErrors ?? {};
   const link = state.path && typeof window !== "undefined" ? `${window.location.origin}${state.path}` : state.path;
   return (
-    <form action={action} className="flex flex-col gap-4" noValidate>
+    <form {...action} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="event" value={eventSlug} />
       <Field id="invite-name" label="Name" help="How the judge appears to you. Optional." error={e.name}>
         {(a) => <Input {...a} name="name" maxLength={80} />}
@@ -91,9 +92,9 @@ export function InviteForm({ eventSlug, tracks }: { eventSlug: string; tracks: T
 }
 
 export function TracksForm({ eventSlug, judgeId, tracks, checked }: { eventSlug: string; judgeId: string; tracks: Track[]; checked: string[] }) {
-  const [state, action, pending] = useActionState<ActionResult, FormData>(setTracksAction, { ok: false, message: null });
+  const [state, action, pending] = useFormAction<ActionResult>(setTracksAction, { ok: false, message: null });
   return (
-    <form action={action} className="flex flex-col gap-3 pt-3">
+    <form {...action} className="flex flex-col gap-3 pt-3">
       <input type="hidden" name="event" value={eventSlug} />
       <input type="hidden" name="judge" value={judgeId} />
       <TrackBoxes tracks={tracks} name="trackIds" checked={checked} />
@@ -108,10 +109,10 @@ export function TracksForm({ eventSlug, judgeId, tracks, checked }: { eventSlug:
 }
 
 export function RunForm({ eventSlug, hasAssignments, target }: { eventSlug: string; hasAssignments: boolean; target: number }) {
-  const [state, action, pending] = useActionState<RunResult, FormData>(runAssignmentAction, { ok: false, message: null });
+  const [state, action, pending] = useFormAction<RunResult>(runAssignmentAction, { ok: false, message: null });
   const e = state.fieldErrors ?? {};
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form {...action} className="flex flex-col gap-4">
       <input type="hidden" name="event" value={eventSlug} />
       <input type="hidden" name="mode" value={hasAssignments ? "topup" : "fresh"} />
       <div className="grid grid-cols-2 gap-3">
@@ -148,10 +149,10 @@ export function ByHandForm({
   projectId: string;
   judges: { id: string; name: string; inTrack: boolean }[];
 }) {
-  const [state, action, pending] = useActionState<ActionResult, FormData>(assignByHandAction, { ok: false, message: null });
+  const [state, action, pending] = useFormAction<ActionResult>(assignByHandAction, { ok: false, message: null });
   const e = state.fieldErrors ?? {};
   return (
-    <form action={action} className="flex flex-col gap-3 pt-3">
+    <form {...action} className="flex flex-col gap-3 pt-3">
       <input type="hidden" name="event" value={eventSlug} />
       <input type="hidden" name="project" value={projectId} />
       <label className="text-14 font-medium" htmlFor={`judge-${projectId}`}>

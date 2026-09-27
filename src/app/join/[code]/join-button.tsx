@@ -1,14 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormAction } from "@/components/use-form-action";
 import { Button } from "@/components/ui/button";
 import type { ActionResult } from "@/server/dal";
 import { joinTeamAction } from "./actions";
 
 export function JoinButton({ code, teamName }: { code: string; teamName: string }) {
-  const [state, action, pending] = useActionState<ActionResult, FormData>(joinTeamAction, { ok: false, message: null });
+  const [state, action, pending] = useFormAction<ActionResult>(joinTeamAction, { ok: false, message: null });
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <form {...action} className="flex flex-col gap-3">
       <input type="hidden" name="code" value={code} />
       <Button size="xl" disabled={pending} className="self-start">
         {pending ? "Joining…" : `Join ${teamName}`}

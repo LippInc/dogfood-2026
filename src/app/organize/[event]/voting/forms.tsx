@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
+import { useFormAction } from "@/components/use-form-action";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,10 +40,10 @@ export function VotingSettingsForm({
   modes: string[];
   votesPerVoter: number;
 }) {
-  const [state, action, pending] = useActionState(votingSettingsAction, idle);
+  const [state, action, pending] = useFormAction(votingSettingsAction, idle);
   const e = state.fieldErrors ?? {};
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form {...action} className="flex flex-col gap-4">
       <input type="hidden" name="event" value={eventSlug} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="votingOpenAt" label="Voting opens (UTC)" error={e.votingOpenAt}>
@@ -75,10 +76,10 @@ export function VotingSettingsForm({
 }
 
 export function VotingLinkForm({ eventSlug, active }: { eventSlug: string; active: boolean }) {
-  const [state, action, pending] = useActionState<LinkResult, FormData>(votingLinkAction, idle);
+  const [state, action, pending] = useFormAction<LinkResult>(votingLinkAction, idle);
   const link = state.path && typeof window !== "undefined" ? `${window.location.origin}${state.path}` : state.path;
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <form {...action} className="flex flex-col gap-3">
       <input type="hidden" name="event" value={eventSlug} />
       <p className="text-14 text-ink-2">{active ? "An open link exists. Making a new one stops the old one." : "No open link yet."}</p>
       <div>
@@ -98,11 +99,11 @@ export function VotingLinkForm({ eventSlug, active }: { eventSlug: string; activ
 }
 
 export function VoterListForm({ eventSlug }: { eventSlug: string }) {
-  const [state, action, pending] = useActionState<ListResult, FormData>(votersAction, idle);
+  const [state, action, pending] = useFormAction<ListResult>(votersAction, idle);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const text = (state.links ?? []).map((l) => `${l.email},${origin}${l.path}`).join("\n");
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <form {...action} className="flex flex-col gap-3">
       <input type="hidden" name="event" value={eventSlug} />
       <label htmlFor="emails" className="text-14 font-medium">
         Email addresses, one per line or separated by commas
@@ -127,10 +128,10 @@ export function VoterListForm({ eventSlug }: { eventSlug: string }) {
 
 export function VoidForm({ eventSlug, voterId, voided }: { eventSlug: string; voterId: string; voided: boolean }) {
   const [open, setOpen] = useState(false);
-  const [state, action, pending] = useActionState(voided ? restoreAction : voidAction, idle);
+  const [state, action, pending] = useFormAction(voided ? restoreAction : voidAction, idle);
   if (voided) {
     return (
-      <form action={action} className="flex items-center gap-2">
+      <form {...action} className="flex items-center gap-2">
         <input type="hidden" name="event" value={eventSlug} />
         <input type="hidden" name="voter" value={voterId} />
         <Button size="sm" variant="ghost" disabled={pending}>
@@ -148,7 +149,7 @@ export function VoidForm({ eventSlug, voterId, voided }: { eventSlug: string; vo
     );
   }
   return (
-    <form action={action} className="flex flex-wrap items-center gap-2">
+    <form {...action} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="event" value={eventSlug} />
       <input type="hidden" name="voter" value={voterId} />
       <Input name="reason" placeholder="Reason, for the audit log" className="w-64" aria-label="Reason" autoFocus />

@@ -1,14 +1,13 @@
 "use client";
 
-import { startTransition, useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { useFormAction } from "@/components/use-form-action";
 import type { ActionResult } from "@/server/dal";
 
 /**
  * One titled settings section with its own save button and result line. Field
  * errors come back keyed by field name and are listed under the heading. The form
- * sends itself from onSubmit so React does not reset it afterwards: a refused save
- * keeps what was typed (the action prop stays for a browser without JavaScript).
+ * never resets (useFormAction), so a refused save keeps what was typed.
  */
 export function SectionForm({
   id,
@@ -27,20 +26,11 @@ export function SectionForm({
   submitLabel?: string;
   children: React.ReactNode;
 }) {
-  const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, { ok: false, message: null });
+  const [state, form, pending] = useFormAction<ActionResult>(action, { ok: false, message: null }, { resetOnSuccess: false });
   const errors = Object.entries(state.fieldErrors ?? {}).flatMap(([k, v]) => v.map((m) => `${k}: ${m}`));
   return (
     <section aria-labelledby={`${id}-title`} className="rounded-sm border border-rule bg-surface">
-      <form
-        action={formAction}
-        onSubmit={(e) => {
-          e.preventDefault();
-          const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
-          startTransition(() => formAction(data));
-        }}
-        className="flex flex-col gap-5 p-5 lg:p-6"
-        noValidate
-      >
+      <form {...form} className="flex flex-col gap-5 p-5 lg:p-6" noValidate>
         {hidden ? Object.entries(hidden).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />) : null}
         <div>
           <h2 id={`${id}-title`} className="text-17 font-semibold">
