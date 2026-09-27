@@ -38,6 +38,65 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
   // a row for every project with a vote of either kind; the rest share the "not picked" row
   const anyVotes = Boolean(v.tally?.some((t) => t.votes > 0 || t.openLink > 0));
   const zeros = v.tally ? v.tally.filter((t) => t.votes === 0 && t.openLink === 0) : [];
+  // not set up, not open yet, or published with no vote: nothing to count or flag, so the setup leads
+  const early = v.state === "not_set" || v.state === "upcoming";
+  const setup = (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
+      <section aria-labelledby="settings-title" className="rounded-sm border border-rule bg-surface p-5 lg:col-span-2">
+        <h2 id="settings-title" className="mb-4 text-17 font-semibold">
+          Window and voters
+        </h2>
+        {closed ? (
+          <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-14">
+            <dt className="text-ink-2">Opened</dt>
+            <dd>{formatUtc(event.votingOpenAt)}</dd>
+            <dt className="text-ink-2">Closed</dt>
+            <dd>{formatUtc(event.votingCloseAt)}</dd>
+            <dt className="text-ink-2">Who could vote</dt>
+            <dd>{v.settings.modes.map((m) => KIND[m]).join(", ") || "nobody"}</dd>
+            <dt className="text-ink-2">Favourites per voter</dt>
+            <dd className="tnum">{v.settings.votesPerVoter}</dd>
+            {withLink ? (
+              <>
+                <dt className="text-ink-2">Open-link ballots</dt>
+                <dd>{v.settings.countLink ? "Added to the result" : "Counted apart, changing no place"}</dd>
+              </>
+            ) : null}
+          </dl>
+        ) : over ? (
+          <p className="text-14 text-ink-2">The results are published, so no window can be set.</p>
+        ) : (
+          <VotingSettingsForm
+            eventSlug={event.slug}
+            openAt={utcInput(event.votingOpenAt)}
+            closeAt={utcInput(event.votingCloseAt)}
+            modes={v.settings.modes}
+            votesPerVoter={v.settings.votesPerVoter}
+            countLink={v.settings.countLink}
+            countRuleFixed={v.settings.countRuleFixed}
+          />
+        )}
+      </section>
+      <div className="flex flex-col gap-6">
+        <section aria-labelledby="link-title" className="rounded-sm border border-rule bg-surface p-5">
+          <h2 id="link-title" className="mb-3 text-17 font-semibold">
+            Open voting link
+          </h2>
+          {closed || over ? <p className="text-14 text-ink-2">{closed ? "Voting has closed; the link only says so." : "No vote to link to."}</p> : <VotingLinkForm eventSlug={event.slug} active={v.settings.linkActive} />}
+        </section>
+        <section aria-labelledby="list-title" className="rounded-sm border border-rule bg-surface p-5">
+          <h2 id="list-title" className="mb-1 text-17 font-semibold">
+            Voter list
+          </h2>
+          <p className="mb-3 text-14 text-ink-2">
+            {v.listed.length} on the list, {v.listed.filter((l) => l.voted).length} voted.
+            {closed || over ? "" : " The portal sends no email: copy the links and send them yourself."}
+          </p>
+          {closed || over ? null : <VoterListForm eventSlug={event.slug} />}
+        </section>
+      </div>
+    </div>
+  );
   return (
     <WorkShell
       eventName={event.name}
@@ -63,6 +122,10 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
           </p>
         </header>
 
+        {/* Before the window opens nothing can be counted or flagged: the setup comes first, alone. */}
+        {early ? setup : null}
+
+        {early ? null : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
           <section aria-labelledby="turnout-title" className="rounded-sm border border-rule bg-surface p-5">
             <h2 id="turnout-title" className="text-15 font-semibold">
@@ -99,7 +162,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
               {closed ? "Voting has closed, so they stay as they are." : "Look at them; set one aside only with a reason."}
             </p>
             {v.suspected.length === 0 ? (
-              <p className="mt-3 text-14 text-ink-2">None so far.</p>
+              <p className="mt-3 text-14 text-ink-2">{closed ? "None." : "None so far."}</p>
             ) : (
               <ul className="mt-3 flex flex-col gap-3">
                 {v.suspected.map((g) => (
@@ -129,6 +192,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             )}
           </section>
         </div>
+        )}
 
         {v.tally ? (
           <section aria-labelledby="tally-title">
@@ -226,61 +290,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
           </section>
         ) : null}
 
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
-          <section aria-labelledby="settings-title" className="rounded-sm border border-rule bg-surface p-5 lg:col-span-2">
-            <h2 id="settings-title" className="mb-4 text-17 font-semibold">
-              Window and voters
-            </h2>
-            {closed ? (
-              <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-14">
-                <dt className="text-ink-2">Opened</dt>
-                <dd>{formatUtc(event.votingOpenAt)}</dd>
-                <dt className="text-ink-2">Closed</dt>
-                <dd>{formatUtc(event.votingCloseAt)}</dd>
-                <dt className="text-ink-2">Who could vote</dt>
-                <dd>{v.settings.modes.map((m) => KIND[m]).join(", ") || "nobody"}</dd>
-                <dt className="text-ink-2">Favourites per voter</dt>
-                <dd className="tnum">{v.settings.votesPerVoter}</dd>
-                {withLink ? (
-                  <>
-                    <dt className="text-ink-2">Open-link ballots</dt>
-                    <dd>{v.settings.countLink ? "Added to the result" : "Counted apart, changing no place"}</dd>
-                  </>
-                ) : null}
-              </dl>
-            ) : over ? (
-              <p className="text-14 text-ink-2">The results are published, so no window can be set.</p>
-            ) : (
-              <VotingSettingsForm
-                eventSlug={event.slug}
-                openAt={utcInput(event.votingOpenAt)}
-                closeAt={utcInput(event.votingCloseAt)}
-                modes={v.settings.modes}
-                votesPerVoter={v.settings.votesPerVoter}
-                countLink={v.settings.countLink}
-                countRuleFixed={v.settings.countRuleFixed}
-              />
-            )}
-          </section>
-          <div className="flex flex-col gap-6">
-            <section aria-labelledby="link-title" className="rounded-sm border border-rule bg-surface p-5">
-              <h2 id="link-title" className="mb-3 text-17 font-semibold">
-                Open voting link
-              </h2>
-              {closed || over ? <p className="text-14 text-ink-2">{closed ? "Voting has closed; the link only says so." : "No vote to link to."}</p> : <VotingLinkForm eventSlug={event.slug} active={v.settings.linkActive} />}
-            </section>
-            <section aria-labelledby="list-title" className="rounded-sm border border-rule bg-surface p-5">
-              <h2 id="list-title" className="mb-1 text-17 font-semibold">
-                Voter list
-              </h2>
-              <p className="mb-3 text-14 text-ink-2">
-                {v.listed.length} on the list, {v.listed.filter((l) => l.voted).length} voted.
-                {closed || over ? "" : " The portal sends no email: copy the links and send them yourself."}
-              </p>
-              {closed || over ? null : <VoterListForm eventSlug={event.slug} />}
-            </section>
-          </div>
-        </div>
+        {early ? null : setup}
       </div>
     </WorkShell>
   );
