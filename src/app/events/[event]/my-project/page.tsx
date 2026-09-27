@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatUtc, isPast } from "@/lib/format";
 import { actorNav, currentActor, getMyWork, myRecords, NotFoundError, PAIRWISE_METHOD, type MyWork } from "@/server/dal";
 import { openOwnRecord } from "../../../records/actions";
-import { ProjectForm } from "./project-form";
+import { HandedIn } from "./handed-in";
+import { ProjectForm, type FormProject } from "./project-form";
 import { StartTeam, TeamPanel } from "./team-panel";
 
 type TeamFeedback = NonNullable<MyWork["feedback"]>;
@@ -32,6 +33,23 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
   const closeLabel = formatUtc(event.submissionsCloseAt, { weekday: true });
   const certificate = work.feedback ? myRecords(actor, key).find((r) => r.kind === "participant") : undefined;
   const pairwise = work.feedback?.method === PAIRWISE_METHOD;
+  const formProject: FormProject | null = project
+    ? {
+        id: project.id,
+        title: project.title,
+        summary: project.summary,
+        description: project.description,
+        trackId: project.trackId,
+        repoUrl: project.repoUrl,
+        videoUrl: project.videoUrl,
+        liveUrl: project.liveUrl,
+        thumbnailUrl: project.thumbnailUrl,
+        galleryUrls: project.galleryUrls,
+        tags: project.tags,
+        status: project.status,
+        answers: project.answers,
+      }
+    : null;
   const recordButton = "inline-flex h-10 items-center rounded-sm border border-edge px-4 text-14 font-medium hover:bg-surface";
 
   const side = (
@@ -124,33 +142,19 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
       ) : null}
       {!team ? (
         <StartTeam eventSlug={event.slug} open={open} />
+      ) : open ? (
+        <ProjectForm eventSlug={event.slug} open={open} tracks={work.tracks} questions={work.questions} project={formProject} side={side} />
       ) : (
-        <ProjectForm
-          eventSlug={event.slug}
-          open={open}
-          tracks={work.tracks}
-          questions={work.questions}
-          project={
-            project
-              ? {
-                  id: project.id,
-                  title: project.title,
-                  summary: project.summary,
-                  description: project.description,
-                  trackId: project.trackId,
-                  repoUrl: project.repoUrl,
-                  videoUrl: project.videoUrl,
-                  liveUrl: project.liveUrl,
-                  thumbnailUrl: project.thumbnailUrl,
-                  galleryUrls: project.galleryUrls,
-                  tags: project.tags,
-                  status: project.status,
-                  answers: project.answers,
-                }
-              : null
-          }
-          side={side}
-        />
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,680px)_320px] lg:justify-between">
+          <HandedIn
+            eventSlug={event.slug}
+            closedAt={event.submissionsCloseAt}
+            project={formProject}
+            trackName={work.tracks.find((t) => t.id === project?.trackId)?.name ?? null}
+            questions={work.questions}
+          />
+          <aside className="flex flex-col gap-8 lg:sticky lg:top-6 lg:self-start">{side}</aside>
+        </div>
       )}
     </PublicShell>
   );
