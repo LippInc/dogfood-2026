@@ -17,15 +17,28 @@ export const dynamic = "force-dynamic";
 /** Signed to two decimals; a value that rounds to zero shows as 0.00, never −0.00. */
 const signed = (v: number) => (Math.abs(v) < 0.005 ? "0.00" : `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`);
 
+/** On phones the column head is gone, so the cell names itself. */
+const PhoneLabel = () => <span className="text-ink-3 md:hidden">Leniency: </span>;
+
 /** One judge's leniency in the table: their plain tilt and what the engine takes off, drawn on the shared axis. */
 function Leniency({ s, k, span }: { s: JudgeStanding | undefined; k: number | null; span: number }) {
-  if (!s || s.nAll === 0) return <p className="text-13 text-ink-3">no finished review</p>;
-  if (s.excluded) return <p className="text-13 text-flag">left out: nothing counted</p>;
-  if (k === null) return <p className="text-13 text-ink-3">not corrected yet</p>;
+  if (!s || s.nAll === 0) return <p className="text-13 text-ink-3">
+        <PhoneLabel />
+        no finished review
+      </p>;
+  if (s.excluded) return <p className="text-13 text-flag">
+        <PhoneLabel />
+        left out: nothing counted
+      </p>;
+  if (k === null) return <p className="text-13 text-ink-3">
+        <PhoneLabel />
+        not corrected yet
+      </p>;
   return (
     <div className="flex flex-col gap-1">
       <LeniencyRow tilt={s.tilt} leniency={s.leniency} se={null} span={span} />
       <p className="text-12 whitespace-nowrap text-ink-2 tnum">
+        <PhoneLabel />
         {s.tilt === null ? "" : `tilt ${signed(s.tilt)} · `}takes off <span className="text-ink">{signed(s.leniency)}</span>
       </p>
     </div>
@@ -119,8 +132,8 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                 </p>
               ) : null}
               <div className="overflow-x-auto rounded-sm border border-rule bg-surface">
-                <Table>
-                  <TableHeader>
+                <Table className="max-md:block">
+                  <TableHeader className="max-md:hidden">
                     <TableRow>
                       <TableHead>Judge</TableHead>
                       <TableHead>Tracks</TableHead>
@@ -134,22 +147,26 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                       <TableHead>Standing</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <TableBody className="max-md:block">
                     {judges.map((j) => {
                       const reminder = `Hi ${j.name}, ${j.pending} of your ${plural(j.assigned, "review")} for ${event.name} ${j.pending === 1 ? "is" : "are"} still open. Your console: ${origin}/judge/${event.slug}`;
                       return (
-                        <TableRow key={j.id} className="align-top">
-                          <TableCell className={j.excluded ? "shadow-[inset_3px_0_0_var(--flag-bar)]" : undefined}>
+                        // On phones each row stacks: name and reviews side by side, then tracks, leniency and standing.
+                        <TableRow
+                          key={j.id}
+                          className={`align-top max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-4 max-md:gap-y-2.5 max-md:px-4 max-md:py-3.5 ${j.excluded ? "max-md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}
+                        >
+                          <TableCell className={`max-md:col-start-1 max-md:row-start-1 max-md:block max-md:p-0 ${j.excluded ? "md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}>
                             <p className="font-medium">{j.name}</p>
                             <p className="text-13 text-ink-2">{j.email}</p>
                           </TableCell>
-                          <TableCell className="max-w-[220px]">
+                          <TableCell className="max-w-[220px] max-md:col-span-2 max-md:block max-md:max-w-none max-md:p-0">
                             <details>
                               <summary className="cursor-pointer text-14">{j.tracks.map((t) => t.name).join(", ") || "No tracks"}</summary>
                               <TracksForm eventSlug={event.slug} judgeId={j.id} tracks={tracks} checked={j.tracks.map((t) => t.id)} />
                             </details>
                           </TableCell>
-                          <TableCell className="text-right tnum">
+                          <TableCell className="text-right tnum max-md:col-start-2 max-md:row-start-1 max-md:block max-md:p-0">
                             <div className="flex items-center justify-end gap-2.5">
                               {j.assigned ? (
                                 <span className="flex gap-[2px]" aria-hidden>
@@ -169,11 +186,11 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                             {j.lastScoredAt ? <p className="mt-1 text-12 whitespace-nowrap text-ink-3">last {formatUtc(j.lastScoredAt)}</p> : null}
                           </TableCell>
                           {norm ? (
-                            <TableCell>
+                            <TableCell className="max-md:col-span-2 max-md:block max-md:p-0">
                               <Leniency s={standing.get(j.id)} k={k} span={span} />
                             </TableCell>
                           ) : null}
-                          <TableCell className="max-w-[260px] text-13">
+                          <TableCell className="max-w-[260px] text-13 max-md:col-span-2 max-md:block max-md:max-w-none max-md:p-0">
                             {j.flat ? (
                               <p className={j.excluded ? "text-flag" : "text-ink-2"}>
                                 Flat: {j.flat.vector.join(" / ")} on all {j.flat.reviews} projects.{" "}
