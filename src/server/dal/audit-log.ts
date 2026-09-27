@@ -275,7 +275,11 @@ function sentence(r: Row, n: Names): Part[] {
     case "webhook.redeliver":
       return [actor, t(" asked webhook "), { text: target, mono: true }, t(` to send ${after.delivery} again`)];
     case "signing_key.create":
-      return [actor, t(" made the signing key "), { text: target, mono: true }];
+      return after.replaces
+        ? [actor, t(" made the signing key "), { text: target, mono: true }, t(", since "), { text: String(after.replaces), mono: true }, t(" is sealed under another secret")]
+        : [actor, t(" made the signing key "), { text: target, mono: true }];
+    case "signing_key.seal":
+      return [actor, t(" sealed the signing key "), { text: target, mono: true }, t(" under the portal's secret")];
     case "token.create":
       return [actor, t(" made the API token "), { text: String(after.name ?? target), mono: true }];
     case "token.revoke":

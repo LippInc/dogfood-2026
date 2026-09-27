@@ -214,7 +214,7 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 | Setting (environment, in `docker-compose.yml`) | What it does |
 |---|---|
 | `SEED_CHECKER_SESSIONS` | `"true"` seeds the checker's four sessions and the demo sign-in buttons; `"false"` for a real event (boot then removes any left from before) |
-| `DOGFOOD_SEED_SECRET` | Derives the checker sessions and salts the voters' address hashes; set your own |
+| `DOGFOOD_SEED_SECRET` | Derives the checker sessions, salts the voters' address hashes and seals the signing key in the database; set your own, and keep it: under a new one the portal starts a new signing key (records signed before still verify) |
 | `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
 | `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
 | `TRUST_PROXY_HOPS` | How many reverse proxies stand in front of the portal, each appending to `X-Forwarded-For` (usually `1`). Unset, the client address is the connection's own and any `X-Forwarded-For` a client sends is ignored; set it only when that many proxies really are in front, or a client can name its own address |
@@ -279,7 +279,8 @@ start, and the fixture import never overwrites what the organizers changed.
   is) do not move to another portal; `event.json` keeps them as a record, and
   `comparisons.csv` lists every pairwise answer, taken-back ones included.
 - Signed records cannot be revoked, and the signing key cannot be rotated from
-  the interface; a record keeps what was true when it was issued.
+  the interface (a new `DOGFOOD_SEED_SECRET` makes the next start use a new one);
+  a record keeps what was true when it was issued.
 - No calibrated prize probabilities or rank intervals: normalized ranks compare
   within a track, and close scores should be read as ties. Pairwise mode gives
   each place its chance of being ahead of the next one, not a full interval.
