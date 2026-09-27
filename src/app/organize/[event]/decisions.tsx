@@ -619,6 +619,24 @@ export function PublishPanel({
             </span>
             {submissionsCloseAt ? "After the close" : open ? "Locked" : "Ready"}
           </h2>
+          {total ? (
+            // the lock's own progress, read with the heading: one cell per decision in the
+            // Judges figure's language, filled ink when made, a dashed orange outline (the
+            // open wires' colour) while it waits
+            <div className="flex flex-col gap-1.5">
+              <span className="flex gap-[3px]" aria-hidden>
+                {Array.from({ length: total }, (_, i) => (
+                  <span
+                    key={i}
+                    className={`h-4 flex-1 border ${i < decided ? "border-ink bg-ink" : "border-dashed border-flag-bar"}`}
+                  />
+                ))}
+              </span>
+              <span className="text-13 text-ink-2 tnum">
+                {decided} of {total} decided
+              </span>
+            </div>
+          ) : null}
           <form {...form} className="flex flex-col gap-3">
             <input type="hidden" name="event" value={eventSlug} />
             {vote && (vote.state === "open" || vote.state === "upcoming") ? (
@@ -651,23 +669,6 @@ export function PublishPanel({
             </p>
             <Result state={state} />
           </form>
-          {total ? (
-            <div className="flex items-center gap-3">
-              {/* one cell per decision, in the Judges figure's language: filled ink when
-                  made, a dashed orange outline (the open wires' colour) while it waits */}
-              <span className="flex gap-[3px]" aria-hidden>
-                {Array.from({ length: total }, (_, i) => (
-                  <span
-                    key={i}
-                    className={`h-4 w-8 border ${i < decided ? "border-ink bg-ink" : "border-dashed border-flag-bar"}`}
-                  />
-                ))}
-              </span>
-              <span className="text-13 text-ink-2 tnum">
-                {decided} of {total} decided
-              </span>
-            </div>
-          ) : null}
           <p className="text-13 text-ink-2">
             Publishing makes the results page public, shows each team its
             written feedback, and freezes {pairwise ? "judging" : "scoring"}. It is logged, with the
