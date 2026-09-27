@@ -168,7 +168,9 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
             </h2>
             <p className="mt-1 max-w-[760px] text-15 text-ink-2">
               Take everything out at any stage. <code className="font-mono text-13">fixtures.json</code> is the organizers&rsquo; fixture format:
-              an administrator can import it into another portal (Your events, Import an event) and get the same event, scores and ranking.
+              an administrator can import it into another portal (Your events, Import an event) and get the same projects, judges and scores, and the
+              same ranking as before any decision. Settings and your decisions (a merge, a reinstated judge) stay in{" "}
+              <code className="font-mono text-13">event.json</code>.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

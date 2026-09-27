@@ -87,7 +87,7 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 | T4 | Certificate and record generation | Built | After publishing: a certificate for each member of a submitting team (podium places and a community-vote win on it) and a record for each judge, at `/records/<id>`, printable. Organizers issue them all on the Results tab; people can fetch their own from their project page or the judge console | C4 publishes over the API and issues them. By hand: publish the sample event (Overview: make the three decisions, then Publish), then Results tab, "Issue every record", and open one |
 | T4 | Signed, publicly verifiable judge participation records | Built | Ed25519 over the record's canonical JSON; the public key at `/.well-known/dogfood-keys.json` (open to any site); checked in the browser with WebCrypto on each record page and on `/verify`, by `POST /api/records/verify`, or offline with `node scripts/verify-record.mjs <record URL or file> [--keys <saved key file>]` | C4 (a changed record is `bad_signature`), C5 (the script: exit 0, then 1 for the changed copy). By hand: download a record, change one letter, paste it into `/verify`: "Not valid" from the browser and the portal |
 | T4 | Embeddable gallery widget | Built | `<script src="http://localhost:8080/embed.js" data-event="sample-hack-2026" async></script>`; the frame is `/embed/sample-hack-2026` | C6. By hand: `curl -sI localhost:8080/embed/sample-hack-2026` shows `frame-ancestors *`; every other page answers `frame-ancestors 'none'` |
-| T4 | Bulk import and export | Built | Export at every stage: scores, projects, normalized ranking and audit log as CSV, `event.json`, and `fixtures.json` in the organizers' own fixture format. Import: an administrator uploads such a file on Your events (or `POST /api/imports`), through the same idempotent importer the portal boots with; people who come in that way get personal links to set a password (Integrations tab) | C7 (export, then an import that changes nothing), C8 (a new event imported and one person walked in by a personal link). By hand: export `fixtures.json` from the Integrations tab, import it on a fresh portal: the same tables and a byte-identical `normalized.csv` (`tests/import-claims.test.ts` does exactly this) |
+| T4 | Bulk import and export | Built | Export at every stage: scores, projects, normalized ranking and audit log as CSV, `event.json`, and `fixtures.json` in the organizers' own fixture format. Import: an administrator uploads such a file on Your events (or `POST /api/imports`), through the same idempotent importer the portal boots with; people who come in that way get personal links to set a password (Integrations tab) | C7 (export, then an import that changes nothing), C8 (a new event imported and one person walked in by a personal link). By hand: export `fixtures.json` from the Integrations tab, import it on a fresh portal: the same tables and a byte-identical `normalized.csv`, as long as no decision has been made (`tests/import-claims.test.ts` does exactly this) |
 
 ## What it does
 
@@ -133,8 +133,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   the same transaction as the change, so none is lost or invented.
 - **Import and export.** Every stage exports as CSV, and a whole event as
   `event.json` or as `fixtures.json`, the organizers' own fixture format, which
-  an administrator can import into another portal to get the same event, scores
-  and ranking. Imported people get into their accounts through one-time personal
+  an administrator can import into another portal to get the same projects,
+  judges and scores, and the same ranking as before any decision (settings and
+  the organizer's decisions stay in `event.json`). Imported people get into their accounts through one-time personal
   links the organizer sends.
 - **Audit log.** Every change and every refused request is recorded in the same
   transaction as the change; the database refuses edits and deletes of the log,
@@ -223,6 +224,9 @@ start, and the fixture import never overwrites what the organizers changed.
   `X-Forwarded-For`; run the portal behind a reverse proxy that overwrites it, or
   a client can pick its own. The limits live in memory and reset on restart.
 - Results cannot be unpublished from the interface.
+- The portal imports only `fixtures.json`, so settings and the organizer's
+  decisions (a merge, a reinstated judge, a project published as it is) do not
+  move to another portal; `event.json` keeps them as a record.
 - Signed records cannot be revoked, and the signing key cannot be rotated from
   the interface; a record keeps what was true when it was issued.
 - No calibrated prize probabilities or rank intervals: normalized ranks compare
