@@ -88,10 +88,13 @@ export function mutate<T>(spec: MutationSpec<T>): T {
 
 /**
  * The read-side gate: decide, record a 403 refusal in the audit log, and throw on
- * any refusal. Reads that pass leave no audit row.
+ * any refusal. Reads that pass leave no audit row. Mode "read" by default; before a
+ * write that happens further down (an import), mode "write" asks the same question as
+ * that write, so its refusal is audited here instead of vanishing with the write's
+ * rolled-back transaction.
  */
-export function guardRead(actor: Actor | null, action: Action, resource: Resource, now = new Date()): Actor {
-  const decision = authorize(actor, action, resource, now);
+export function guardRead(actor: Actor | null, action: Action, resource: Resource, now = new Date(), mode: "read" | "write" = "read"): Actor {
+  const decision = authorize(actor, action, resource, now, mode);
   if (decision.ok) return actor!;
   if (decision.status === 403 && actor) {
     const allowed = take(refusalKey({ userId: actor.userId, name: actor.name }), LIMITS.refusal, now.getTime());

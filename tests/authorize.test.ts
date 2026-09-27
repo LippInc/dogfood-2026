@@ -143,6 +143,20 @@ describe("authorize (pure)", () => {
     });
   });
 
+  describe("an administrator reads every event but changes only the ones they organize", () => {
+    it("event.manage as a change: a portal administrator with no role in the event is refused", () => {
+      expectRefusal(authorize(adminElsewhere, "event.manage", { kind: "event", event: closedEvent }, NOW), 403, "not_an_organizer");
+    });
+
+    it("event.export only reads, so it passes for that administrator however it is asked", () => {
+      expect(authorize(adminElsewhere, "event.export", { kind: "event", event: closedEvent }, NOW).ok).toBe(true);
+    });
+
+    it("reading stays closed to an organizer of another event who is not an administrator", () => {
+      expectRefusal(authorize(organizerElsewhere, "event.manage", { kind: "event", event: closedEvent }, NOW, "read"), 403, "not_an_organizer");
+    });
+  });
+
   describe("event.manage and event.export", () => {
     for (const action of ["event.manage", "event.export"] as const) {
       const act = (actor: Actor | null) => authorize(actor, action, { kind: "event", event: closedEvent }, NOW);
@@ -161,8 +175,8 @@ describe("authorize (pure)", () => {
         expectRefusal(act(null), 401, "unauthenticated");
       });
 
-      it(`${action}: a portal administrator with no role in the event passes (the matrix's ADMIN row)`, () => {
-        expect(act(adminElsewhere).ok).toBe(true);
+      it(`${action}: a portal administrator with no role in the event reads it (the matrix's ADMIN row)`, () => {
+        expect(authorize(adminElsewhere, action, { kind: "event", event: closedEvent }, NOW, "read").ok).toBe(true);
       });
     }
   });

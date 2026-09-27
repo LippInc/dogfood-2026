@@ -100,12 +100,21 @@ export function hasRole(actor: Actor, eventId: string, role: Role): boolean {
 }
 
 /**
- * Who holds an event's organizer powers: its organizers, and the portal's administrators in every event (the
- * organizers' published role matrix gives ADMIN every column an ORGANIZER has). Every act is logged under the
- * actor who made it, so an administrator acting in someone else's event shows by name in that event's log.
+ * Who sees an event as its organizers do: its organizers, and the portal's administrators in every event. The
+ * organizers' published role matrix gives ADMIN every column ORGANIZER has, and every column there is a right to
+ * read (own scores, peer scores, other track, aggregate, audit log).
+ */
+export function seesEvent(actor: Actor, eventId: string): boolean {
+  return actor.isAdmin || hasRole(actor, eventId, "organizer");
+}
+
+/**
+ * Who changes an event: its organizers only. An administrator who does not organize an event reads it (seesEvent)
+ * but does not change it: an earlier review found an import making an administrator an event's organizer and adding
+ * to its scores, so changing stays with the people the event names.
  */
 export function runsEvent(actor: Actor, eventId: string): boolean {
-  return actor.isAdmin || hasRole(actor, eventId, "organizer");
+  return hasRole(actor, eventId, "organizer");
 }
 
 export function isJudgeAnywhere(actor: Actor): boolean {
@@ -163,6 +172,7 @@ export function authorize(
   action: Action,
   resource: Resource,
   now: Date = new Date(),
+  mode: "read" | "write" = "write", // guardRead passes "read"; every write goes through mutate() as "write"
 ): Decision {
   if (action === "vote.cast") return decideVote(resource, now);
   if (!actor) return unauthenticated;
@@ -180,7 +190,9 @@ export function authorize(
     case "event.manage":
     case "event.export": {
       if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");
-      return runsEvent(actor, resource.event.id)
+      // exporting only reads; managing reads (an overview, the log) or changes (a decision, an import)
+      const reads = action === "event.export" || mode === "read";
+      return (reads ? seesEvent : runsEvent)(actor, resource.event.id)
         ? allow
         : refuse("not_an_organizer", "Only this event's organizers can do this.");
     }

@@ -38,7 +38,7 @@ export function importEventFile(actor: Actor | null, body: unknown): EventImport
   // (an administrator is not one by being an administrator), and never once its
   // results are published.
   const existing = getDb().select().from(events).where(eq(events.id, fixture.event.id)).get();
-  if (existing) guardRead(actor, "event.manage", { kind: "event", event: existing });
+  if (existing) guardRead(actor, "event.manage", { kind: "event", event: existing }, new Date(), "write"); // an import changes the event
   let published = false;
   const report = importFixtures(getDb(), fixture, {
     source: "upload",

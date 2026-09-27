@@ -8,14 +8,15 @@ import { userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { getOverview } from "@/server/dal/overview";
 import { exportFile } from "@/server/dal/exports";
-import { createEvent, organizedEvents } from "@/server/dal/organize";
+import { createEvent, organizedEvents, updateEventDetails } from "@/server/dal/organize";
 import { actorNav } from "@/server/dal/nav";
 import { HttpError } from "@/server/errors";
 import type { Actor } from "@/server/authz";
 
 // The organizers' published role matrix gives ADMIN every column ORGANIZER has (own scores, peer scores, other
-// track, aggregate, audit log). So a portal administrator runs every event: they read and act in it as its
-// organizers do, with every act logged under their own name. Someone who is neither stays refused.
+// track, aggregate, audit log), and every column there is a right to read. So a portal administrator sees every
+// event as its organizers do; changing an event stays with its organizers (an import onto someone else's event is
+// refused, tests/import-claims.test.ts). Someone who is neither stays refused.
 
 const NOW = "2026-09-27T00:00:00.000Z";
 let h: Handle;
@@ -55,12 +56,17 @@ function refusal(fn: () => unknown): [number, string] {
   return [200, "ok"];
 }
 
-describe("a portal administrator runs every event", () => {
+describe("a portal administrator sees every event", () => {
   it("opens an event's organizer overview and export without any role in it", () => {
     const admin = actor("usr_admin2");
     expect(admin.roles).toEqual([]);
     expect(getOverview(admin, "evt_01").event.id).toBe("evt_01");
     expect(exportFile(admin, "evt_01", "event.json").body.length).toBeGreaterThan(100);
+  });
+
+  it("but does not change an event they do not organize", () => {
+    const admin = actor("usr_admin2");
+    expect(refusal(() => updateEventDetails(admin, "evt_01", { name: "Renamed" }))).toEqual([403, "not_an_organizer"]);
   });
 
   it("while someone with no role who is not an administrator is refused both (positive control)", () => {
@@ -69,7 +75,7 @@ describe("a portal administrator runs every event", () => {
     expect(refusal(() => exportFile(plain, "evt_01", "event.json"))).toEqual([403, "not_an_organizer"]);
   });
 
-  it("lists every event among the events they run; an organizer who is not an administrator sees only their own", () => {
+  it("lists every event on Your events; an organizer who is not an administrator sees only their own", () => {
     const second = createEvent(actor("usr_organizer"), {
       details: { name: "Second Event", submissionsCloseAt: "2026-12-01T18:00:00Z" },
       tracks: [{ name: "Open" }],
