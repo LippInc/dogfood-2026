@@ -94,7 +94,7 @@ export function StartTeam({ eventSlug, open }: { eventSlug: string; open: boolea
           </Button>
           {state.message ? (
             <p role="status" className={state.ok ? "text-14 text-ok" : "text-14 text-flag"}>
-              {state.message}
+              {state.fieldErrors?.name?.[0] ?? state.message}
             </p>
           ) : null}
         </form>
