@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DitherDigits } from "@/components/dither-digits";
 import { Face } from "@/components/face";
@@ -38,6 +39,8 @@ function placeOf(award: string): { place: number; ordinal: string; joint: boolea
   return m ? { joint: Boolean(m[1]), ordinal: m[2]!, place: Number(m[3]), track: m[4]! } : null;
 }
 
+const recordLink = "rounded-xs font-medium underline decoration-edge underline-offset-4 hover:decoration-ink";
+
 const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 export default async function RecordPage({ params }: PageProps<"/records/[record]">) {
@@ -53,6 +56,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
     <PublicShell event={view.event} active="none" signedInAs={actor?.name ?? null} links={actorNav(actor, view.event.id)}>
       <RecordCheck envelope={view.envelope}>
       <div className="mx-auto flex max-w-[960px] flex-col gap-10 py-10 print:max-w-none print:py-0">
+        <div className="flex flex-col gap-4">
         <CheckedSheet
           aria-labelledby="record-name"
           className="corner-marks [&.lit]:[--mark:var(--accent)] relative flex flex-col gap-8 rounded-sm border border-rule px-6 py-9 outline outline-1 outline-offset-4 outline-rule sm:p-12 print:break-inside-avoid print:border-2 print:border-ink print:p-12"
@@ -161,17 +165,29 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
           </p>
         </CheckedSheet>
 
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 print:hidden">
+          <nav aria-label="Where this record comes from" className="flex flex-wrap gap-x-6 gap-y-2 text-15">
+            {rec.project ? (
+              <Link href={`/events/${view.event.slug}/projects/${rec.project.id}`} className={recordLink}>
+                {rec.project.title}&rsquo;s project page
+              </Link>
+            ) : null}
+            <Link href={`/events/${view.event.slug}/results`} className={recordLink}>
+              {view.event.name} results
+            </Link>
+          </nav>
+          <RecordActions envelope={view.envelope} id={rec.id} />
+        </div>
+        </div>
+
         <section aria-labelledby="check-title" className="flex flex-col gap-5 print:hidden">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h2 id="check-title" className="text-24 font-semibold">
-                Check it yourself
-              </h2>
-              <p className="mt-1 max-w-[640px] text-15 text-ink-2">
-                Anyone holding this record can prove the portal issued it and nobody changed it since: the signature covers every word above.
-              </p>
-            </div>
-            <RecordActions envelope={view.envelope} id={rec.id} />
+          <div>
+            <h2 id="check-title" className="text-24 font-semibold">
+              Check it yourself
+            </h2>
+            <p className="mt-1 max-w-[640px] text-15 text-ink-2">
+              Anyone holding this record can prove the portal issued it and nobody changed it since: the signature covers every word above.
+            </p>
           </div>
 
           <BrowserCheck serverSays={view.verification.valid} />
