@@ -168,6 +168,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               initial={o.tracks.map((t) => ({ id: t.id, name: t.name }))}
               blank={{ name: "" }}
               addLabel="Add a track"
+              grid="lg:grid-cols-[20px_minmax(0,1fr)_92px]"
               fields={[{ key: "name", label: "Track name", type: "text" }]}
             />
           </SectionForm>
@@ -178,6 +179,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               initial={o.prizes.map((p) => ({ id: p.id, name: p.name, description: p.description }))}
               blank={{ name: "", description: "" }}
               addLabel="Add a prize"
+              grid="lg:grid-cols-[20px_minmax(0,14rem)_minmax(0,1fr)_92px]"
               fields={[
                 { key: "name", label: "Prize", type: "text", width: "w-56" },
                 { key: "description", label: "What wins it", type: "text" },
@@ -199,6 +201,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               initial={o.questions.map((q) => ({ id: q.id, label: q.label, help: q.help, type: q.type, required: q.required }))}
               blank={{ label: "", help: "", type: "longtext", required: false }}
               addLabel="Add a question"
+              grid="lg:grid-cols-[20px_minmax(0,1fr)_minmax(0,1fr)_8rem_5.5rem_92px]"
               fields={[
                 { key: "label", label: "Question", type: "text" },
                 { key: "help", label: "Hint for teams", type: "text" },
@@ -296,6 +299,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               initial={o.rubric.map((c) => ({ id: c.id, label: c.label, prompt: c.prompt, weight: c.weight }))}
               blank={{ label: "", prompt: "", weight: 1 }}
               addLabel="Add a criterion"
+              grid="lg:grid-cols-[20px_minmax(0,11rem)_minmax(0,1fr)_5rem_92px]"
               locked={o.scored}
               lockedHint="Judges have scored already: labels, prompts and weights can change, the set of criteria cannot."
               fields={[
