@@ -5,7 +5,7 @@ import { ProjectImage } from "@/components/project-cover";
 import { GalleryBrowser } from "@/components/gallery/gallery-browser";
 import { PublicShell } from "@/components/shell/public-shell";
 import { plural } from "@/lib/format";
-import { actorNav, currentActor, getGallery, NotFoundError, type Gallery } from "@/server/dal";
+import { actorNav, currentActor, getGallery, getMyWork, NotFoundError, type Gallery } from "@/server/dal";
 
 // Server-rendered on every request: every project is on page one, in a fresh
 // shuffled order, so no project is always first. Nothing is baked in at build time.
@@ -45,6 +45,15 @@ export default async function GalleryPage({ params, searchParams }: PageProps<"/
   const gallery = loadGallery(key);
   const actor = await currentActor();
   const { event, counts } = gallery;
+  // A signed-in participant finds their own team's project marked in the Field and the grid.
+  let mine: string | null = null;
+  if (actor) {
+    try {
+      mine = getMyWork(actor, event.id).project?.id ?? null;
+    } catch {
+      mine = null;
+    }
+  }
 
   const items = shuffled(gallery.projects).map((p) => ({
     id: p.id,
@@ -81,6 +90,7 @@ export default async function GalleryPage({ params, searchParams }: PageProps<"/
         smallFaces={smallFaces}
         initialTrack={typeof sp.track === "string" ? sp.track : null}
         initialQuery={typeof sp.q === "string" ? sp.q : ""}
+        mine={mine}
       />
     </PublicShell>
   );

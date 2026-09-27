@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Search, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 export type BrowserItem = {
@@ -45,6 +46,7 @@ export function GalleryBrowser({
   smallFaces,
   initialTrack,
   initialQuery,
+  mine = null,
 }: {
   eventSlug: string;
   items: BrowserItem[];
@@ -53,6 +55,8 @@ export function GalleryBrowser({
   smallFaces: Record<string, ReactNode>;
   initialTrack: string | null;
   initialQuery: string;
+  /** The signed-in participant's own project, marked in the Field and the grid. */
+  mine?: string | null;
 }) {
   const [track, setTrackState] = useState<string | null>(
     initialTrack && tracks.some((t) => t.id === initialTrack) ? initialTrack : null,
@@ -129,7 +133,9 @@ export function GalleryBrowser({
                 {q ? <>match “{q}”{trackName ? ` in ${trackName}` : ""}</> : <>in {trackName}</>}. The rest fade back.
               </>
             ) : (
-              "Every project, by track, each face drawn from its id. Choose a track to filter."
+              `Every project, by track, each face drawn from its id. Choose a track to filter.${
+                mine && items.some((i) => i.id === mine) ? " Your team’s is outlined." : ""
+              }`
             )}
           </p>
           <button
@@ -165,7 +171,7 @@ export function GalleryBrowser({
                       tabIndex={-1}
                       title={i.title}
                       onMouseEnter={() => setPeek(i.id)}
-                      className={`develop block ${peek === i.id ? "lit" : ""}`}
+                      className={`develop block ${peek === i.id ? "lit" : ""} ${i.id === mine ? "outline-2 outline-offset-1 outline-ink" : ""}`}
                       style={{ "--i": ti * 2 + k } as CSSProperties}
                     >
                       <div
@@ -302,6 +308,9 @@ export function GalleryBrowser({
                   <h3 className="font-display text-20 leading-tight sm:mt-4">{i.title}</h3>
                   <p className="mt-1 text-15 text-ink-2">{i.summary}</p>
                   <p className="mt-2 text-13 text-ink-3">
+                    {i.id === mine ? (
+                      <Badge className="mr-2 border-ink align-[1px] text-ink">Your team</Badge>
+                    ) : null}
                     {i.teamName} · {i.trackName}
                   </p>
                   {i.tags.length ? (
