@@ -208,7 +208,12 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                               <Leniency s={standing.get(j.id)} k={k} span={span} />
                             </TableCell>
                           ) : null}
-                          <TableCell className="max-w-[260px] text-13 max-md:col-span-2 max-md:block max-md:max-w-none max-md:p-0">
+                          <TableCell
+                            className={`max-w-[260px] text-13 max-md:col-span-2 max-md:max-w-none max-md:p-0 ${
+                              // On phones a finished judge's standing is a lone check under the group's "All finished": drop it.
+                              grouped && g === 2 && !j.flat && !j.override ? "max-md:hidden" : "max-md:block"
+                            }`}
+                          >
                             {j.flat ? (
                               <p className={j.excluded ? "text-flag" : "text-ink-2"}>
                                 Flat: {j.flat.vector.join(" / ")} on all {j.flat.reviews} projects.{" "}
