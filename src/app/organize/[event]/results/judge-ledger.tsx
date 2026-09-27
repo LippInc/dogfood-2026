@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { Influence, JudgeStanding, Normalized } from "@/server/dal";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
 import { overrideAction, undoOverrideAction } from "../decision-actions";
@@ -70,6 +71,10 @@ function Action({ j, eventSlug }: { j: JudgeStanding; eventSlug: string }) {
   );
 }
 
+/** Left out first, then the judges whose leaving out would change a track's first place, then the rest. */
+const GROUPS = ["Left out", "Leaving them out changes a first place", "Leaving them out keeps every first place"];
+const groupOf = (j: JudgeStanding) => (j.excluded ? 0 : j.influence?.leaders.length ? 1 : 2);
+
 /** The influence check in one sentence: how much one counted judge moves, and how often a first place changes. */
 function Summary({ judges }: { judges: JudgeStanding[] }) {
   const out = judges.filter((j) => j.influence?.change === "leave_out").map((j) => j.influence!);
@@ -90,9 +95,12 @@ function Summary({ judges }: { judges: JudgeStanding[] }) {
 
 export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventSlug: string; published: boolean }) {
   const k = n.variance.k;
-  const judges = n.judges.filter((j) => j.nAll > 0 || j.override);
+  // Stable sort: by name inside each group, as the DAL lists them.
+  const judges = n.judges.filter((j) => j.nAll > 0 || j.override).sort((a, b) => groupOf(a) - groupOf(b));
+  const grouped = new Set(judges.map(groupOf)).size > 1;
   const idle = n.judges.length - judges.length;
   const drawn = judges.filter((j) => !j.excluded && k !== null);
+  const columns = 6 + (drawn.length ? 1 : 0) + (published ? 0 : 1);
   const span = leniencySpan(drawn.flatMap((j) => [j.tilt ?? 0, j.leniency + 2 * (j.se ?? 0), j.leniency - 2 * (j.se ?? 0)]));
   return (
     <section aria-labelledby="ledger-title" className="flex flex-col gap-3">
@@ -140,8 +148,18 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
             </tr>
           </thead>
           <tbody className="max-md:block">
-            {judges.map((j) => (
-              <tr key={j.id} className="border-b border-rule align-top last:border-b-0 max-md:grid max-md:grid-cols-[1fr_auto] max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
+            {judges.map((j, i) => (
+              <Fragment key={j.id}>
+              {grouped && (i === 0 || groupOf(judges[i - 1]!) !== groupOf(j)) ? (
+                <tr className="border-b border-rule bg-sunken max-md:block">
+                  <td colSpan={columns} className="px-3 py-1.5 max-md:block">
+                    <span className={`label-mono ${groupOf(j) === 0 ? "text-flag" : "text-ink-2"}`}>
+                      {GROUPS[groupOf(j)]} · {judges.filter((x) => groupOf(x) === groupOf(j)).length}
+                    </span>
+                  </td>
+                </tr>
+              ) : null}
+              <tr className="border-b border-rule align-top last:border-b-0 max-md:grid max-md:grid-cols-[1fr_auto] max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
                 <td className="px-3 py-2 max-md:p-0">
                   <p className="font-medium">{j.name}</p>
                   <p className="text-12 text-ink-2 md:hidden">
@@ -172,6 +190,7 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
                   </td>
                 )}
               </tr>
+              </Fragment>
             ))}
           </tbody>
         </table>
