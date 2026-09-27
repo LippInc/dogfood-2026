@@ -72,3 +72,30 @@ function phaseOf(e: EventTimes, now: Date): { key: string; parts: string[] } {
 export function isPast(iso: string, now: number = Date.now()): boolean {
   return now >= Date.parse(iso);
 }
+
+const FRACTIONS: [number, string][] = [
+  [1 / 2, "½"],
+  [1 / 3, "⅓"],
+  [2 / 3, "⅔"],
+  [1 / 4, "¼"],
+  [3 / 4, "¾"],
+  [1 / 5, "⅕"],
+  [2 / 5, "⅖"],
+  [3 / 5, "⅗"],
+  [4 / 5, "⅘"],
+  [1 / 6, "⅙"],
+  [1 / 8, "⅛"],
+];
+
+/**
+ * Each rubric criterion's share of the total weight, for display: fractions when every
+ * share is a simple one (⅓ ⅓ ⅓), otherwise percentages for all of them (7 %, 13 %,
+ * 20 %), so one rubric never mixes the two. The console and the About page both use it.
+ */
+export function weightShares(weights: number[]): string[] {
+  const total = weights.reduce((s, w) => s + w, 0);
+  const shares = weights.map((w) => (total > 0 ? w / total : 0));
+  const glyphs = shares.map((s) => FRACTIONS.find(([v]) => Math.abs(v - s) < 1e-9)?.[1]);
+  if (glyphs.every((g) => g !== undefined)) return glyphs as string[];
+  return shares.map((s) => `${Math.round(s * 100)} %`);
+}

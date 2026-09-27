@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, weightShares } from "@/lib/format";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
 
 // The judge console (DESIGN.md: the judge keys with autosave and "your ranking so
@@ -63,27 +63,6 @@ const letters = {
     window.dispatchEvent(new Event("judge:letters"));
   },
 };
-
-const FRACTIONS: [number, string][] = [
-  [1, "1"],
-  [1 / 2, "½"],
-  [1 / 3, "⅓"],
-  [2 / 3, "⅔"],
-  [1 / 4, "¼"],
-  [3 / 4, "¾"],
-  [1 / 5, "⅕"],
-  [2 / 5, "⅖"],
-  [3 / 5, "⅗"],
-  [4 / 5, "⅘"],
-  [1 / 6, "⅙"],
-  [1 / 8, "⅛"],
-];
-
-function weightLabel(weight: number, sum: number): string {
-  const share = weight / sum;
-  const hit = FRACTIONS.find(([v]) => Math.abs(v - share) < 1e-9);
-  return hit ? hit[1] : `${Math.round(share * 100)} %`;
-}
 
 const num = (n: number) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
 
@@ -400,7 +379,7 @@ export function JudgeConsoleView({
 
   const state = saveState[current.assignmentId] ?? { kind: "idle" };
   const total = totalOf(criteria, review.values);
-  const sumWeights = criteria.reduce((s, c) => s + c.weight, 0);
+  const shares = weightShares(criteria.map((c) => c.weight));
   const scaleMin = Math.min(...criteria.map((c) => c.scaleMin));
   const scaleMax = Math.max(...criteria.map((c) => c.scaleMax));
   const currentRank = ranking.find((r) => r.id === current.assignmentId);
@@ -592,7 +571,7 @@ export function JudgeConsoleView({
                       </span>
                       {c.prompt ? <span className="ml-2 text-13 text-ink-2">{c.prompt}</span> : null}
                     </p>
-                    <span className="shrink-0 text-13 text-ink-2">weight {weightLabel(c.weight, sumWeights)}</span>
+                    <span className="shrink-0 text-13 text-ink-2">weight {shares[ci]}</span>
                   </div>
                   <div className="mt-3 flex">
                     {levels.map((level, li) => (

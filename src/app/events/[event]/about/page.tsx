@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/shell/public-shell";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, weightShares } from "@/lib/format";
 import { actorNav, currentActor, getAbout, NotFoundError, type About } from "@/server/dal";
 
 export const dynamic = "force-dynamic";
@@ -16,18 +16,12 @@ function load(key: string): About {
   }
 }
 
-function fraction(weight: number, total: number): string {
-  const share = weight / total;
-  const thirds: Record<string, string> = { "0.333": "⅓", "0.5": "½", "0.25": "¼", "0.667": "⅔", "0.75": "¾" };
-  return thirds[share.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")] ?? `${Math.round(share * 100)} %`;
-}
-
 export default async function AboutPage({ params }: PageProps<"/events/[event]/about">) {
   const { event: key } = await params;
   const about = load(key);
   const actor = await currentActor();
   const { event } = about;
-  const totalWeight = about.rubric.reduce((s, c) => s + c.weight, 0);
+  const shares = weightShares(about.rubric.map((c) => c.weight));
   const dates: [string, string | null][] = [
     ["Submissions open", event.submissionsOpenAt ? formatUtc(event.submissionsOpenAt, { weekday: true }) : "From the start"],
     ["Submissions close", formatUtc(event.submissionsCloseAt, { weekday: true })],
@@ -99,11 +93,11 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
           harshly or generously, and shows its working next to every result.
         </p>
         <ul className="mt-6 grid gap-4 sm:grid-cols-3">
-          {about.rubric.map((c) => (
+          {about.rubric.map((c, i) => (
             <li key={c.key} className="rounded-sm border border-rule bg-surface p-5 wrap-anywhere">
               <div className="flex items-baseline justify-between gap-3">
                 <p className="min-w-0 text-15 font-semibold">{c.label}</p>
-                <p className="shrink-0 font-mono text-13 text-ink-3">weight {fraction(c.weight, totalWeight)}</p>
+                <p className="shrink-0 font-mono text-13 text-ink-3">weight {shares[i]}</p>
               </div>
               <p className="mt-1 text-14 text-ink-2">{c.prompt}</p>
             </li>
