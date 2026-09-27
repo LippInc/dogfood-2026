@@ -195,7 +195,12 @@ export function GalleryBrowser({
         </div>
       </div>
 
-      {visible.length === 0 ? (
+      {items.length === 0 ? (
+        <div className="mt-10 rounded-sm border border-dashed border-edge px-6 py-12 text-center">
+          <p className="text-17">No projects yet.</p>
+          <p className="mt-2 text-14 text-ink-2">Submitted projects appear here, in a new order for each visit.</p>
+        </div>
+      ) : visible.length === 0 ? (
         <div className="mt-10 rounded-sm border border-dashed border-edge px-6 py-12 text-center">
           <p className="text-17">No project matches {query ? `“${query}”` : "this filter"}.</p>
           <button

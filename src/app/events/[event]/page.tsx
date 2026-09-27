@@ -9,6 +9,8 @@ import { actorNav, currentActor, getGallery, NotFoundError, type Gallery } from 
 // shuffled order, so no project is always first. Nothing is baked in at build time.
 export const dynamic = "force-dynamic";
 
+const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
 function loadGallery(key: string): Gallery {
   try {
     return getGallery(key);
@@ -59,7 +61,7 @@ export default async function GalleryPage({ params, searchParams }: PageProps<"/
       <div className="flex flex-col gap-3 pb-6 pt-8 md:flex-row md:items-end md:justify-between md:pb-8 md:pt-10">
         <h1 className="font-display text-[48px] leading-[52px] md:text-64">Projects</h1>
         <p className="label-mono tnum text-ink-2 tracking-[0.06em] sm:tracking-[0.12em] md:pb-2">
-          {counts.projects} projects / {counts.teams} teams / {counts.tracks} tracks / {counts.judges} judges
+          {plural(counts.projects, "project")} / {plural(counts.teams, "team")} / {plural(counts.tracks, "track")} / {plural(counts.judges, "judge")}
         </p>
       </div>
       <GalleryBrowser

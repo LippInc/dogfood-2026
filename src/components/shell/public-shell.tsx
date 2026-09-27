@@ -30,6 +30,12 @@ export function PublicShell({
 }) {
   const phase = eventPhase(event);
   const base = `/events/${event.slug}`;
+  // The way in for someone with no role in this event yet, while teams can form:
+  // the team page (start or join a team), through sign-up when signed out.
+  const myProject = `${base}/my-project`;
+  const inEvent = links.some((l) => l.href === myProject || l.href.endsWith(`/${event.slug}`));
+  const takePart =
+    (phase.key === "open" || phase.key === "upcoming") && !inEvent ? (signedInAs ? myProject : `/sign-up?next=${encodeURIComponent(myProject)}`) : null;
   return (
     <div className="public min-h-dvh">
       <a
@@ -58,6 +64,11 @@ export function PublicShell({
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <ModeToggle />
+            {takePart ? (
+              <Link href={takePart} className="hidden h-10 items-center rounded-sm bg-primary px-4 text-15 font-medium text-on-primary hover:opacity-90 md:inline-flex">
+                Take part
+              </Link>
+            ) : null}
             {signedInAs ? (
               <div className="hidden items-center gap-3 md:flex">
                 {links.map((l) => (
@@ -95,6 +106,11 @@ export function PublicShell({
                   </Link>
                 ))}
                 <div className="my-2 border-t border-rule" />
+                {takePart ? (
+                  <Link href={takePart} className="flex h-11 items-center rounded-sm px-3 text-15 font-semibold hover:bg-raised">
+                    Take part
+                  </Link>
+                ) : null}
                 {signedInAs ? (
                   <>
                     {links.map((l) => (
