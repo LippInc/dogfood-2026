@@ -319,6 +319,9 @@ describe("mergeDuplicate / unmergeDuplicate / dismissDuplicate", () => {
   it("unmerge restores 41 ranked projects and writes one project.unmerge row", () => {
     mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
     expect(computeNormalization(h.db, eventOf()).ranked).toBe(40);
+    // the decision names the merged copy, so the overview offers Undo for that one only
+    const copies = decisions(h.db, eventOf()).find(isDuplicate)!.copies;
+    expect(Object.fromEntries(copies.map((c) => [c.id, c.duplicateOf]))).toEqual({ prj_07: null, prj_41: "prj_07" });
 
     unmergeDuplicate(organizer(), "evt_01", { duplicateId: "prj_41" });
 

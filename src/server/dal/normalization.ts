@@ -393,7 +393,7 @@ export type Decision =
       key: string;
       team: string;
       title: string;
-      copies: { id: string; title: string; submittedAt: string | null; repoUrl: string | null; rankRaw: number | null; n: number }[];
+      copies: { id: string; title: string; submittedAt: string | null; repoUrl: string | null; rankRaw: number | null; n: number; duplicateOf: string | null }[];
       resolved: "merged" | "not_duplicates" | null;
       keptId: string | null;
     }
@@ -473,7 +473,7 @@ export function decisions(db: DbOrTx, event: EventRow, now = computeNormalizatio
       title: copies[0]!.title,
       copies: copies.map((c) => {
         const row = now.projects.find((p) => p.id === c.id);
-        return { id: c.id, title: c.title, submittedAt: c.submittedAt, repoUrl: c.repoUrl, rankRaw: row?.rankRaw ?? null, n: row?.nAll ?? 0 };
+        return { id: c.id, title: c.title, submittedAt: c.submittedAt, repoUrl: c.repoUrl, rankRaw: row?.rankRaw ?? null, n: row?.nAll ?? 0, duplicateOf: c.duplicateOf };
       }),
       resolved: merged ? "merged" : allDismissed ? "not_duplicates" : null,
       keptId: merged?.duplicateOf ?? null,

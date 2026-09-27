@@ -261,7 +261,7 @@ function Body({ d, eventSlug }: { d: Decision; eventSlug: string }) {
           {d.resolved === "merged" ? (
             <div className="flex flex-wrap items-center gap-3">
               {d.copies
-                .filter((c) => c.id !== d.keptId)
+                .filter((c) => c.duplicateOf !== null)
                 .map((c) => (
                   <OneClick
                     key={c.id}

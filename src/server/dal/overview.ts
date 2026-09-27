@@ -106,7 +106,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
     {
       no: "09",
       name: "Certificates",
-      state: !event.resultsPublishedAt ? "after publishing" : issued ? `${issued} issued` : "ready to issue",
+      state: !event.resultsPublishedAt ? "after publishing" : issued ? `${issued} ${issued === 1 ? "record" : "records"} issued` : "ready to issue",
       open: 0,
       done: issued > 0,
     },

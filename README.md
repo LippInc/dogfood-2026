@@ -224,6 +224,9 @@ start, and the fixture import never overwrites what the organizers changed.
   `X-Forwarded-For`; run the portal behind a reverse proxy that overwrites it, or
   a client can pick its own. The limits live in memory and reset on restart.
 - Results cannot be unpublished from the interface.
+- A team that entered the same project three or more times: the overview merges
+  two copies; merge the others over the API (`POST
+  /api/events/<event>/duplicates/merge`).
 - The portal imports only `fixtures.json`, so settings and the organizer's
   decisions (a merge, a reinstated judge, a project published as it is) do not
   move to another portal; `event.json` keeps them as a record.
