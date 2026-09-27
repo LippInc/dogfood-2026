@@ -300,7 +300,8 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <StatusLine status={status} />
               {readOnly ? null : (
-                <Button variant="outline" onClick={undo} disabled={!canAnswer || track.answered === 0}>
+                // on phones a disabled undo is a whole row above the question, so it waits for the first answer
+                <Button variant="outline" onClick={undo} disabled={!canAnswer || track.answered === 0} className={track.answered === 0 ? "max-lg:hidden" : ""}>
                   <Undo2 aria-hidden />
                   Undo last answer
                   <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">U</kbd>
@@ -579,7 +580,8 @@ function ProjectCard({
 
 function StatusLine({ status }: { status: Status }) {
   return (
-    <p role="status" aria-live="polite" className="flex items-center gap-1.5 text-13 text-ink-2">
+    // empty, it leaves the row (sr-only keeps the live region), so it does not push the undo button in by a gap on phones
+    <p role="status" aria-live="polite" className="flex items-center gap-1.5 text-13 text-ink-2 empty:sr-only">
       {status.kind === "saving" ? (
         "Saving…"
       ) : status.kind === "saved" ? (
@@ -592,9 +594,7 @@ function StatusLine({ status }: { status: Status }) {
           <CircleAlert className="size-3.5 shrink-0 text-flag" aria-hidden />
           <span className="text-flag">{status.text}</span>
         </>
-      ) : (
-        ""
-      )}
+      ) : null}
     </p>
   );
 }
