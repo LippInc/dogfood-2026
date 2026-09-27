@@ -149,11 +149,14 @@ export function GalleryBrowser({
                 </button>
                 <div className="mt-3 grid grid-cols-2 gap-1" aria-hidden="true" onMouseLeave={() => setPeek(null)}>
                   {inTrack.map((i, k) => (
-                    <div
+                    // A pointer shortcut to the project; keyboard and screen readers use the grid's links.
+                    <Link
                       key={i.id}
+                      href={`/events/${eventSlug}/projects/${i.id}`}
+                      tabIndex={-1}
                       title={i.title}
                       onMouseEnter={() => setPeek(i.id)}
-                      className={`develop ${peek === i.id ? "lit" : ""}`}
+                      className={`develop block ${peek === i.id ? "lit" : ""}`}
                       style={{ "--i": ti * 2 + k } as CSSProperties}
                     >
                       <div
@@ -161,7 +164,7 @@ export function GalleryBrowser({
                       >
                         {smallFaces[i.id]}
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>
