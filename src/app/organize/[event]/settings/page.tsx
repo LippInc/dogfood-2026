@@ -17,6 +17,7 @@ import {
   saveTracksAction,
 } from "./actions";
 import { RemoveOrganizer } from "./remove-organizer";
+import { RubricEditor } from "./rubric-editor";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Settings" };
@@ -46,7 +47,6 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
   const { event } = o;
   const organizers = listOrganizers(actor, event.id);
   const hidden = { event: event.slug };
-  const totalWeight = o.rubric.reduce((s, c) => s + c.weight, 0);
   const mode = judgingModeOf(event);
   const count = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "none");
   /** What each section holds now, from the saved event: the contents read as an index, not only a list of names. */
@@ -297,30 +297,8 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             description={
               <>
                 Judges score each criterion from 1 to 5; a review&apos;s total is the weighted mean. Weights are relative: 1, 1
-                and 2 give the last criterion half the total. Now:{" "}
-                {o.rubric.map((c, i) => (
-                  <span key={c.id} className="tnum">
-                    {i ? " · " : ""}
-                    {c.label} {Math.round((c.weight / totalWeight) * 100)} %
-                  </span>
-                ))}
-                .{event.resultsPublishedAt ? " Results are published, so the rubric is final." : ""}
-                {/* the saved weights as one bar: each criterion's share of a review's total */}
-                {totalWeight > 0 ? (
-                  <span className="mt-3 flex h-7 w-full gap-[2px]" aria-hidden>
-                    {o.rubric.map((c, i) => (
-                      <span
-                        key={c.id}
-                        className={`flex min-w-0 items-center overflow-hidden px-2 text-12 font-medium whitespace-nowrap text-surface ${i % 2 ? "bg-ink-2" : "bg-ink"}`}
-                        style={{ flexGrow: c.weight, flexBasis: 0 }}
-                      >
-                        <span className="truncate">
-                          {c.label} · {Math.round((c.weight / totalWeight) * 100)} %
-                        </span>
-                      </span>
-                    ))}
-                  </span>
-                ) : null}
+                and 2 give the last criterion half the total.
+                {event.resultsPublishedAt ? " Results are published, so the rubric is final." : ""}
               </>
             }
             action={saveRubricAction}
@@ -328,19 +306,10 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             fieldLabels={{ criteria: "Criteria" }}
             rowLabel="Criterion"
           >
-            <RowsEditor
-              name="rubric"
-              initial={o.rubric.map((c) => ({ id: c.id, label: c.label, prompt: c.prompt, weight: c.weight }))}
-              blank={{ label: "", prompt: "", weight: 1 }}
-              addLabel="Add a criterion"
-              grid="lg:grid-cols-[20px_minmax(0,11rem)_minmax(0,1fr)_5rem_92px]"
+            <RubricEditor
+              saved={o.rubric.map((c) => ({ id: c.id, label: c.label, prompt: c.prompt, weight: c.weight }))}
               locked={o.scored}
               lockedHint="Judges have scored already: labels, prompts and weights can change, the set of criteria cannot."
-              fields={[
-                { key: "label", label: "Criterion", type: "text", width: "w-40" },
-                { key: "prompt", label: "Question for the judge", type: "text" },
-                { key: "weight", label: "Weight", type: "number", width: "w-20" },
-              ]}
             />
           </SectionForm>
         </div>
