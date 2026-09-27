@@ -502,7 +502,75 @@ export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
   const event = requireEvent(db, eventIdOrSlug);
   guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
   const now = computeNormalization(db, event, { signal: true, influence: true });
-  return { event, method: METHOD_LABEL, normalization: now, decisions: decisions(db, event, now), notes: privateNotes(db, event.id, now.projects) };
+  return {
+    event,
+    method: METHOD_LABEL,
+    normalization: now,
+    decisions: decisions(db, event, now),
+    notes: privateNotes(db, event.id, now.projects),
+    crossCheck: judgingModeOf(event) === "scores" ? crossCheck(db, event, now.projects) : null,
+  };
+}
+
+/** Kendall's tau-b of two orders of the same items (lower is better in both); null when either order is all ties. */
+export function kendallTauB(a: number[], b: number[]): number | null {
+  let concordant = 0;
+  let discordant = 0;
+  let tiesA = 0;
+  let tiesB = 0;
+  for (let i = 0; i < a.length; i++) {
+    for (let j = i + 1; j < a.length; j++) {
+      const x = Math.sign(a[i]! - a[j]!);
+      const y = Math.sign(b[i]! - b[j]!);
+      if (x === 0 && y === 0) continue;
+      if (x === 0) tiesA++;
+      else if (y === 0) tiesB++;
+      else if (x === y) concordant++;
+      else discordant++;
+    }
+  }
+  const den = Math.sqrt((concordant + discordant + tiesA) * (concordant + discordant + tiesB));
+  return den === 0 ? null : (concordant - discordant) / den;
+}
+
+export type CrossCheck = {
+  tracks: { trackId: string; name: string; projects: number; tau: number | null; movers: { id: string; title: string; normalized: number; pairwise: number }[] }[];
+  /** tau across tracks, each weighted by its projects */
+  overall: number | null;
+};
+
+/**
+ * A second opinion on a scores-mode ranking from the same reviews: the pairwise engine
+ * reads each judge's reviews only as their order of their own projects (JUDGING.md,
+ * "Pairwise mode"), so no judge's scale can move it. Per track: how far the two
+ * orders agree (Kendall's tau-b) and the projects whose places differ most.
+ */
+function crossCheck(db: DbOrTx, event: EventRow, rows: ProjectRow[]): CrossCheck {
+  const pw = computePairwise(db, event);
+  const place = new Map(pw.fit.projects.filter((p) => p.comparisons > 0).map((p) => [p.id, p.place]));
+  const byTrack = new Map<string, ProjectRow[]>();
+  for (const r of rows) {
+    if (r.duplicateOf || r.trackRank === null || !place.has(r.id)) continue;
+    byTrack.set(r.trackId, [...(byTrack.get(r.trackId) ?? []), r]);
+  }
+  const tracksOut = [...byTrack.values()].map((list) => {
+    const tau = kendallTauB(
+      list.map((r) => r.trackRank!),
+      list.map((r) => place.get(r.id)!),
+    );
+    const movers = list
+      .map((r) => ({ id: r.id, title: r.title, normalized: r.trackRank!, pairwise: place.get(r.id)! }))
+      .filter((m) => Math.abs(m.normalized - m.pairwise) >= 1)
+      .sort((x, y) => Math.abs(y.normalized - y.pairwise) - Math.abs(x.normalized - x.pairwise) || x.title.localeCompare(y.title))
+      .slice(0, 3);
+    return { trackId: list[0]!.trackId, name: list[0]!.trackName, projects: list.length, tau, movers };
+  });
+  const weighted = tracksOut.filter((t) => t.tau !== null);
+  const total = weighted.reduce((n, t) => n + t.projects, 0);
+  return {
+    tracks: tracksOut,
+    overall: total ? weighted.reduce((sum, t) => sum + t.tau! * t.projects, 0) / total : null,
+  };
 }
 
 // ---------------------------------------------------------------------------

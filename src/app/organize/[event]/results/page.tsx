@@ -52,7 +52,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const { track } = await searchParams;
   const actor = await currentActor();
   if (!actor) unauthorized();
-  const { event, normalization: n, decisions, notes } = guardPage(() => getNormalization(actor, key));
+  const { event, normalization: n, decisions, notes, crossCheck } = guardPage(() => getNormalization(actor, key));
   const tracks = [...new Map(n.projects.map((p) => [p.trackId, p.trackName])).entries()];
   const chosen = typeof track === "string" && tracks.some(([id]) => id === track) ? track : null;
   const rows = n.projects.filter((p) => !chosen || p.trackId === chosen);
@@ -312,6 +312,47 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             Normalized ranks compare within a track; tracks compare only through judges who score in both.
           </p>
         </section>
+
+        {crossCheck && crossCheck.tracks.length ? (
+          <section aria-labelledby="cross-title" className="flex flex-col gap-3">
+            <h2 id="cross-title" className="text-17 font-semibold">
+              Cross-check: the same reviews as comparisons
+            </h2>
+            <p className="max-w-[860px] text-14 text-ink-2">
+              A second ranking from the same reviews, read only as each judge&rsquo;s order of their own projects: every two projects a judge scored
+              become one comparison, fitted by the pairwise engine (JUDGING.md, &ldquo;Pairwise mode&rdquo;). It never sets one judge&rsquo;s 4 against
+              another&rsquo;s 3, so no judge&rsquo;s leniency can move it. Where the two orders agree, the leniency correction is not what decides the
+              order; where they differ, read those projects&rsquo; receipts.
+              {crossCheck.overall !== null ? ` Agreement across tracks: τ = ${crossCheck.overall.toFixed(2)} (1 is the same order, 0 no relation).` : ""}
+            </p>
+            <div className="overflow-x-auto rounded-sm border border-rule bg-surface">
+              <table className="w-full text-14">
+                <thead>
+                  <tr className="border-b border-rule text-left text-13 text-ink-2">
+                    <th className="px-3 py-2 font-medium">Track</th>
+                    <th className="px-3 py-2 text-right font-medium">Projects</th>
+                    <th className="px-3 py-2 text-right font-medium">Agreement (Kendall τ)</th>
+                    <th className="px-3 py-2 font-medium">Largest differences, normalized place → pairwise place</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {crossCheck.tracks.map((t) => (
+                    <tr key={t.trackId} className="border-b border-rule align-top last:border-b-0">
+                      <td className="px-3 py-2">{t.name}</td>
+                      <td className="px-3 py-2 text-right tnum">{t.projects}</td>
+                      <td className="px-3 py-2 text-right tnum">{t.tau === null ? "–" : t.tau.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-13 wrap-anywhere">
+                        {t.movers.length
+                          ? t.movers.map((m) => `${m.title} ${rk(m.normalized)} → ${m.pairwise}`).join(" · ")
+                          : "no project moves a full place"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
 
         <JudgeLedger n={n} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} />
 

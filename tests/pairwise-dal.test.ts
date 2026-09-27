@@ -7,7 +7,7 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { runMigrations } from "@/server/db/migrate";
 import { auditLog, comparisons, judgeTracks } from "@/server/db/schema";
 import { setJudgeTracks } from "@/server/dal/judges";
-import { acceptUnderReviewed, getPublishedResults, mergeDuplicate, publishResults, setJudgeOverride } from "@/server/dal/normalization";
+import { acceptUnderReviewed, getNormalization, getPublishedResults, kendallTauB, mergeDuplicate, publishResults, setJudgeOverride } from "@/server/dal/normalization";
 import { getOverview } from "@/server/dal/overview";
 import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { authorize, type EventFacts } from "@/server/authz";
@@ -148,6 +148,27 @@ describe("pairwise mode: who may do what", () => {
     setJudgeTracks(checker("organizer"), "evt_01", judge.userId, { trackIds: keep });
     expect(getPairwiseState(judge, "evt_01").tracks.map((t) => t.trackId)).toEqual(keep);
     expect(h.db.select().from(judgeTracks).where(and(eq(judgeTracks.judgeUserId, judge.userId), eq(judgeTracks.trackId, before[0]!))).all()).toHaveLength(0);
+  });
+});
+
+describe("the scores-mode cross-check", () => {
+  it("Kendall's tau-b: 1 for the same order, -1 for the reverse, ties handled, null when nothing is ordered", () => {
+    expect(kendallTauB([1, 2, 3, 4], [1, 2, 3, 4])).toBe(1);
+    expect(kendallTauB([1, 2, 3, 4], [4, 3, 2, 1])).toBe(-1);
+    expect(kendallTauB([1, 2, 3], [1, 3, 2])).toBeCloseTo(1 / 3, 10);
+    expect(kendallTauB([1, 1, 2], [1, 2, 3])).toBeCloseTo(2 / Math.sqrt(6), 10);
+    expect(kendallTauB([1, 1], [1, 2])).toBeNull();
+  });
+
+  it("on the sample event, ranks the same reviews as comparisons and agrees clearly but not perfectly with the normalized order; not in pairwise mode", () => {
+    const org = checker("organizer");
+    const check = getNormalization(org, "evt_01").crossCheck!;
+    expect(check.tracks.length).toBeGreaterThanOrEqual(7);
+    expect(check.overall!).toBeGreaterThan(0.5);
+    expect(check.overall!).toBeLessThan(1);
+    expect(check.tracks.every((t) => t.projects >= 2 && t.movers.length <= 3)).toBe(true);
+    toPairwise();
+    expect(getNormalization(org, "evt_01").crossCheck).toBeNull();
   });
 });
 
