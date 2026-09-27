@@ -10,6 +10,7 @@ import { countWithoutPassword, currentActor, EXPORT_FILES, listDeliveries, listW
 import { CopyButton } from "../judges/forms";
 import { retry, sendTest, toggleWebhook } from "./actions";
 import { AddWebhookForm, ClaimLinksForm, RotateSecretForm } from "./forms";
+import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Integrations" };
@@ -175,7 +176,7 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
           </div>
           <div className="flex flex-wrap gap-2">
             {EXPORT_FILES.map((f) => (
-              <a key={f} href={`/api/events/${event.id}/export/${f}`} className="inline-flex h-8 items-center rounded-sm border border-edge px-3 font-mono text-12 hover:bg-raised">
+              <a key={f} href={exportHref(event.id, f)} className="inline-flex h-8 items-center rounded-sm border border-edge px-3 font-mono text-12 hover:bg-raised">
                 {f}
               </a>
             ))}

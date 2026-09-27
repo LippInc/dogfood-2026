@@ -65,6 +65,7 @@ export const OPERATIONS: Operation[] = [
     tag: "Events",
     summary: "Export: scores.csv, projects.csv, normalized.csv, audit.csv, event.json, or fixtures.json (the import format)",
     access: "organizer",
+    note: "Add ?bom=1 to a CSV for a UTF-8 byte-order mark, which Excel needs to read names outside ASCII; the portal's own download buttons do.",
   },
 
   {

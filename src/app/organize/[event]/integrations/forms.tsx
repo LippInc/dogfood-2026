@@ -106,7 +106,8 @@ export function ClaimLinksForm({ eventSlug, waiting }: { eventSlug: string; wait
   const links = state.links ?? [];
   const download = () => {
     const rows = ["name,email,link", ...links.map((l) => [l.name, l.email, origin + l.path].map(csvCell).join(","))];
-    const url = URL.createObjectURL(new Blob([rows.join("\n") + "\n"], { type: "text/csv" }));
+    // The byte-order mark lets Excel read the names as UTF-8 (see src/lib/export-href.ts).
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + rows.join("\n") + "\n"], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `${eventSlug}-personal-links.csv`;

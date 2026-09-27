@@ -133,7 +133,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   audited action to your URL (a ballot change without its picks), signed with
   HMAC-SHA256 and retried with backoff; each delivery is written in the same
   transaction as the change, so none is lost or invented.
-- **Import and export.** Every stage exports as CSV, and a whole event as
+- **Import and export.** Every stage exports as CSV (the download buttons add a
+  UTF-8 byte-order mark so Excel reads accented names; the API adds it only with
+  `?bom=1`), and a whole event as
   `event.json` or as `fixtures.json`, the organizers' own fixture format, which
   an administrator can import into another portal to get the same projects,
   judges and scores, and the same ranking as before any decision (settings and

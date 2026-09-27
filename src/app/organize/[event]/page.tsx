@@ -15,6 +15,7 @@ import {
 } from "@/server/dal";
 import { CopyButton } from "./judges/forms";
 import { Decisions, PublishPanel } from "./decisions";
+import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Overview" };
@@ -136,7 +137,7 @@ export default async function OverviewPage({
         <>
           <LiveRefresh />
           <a
-            href={`/api/events/${event.id}/export/scores.csv`}
+            href={exportHref(event.id, "scores.csv")}
             className="inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium hover:bg-raised"
           >
             Export CSV
@@ -322,7 +323,7 @@ export default async function OverviewPage({
               {EXPORTS.map((f) => (
                 <a
                   key={f}
-                  href={`/api/events/${event.id}/export/${f}`}
+                  href={exportHref(event.id, f)}
                   className="inline-flex h-7 items-center rounded-sm border border-edge px-2 font-mono text-12 hover:bg-raised"
                 >
                   {f}

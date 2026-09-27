@@ -9,6 +9,7 @@ import { formatUtc, plural } from "@/lib/format";
 import { currentActor, getNormalization, listRecords, METHOD_LABEL, type ProjectRow } from "@/server/dal";
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
+import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Results and their working" };
@@ -168,7 +169,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             <h2 id="table-title" className="text-17 font-semibold">
               Every project
             </h2>
-            <a href={`/api/events/${event.id}/export/normalized.csv`} className="text-13 underline underline-offset-4">
+            <a href={exportHref(event.id, "normalized.csv")} className="text-13 underline underline-offset-4">
               normalized.csv
             </a>
           </div>

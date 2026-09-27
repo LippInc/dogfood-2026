@@ -4,6 +4,7 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { currentActor, getAuditLog } from "@/server/dal";
+import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Audit log" };
@@ -25,7 +26,7 @@ export default async function AuditPage({ params }: PageProps<"/organize/[event]
             </p>
           </div>
           <a
-            href={`/api/events/${event.id}/export/audit.csv`}
+            href={exportHref(event.id, "audit.csv")}
             className="inline-flex h-9 items-center rounded-sm border border-edge px-3 text-14 font-medium hover:bg-raised"
           >
             Download audit.csv
