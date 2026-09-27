@@ -317,24 +317,33 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
         </div>
 
         <section aria-labelledby="comments-title" className="mt-12 max-w-[680px] border-t border-rule pt-8 pb-16">
-          <h2 id="comments-title" className="text-17 font-semibold">
-            Comments <span className="font-normal text-ink-2">· {comments.filter((c) => !c.hidden).length}</span>
+          <h2 id="comments-title" className="flex items-baseline gap-2 text-20 font-semibold">
+            Comments <span className="font-mono text-13 font-normal text-ink-3 tnum">{comments.filter((c) => !c.hidden).length}</span>
           </h2>
           {comments.length ? (
-            <ol className="mt-4 flex flex-col divide-y divide-rule wrap-anywhere">
-              {comments.map((c) => (
-                <li key={c.id} className="py-4">
-                  <p className="flex flex-wrap items-baseline justify-between gap-2 text-13 text-ink-2">
-                    <span>
-                      <span className="font-semibold text-ink">{c.author}</span> · {formatUtc(c.createdAt)}
-                    </span>
-                    {canModerate && !c.hidden ? <HideForm commentId={c.id} path={path} /> : null}
-                  </p>
-                  {c.hidden ? (
-                    <p className="mt-2 text-14 text-ink-3 italic">Hidden by the organizers: {c.hidden.reason}</p>
-                  ) : (
-                    <p className="mt-2 font-serif text-17 leading-7 whitespace-pre-line">{c.body}</p>
-                  )}
+            <ol className="mt-5 flex flex-col border-t border-rule wrap-anywhere">
+              {comments.map((c, n) => (
+                <li key={c.id} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 border-b border-rule py-5 sm:grid-cols-[3rem_minmax(0,1fr)]">
+                  <span className="pt-0.5 font-mono text-12 text-ink-3 tnum" aria-hidden="true">
+                    {String(n + 1).padStart(2, "0")}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      <span className="flex flex-wrap items-baseline gap-x-2">
+                        <span className="text-14 font-semibold">{c.author}</span>
+                        {c.mine ? <span className="label-mono text-accent-ink">you</span> : null}
+                        <span className="font-mono text-12 text-ink-3">{formatUtc(c.createdAt)}</span>
+                      </span>
+                      {canModerate && !c.hidden ? <HideForm commentId={c.id} path={path} /> : null}
+                    </p>
+                    {c.hidden ? (
+                      <p className="sealed mt-2 rounded-xs border border-rule px-3 py-2 text-14 text-ink-2">
+                        <span className="font-medium text-ink">Hidden by the organizers:</span> {c.hidden.reason}
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 font-serif text-17 leading-7 whitespace-pre-line">{c.body}</p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ol>
