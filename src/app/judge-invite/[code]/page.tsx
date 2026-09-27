@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PlainShell } from "@/components/shell/plain-shell";
+import { Ticket } from "@/components/ticket";
 import { currentActor, judgeInviteByCode, NotFoundError, type JudgeInviteView } from "@/server/dal";
 import { AcceptButton } from "./accept-button";
 
@@ -21,7 +22,8 @@ export default async function JudgeInvitePage({ params }: PageProps<"/judge-invi
   const here = `/judge-invite/${code}`;
   const wrongPerson = Boolean(actor && invite.email && actor.email.toLowerCase() !== invite.email);
   return (
-    <PlainShell width="max-w-[560px]">
+    <PlainShell width="max-w-[800px]">
+      <Ticket faceId={`judges:${invite.event.id}`} stubLabel={invite.tracks.length === 1 ? "Track" : "Tracks"} stubValue={String(invite.tracks.length)}>
       <p className="label-mono text-ink-3">Judge invitation · {invite.event.name}</p>
       <h1 className="mt-3 font-display text-38">Judge {invite.event.name}</h1>
       <p className="mt-3 text-17 text-ink-2">
@@ -61,6 +63,7 @@ export default async function JudgeInvitePage({ params }: PageProps<"/judge-invi
           </div>
         )}
       </div>
+      </Ticket>
     </PlainShell>
   );
 }

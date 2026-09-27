@@ -257,6 +257,33 @@
     }
   }
 
+  /* a ticket's perforation notches: page-coloured bites where the stub's dashed line meets the edge */
+  .ticket-stub::before,
+  .ticket-stub::after {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 9999px;
+    background: var(--bg);
+  }
+  .ticket-stub::before {
+    left: -10px;
+    top: -10px;
+  }
+  .ticket-stub::after {
+    right: -10px;
+    top: -10px;
+  }
+  @media (min-width: 48rem) {
+    .ticket-stub::after {
+      left: -10px;
+      right: auto;
+      top: auto;
+      bottom: -10px;
+    }
+  }
+
   /* a sealed slot: hatched like a section cut on a drawing */
   .sealed {
     background-image: repeating-linear-gradient(135deg, var(--rule) 0 1px, transparent 1px 5px);

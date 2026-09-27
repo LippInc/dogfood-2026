@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PlainShell } from "@/components/shell/plain-shell";
+import { Ticket } from "@/components/ticket";
 import { currentActor, inviteByCode, NotFoundError, type InviteView } from "@/server/dal";
 import { JoinButton } from "./join-button";
 
@@ -21,7 +22,8 @@ export default async function JoinPage({ params }: PageProps<"/join/[code]">) {
   const here = `/join/${code}`;
   const full = invite.members >= invite.maxSize;
   return (
-    <PlainShell width="max-w-[560px]">
+    <PlainShell width="max-w-[800px]">
+      <Ticket faceId={invite.teamId} stubLabel="Members" stubValue={`${invite.members} / ${invite.maxSize}`}>
       <p className="label-mono text-ink-3">Invite · {invite.event.name}</p>
       <h1 className="mt-3 font-display text-38">Join {invite.teamName}</h1>
       <p className="mt-3 text-17 text-ink-2">
@@ -48,6 +50,7 @@ export default async function JoinPage({ params }: PageProps<"/join/[code]">) {
           </div>
         )}
       </div>
+      </Ticket>
     </PlainShell>
   );
 }
