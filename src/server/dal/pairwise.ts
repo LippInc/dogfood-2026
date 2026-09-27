@@ -42,6 +42,8 @@ function pairwiseOn(event: EventRow) {
 
 export type PairwiseProject = {
   id: string;
+  /** the judge's own assignment for this project (to declare a conflict) */
+  assignmentId: string;
   title: string;
   summary: string;
   description: string;
@@ -58,6 +60,7 @@ function ownProjects(db: DbOrTx, eventId: string, judgeUserId: string) {
   const rows = db
     .select({
       id: projects.id,
+      assignmentId: assignments.id,
       title: projects.title,
       summary: projects.summary,
       description: projects.description,

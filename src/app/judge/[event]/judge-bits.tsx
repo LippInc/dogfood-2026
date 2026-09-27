@@ -1,5 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+
 // Small pieces the scores console and the pairwise Compare screen share.
 
 const LETTERS_KEY = "judge-letter-keys";
@@ -69,4 +74,74 @@ export function ProjectLink({ label, url }: { label: string; url: string | null 
 
 export function Kbd({ children }: { children: React.ReactNode }) {
   return <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-[2px] border border-edge px-1 font-mono text-12 text-ink">{children}</kbd>;
+}
+
+export function RecuseDialog({
+  open,
+  onOpenChange,
+  teamName,
+  assignmentId,
+  onDone,
+  pairwise = false,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  teamName: string;
+  assignmentId: string;
+  onDone: (message: string) => void;
+  /** pairwise mode: the judge answers about the project instead of scoring it */
+  pairwise?: boolean;
+}) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function send() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/judge/reviews/${assignmentId}/recuse`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.details?.reason?.[0] ?? body.message ?? "Not recorded.");
+        return;
+      }
+      setReason("");
+      onDone(`You declared a conflict of interest, so this project left your ${pairwise ? "list" : "batch"}. The organizers can see why.`);
+    } catch {
+      setError("No connection. Nothing was recorded; try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Declare a conflict of interest</DialogTitle>
+          <DialogDescription className="wrap-anywhere">
+            If you know {teamName} or worked with them, you should not {pairwise ? "judge" : "score"} them. The project leaves your{" "}
+            {pairwise ? "list, your answers about it no longer count" : "batch, your scores for it no longer count"}, and the organizers see your
+            reason. This cannot be undone from here.
+          </DialogDescription>
+        </DialogHeader>
+        <label htmlFor="recuse-reason" className="text-14 font-medium">
+          Why, in a few words
+        </label>
+        <Textarea id="recuse-reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={Boolean(error)} />
+        {error ? <p className="text-13 text-flag">{error}</p> : null}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={send} disabled={busy || reason.trim().length < 3}>
+            {busy ? "Recording…" : "Declare the conflict"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

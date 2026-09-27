@@ -6,7 +6,7 @@ import { ProjectImage } from "@/components/project-cover";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PairwiseProject, PairwiseState, PairwiseTrackState } from "@/server/dal";
-import { Kbd, letters, paragraphs, ProjectLink } from "./judge-bits";
+import { Kbd, letters, paragraphs, ProjectLink, RecuseDialog } from "./judge-bits";
 
 // The Compare screen: the judge console in pairwise mode (JUDGING.md "Pairwise mode").
 // Two of the judge's own projects and one question, which is better. Each project is
@@ -35,6 +35,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
   const [trackId, setTrackId] = useState<string | null>((initial.tracks.find((t) => t.current) ?? initial.tracks[0])?.trackId ?? null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [keysOpen, setKeysOpen] = useState(false);
+  const [recuseFor, setRecuseFor] = useState<PairwiseProject | null>(null);
   const lettersOn = useSyncExternalStore(letters.subscribe, letters.get, () => true);
   const track = data.tracks.find((t) => t.trackId === trackId) ?? data.tracks[0] ?? null;
   const slug = data.event.slug;
@@ -104,7 +105,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (keysOpen || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (keysOpen || recuseFor || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("textarea, input, select, [contenteditable='true']")) return;
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -128,7 +129,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [answer, keysOpen, lettersOn, undo]);
+  }, [answer, keysOpen, lettersOn, recuseFor, undo]);
 
   if (!track) {
     return (
@@ -289,6 +290,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                     side={n === 0 ? "left" : "right"}
                     disabled={!canAnswer}
                     onPick={() => answer(n === 0 ? "left" : "right")}
+                    onRecuse={readOnly ? null : () => setRecuseFor(p)}
                   />
                 ))}
               </div>
@@ -344,6 +346,20 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
       ) : null}
 
       <CompareKeys open={keysOpen} onOpenChange={setKeysOpen} lettersOn={lettersOn} />
+      {recuseFor ? (
+        <RecuseDialog
+          open
+          pairwise
+          onOpenChange={(open) => (open ? null : setRecuseFor(null))}
+          teamName={recuseFor.teamName}
+          assignmentId={recuseFor.assignmentId}
+          onDone={(message) => {
+            setRecuseFor(null);
+            setStatus({ kind: "saved", text: message });
+            void reload().catch(() => setStatus({ kind: "error", text: "Recorded; reload the page to see your list." }));
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -355,6 +371,7 @@ function ProjectCard({
   side,
   disabled,
   onPick,
+  onRecuse,
 }: {
   project: PairwiseProject;
   face: ReactNode;
@@ -362,6 +379,8 @@ function ProjectCard({
   side: "left" | "right";
   disabled: boolean;
   onPick: () => void;
+  /** null once answers are final */
+  onRecuse: (() => void) | null;
 }) {
   const body = paragraphs(p.description);
   return (
@@ -401,6 +420,14 @@ function ProjectCard({
               </p>
             ))}
           </details>
+        ) : null}
+        {onRecuse ? (
+          <p className="mt-4 text-13 text-ink-2">
+            Know this team?{" "}
+            <button type="button" onClick={onRecuse} className="text-ink underline underline-offset-4">
+              Declare a conflict of interest
+            </button>
+          </p>
         ) : null}
         <div className="mt-auto pt-5 max-lg:hidden">
           <Button size="xl" className="w-full" onClick={onPick} disabled={disabled} aria-label={`This one: ${p.title}`}>

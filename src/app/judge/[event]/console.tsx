@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { formatUtc, weightShares } from "@/lib/format";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
-import { Kbd, letters, paragraphs, ProjectLink } from "./judge-bits";
+import { Kbd, letters, paragraphs, ProjectLink, RecuseDialog } from "./judge-bits";
 
 // The judge console (DESIGN.md: the judge keys with autosave and "your ranking so
 // far"). Three panes that scroll on their own: the batch rail in the judge's seeded
@@ -817,72 +817,6 @@ function KeysDialog({
           Single-key shortcuts (letters, digits and ?) are on
         </label>
         <p className="text-13 text-ink-2">Turn them off if you use speech input or they get in your way. Arrows, Esc and Ctrl + Enter keep working.</p>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function RecuseDialog({
-  open,
-  onOpenChange,
-  teamName,
-  assignmentId,
-  onDone,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  teamName: string;
-  assignmentId: string;
-  onDone: (message: string) => void;
-}) {
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  async function send() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/judge/reviews/${assignmentId}/recuse`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(body.details?.reason?.[0] ?? body.message ?? "Not recorded.");
-        return;
-      }
-      setReason("");
-      onDone("You declared a conflict of interest, so this project left your batch. The organizers can see why.");
-    } catch {
-      setError("No connection. Nothing was recorded; try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Declare a conflict of interest</DialogTitle>
-          <DialogDescription className="wrap-anywhere">
-            If you know {teamName} or worked with them, you should not score them. The project leaves your batch, your scores for it no longer count,
-            and the organizers see your reason. This cannot be undone from here.
-          </DialogDescription>
-        </DialogHeader>
-        <label htmlFor="recuse-reason" className="text-14 font-medium">
-          Why, in a few words
-        </label>
-        <Textarea id="recuse-reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={Boolean(error)} />
-        {error ? <p className="text-13 text-flag">{error}</p> : null}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={send} disabled={busy || reason.trim().length < 3}>
-            {busy ? "Recording…" : "Declare the conflict"}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

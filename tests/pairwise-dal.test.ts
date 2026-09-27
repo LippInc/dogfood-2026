@@ -154,6 +154,10 @@ describe("pairwise mode: who may do what", () => {
       .get()!;
     recuseAssignment(judge, assignment.id, { reason: "I mentored this team" });
     expect(getPairwiseRanking(org, "evt_01").counts.picks).toBe(0);
+    // ...and the project leaves the judge's pairwise list (the Compare screen offers the same declaration)
+    const track = getPairwiseState(judge, "evt_01").tracks.find((t) => t.trackId === q.trackId)!;
+    expect(track.projects.some((p) => p.id === q.newId)).toBe(false);
+    expect(track.projects.every((p) => typeof p.assignmentId === "string" && p.assignmentId.length > 0)).toBe(true);
   });
 
   it("a track taken from the judge leaves their pairwise lists too", () => {
