@@ -43,16 +43,22 @@ export function LeniencyStrip({ points, label }: { points: Point[]; label: strin
         <text x={x(0)} y={H - 4} textAnchor="middle" className="fill-ink-2 font-mono text-[10px]">
           0
         </text>
+        <text x={pad} y={H - 4} className="fill-ink-3 text-[10px]">
+          ← harsher
+        </text>
+        <text x={W - pad} y={H - 4} textAnchor="end" className="fill-ink-3 text-[10px]">
+          more lenient →
+        </text>
         <text x={x(0) + 10} y={H - 26} className="fill-ink-2 text-[11px]">
           all {points.length} within ±{maxKept.toFixed(2)}
         </text>
       </svg>
       <figcaption className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-12 text-ink-2">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block size-2 rounded-full border border-ink-2" aria-hidden /> a plain average&rsquo;s idea of leniency
+          <span className="inline-block size-2 rounded-full border border-ink-2" aria-hidden /> how far a judge&rsquo;s scores sit from their co-reviewers&rsquo;
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block size-2 rounded-full bg-ink" aria-hidden /> what the data supports
+          <span className="inline-block size-2 rounded-full bg-ink" aria-hidden /> what the engine takes off, in points
         </span>
       </figcaption>
     </figure>

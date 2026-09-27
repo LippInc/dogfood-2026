@@ -250,7 +250,7 @@ export default async function OverviewPage({
                 <p className="text-24 font-semibold">
                   {nz.k === null
                     ? "No judge leniency found"
-                    : `Every judge within ±${nz.maxLeniency.toFixed(2)}`}
+                    : `No judge moves a score by more than ${nz.maxLeniency.toFixed(2)}`}
                 </p>
                 <LeniencyStrip
                   points={nz.points}
@@ -259,7 +259,7 @@ export default async function OverviewPage({
                 <p className="text-13 leading-5 text-ink-2">
                   {nz.k === null
                     ? "The scores show no steady difference between lenient and harsh judges, so the engine corrects nothing and ranks by the plain mean."
-                    : `With ${nz.minReviews} to ${nz.maxReviews} reviews per judge, the data can barely tell a lenient judge from a strong batch, so the engine keeps at most ${Math.round(nz.keptShare * 100)} % of any judge's tilt (k = ${nz.k.toFixed(1)}).`}
+                    : `Each judge reviewed ${nz.minReviews} to ${nz.maxReviews} projects: too few to tell a lenient judge from one who drew strong projects. The engine counts a judge's difference only as far as their reviews back it (half of it after ${plural(Math.round(nz.k), "review")}, k = ${nz.k.toFixed(1)}), so here it applies at most ${Math.round(nz.keptShare * 100)} % of anyone's.`}
                   {nz.excludedNames.length
                     ? ` Left out: ${nz.excludedNames.join(", ")}.`
                     : ""}

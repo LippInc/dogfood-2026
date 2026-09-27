@@ -117,7 +117,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
           <div className="rounded-sm border border-rule bg-surface p-5">
             <p className="text-38 leading-none font-semibold tnum">±{maxLeniency.toFixed(2)}</p>
             <p className="mt-2 text-14 text-ink-2">
-              is the largest leniency the data supports.{" "}
+              points is the most the engine moves any judge&rsquo;s scores for leniency.{" "}
               {n.variance.k !== null ? `At k = ${n.variance.k.toFixed(1)} a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.` : ""}
             </p>
             <div className="mt-4">
