@@ -105,12 +105,12 @@ export function submissionsOpen(event: EventFacts, now: Date): boolean {
 }
 
 /** Judging opens when submissions close and ends at judging_close_at or when results are published. */
-function judgingRefusal(event: EventFacts, now: Date): Refusal | null {
+function judgingRefusal(event: EventFacts, now: Date, what = "scores"): Refusal | null {
   const t = now.getTime();
   if (t < Date.parse(event.submissionsCloseAt)) {
     return refuse("judging_not_open", `Judging opens when submissions close, at ${formatUtc(event.submissionsCloseAt)}.`);
   }
-  if (event.resultsPublishedAt) return refuse("results_published", "Results are published, so scores are final.");
+  if (event.resultsPublishedAt) return refuse("results_published", `Results are published, so ${what} are final.`);
   if (event.judgingCloseAt && t >= Date.parse(event.judgingCloseAt)) {
     return refuse("judging_closed", `Judging closed at ${formatUtc(event.judgingCloseAt)}.`);
   }
@@ -236,7 +236,7 @@ export function authorize(
       if (!hasRole(actor, resource.event.id, "judge")) {
         return refuse("not_a_judge_here", "Only this event's judges can compare its projects.");
       }
-      return judgingRefusal(resource.event, now) ?? allow;
+      return judgingRefusal(resource.event, now, "answers") ?? allow;
     }
 
     case "review.save":
