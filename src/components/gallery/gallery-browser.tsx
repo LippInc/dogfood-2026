@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { plural } from "@/lib/format";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 export type BrowserItem = {
@@ -16,6 +17,9 @@ export type BrowserItem = {
 };
 export type BrowserTrack = { id: string; name: string; count: number };
 type Order = "shuffled" | "az" | "track";
+
+const GRID = "grid gap-x-6 gap-y-6 sm:grid-cols-2 sm:gap-y-10 lg:grid-cols-3 xl:grid-cols-4";
+const two = (n: number) => String(n).padStart(2, "0");
 
 const ORDER_HINT: Record<Order, string> = {
   shuffled: "new order each visit, so no project is always first",
@@ -135,6 +139,55 @@ export function GalleryBrowser({
   const matchesIn = (trackId: string) => items.filter((i) => i.trackId === trackId && matches(i, q)).length;
   const elsewhere = q ? items.filter((i) => matches(i, q)).length : 0;
   const trackName = track ? tracks.find((t) => t.id === track)?.name : undefined;
+
+  const tile = (i: BrowserItem) => (
+    <li key={i.id} className="border-b border-rule pb-6 last:border-b-0 sm:border-0 sm:pb-0">
+      <Link
+        href={`/events/${eventSlug}/projects/${i.id}`}
+        onMouseEnter={() => setPeek(i.id)}
+        onMouseLeave={() => setPeek(null)}
+        onFocus={() => setPeek(i.id)}
+        onBlur={() => setPeek(null)}
+        className={`tile flex gap-4 sm:block ${peek === i.id ? "lit" : ""}`}
+      >
+        <div className="relative w-[120px] shrink-0 self-start sm:w-auto">
+          <div className="relative overflow-hidden rounded-xs border border-rule">
+            {tileFaces[i.id]}
+            <span className="absolute left-2.5 top-2.5 hidden rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 sm:inline">
+              <Hl text={i.id} words={words} />
+            </span>
+          </div>
+          <span className="crop-marks" aria-hidden="true" />
+        </div>
+        <div className="min-w-0 wrap-anywhere">
+          <h3 className="font-display text-20 leading-tight sm:mt-4">
+            <Hl text={i.title} words={words} />
+          </h3>
+          <p className="mt-1 text-15 text-ink-2">{i.summary}</p>
+          <p className="mt-2 text-13 text-ink-3">
+            {i.id === mine ? (
+              <Badge className="mr-2 border-ink align-[1px] text-ink">Your team</Badge>
+            ) : null}
+            <Hl text={i.teamName} words={words} /> · <Hl text={i.trackName} words={words} />
+          </p>
+          {i.tags.length ? (
+            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Tech tags">
+              {/* A tag the search matched comes first, so it is never hidden behind "+n". */}
+              {[...i.tags]
+                .sort((x, y) => Number(hits(y)) - Number(hits(x)))
+                .slice(0, 4)
+                .map((t) => (
+                  <li key={t} className="rounded-xs border border-rule px-1.5 py-0.5 font-mono text-12 text-ink-2">
+                    <Hl text={t} words={words} />
+                  </li>
+                ))}
+              {i.tags.length > 4 ? <li className="px-1 py-0.5 text-12 text-ink-3">+{i.tags.length - 4}</li> : null}
+            </ul>
+          ) : null}
+        </div>
+      </Link>
+    </li>
+  );
 
   const chip =
     "inline-flex h-11 shrink-0 items-center gap-2 rounded-sm border px-4 text-15 aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent";
@@ -339,57 +392,32 @@ export function GalleryBrowser({
             </button>
           </div>
         </div>
+      ) : order === "track" ? (
+        // By track: each track's projects under its own heading, numbered like the results page.
+        <div className="mt-8 flex flex-col gap-12 md:mt-10">
+          {tracks.map((t, ti) => {
+            const list = visible.filter((i) => i.trackId === t.id);
+            if (!list.length) return null;
+            return (
+              <section key={t.id} aria-labelledby={`grid-track-${t.id}`}>
+                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b-2 border-ink pb-2">
+                  <span className="label-mono tnum text-ink-3">
+                    Track {two(ti + 1)} / {two(tracks.length)}
+                  </span>
+                  <h2 id={`grid-track-${t.id}`} className="text-24 font-semibold wrap-anywhere">
+                    <Hl text={t.name} words={words} />
+                  </h2>
+                  <span className="label-mono tnum ml-auto text-ink-3">
+                    {list.length === t.count ? plural(t.count, "project") : `${list.length} of ${t.count}`}
+                  </span>
+                </div>
+                <ul className={`${GRID} mt-6`}>{list.map(tile)}</ul>
+              </section>
+            );
+          })}
+        </div>
       ) : (
-        <ul className="mt-6 grid gap-x-6 gap-y-6 sm:grid-cols-2 sm:gap-y-10 md:mt-8 lg:grid-cols-3 xl:grid-cols-4">
-          {visible.map((i) => (
-            <li key={i.id} className="border-b border-rule pb-6 sm:border-0 sm:pb-0">
-              <Link
-                href={`/events/${eventSlug}/projects/${i.id}`}
-                onMouseEnter={() => setPeek(i.id)}
-                onMouseLeave={() => setPeek(null)}
-                onFocus={() => setPeek(i.id)}
-                onBlur={() => setPeek(null)}
-                className={`tile flex gap-4 sm:block ${peek === i.id ? "lit" : ""}`}
-              >
-                <div className="relative w-[120px] shrink-0 self-start sm:w-auto">
-                  <div className="relative overflow-hidden rounded-xs border border-rule">
-                    {tileFaces[i.id]}
-                    <span className="absolute left-2.5 top-2.5 hidden rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 sm:inline">
-                      <Hl text={i.id} words={words} />
-                    </span>
-                  </div>
-                  <span className="crop-marks" aria-hidden="true" />
-                </div>
-                <div className="min-w-0 wrap-anywhere">
-                  <h3 className="font-display text-20 leading-tight sm:mt-4">
-                    <Hl text={i.title} words={words} />
-                  </h3>
-                  <p className="mt-1 text-15 text-ink-2">{i.summary}</p>
-                  <p className="mt-2 text-13 text-ink-3">
-                    {i.id === mine ? (
-                      <Badge className="mr-2 border-ink align-[1px] text-ink">Your team</Badge>
-                    ) : null}
-                    <Hl text={i.teamName} words={words} /> · <Hl text={i.trackName} words={words} />
-                  </p>
-                  {i.tags.length ? (
-                    <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Tech tags">
-                      {/* A tag the search matched comes first, so it is never hidden behind "+n". */}
-                      {[...i.tags]
-                        .sort((x, y) => Number(hits(y)) - Number(hits(x)))
-                        .slice(0, 4)
-                        .map((t) => (
-                          <li key={t} className="rounded-xs border border-rule px-1.5 py-0.5 font-mono text-12 text-ink-2">
-                            <Hl text={t} words={words} />
-                          </li>
-                        ))}
-                      {i.tags.length > 4 ? <li className="px-1 py-0.5 text-12 text-ink-3">+{i.tags.length - 4}</li> : null}
-                    </ul>
-                  ) : null}
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <ul className={`${GRID} mt-6 md:mt-8`}>{visible.map(tile)}</ul>
       )}
     </>
   );
