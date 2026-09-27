@@ -40,11 +40,14 @@ export default async function SubmissionsPage({ params, searchParams }: PageProp
     guardPage(() => getOverview(actor, key)).decisions.flatMap((d) => (d.kind === "under_reviewed" && d.resolved === null ? [d.projectId] : [])),
   );
   const flagOf = (r: SubmissionRow) => (r.suspectedDuplicate ? "suspected duplicate" : underOpen.has(r.id) ? "under-reviewed" : null);
-  const needs = rows.filter((r) => flagOf(r) !== null).length;
 
   const tracks = [...new Map(rows.map((r) => [r.trackName, rows.filter((x) => x.trackName === r.trackName).length])).entries()];
   const show: Show = SHOWS.find((s) => s === showParam) ?? "all";
   const track = typeof trackParam === "string" && tracks.some(([t]) => t === trackParam) ? trackParam : null;
+  // Every chip counts what it would show next to the other filter, so no count promises rows the click does not bring.
+  const inTrack = rows.filter((r) => !track || r.trackName === track);
+  const needs = inTrack.filter((r) => flagOf(r) !== null).length;
+  const draftsIn = inTrack.filter((r) => r.status === "draft").length;
   // A track chip counts what it would show under the chosen filter, so "Security 0" under Drafts says so before the click.
   const byShow = rows.filter((r) => show === "all" || (show === "needs" ? flagOf(r) !== null : r.status === "draft"));
   const shown = byShow.filter((r) => !track || r.trackName === track);
@@ -111,7 +114,7 @@ export default async function SubmissionsPage({ params, searchParams }: PageProp
             <nav aria-label="Filter the list" className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:gap-x-5">
               <div className="flex flex-wrap gap-1.5">
                 <Link href={href("all", track)} aria-current={show === "all" ? "page" : undefined} className={chip}>
-                  All <span className={count}>{track ? tracks.find(([t]) => t === track)![1] : rows.length}</span>
+                  All <span className={count}>{inTrack.length}</span>
                 </Link>
                 {needs ? (
                   <Link href={href("needs", track)} aria-current={show === "needs" ? "page" : undefined} className={chip}>
@@ -123,9 +126,9 @@ export default async function SubmissionsPage({ params, searchParams }: PageProp
                     Nothing needs a look
                   </span>
                 )}
-                {drafts ? (
+                {draftsIn ? (
                   <Link href={href("drafts", track)} aria-current={show === "drafts" ? "page" : undefined} className={chip}>
-                    Drafts <span className={count}>{drafts}</span>
+                    Drafts <span className={count}>{draftsIn}</span>
                   </Link>
                 ) : (
                   <span className="inline-flex items-baseline gap-1.5 rounded-sm border border-dashed border-rule px-3 py-1 text-13 text-ink-3">No drafts</span>
