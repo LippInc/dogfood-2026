@@ -96,6 +96,7 @@ export function GalleryBrowser({
   // The face under the pointer in the Field: named in the Field's caption and lit in the grid.
   const [peek, setPeek] = useState<string | null>(null);
   const peeked = peek ? items.find((i) => i.id === peek) : undefined;
+  const ours = mine ? items.find((i) => i.id === mine) : undefined;
 
   // Phones: a track chosen by its link (?track=) may sit far along the chip row; bring it into view once.
   const chipRow = useRef<HTMLDivElement>(null);
@@ -214,9 +215,22 @@ export function GalleryBrowser({
                 {q ? <>match “{q}”{trackName ? ` in ${trackName}` : ""}</> : <>in {trackName}</>}. The rest fade back.
               </>
             ) : (
-              `Every project, by track, each face drawn from its id. Choose a track to filter.${
-                mine && items.some((i) => i.id === mine) ? " Your team’s is outlined." : ""
-              }`
+              <>
+                Every project, by track, each face drawn from its id. Choose a track to filter.
+                {ours ? (
+                  <>
+                    {" "}
+                    Your team’s,{" "}
+                    <Link
+                      href={`/events/${eventSlug}/projects/${ours.id}`}
+                      className="font-semibold text-ink underline decoration-edge underline-offset-2 hover:decoration-ink"
+                    >
+                      {ours.title}
+                    </Link>
+                    , is outlined.
+                  </>
+                ) : null}
+              </>
             )}
           </p>
           <button
