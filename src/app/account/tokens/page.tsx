@@ -152,7 +152,7 @@ function Group({ title, count, rows }: { title: string; count: number; rows: Row
                 </span>
               </span>
             </td>
-            <td className="py-3.5 pr-4 text-13 tnum max-md:col-start-1 max-md:py-0">
+            <td className="py-3.5 pr-4 text-13 tnum max-md:col-start-1 max-md:py-0 max-md:pl-12">
               {t.lastUsedAt ? (
                 <span className="text-ink-2">
                   <span className="md:hidden">last used </span>
@@ -162,7 +162,7 @@ function Group({ title, count, rows }: { title: string; count: number; rows: Row
                 <span className="text-ink-3">never used</span>
               )}
             </td>
-            <td className="py-3.5 pr-4 text-13 tnum max-md:col-start-1 max-md:py-0">
+            <td className="py-3.5 pr-4 text-13 tnum max-md:col-start-1 max-md:py-0 max-md:pl-12">
               {t.state.kind === "live" ? (
                 t.expiresAt ? (
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-2">

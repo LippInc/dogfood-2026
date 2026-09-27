@@ -41,8 +41,9 @@ export function TokenForm() {
           // carries its mark, lit, so it can be found in the list once the plate is gone.
           <div role="status" className="rounded-sm border border-ink bg-bg">
             <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule px-4 py-2">
-              <span className="flex min-w-0 items-baseline gap-2">
+              <span className="flex min-w-0 items-center gap-2">
                 <span className="label-mono shrink-0 text-accent-ink">Shown once</span>
+                <TokenMark hint={state.token.slice(0, 10)} lit className="size-5 sm:hidden" />
                 <span className="min-w-0 truncate text-14 font-medium">{state.name}</span>
               </span>
               <span className="text-12 text-ink-3 tnum">
@@ -50,10 +51,10 @@ export function TokenForm() {
               </span>
             </p>
             <div className="flex items-start gap-4 px-4 py-4">
-              <TokenMark hint={state.token.slice(0, 10)} lit className="size-10 sm:size-14" />
+              <TokenMark hint={state.token.slice(0, 10)} lit className="size-14 max-sm:hidden" />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <code className="min-w-0 flex-1 break-all rounded-sm border border-rule bg-surface px-3 py-2 font-mono text-15 tracking-wide">
+                  <code className="min-w-0 flex-1 basis-full break-all rounded-sm sm:basis-0 border border-rule bg-surface px-3 py-2 font-mono text-15 tracking-wide">
                     {state.token}
                   </code>
                   <CopyButton text={state.token} label="Copy token" />
