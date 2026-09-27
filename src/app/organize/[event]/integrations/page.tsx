@@ -111,13 +111,19 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
             Webhooks
             </h2>
             <p className="mt-1 max-w-[760px] text-15 text-ink-2">
-              Each audited action (a submission, a review, a vote, a published result) is POSTed to your URL as JSON, with the audit row&rsquo;s hash.
-              The <code className="font-mono text-13">Dogfood-Signature</code> header is <code className="font-mono text-13">t=&lt;time&gt;,v1=&lt;HMAC-SHA256&gt;</code>{" "}
-              over <code className="font-mono text-13">&lt;time&gt;.&lt;body&gt;</code> with the webhook&rsquo;s secret. Failed deliveries are retried
-              after 10 s, 1 min, 5 min, 30 min and 2 h. A ballot&rsquo;s picks, a judge&rsquo;s scores and a judge&rsquo;s pairwise answers are left
-              out: the delivery says who acted and when, and the values stay here.
+              Each audited action (a submission, a review, a vote, a published result) is POSTed to your URL as JSON as it happens.
             </p>
           </div>
+
+          {webhooks.length ? (
+            <ul className="flex flex-col gap-4">
+              {webhooks.map((w) => (
+                <HookCard key={w.id} slug={event.slug} hook={w} deliveries={deliveries[w.id]!} />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-14 text-ink-2">No webhooks yet. One added below receives every audited action from then on; nothing earlier is sent.</p>
+          )}
 
           <figure className="flex flex-col gap-3 border-t-2 border-ink pt-3">
             <figcaption className="label-mono text-ink">Fig. 01 — One delivery</figcaption>
@@ -129,17 +135,19 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
                 <Delivery delays={RETRY_DELAYS_S} />
               </div>
             </div>
+            <dl className="mt-1 grid border-t border-rule text-13 sm:grid-cols-[9.5rem_1fr] sm:gap-x-4">
+              <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5">Signature</dt>
+              <dd className="border-b border-rule pb-2.5 text-ink-2 sm:py-2.5">
+                <code className="font-mono text-12 text-ink">Dogfood-Signature: t=&lt;time&gt;,v1=&lt;HMAC-SHA256&gt;</code> over{" "}
+                <code className="font-mono text-12 text-ink">&lt;time&gt;.&lt;body&gt;</code>, keyed with the webhook&rsquo;s secret
+              </dd>
+              <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5">Left out</dt>
+              <dd className="border-b border-rule pb-2.5 text-ink-2 sm:py-2.5">
+                a ballot&rsquo;s picks, a judge&rsquo;s scores and a judge&rsquo;s pairwise answers: the delivery says who acted and when, and the
+                values stay here
+              </dd>
+            </dl>
           </figure>
-
-          {webhooks.length ? (
-            <ul className="flex flex-col gap-4">
-              {webhooks.map((w) => (
-                <HookCard key={w.id} slug={event.slug} hook={w} deliveries={deliveries[w.id]!} />
-              ))}
-            </ul>
-          ) : (
-            <p className="text-14 text-ink-2">No webhooks yet. One added below receives every audited action from then on; nothing earlier is sent.</p>
-          )}
 
           <div className="rounded-sm border border-rule p-5">
             <h3 className="mb-4 text-15 font-semibold">Add a webhook</h3>
