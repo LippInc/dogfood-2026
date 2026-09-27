@@ -121,7 +121,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
       {work.feedback ? (
         <section aria-labelledby="feedback-title" className="mb-10 border-b border-rule py-10">
           <p className="label-mono text-accent-ink">Results are published</p>
-          <div className="mt-4 grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-end">
+          <div className="mt-4 grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-end lg:grid-cols-[minmax(0,1fr)_400px]">
             <h2 id="feedback-title" className="flex flex-wrap items-end gap-x-4 gap-y-1">
               {work.feedback.place !== null ? (
                 <>
