@@ -17,6 +17,7 @@ describe("the client address", () => {
     expect(clientAddress("6.6.6.6, 203.0.113.7, 10.0.0.3", "10.0.0.2", 2)).toBe("203.0.113.7");
     expect(clientAddress(undefined, "10.0.0.2", 1)).toBe("10.0.0.2"); // no header after all: the socket
     expect(clientAddress("1.1.1.1", "10.0.0.2", Number.NaN)).toBe("10.0.0.2"); // a nonsense setting trusts nobody
+    expect(clientAddress("9.9.9.9", "10.0.0.2", 2)).toBe("10.0.0.2"); // fewer entries than trusted proxies: the socket, not the client's
   });
 
   describe("on a real server", () => {

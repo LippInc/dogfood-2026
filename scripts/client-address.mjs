@@ -13,6 +13,8 @@ import http from "node:http";
 /**
  * The address to use, from the header as it arrived, the socket's own address and the
  * number of trusted proxies: step `hops` places left from the socket along the chain.
+ * A chain shorter than that (fewer proxies appended than promised) falls back to the
+ * socket rather than to whatever a client wrote first.
  */
 export function clientAddress(forwardedFor, socketAddress, hops) {
   const chain = String(forwardedFor || "")
@@ -21,7 +23,8 @@ export function clientAddress(forwardedFor, socketAddress, hops) {
     .filter(Boolean);
   if (socketAddress) chain.push(socketAddress);
   const n = Number.isInteger(hops) && hops > 0 ? hops : 0;
-  return chain.length ? chain[Math.max(0, chain.length - 1 - n)] : null;
+  const i = chain.length - 1 - n;
+  return i >= 0 ? chain[i] : socketAddress || null;
 }
 
 /** Rewrite the header on every request an http server emits; returns the undo. */
