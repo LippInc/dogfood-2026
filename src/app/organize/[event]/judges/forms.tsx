@@ -46,8 +46,8 @@ function TrackBoxes({ tracks, name, checked = [] }: { tracks: Track[]; name: str
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-2">
       {tracks.map((t) => (
-        <label key={t.id} className="flex items-center gap-2 text-14">
-          <input type="checkbox" name={name} value={t.id} defaultChecked={checked.includes(t.id)} className="size-4 accent-[var(--primary)]" />
+        <label key={t.id} className="flex items-center gap-2 text-14 wrap-anywhere">
+          <input type="checkbox" name={name} value={t.id} defaultChecked={checked.includes(t.id)} className="size-4 shrink-0 accent-[var(--primary)]" />
           {t.name}
         </label>
       ))}

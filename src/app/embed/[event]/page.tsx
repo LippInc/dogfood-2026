@@ -29,7 +29,7 @@ export default async function EmbedPage({
   const origin = process.env.PUBLIC_URL ?? "";
   const projects = typeof track === "string" && track ? g.projects.filter((p) => p.trackId === track || p.trackName === track) : g.projects;
   return (
-    <div className="public min-h-0 p-4">
+    <div className="public min-h-0 p-4 wrap-anywhere">
       <ReportHeight />
       <p className="label-mono text-ink-3">
         {g.event.name} · {projects.length} {projects.length === 1 ? "project" : "projects"}

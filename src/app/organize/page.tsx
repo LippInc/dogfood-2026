@@ -33,8 +33,8 @@ export default async function OrganizeHome() {
           <ul className="mt-6 divide-y divide-rule border-y border-rule bg-surface">
             {events.map((e) => (
               <li key={e.id}>
-                <Link href={`/organize/${e.slug}`} className="flex items-baseline justify-between gap-4 px-4 py-3 hover:bg-raised">
-                  <span className="text-15 font-medium">{e.name}</span>
+                <Link href={`/organize/${e.slug}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-raised">
+                  <span className="min-w-0 text-15 font-medium wrap-anywhere">{e.name}</span>
                   <span className="text-13 text-ink-3">submissions close {formatUtc(e.submissionsCloseAt)}</span>
                 </Link>
               </li>

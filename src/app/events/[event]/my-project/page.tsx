@@ -46,7 +46,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
   return (
     <PublicShell event={event} active="none" signedInAs={actor.name} links={actorNav(actor, event.id)}>
       <div className="flex flex-wrap items-end justify-between gap-4 pb-8 pt-10">
-        <div>
+        <div className="min-w-0 wrap-anywhere">
           <p className="label-mono text-ink-3">{team ? `Team ${team.name}` : "No team yet"}</p>
           <h1 className="mt-2 font-display text-[40px] leading-[46px] md:text-[52px] md:leading-[58px]">Your project</h1>
         </div>

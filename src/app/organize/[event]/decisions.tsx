@@ -370,7 +370,7 @@ export function Decisions({
   return (
     <section
       aria-labelledby="decisions-title"
-      className="rounded-sm border border-rule bg-surface p-6 lg:col-span-2"
+      className="min-w-0 rounded-sm border border-rule bg-surface p-6 wrap-anywhere lg:col-span-2"
     >
       <div className="flex items-start gap-5">
         <span

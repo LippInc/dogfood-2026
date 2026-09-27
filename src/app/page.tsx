@@ -48,8 +48,8 @@ export default async function Home() {
         <ul className="mt-8 divide-y divide-rule border-y border-rule">
           {events.map((e) => (
             <li key={e.id}>
-              <Link href={`/events/${e.slug}`} className="flex items-baseline justify-between gap-4 py-4 hover:text-accent-ink">
-                <span className="font-display text-20">{e.name}</span>
+              <Link href={`/events/${e.slug}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-4 hover:text-accent-ink">
+                <span className="min-w-0 font-display text-20">{e.name}</span>
                 <span className="label-mono text-ink-3">closes {formatUtc(e.submissionsCloseAt)}</span>
               </Link>
             </li>

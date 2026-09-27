@@ -57,7 +57,7 @@ export default async function AuditPage({ params }: PageProps<"/organize/[event]
               {lines.map((l) => (
                 <tr key={l.id} className={`border-b border-rule align-top last:border-b-0 ${l.action === "authz.refused" ? "text-ink-2" : ""}`}>
                   <td className="px-3 py-2 font-mono text-12 whitespace-nowrap text-ink-2">{formatUtc(l.at).replace(" UTC", "")}</td>
-                  <td className="px-3 py-2 leading-5">
+                  <td className="min-w-48 px-3 py-2 leading-5 wrap-anywhere">
                     {l.parts.map((p, i) =>
                       p.mono ? (
                         <span key={i} className="font-mono text-12 text-ink-2">

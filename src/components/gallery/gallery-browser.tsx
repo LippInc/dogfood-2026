@@ -225,7 +225,7 @@ export function GalleryBrowser({
                     {i.id}
                   </span>
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 wrap-anywhere">
                   <h3 className="font-display text-20 leading-tight sm:mt-4">{i.title}</h3>
                   <p className="mt-1 text-15 text-ink-2">{i.summary}</p>
                   <p className="mt-2 text-13 text-ink-3">

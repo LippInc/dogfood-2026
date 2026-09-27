@@ -499,7 +499,7 @@ export function JudgeConsoleView({
 
       {/* The project, as a document */}
       <article ref={docRef} aria-labelledby="project-title" className="min-w-0 lg:overflow-y-auto">
-        <div className="mx-auto max-w-[680px] px-6 py-8 lg:px-0">
+        <div className="mx-auto max-w-[680px] px-6 py-8 wrap-anywhere lg:px-0">
           <p className="text-14 text-ink-2">
             Project {index + 1} of {items.length} · {p.trackName}
             {p.submittedAt ? ` · submitted ${formatUtc(p.submittedAt, { weekday: true })}` : ""}
@@ -691,7 +691,7 @@ export function JudgeConsoleView({
             <label htmlFor="feedback" className="text-14 font-semibold">
               Feedback to the team
             </label>
-            <span className="ml-2 text-12 text-ink-2">shown to {p.teamName} after results</span>
+            <span className="ml-2 text-12 text-ink-2 wrap-anywhere">shown to {p.teamName} after results</span>
             <Textarea
               id="feedback"
               ref={feedbackRef}
@@ -764,10 +764,10 @@ function ProjectLink({ label, url }: { label: string; url: string | null }) {
       href={url}
       target="_blank"
       rel="noreferrer noopener"
-      className="inline-flex h-9 items-center gap-2 rounded-sm border border-edge px-3 text-14 hover:bg-raised"
+      className="inline-flex h-9 max-w-full items-center gap-2 rounded-sm border border-edge px-3 text-14 hover:bg-raised"
     >
-      <span className="font-medium">{label}</span>
-      <span className="text-ink-2">{shortUrl(url)}</span>
+      <span className="shrink-0 font-medium">{label}</span>
+      <span className="min-w-0 truncate text-ink-2">{shortUrl(url)}</span>
       <span className="sr-only">(opens in a new tab)</span>
     </a>
   );
@@ -937,7 +937,7 @@ function RecuseDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Declare a conflict of interest</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="wrap-anywhere">
             If you know {teamName} or worked with them, you should not score them. The project leaves your batch, your scores for it no longer count,
             and the organizers see your reason. This cannot be undone from here.
           </DialogDescription>

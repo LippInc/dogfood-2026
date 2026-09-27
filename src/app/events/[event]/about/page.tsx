@@ -39,7 +39,7 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
       <div className="pt-10">
         <h1 className="font-display text-[48px] leading-[52px] md:text-64">About</h1>
         {event.description ? (
-          <p className="mt-6 max-w-[680px] font-serif text-17 leading-7 whitespace-pre-line text-ink-2">{event.description}</p>
+          <p className="mt-6 max-w-[680px] font-serif text-17 leading-7 whitespace-pre-line text-ink-2 wrap-anywhere">{event.description}</p>
         ) : null}
       </div>
       <div className="mt-12 grid gap-12 border-t border-rule pt-10 lg:grid-cols-3">
@@ -62,9 +62,9 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
           </h2>
           <ul className="mt-4 flex flex-col divide-y divide-rule border-y border-rule">
             {about.tracks.map((t) => (
-              <li key={t.id} className="flex items-baseline justify-between py-2.5 text-14">
-                <span>{t.name}</span>
-                <span className="text-ink-3 tnum">
+              <li key={t.id} className="flex items-baseline justify-between gap-4 py-2.5 text-14">
+                <span className="min-w-0 wrap-anywhere">{t.name}</span>
+                <span className="shrink-0 text-ink-3 tnum">
                   {t.count} {t.count === 1 ? "project" : "projects"}
                 </span>
               </li>
@@ -78,7 +78,7 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
           {about.prizes.length ? (
             <ul className="mt-4 flex flex-col gap-4">
               {about.prizes.map((p) => (
-                <li key={p.id} className="border-l-[3px] border-accent pl-4">
+                <li key={p.id} className="border-l-[3px] border-accent pl-4 wrap-anywhere">
                   <p className="text-15 font-semibold">{p.name}</p>
                   {p.description ? <p className="mt-1 text-14 text-ink-2">{p.description}</p> : null}
                 </li>
@@ -100,10 +100,10 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
         </p>
         <ul className="mt-6 grid gap-4 sm:grid-cols-3">
           {about.rubric.map((c) => (
-            <li key={c.key} className="rounded-sm border border-rule bg-surface p-5">
+            <li key={c.key} className="rounded-sm border border-rule bg-surface p-5 wrap-anywhere">
               <div className="flex items-baseline justify-between gap-3">
-                <p className="text-15 font-semibold">{c.label}</p>
-                <p className="font-mono text-13 text-ink-3">weight {fraction(c.weight, totalWeight)}</p>
+                <p className="min-w-0 text-15 font-semibold">{c.label}</p>
+                <p className="shrink-0 font-mono text-13 text-ink-3">weight {fraction(c.weight, totalWeight)}</p>
               </div>
               <p className="mt-1 text-14 text-ink-2">{c.prompt}</p>
             </li>

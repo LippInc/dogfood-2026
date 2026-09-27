@@ -43,7 +43,9 @@ export function WorkShell({
         <div className="flex flex-wrap items-stretch gap-x-6 px-4 sm:h-12 sm:flex-nowrap sm:overflow-x-auto lg:px-8">
           <Link href={eventHref} className="flex shrink-0 items-center gap-3 self-center py-3 sm:py-0">
             <span className="size-3 bg-accent" aria-hidden />
-            <span className="text-15 font-semibold whitespace-nowrap">{eventName}</span>
+            <span title={eventName} className="max-w-[20rem] truncate text-15 font-semibold sm:max-w-[28rem]">
+              {eventName}
+            </span>
             {crumb ? (
               <span className="text-15 whitespace-nowrap text-ink-3 max-sm:hidden">
                 <span aria-hidden>/ </span>

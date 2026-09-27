@@ -15,14 +15,14 @@ export function TeamPanel({ team, eventSlug, open }: { team: MyTeam; eventSlug: 
   const link = team.inviteCode && typeof window !== "undefined" ? `${window.location.origin}/join/${team.inviteCode}` : null;
   return (
     <section aria-labelledby="team-title">
-      <h2 id="team-title" className="label-mono text-ink-2">
+      <h2 id="team-title" className="label-mono text-ink-2 wrap-anywhere">
         Team {team.name}
       </h2>
       <ul className="mt-3 flex flex-col gap-1.5">
         {team.members.map((m, i) => (
           <li key={`${m.name}-${i}`} className="flex items-baseline justify-between gap-3 text-14">
-            <span>{m.name}</span>
-            <span className="text-12 text-ink-3">{m.role}</span>
+            <span className="min-w-0 wrap-anywhere">{m.name}</span>
+            <span className="shrink-0 text-12 text-ink-3">{m.role}</span>
           </li>
         ))}
       </ul>

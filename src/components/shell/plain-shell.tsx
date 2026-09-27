@@ -31,7 +31,9 @@ export function PlainShell({
           <ModeToggle className="ml-auto" />
           {account === undefined ? null : account ? (
             <>
-              <span className="hidden text-14 font-medium sm:inline">{account.name}</span>
+              <span title={account.name} className="hidden max-w-56 truncate text-14 font-medium sm:block">
+                {account.name}
+              </span>
               <form action="/api/auth/sign-out" method="post">
                 <button className="h-10 rounded-sm border border-edge px-4 text-14 hover:bg-surface">Sign out</button>
               </form>
@@ -43,7 +45,7 @@ export function PlainShell({
           )}
         </div>
       </header>
-      <main id="main" className={`mx-auto ${width} px-4 py-12 sm:px-8 md:py-20`}>
+      <main id="main" className={`mx-auto ${width} px-4 py-12 wrap-anywhere sm:px-8 md:py-20`}>
         {children}
       </main>
     </div>

@@ -306,7 +306,7 @@ export default async function OverviewPage({
                         .replace(/ \d{4},/, "")
                         .replace(" UTC", "")}
                     </span>
-                    <span>
+                    <span className="wrap-anywhere">
                       <AuditSentence line={line} />
                       {/[.!?]”?$/.test(line.parts.at(-1)?.text ?? "") ? "" : "."}
                     </span>

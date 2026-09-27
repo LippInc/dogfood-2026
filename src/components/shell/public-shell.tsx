@@ -48,7 +48,9 @@ export function PublicShell({
         <div className="mx-auto flex h-16 max-w-[1440px] items-stretch gap-8 px-4 sm:px-8 xl:px-16">
           <Link href={base} className="flex items-center gap-4 self-center">
             {idLabel(event.id) ? <span className="label-mono hidden text-ink-3 sm:inline">[ {idLabel(event.id)} ]</span> : null}
-            <span className="font-display text-20 leading-none tracking-[0.01em] uppercase">{event.name}</span>
+            <span title={event.name} className="line-clamp-2 font-display text-20 leading-none tracking-[0.01em] uppercase wrap-anywhere">
+              {event.name}
+            </span>
           </Link>
           <nav aria-label="Event" className="hidden items-stretch gap-7 md:flex">
             {SECTIONS.filter((s) => s.key !== "vote" || event.votingOpenAt).map((s) => (
@@ -76,7 +78,9 @@ export function PublicShell({
                     {l.label}
                   </Link>
                 ))}
-                <span className="text-14 font-medium">{signedInAs}</span>
+                <span title={signedInAs} className="max-h-10 max-w-40 overflow-y-clip text-14 font-medium wrap-break-word lg:max-w-56">
+                  {signedInAs}
+                </span>
                 <form action="/api/auth/sign-out" method="post">
                   <button className="h-10 rounded-sm border border-edge px-4 text-14 hover:bg-surface">Sign out</button>
                 </form>
@@ -120,7 +124,7 @@ export function PublicShell({
                     ))}
                     <form action="/api/auth/sign-out" method="post">
                       <button className="flex h-11 w-full items-center rounded-sm px-3 text-left text-15 hover:bg-raised">
-                        Sign out ({signedInAs})
+                        <span className="truncate">Sign out ({signedInAs})</span>
                       </button>
                     </form>
                   </>

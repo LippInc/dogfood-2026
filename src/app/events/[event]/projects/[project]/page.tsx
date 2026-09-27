@@ -42,7 +42,7 @@ function LinkButton({ href, icon, label }: { href: string; icon: React.ReactNode
       className="inline-flex h-10 max-w-full items-center gap-2 rounded-sm border border-edge px-3.5 text-14 hover:bg-surface"
     >
       {icon}
-      <span className="font-medium">{label}</span>
+      <span className="shrink-0 font-medium">{label}</span>
       <span className="truncate text-ink-3">{host}</span>
       <span className="sr-only">(opens in a new tab)</span>
     </a>
@@ -60,7 +60,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
     <PublicShell event={event} active="projects" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       <article className="pt-10">
         <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-start md:gap-12">
-          <header>
+          <header className="min-w-0 wrap-anywhere">
             <p className="label-mono text-ink-3">
               {p.id} / {p.track.name}
             </p>
@@ -86,7 +86,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
           <div>
             <h2 className="text-15 font-semibold">About the project</h2>
             {p.description ? (
-              <div className="mt-4 space-y-5 font-serif text-17 leading-7 whitespace-pre-line">{p.description}</div>
+              <div className="mt-4 space-y-5 font-serif text-17 leading-7 whitespace-pre-line wrap-anywhere">{p.description}</div>
             ) : (
               <p className="mt-4 text-15 text-ink-3">The team wrote no description beyond the summary.</p>
             )}
@@ -95,7 +95,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                 <h2 id="answers-title" className="text-15 font-semibold">
                   The organizers asked
                 </h2>
-                <dl className="mt-4 flex flex-col gap-6">
+                <dl className="mt-4 flex flex-col gap-6 wrap-anywhere">
                   {p.answers.map((a) => (
                     <div key={a.label}>
                       <dt className="text-14 text-ink-2">{a.label}</dt>
@@ -107,7 +107,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             ) : null}
           </div>
           <aside className="flex flex-col gap-6 text-14">
-            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 wrap-anywhere">
               <dt className="text-ink-3">Track</dt>
               <dd>{p.track.name}</dd>
               <dt className="text-ink-3">Submitted</dt>
@@ -128,7 +128,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             Comments <span className="font-normal text-ink-2">· {comments.filter((c) => !c.hidden).length}</span>
           </h2>
           {comments.length ? (
-            <ol className="mt-4 flex flex-col divide-y divide-rule">
+            <ol className="mt-4 flex flex-col divide-y divide-rule wrap-anywhere">
               {comments.map((c) => (
                 <li key={c.id} className="py-4">
                   <p className="flex flex-wrap items-baseline justify-between gap-2 text-13 text-ink-2">

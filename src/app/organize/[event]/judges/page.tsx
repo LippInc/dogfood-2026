@@ -171,7 +171,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
               {a.underReviewed.map((u) => (
                 <li key={u.projectId} className="rounded-sm border border-rule border-l-[3px] border-l-flag-bar bg-surface p-4">
                   <details>
-                    <summary className="cursor-pointer">
+                    <summary className="cursor-pointer wrap-anywhere">
                       <span className="font-medium">{u.title}</span>
                       <span className="text-14 text-ink-2">
                         {" "}
@@ -205,7 +205,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
             <ul className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
               {invites.map((i) => (
                 <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-14">
-                  <span>
+                  <span className="min-w-0 wrap-anywhere">
                     <span className="font-medium">{i.name || i.email || "Open link"}</span>
                     <span className="text-ink-2">
                       {" "}
