@@ -419,6 +419,22 @@ export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, b
   return organizer(actor, eventIdOrSlug, (tx, event) => {
     voteFinal(event);
     const input = parse(SettingsInput, body);
+    // Saved ballots are counted as they stand, so the pick limit can rise but never drop
+    // below the largest one (voided ones included: they can be restored).
+    const largest = Math.max(
+      0,
+      ...tx
+        .select({ n: sql<number>`count(*)` })
+        .from(votes)
+        .innerJoin(voters, eq(voters.id, votes.voterId))
+        .where(eq(voters.eventId, event.id))
+        .groupBy(votes.voterId)
+        .all()
+        .map((r) => r.n),
+    );
+    if (input.votesPerVoter < largest) {
+      throw new ConflictError("ballots_too_large", `A ballot already holds ${largest} picks, so the limit can go up but not below ${largest}.`);
+    }
     const before = { votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt, ...votingSettings(event), linkHash: undefined };
     const voting = { ...votingSettings(event), modes: [...new Set(input.modes)].sort() as VoterKind[], votesPerVoter: input.votesPerVoter };
     tx.update(events)

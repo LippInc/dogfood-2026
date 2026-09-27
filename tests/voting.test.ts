@@ -327,6 +327,29 @@ describe("one ballot per known person", () => {
   });
 });
 
+describe("the pick limit", () => {
+  const limitNow = () => JSON.parse((h.sqlite.prepare("SELECT settings FROM events WHERE id = 'evt_01'").get() as { settings: string }).settings).voting.votesPerVoter;
+  const settings = (n: string) => ({ votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["account", "listed", "link"], votesPerVoter: n });
+
+  it("known-bad: once a ballot holds 3 picks the limit cannot drop to 2 (409 ballots_too_large); it can rise, and come back to 3", () => {
+    openVoting();
+    const p = participant();
+    const own = (
+      h.sqlite
+        .prepare("SELECT p.id AS id FROM projects p JOIN team_members m ON m.team_id = p.team_id WHERE m.user_id = ? AND p.event_id = 'evt_01'")
+        .get(p.userId) as { id: string } | undefined
+    )?.id;
+    castBallot(p, "evt_01", null, { projectIds: ["prj_05", "prj_06", "prj_07", "prj_08"].filter((id) => id !== own).slice(0, 3) }, CLIENT);
+
+    expectHttpError(() => saveVotingSettings(org(), "evt_01", settings("2")), 409, "ballots_too_large");
+    expect(limitNow()).toBe(3);
+    saveVotingSettings(org(), "evt_01", settings("5"));
+    expect(limitNow()).toBe(5);
+    saveVotingSettings(org(), "evt_01", settings("3"));
+    expect(limitNow()).toBe(3);
+  });
+});
+
 describe("listed voters", () => {
   beforeEach(() => {
     openVoting();
