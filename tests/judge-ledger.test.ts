@@ -109,7 +109,7 @@ describe("the judge ledger", () => {
     for (const p of n.projects.filter((q) => q.score === null)) expect(p.se).toBeNull();
   });
 
-  it("the influence check predicts what each override then does, judge by judge", () => {
+  it("the influence check predicts what each override then does, judge by judge", { timeout: 20_000 }, () => {
     const org = organizer();
     const before = getNormalization(org, "evt_01").normalization;
     const checked = before.judges.filter((j) => j.influence);

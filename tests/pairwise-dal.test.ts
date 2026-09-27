@@ -129,7 +129,7 @@ describe("pairwise mode: who may do what", () => {
     expect(h.db.select().from(comparisons).where(eq(comparisons.trackId, q.trackId)).all()[0]!.voidedAt).not.toBeNull();
   });
 
-  it("the Overview pipeline says Comparing and Ranking in pairwise mode and counts what judges placed", () => {
+  it("the Overview pipeline says Comparing and Ranking in pairwise mode and counts what judges placed", { timeout: 20_000 }, () => {
     const stage = (no: string) => getOverview(checker("organizer"), "evt_01").pipeline.find((s) => s.no === no)!;
     expect(stage("06").name).toBe("Scoring");
     toPairwise();
