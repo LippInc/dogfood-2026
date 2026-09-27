@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { unauthorized } from "next/navigation";
+import { Face } from "@/components/face";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc } from "@/lib/format";
@@ -11,6 +12,16 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Community vote" };
 
 const KIND: Record<string, string> = { account: "accounts", listed: "voter list", link: "open link" };
+/** One fill per channel in the turnout bar, told apart without colour: solid ink, solid ink-2, hatched. */
+const CHANNEL: Record<string, string> = {
+  account: "bg-ink",
+  listed: "bg-ink-2",
+  link: "border border-ink-3 bg-[repeating-linear-gradient(135deg,var(--ink-3)_0_2px,transparent_2px_5px)]",
+};
+
+/** The count's rows: place, face, title, bar (wide screens), votes; and the open link's column when it is a way in. */
+const COUNT_ROW = "grid-cols-[28px_32px_minmax(0,1fr)_40px] md:grid-cols-[28px_32px_minmax(0,300px)_minmax(0,1fr)_40px]";
+const COUNT_ROW_LINK = "grid-cols-[28px_32px_minmax(0,1fr)_40px_104px] md:grid-cols-[28px_32px_minmax(0,300px)_minmax(0,1fr)_40px_104px]";
 
 export default async function VotingPage({ params }: PageProps<"/organize/[event]/voting">) {
   const { event: key } = await params;
@@ -23,6 +34,10 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
   const over = !closed && Boolean(event.resultsPublishedAt);
   // the open link's column shows while it is a way in, or once any of its ballots exist
   const withLink = v.settings.modes.includes("link") || Boolean(v.tally?.some((t) => t.openLink > 0));
+  const top = v.tally ? Math.max(0, ...v.tally.map((t) => t.votes)) : 0;
+  // a row for every project with a vote of either kind; the rest share the "not picked" row
+  const anyVotes = Boolean(v.tally?.some((t) => t.votes > 0 || t.openLink > 0));
+  const zeros = v.tally ? v.tally.filter((t) => t.votes === 0 && t.openLink === 0) : [];
   return (
     <WorkShell
       eventName={event.name}
@@ -57,10 +72,20 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
               <span className="text-38 leading-none font-semibold tnum">{v.turnout.ballots}</span>
               <span className="text-13 text-ink-2">ballots counted{v.turnout.voided ? ` · ${v.turnout.voided} set aside` : ""}</span>
             </p>
+            {/* the ballots by the way they came in: one bar, split by channel; dashed and empty before the first */}
+            <div className={`mt-4 flex h-3 w-full gap-[2px] ${v.turnout.ballots ? "" : "border border-dashed border-edge"}`} aria-hidden>
+              {v.turnout.byKind
+                .filter((k) => k.ballots > 0)
+                .map((k) => (
+                  <span key={k.kind} className={CHANNEL[k.kind]} style={{ flexGrow: k.ballots, flexBasis: 0 }} />
+                ))}
+            </div>
             <ul className="mt-3 flex flex-col gap-1 text-14 text-ink-2">
               {v.turnout.byKind.map((k) => (
-                <li key={k.kind}>
-                  {KIND[k.kind]}: <span className="tnum">{k.ballots}</span>
+                <li key={k.kind} className="flex items-center gap-2">
+                  <span aria-hidden className={`inline-block size-2.5 ${CHANNEL[k.kind]}`} />
+                  <span className="flex-1">{KIND[k.kind]}</span>
+                  <span className="text-ink tnum">{k.ballots}</span>
                 </li>
               ))}
             </ul>
@@ -117,24 +142,87 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                 {v.settings.countLink ? "they are included in the count." : "they change no place."}
               </p>
             ) : null}
-            <ol className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
-              {v.tally.map((t) => (
-                <li key={t.projectId} className="flex items-baseline justify-between gap-3 px-4 py-2 text-14">
-                  <span className="min-w-0 wrap-anywhere">
-                    <span className="inline-block w-8 text-ink-2 tnum">{t.place ?? "–"}</span>
-                    <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
-                  </span>
-                  <span className="flex shrink-0 items-baseline gap-3">
-                    <span className="font-semibold tnum">{t.votes}</span>
+            {!anyVotes ? (
+              // Nothing counted yet: the ballot's field of faces, not a column of zeros.
+              <div className="mt-3 flex flex-col gap-4 rounded-sm border border-rule bg-surface p-5">
+                <p className="text-14">
+                  {closed ? (
+                    <>
+                      <strong className="font-semibold">No votes were cast.</strong>{" "}
+                      <span className="text-ink-2">The vote closed with all {v.tally.length} projects at 0.</span>
+                    </>
+                  ) : (
+                    <>
+                      <strong className="font-semibold">No votes yet.</strong>{" "}
+                      <span className="text-ink-2">All {v.tally.length} projects stand at 0; each gets a row and a bar here as ballots come in.</span>
+                    </>
+                  )}
+                </p>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(32px,1fr))] gap-1.5" aria-hidden>
+                  {v.tally.map((t) => (
+                    <span key={t.projectId} title={t.title}>
+                      <Face id={t.projectId} cols={32} rows={18} className="h-auto w-full" />
+                    </span>
+                  ))}
+                </div>
+                <details className="text-14">
+                  <summary className="cursor-pointer text-13 text-ink-2">Every project on the ballot</summary>
+                  <ol className="mt-2 gap-8 text-13 sm:columns-2 lg:columns-3">
+                    {v.tally.map((t) => (
+                      <li key={t.projectId} className="break-inside-avoid py-0.5">
+                        <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              </div>
+            ) : (
+              <ol className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
+                {v.tally.filter((t) => t.votes > 0 || t.openLink > 0).map((t) => (
+                  <li key={t.projectId} className={`grid items-center gap-x-3 px-4 py-2 text-14 ${withLink ? COUNT_ROW_LINK : COUNT_ROW}`}>
+                    <span className="text-ink-2 tnum">{t.place ?? "–"}</span>
+                    <Face id={t.projectId} cols={32} rows={18} className="h-[18px] w-8" />
+                    <span className="min-w-0 truncate">
+                      <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
+                    </span>
+                    {/* the bar: votes against the leader's, so the gaps between places are seen, not read */}
+                    <span aria-hidden className="h-2.5 max-md:hidden">
+                      <span className={`block h-full ${t.votes ? "bg-ink" : ""}`} style={{ width: `${top ? (t.votes / top) * 100 : 0}%` }} />
+                    </span>
+                    <span className="text-right font-semibold tnum">{t.votes}</span>
                     {withLink ? (
-                      <span className="w-28 text-right font-mono text-12 text-ink-2 tnum">
+                      <span className="text-right font-mono text-12 text-ink-2 tnum">
                         {t.openLink > 0 ? `${v.settings.countLink ? "incl. " : "+"}${t.openLink} open link` : null}
                       </span>
                     ) : null}
-                  </span>
-                </li>
-              ))}
-            </ol>
+                  </li>
+                ))}
+                {/* the projects nobody picked share one place: one row with their faces, the names on request */}
+                {zeros.length ? (
+                  <li className="grid grid-cols-[28px_minmax(0,1fr)_40px] items-start gap-x-3 px-4 py-3 text-14">
+                    <span className="text-ink-2 tnum">–</span>
+                    <details>
+                      <summary className="cursor-pointer text-ink-2">
+                        {zeros.length === 1 ? `${zeros[0]!.title}, not picked yet` : `${zeros.length} projects not picked${closed ? "" : " yet"}`}
+                      </summary>
+                      <ol className="mt-2 gap-8 text-13 sm:columns-2 lg:columns-3">
+                        {zeros.map((t) => (
+                          <li key={t.projectId} className="break-inside-avoid py-0.5">
+                            <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                    <span className="text-right font-semibold tnum">0</span>
+                    <span aria-hidden className="col-start-2 mt-2 flex flex-wrap gap-1">
+                      {zeros.map((t) => (
+                        <Face key={t.projectId} id={t.projectId} cols={32} rows={18} className="h-[18px] w-8" />
+                      ))}
+                    </span>
+                  </li>
+                ) : null}
+              </ol>
+            )}
           </section>
         ) : null}
 
