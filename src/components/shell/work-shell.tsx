@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { ModeToggle } from "@/components/mode-toggle";
+import { PageMark } from "@/components/page-mark";
 
 export type WorkTab = { href: string; label: string; active?: boolean };
 
 /**
  * The work side's frame (judges, organizers): quiet surfaces, navy ink, the event
  * marked by one pink square. Pages pass their tabs and a slot for the top bar's
- * right-hand tools.
+ * right-hand tools. The page's mark closes the bar on the right, in whatever room the
+ * bar leaves (none, no mark); on a phone, where the bar wraps, it frays the left edge.
  */
 export function WorkShell({
   eventName,
@@ -29,6 +31,8 @@ export function WorkShell({
   children: React.ReactNode;
   flush?: boolean;
 }) {
+  // on the judge console the mark is the judge's own
+  const markExtra = role === "Judge" ? person : undefined;
   return (
     <div className="work min-h-dvh">
       <a
@@ -37,7 +41,8 @@ export function WorkShell({
       >
         Skip to content
       </a>
-      <header className="border-b border-rule bg-surface">
+      <header className="relative border-b border-rule bg-surface">
+        <PageMark anchor="left" cols={3} rows={12} extra={markExtra} lit={false} className="absolute top-0 left-0 sm:hidden" />
         {/* On a phone the header wraps: brand and controls on the first row, the tabs on a
             scrolling row of their own, so Sign out and the mode toggle never sit off-screen. */}
         <div className="flex flex-wrap items-stretch gap-x-6 px-4 sm:h-12 sm:flex-nowrap sm:overflow-x-auto lg:px-8">
@@ -76,6 +81,11 @@ export function WorkShell({
             <form action="/api/auth/sign-out" method="post">
               <button className="h-8 rounded-sm px-2 text-13 text-ink-2 hover:bg-raised hover:text-ink">Sign out</button>
             </form>
+          </div>
+          {/* the page's mark closes the bar on the right, only in room the bar does not use */}
+          <div className="@container relative hidden max-w-[80px] min-w-0 flex-1 overflow-hidden sm:block" aria-hidden="true">
+            <PageMark anchor="right" cols={20} rows={12} extra={markExtra} className="absolute top-0 right-0 hidden @min-[80px]:block" />
+            <PageMark anchor="right" cols={10} rows={12} extra={markExtra} className="absolute top-0 right-0 @min-[80px]:hidden" />
           </div>
         </div>
       </header>
