@@ -130,6 +130,18 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             {v.listed.length} on the list, {v.listed.filter((l) => l.voted).length} voted.
             {closed || over ? "" : " The portal sends no email: copy the links and send them yourself."}
           </p>
+          {/* one cell per address on the list, filled once its ballot is in; a set-aside ballot is hollow and struck */}
+          {v.listed.length ? (
+            <div aria-hidden className="mb-4 flex flex-wrap gap-[3px]">
+              {v.listed.map((l) => (
+                <span
+                  key={l.id}
+                  title={`${l.email}: ${l.voided ? "set aside" : l.voted ? "voted" : "not yet"}`}
+                  className={`h-3 w-2 ${l.voided ? "border border-ink-3 bg-[linear-gradient(to_top_right,transparent_45%,var(--ink-3)_45%_55%,transparent_55%)]" : l.voted ? "bg-ink" : "border border-edge"}`}
+                />
+              ))}
+            </div>
+          ) : null}
           {closed || over ? null : <VoterListForm eventSlug={event.slug} />}
         </section>
       </div>
