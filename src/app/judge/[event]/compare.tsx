@@ -260,7 +260,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                 </span>
                 {here ? (
                   <span className="text-12 font-medium text-accent-ink">comparing</span>
-                ) : fresh ? (
+                ) : fresh && !tied ? (
                   <span className="text-12 font-medium text-accent-ink">just placed</span>
                 ) : null}
               </li>
@@ -401,9 +401,11 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                 <figure className="mt-8">
                   <figcaption className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <span className="label-mono text-ink-2">Fig. 01 · Your list, best first</span>
-                    <span className="text-13 text-ink-2 tnum">
-                      {track.placed} placed with {track.answered} {track.answered === 1 ? "answer" : "answers"}
-                    </span>
+                    {track.answered > 0 ? (
+                      <span className="text-13 text-ink-2 tnum">
+                        {track.placed} placed with {track.answered} {track.answered === 1 ? "answer" : "answers"}
+                      </span>
+                    ) : null}
                   </figcaption>
                   <ol className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3">
                     {track.list.map((p, n) => (
