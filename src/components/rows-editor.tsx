@@ -67,11 +67,13 @@ export function RowsEditor({
   const sentAt = rows.map((row) => (isTyped(row) ? typed.indexOf(row) : -1));
   const rowErrors = (i: number) => (errors && sentAt[i] >= 0 ? (errors[String(sentAt[i])] ?? []) : []);
   const table = grid ? `lg:grid lg:items-center ${grid}` : "";
+  // one field (a track's name): the table fits a phone too, so its label heads the column at every width
+  const oneCol = Boolean(grid) && fields.length === 1 && fields[0].type !== "checkbox";
   return (
     <div className="flex flex-col gap-2">
       <input type="hidden" name={name} value={JSON.stringify(typed)} />
       {grid ? (
-        <div aria-hidden className={`gap-2 px-2.5 text-12 text-ink-3 max-lg:hidden ${table}`}>
+        <div aria-hidden className={`gap-2 px-2.5 text-12 text-ink-3 ${oneCol ? "max-lg:pl-9" : "max-lg:hidden"} ${table}`}>
           <span />
           {fields.map((f) => (
             <span key={f.key}>{f.type === "checkbox" ? "" : f.label}</span>
@@ -86,11 +88,11 @@ export function RowsEditor({
             data-invalid={rowErrors(i).length ? "" : undefined}
             className={
               grid
-                ? `flex flex-wrap items-end gap-2 bg-surface px-2.5 py-2 data-[invalid]:bg-flag-bg data-[invalid]:shadow-[inset_3px_0_0_var(--flag-bar)] ${table}`
+                ? `flex flex-wrap ${oneCol ? "items-center" : "items-end"} gap-2 bg-surface px-2.5 py-2 data-[invalid]:bg-flag-bg data-[invalid]:shadow-[inset_3px_0_0_var(--flag-bar)] ${table}`
                 : "flex flex-wrap items-end gap-2 rounded-sm border border-rule bg-surface p-2.5"
             }
           >
-            <span className={`mb-2 w-5 shrink-0 text-right font-mono text-12 text-ink-3 ${grid ? "lg:mb-0" : ""}`}>{i + 1}</span>
+            <span className={`w-5 shrink-0 text-right font-mono text-12 text-ink-3 ${oneCol ? "" : grid ? "mb-2 lg:mb-0" : "mb-2"}`}>{i + 1}</span>
             {fields.map((f) => {
               const id = `${name}-${i}-${f.key}`;
               if (f.type === "checkbox") {
@@ -109,8 +111,8 @@ export function RowsEditor({
                 );
               }
               return (
-                <label key={f.key} htmlFor={id} className={`flex min-w-0 flex-col gap-1 ${f.width ?? "grow basis-48"} ${grid ? "lg:w-auto" : ""}`}>
-                  <span className={`text-12 text-ink-3 ${grid ? "lg:sr-only" : ""}`}>{f.label}</span>
+                <label key={f.key} htmlFor={id} className={`flex min-w-0 flex-col gap-1 ${oneCol ? "grow basis-0" : (f.width ?? "grow basis-48")} ${grid ? "lg:w-auto" : ""}`}>
+                  <span className={`text-12 text-ink-3 ${oneCol ? "sr-only" : grid ? "lg:sr-only" : ""}`}>{f.label}</span>
                   {f.type === "select" ? (
                     <select
                       id={id}
@@ -141,7 +143,7 @@ export function RowsEditor({
                 </label>
               );
             })}
-            <div className={`mb-0.5 ml-auto flex shrink-0 gap-1 ${grid ? "lg:mb-0" : ""}`}>
+            <div className={`ml-auto flex shrink-0 gap-1 ${oneCol ? "" : grid ? "mb-0.5 lg:mb-0" : "mb-0.5"}`}>
               <button type="button" onClick={() => move(i, -1)} disabled={disabled || i === 0} className="inline-flex size-7 items-center justify-center rounded-sm text-ink-3 hover:bg-raised hover:text-ink disabled:opacity-30" aria-label={`Move row ${i + 1} up`}>
                 <ArrowUp className="size-3.5" aria-hidden />
               </button>
