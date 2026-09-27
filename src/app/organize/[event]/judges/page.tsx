@@ -7,11 +7,30 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, getAssignments, getJudges } from "@/server/dal";
+import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
+import { currentActor, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeStanding } from "@/server/dal";
 import { revokeInviteAction } from "./actions";
 import { ByHandForm, CopyButton, InviteForm, RunForm, TracksForm } from "./forms";
 
 export const dynamic = "force-dynamic";
+
+/** Signed to two decimals; a value that rounds to zero shows as 0.00, never −0.00. */
+const signed = (v: number) => (Math.abs(v) < 0.005 ? "0.00" : `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`);
+
+/** One judge's leniency in the table: their plain tilt and what the engine takes off, drawn on the shared axis. */
+function Leniency({ s, k, span }: { s: JudgeStanding | undefined; k: number | null; span: number }) {
+  if (!s || s.nAll === 0) return <p className="text-13 text-ink-3">no finished review</p>;
+  if (s.excluded) return <p className="text-13 text-flag">left out: nothing counted</p>;
+  if (k === null) return <p className="text-13 text-ink-3">not corrected yet</p>;
+  return (
+    <div className="flex flex-col gap-1">
+      <LeniencyRow tilt={s.tilt} leniency={s.leniency} se={null} span={span} />
+      <p className="text-12 whitespace-nowrap text-ink-2 tnum">
+        {s.tilt === null ? "" : `tilt ${signed(s.tilt)} · `}takes off <span className="text-ink">{signed(s.leniency)}</span>
+      </p>
+    </div>
+  );
+}
 export const metadata: Metadata = { title: "Judges" };
 
 export default async function JudgesPage({ params }: PageProps<"/organize/[event]/judges">) {
@@ -26,6 +45,12 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
   const finished = judges.reduce((s, j) => s + j.done, 0);
   const openInvites = invites.filter((i) => i.state === "open");
   const leftOut = judges.filter((j) => j.excluded).length;
+  // Leniency is a scores-mode idea: the engine's own standing per judge, keyed by id.
+  const norm = judgingModeOf(event) === "scores" ? guardPage(() => getNormalization(actor, key)).normalization : null;
+  const standing = new Map((norm?.judges ?? []).map((s) => [s.id, s]));
+  const k = norm?.variance.k ?? null;
+  const drawn = (norm?.judges ?? []).filter((s) => !s.excluded && s.nAll > 0);
+  const span = leniencySpan(drawn.flatMap((s) => [s.tilt ?? 0, s.leniency]));
 
   return (
     <WorkShell
@@ -78,6 +103,21 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                 No judges yet. Make an invitation link on the right and send it to each judge yourself: this portal sends no email.
               </p>
             ) : (
+              <>
+              {norm && k !== null && drawn.length ? (
+                <p className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-12 text-ink-2">
+                  <span className="label-mono text-ink">Fig. 02 — Leniency</span>
+                  <span className="flex items-center gap-1.5" aria-hidden>
+                    <span className="inline-block size-2 rounded-full border border-ink-2" /> plain tilt against co-reviewers
+                  </span>
+                  <span className="flex items-center gap-1.5" aria-hidden>
+                    <span className="inline-block size-2 rounded-full bg-ink" /> what the engine takes off, k = {k.toFixed(1)}
+                  </span>
+                  <a href={`/organize/${event.slug}/results#ledger-title`} className="underline underline-offset-2 hover:text-ink">
+                    The working, per judge, in Results
+                  </a>
+                </p>
+              ) : null}
               <div className="overflow-x-auto rounded-sm border border-rule bg-surface">
                 <Table>
                   <TableHeader>
@@ -85,6 +125,12 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                       <TableHead>Judge</TableHead>
                       <TableHead>Tracks</TableHead>
                       <TableHead className="text-right">Reviews</TableHead>
+                      {norm ? (
+                        <TableHead className="h-auto py-1.5">
+                          <span className="block">Leniency</span>
+                          {k !== null && drawn.length ? <LeniencyAxis span={span} /> : null}
+                        </TableHead>
+                      ) : null}
                       <TableHead>Standing</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -120,6 +166,11 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                             {j.recused ? <p className="mt-1 text-12 text-ink-2">{j.recused} recused</p> : null}
                             {j.lastScoredAt ? <p className="mt-1 text-12 whitespace-nowrap text-ink-3">last {formatUtc(j.lastScoredAt)}</p> : null}
                           </TableCell>
+                          {norm ? (
+                            <TableCell>
+                              <Leniency s={standing.get(j.id)} k={k} span={span} />
+                            </TableCell>
+                          ) : null}
                           <TableCell className="max-w-[260px] text-13">
                             {j.flat ? (
                               <p className={j.excluded ? "text-flag" : "text-ink-2"}>
@@ -149,6 +200,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                   </TableBody>
                 </Table>
               </div>
+              </>
             )}
           </section>
 
