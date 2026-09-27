@@ -52,12 +52,14 @@ class Person:
             NoRedirect(), urllib.request.HTTPCookieProcessor(self.jar)
         )
 
-    def request(self, method, url, body=None):
+    def request(self, method, url, body=None, headers=None):
         """Return (status, text, headers). Never raises on an HTTP error status."""
         req = urllib.request.Request(url, method=method)
         if self.header:
             name, _, value = self.header.partition(":")
             req.add_header(name.strip(), value.strip())
+        for name, value in (headers or {}).items():
+            req.add_header(name, value)
         if body is not None:
             req.data = json.dumps(body).encode()
             req.add_header("Content-Type", "application/json")
@@ -457,8 +459,8 @@ def run_checks(cfg):
                    "hidden.reason 'isolation check'")
     checks.append(c)
 
-    # B9 -- the rate limits bite, and say when to come back
-    c = Check("B", "rate limits answer 429 with retry-after")
+    # B9 -- the rate limits bite, say when to come back, and ignore the address a client claims
+    c = Check("B", "rate limits answer 429 with retry-after, whatever address a client claims")
     saw_429 = retry = False
     for i in range(1, 9):
         s, body, headers = participant.request(
@@ -475,12 +477,13 @@ def run_checks(cfg):
     saw_429 = False
     if code:
         enter_url = u(f"/api/vote/{code}")
+        # each attempt names a new X-Forwarded-For address: the limit must hold anyway
         for i in range(1, 13):
-            s, body, _ = anon.request("POST", enter_url)
+            s, body, _ = anon.request("POST", enter_url, headers={"X-Forwarded-For": f"198.51.100.{i}"})
             if s == 429:
                 saw_429 = True
                 break
-        expect(c, saw_429, anon, "POST", enter_url, f"still not limited after {i} attempts",
+        expect(c, saw_429, anon, "POST", enter_url, f"still not limited after {i} attempts, each from a claimed new address",
                "a 429 within 12 attempts")
     else:
         expect(c, False, anon, "POST", u("/api/vote/<code>"), "no open-link code from B4 to probe",

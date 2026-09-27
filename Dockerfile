@@ -35,5 +35,6 @@ USER node
 EXPOSE 8080
 VOLUME ["/data"]
 # Migrations, the fixture import and the checker sessions run inside the server's
-# own start-up (src/instrumentation.ts); wait for the "portal ready" line.
-CMD ["node", "server.js"]
+# own start-up (src/instrumentation.ts); wait for the "portal ready" line. The preload
+# makes the client address the connection's own (or TRUST_PROXY_HOPS proxies' view).
+CMD ["node", "--import", "./scripts/client-address.mjs", "server.js"]

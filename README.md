@@ -215,12 +215,13 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 | `DOGFOOD_SEED_SECRET` | Derives the checker sessions and salts the voters' address hashes; set your own |
 | `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
 | `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
+| `TRUST_PROXY_HOPS` | How many reverse proxies stand in front of the portal, each appending to `X-Forwarded-For` (usually `1`). Unset, the client address is the connection's own and any `X-Forwarded-For` a client sends is ignored; set it only when that many proxies really are in front, or a client can name its own address |
 | `WEBHOOKS_ALLOW_PRIVATE` | `"true"` lets webhooks reach private and local addresses; leave it unset unless the receiver is on your own network |
 | `ADMIN_EMAILS` | Addresses (comma separated) for the portal's administrators, who create and import events. Each signs up through the one-time setup link the portal prints in its log at start; a link works once, and each start prints a new one while a named address has no account yet. The sign-up's audit row records it |
 | `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file each start imports (idempotently: rows already there are left as they are); `"none"` starts without the sample event |
 
 `docker-compose.yml` publishes the portal on `127.0.0.1:8080` only; put it behind
-a reverse proxy that terminates HTTPS and overwrites `X-Forwarded-For` (see the
+a reverse proxy that terminates HTTPS, and set `TRUST_PROXY_HOPS` (see the
 next section).
 
 Back up while it runs, with SQLite's online backup; the copy lands in the volume:
@@ -261,9 +262,9 @@ start, and the fixture import never overwrites what the organizers changed.
   (a reset link made by an organizer would let one event's organizer take over
   accounts that matter in another).
 - The per-address limits (open-link entries; sign-ups and sign-ins) and the
-  duplicate-ballot flags key on the client address from `X-Forwarded-For`; run
-  the portal behind a reverse proxy that overwrites it, or a client can pick its
-  own. The limits live in memory and reset on restart.
+  duplicate-ballot flags key on the client's network address, so people behind
+  one address (an office, a venue's wifi) share a limit. The limits live in
+  memory and reset on restart.
 - Results cannot be unpublished from the interface.
 - Organizers are trusted with their own event: nothing stops an organizer from
   also being on a team in it. What the portal does is log every organizer
