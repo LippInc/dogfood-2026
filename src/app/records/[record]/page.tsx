@@ -55,7 +55,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
           </div>
 
           <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-            <div className="flex flex-col gap-4">
+            <div className="flex min-w-0 flex-col gap-4 wrap-anywhere">
               <p className="text-14 font-medium uppercase tracking-[0.14em] text-ink-2">{heading}</p>
               <h1 id="record-name" className="font-serif text-[40px] leading-[1.1] sm:text-64">
                 {rec.person.name}
@@ -87,7 +87,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
           </div>
 
           {awards.length ? (
-            <ul className="flex flex-col gap-2 border-t border-rule pt-6">
+            <ul className="flex flex-col gap-2 border-t border-rule pt-6 wrap-anywhere">
               {awards.map((a) => (
                 <li key={a} className="font-display text-24 uppercase leading-tight text-accent-ink sm:text-38">
                   {a}

@@ -74,7 +74,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
         <header className="flex flex-col gap-3">
           <p className="label-mono text-ink-2">{event.resultsPublishedAt ? "Published run" : "Preview: nothing is public until you publish"}</p>
           <h1 className="text-24 font-semibold">The ranking and its working</h1>
-          <p className="max-w-[860px] text-15 leading-6">
+          <p className="max-w-[860px] text-15 leading-6 wrap-anywhere">
             <strong>{METHOD_LABEL}.</strong>{" "}
             {!n.variance.measured
               ? "No project has two counted reviews yet, so this run cannot measure leniency or review noise: it ranks by the plain mean of each project's reviews, with no ±."
@@ -85,7 +85,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             {excludedNames.length ? ` Left out in this run: ${excludedNames.join(", ")}.` : " Nobody is left out in this run."}
           </p>
           {n.judges.some((j) => j.override) ? (
-            <ul className="flex flex-col gap-1 text-14 text-ink-2">
+            <ul className="flex flex-col gap-1 text-14 text-ink-2 wrap-anywhere">
               {n.judges
                 .filter((j) => j.override)
                 .map((j) => (
@@ -97,7 +97,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
           ) : null}
         </header>
 
-        <section aria-label="Findings" className="grid gap-6 lg:grid-cols-3">
+        <section aria-label="Findings" className="grid gap-6 wrap-anywhere lg:grid-cols-3">
           <div className="rounded-sm border border-rule bg-surface p-5">
             <p className="text-38 leading-none font-semibold tnum">
               {movedByExclusion} of {slope.length}
@@ -187,7 +187,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                   key={id}
                   href={`/organize/${event.slug}/results?track=${id}`}
                   aria-current={chosen === id ? "page" : undefined}
-                  className="rounded-sm border border-edge px-3 py-1 text-13 aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-surface"
+                  className="rounded-sm border border-edge px-3 py-1 text-13 wrap-anywhere aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-surface"
                 >
                   {name}
                   {moved ? <span className="ml-1 text-ink-3">· {moved} moved</span> : null}

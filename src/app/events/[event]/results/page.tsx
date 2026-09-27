@@ -45,7 +45,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
               const shown = competitionPlaces(t.rows);
               return (
                 <section key={t.id} aria-labelledby={`track-${t.id}`}>
-                  <h2 id={`track-${t.id}`} className="border-b border-rule pb-2 text-24 font-semibold">
+                  <h2 id={`track-${t.id}`} className="border-b border-rule pb-2 text-24 font-semibold wrap-anywhere">
                     {t.name}
                   </h2>
                   <ol className="divide-y divide-rule">

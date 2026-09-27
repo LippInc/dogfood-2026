@@ -91,7 +91,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           </p>
           <ol className="mt-6 grid gap-4 md:grid-cols-2">
             {work.feedback.reviews.map((r, i) => (
-              <li key={i} className={`rounded-sm border border-rule p-4 ${r.counted ? "" : "opacity-70"}`}>
+              <li key={i} className={`rounded-sm border border-rule p-4 wrap-anywhere ${r.counted ? "" : "opacity-70"}`}>
                 <p className="flex flex-wrap items-baseline justify-between gap-2 text-14">
                   <span className="font-semibold">Review {i + 1}</span>
                   <span className="text-ink-2 tnum">

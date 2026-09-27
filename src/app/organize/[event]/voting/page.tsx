@@ -107,11 +107,11 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             <ol className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
               {v.tally.map((t) => (
                 <li key={t.projectId} className="flex items-baseline justify-between gap-3 px-4 py-2 text-14">
-                  <span>
+                  <span className="min-w-0 wrap-anywhere">
                     <span className="inline-block w-8 text-ink-2 tnum">{t.place}</span>
                     <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
                   </span>
-                  <span className="font-semibold tnum">{t.votes}</span>
+                  <span className="shrink-0 font-semibold tnum">{t.votes}</span>
                 </li>
               ))}
             </ol>

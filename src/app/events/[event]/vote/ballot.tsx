@@ -72,7 +72,7 @@ export function Ballot({
           return (
             <li key={p.id} className={`tile grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-4 sm:grid-cols-[120px_minmax(0,1fr)_auto] ${chosen ? "lit" : ""}`}>
               <span className="hidden sm:block">{faces[p.id]}</span>
-              <span className="min-w-0">
+              <span className="min-w-0 wrap-anywhere">
                 <span className="block font-display text-20 leading-6">{p.title}</span>
                 <span className="mt-1 block text-14 text-ink-2">
                   {p.teamName} · {p.trackName}
