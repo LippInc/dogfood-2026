@@ -25,6 +25,8 @@ export const metadata: Metadata = { title: "Settings" };
 const invalid = "aria-[invalid=true]:border-flag-bar aria-[invalid=true]:shadow-[inset_3px_0_0_var(--flag-bar)]";
 const input = `h-8 w-full rounded-sm border border-edge bg-surface px-2.5 text-14 ${invalid}`;
 
+const num = (i: number) => String(i + 1).padStart(2, "0");
+
 /** The sections in page order, for the contents rail: [SectionForm id, title]. */
 const SECTIONS: [string, string][] = [
   ["details", "Event"],
@@ -46,6 +48,17 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
   const hidden = { event: event.slug };
   const totalWeight = o.rubric.reduce((s, c) => s + c.weight, 0);
   const mode = judgingModeOf(event);
+  const count = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "none");
+  /** What each section holds now, from the saved event: the contents read as an index, not only a list of names. */
+  const holds: Record<string, string> = {
+    details: event.resultsPublishedAt ? "dates final" : "",
+    organizers: String(organizers.length),
+    tracks: String(o.tracks.length),
+    prizes: o.prizes.length ? String(o.prizes.length) : "none",
+    questions: o.questions.length ? String(o.questions.length) : "none",
+    "judging-mode": mode === "pairwise" ? "Pairwise" : "Scores",
+    rubric: count(o.rubric.length, "criterion", "criteria"),
+  };
   return (
     <WorkShell
       eventName={event.name}
@@ -55,14 +68,15 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
       role="Organizer"
     >
       <div className="mx-auto max-w-[960px] lg:grid lg:max-w-[1200px] lg:grid-cols-[200px_minmax(0,960px)] lg:gap-10">
-        {/* the sheet's contents: one numbered line per section, kept in view while the long form scrolls */}
+        {/* the sheet's contents: one numbered line per section with what it holds now, kept in view while the long form scrolls */}
         <nav aria-label="Settings sections" className="max-lg:hidden">
           <ol className="sticky top-6 flex flex-col border-l-2 border-ink">
             {SECTIONS.map(([id, title], i) => (
               <li key={id}>
-                <a href={`#${id}-title`} className="flex gap-2.5 py-1.5 pl-3 text-13 text-ink-2 hover:text-ink">
-                  <span className="font-mono text-12 text-ink-3">{String(i + 1).padStart(2, "0")}</span>
-                  {title}
+                <a href={`#${id}-title`} className="flex items-baseline gap-2.5 py-1.5 pl-3 text-13 text-ink-2 hover:text-ink">
+                  <span className="font-mono text-12 text-ink-3">{num(i)}</span>
+                  <span className="min-w-0 grow">{title}</span>
+                  <span className="text-12 text-ink-3 tnum">{holds[id]}</span>
                 </a>
               </li>
             ))}
@@ -75,9 +89,24 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               Every save is written to the audit log with what it changed. Times are in UTC.
             </p>
           </div>
+          {/* on phones the form is five screens long: the same contents, as a two-column index under the heading */}
+          <nav aria-label="Settings sections" className="lg:hidden">
+            <ol className="grid grid-cols-2 gap-x-4 border-t-2 border-ink pt-2">
+              {SECTIONS.map(([id, title], i) => (
+                <li key={id} className="min-w-0 border-b border-rule">
+                  <a href={`#${id}-title`} className="flex min-h-10 items-baseline gap-2 py-2.5 text-13 text-ink-2 hover:text-ink">
+                    <span className="font-mono text-12 text-ink-3">{num(i)}</span>
+                    <span className="min-w-0 grow">{title}</span>
+                    <span className="text-12 text-ink-3 tnum">{holds[id]}</span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
 
           <SectionForm
             id="details"
+            number={num(0)}
             title="Event"
             description={event.resultsPublishedAt ? "Results are published, so the dates are final; the name, description and team size can still change." : undefined}
             action={saveDetailsAction}
@@ -122,6 +151,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="organizers"
+            number={num(1)}
             title="Organizers"
             description="Everyone here can change this event, settle its decisions and publish its results. Add someone by the email of their account: they sign up first, since the portal sends no mail. The last organizer cannot be removed."
             action={addOrganizerAction}
@@ -156,6 +186,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="tracks"
+            number={num(2)}
             title="Tracks"
             description="Projects enter one track; judges are assigned by track. A track that has projects or judges can be renamed, not removed."
             action={saveTracksAction}
@@ -173,7 +204,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             />
           </SectionForm>
 
-          <SectionForm id="prizes" title="Prizes" description="A name and a line on what wins it. Shown on the About page." action={savePrizesAction} hidden={hidden} fieldLabels={{ prizes: "Prizes" }} rowLabel="Prize">
+          <SectionForm id="prizes" number={num(3)} title="Prizes" description="A name and a line on what wins it. Shown on the About page." action={savePrizesAction} hidden={hidden} fieldLabels={{ prizes: "Prizes" }} rowLabel="Prize">
             <RowsEditor
               name="prizes"
               initial={o.prizes.map((p) => ({ id: p.id, name: p.name, description: p.description }))}
@@ -189,6 +220,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="questions"
+            number={num(4)}
             title="Questions for teams"
             description="Asked on every team's project form; judges read the answers next to the project. A required question must be answered before a team can submit."
             action={saveQuestionsAction}
@@ -223,6 +255,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="judging-mode"
+            number={num(5)}
             title="How judges judge"
             description={
               event.resultsPublishedAt
@@ -259,6 +292,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="rubric"
+            number={num(6)}
             title="Scoring rubric"
             description={
               <>
