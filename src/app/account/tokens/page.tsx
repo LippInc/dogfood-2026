@@ -8,6 +8,7 @@ import { guardPage } from "@/lib/page-guard";
 import { currentActor, listApiTokens, type TokenView } from "@/server/dal";
 import { revokeTokenAction } from "./actions";
 import { TokenForm } from "./token-form";
+import { TokenMark } from "./token-mark";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "API tokens" };
@@ -56,10 +57,13 @@ export default async function TokensPage() {
       </div>
 
       <section aria-labelledby="new-token" className="mt-10 rounded-sm border border-rule bg-surface p-5">
-        <h2 id="new-token" className="mb-4 flex items-baseline gap-3">
-          <span className="font-mono text-12 text-accent-ink">01</span>
-          <span className="label-mono text-ink-2">New token</span>
-        </h2>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 id="new-token" className="flex items-baseline gap-3">
+            <span className="font-mono text-12 text-accent-ink">01</span>
+            <span className="label-mono text-ink-2">New token</span>
+          </h2>
+          <p className="text-12 text-ink-3">shown to you once; the portal keeps only its hash</p>
+        </div>
         <TokenForm />
       </section>
 
@@ -71,26 +75,31 @@ export default async function TokensPage() {
           </h2>
         </div>
         {rows.length ? (
-          <table className="w-full text-14">
-            <thead className="max-md:sr-only">
-              <tr className="border-b border-rule text-left text-12 text-ink-3">
-                <th scope="col" className="py-2 pr-4 font-normal">
-                  Token
-                </th>
-                <th scope="col" className="py-2 pr-4 font-normal">
-                  Last used
-                </th>
-                <th scope="col" className="py-2 pr-4 font-normal">
-                  Expires
-                </th>
-                <th scope="col" className="py-2 font-normal">
-                  <span className="sr-only">Action</span>
-                </th>
-              </tr>
-            </thead>
-            <Group title="Working" count={live.length} rows={live} />
-            <Group title="Revoked or expired" count={dead.length} rows={dead} />
-          </table>
+          <>
+            <table className="w-full text-14">
+              <thead className="max-md:sr-only">
+                <tr className="border-b border-rule text-left text-12 text-ink-3">
+                  <th scope="col" className="py-2 pr-4 font-normal">
+                    Token
+                  </th>
+                  <th scope="col" className="py-2 pr-4 font-normal">
+                    Last used
+                  </th>
+                  <th scope="col" className="py-2 pr-4 font-normal">
+                    Expires
+                  </th>
+                  <th scope="col" className="py-2 font-normal">
+                    <span className="sr-only">Action</span>
+                  </th>
+                </tr>
+              </thead>
+              <Group title="Working" count={live.length} rows={live} />
+              <Group title="Revoked or expired" count={dead.length} rows={dead} />
+            </table>
+            <p className="mt-3 text-12 text-ink-3">
+              Each mark is its token&rsquo;s first six characters after dfk_, drawn as bits: one row of six per character.
+            </p>
+          </>
         ) : (
           <div className="mt-4 rounded-sm border border-dashed border-edge px-5 py-8 text-center">
             <p className="text-15 font-medium">No tokens yet</p>
@@ -125,10 +134,15 @@ function Group({ title, count, rows }: { title: string; count: number; rows: Row
             className="border-b border-rule align-middle max-md:grid max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3 max-md:gap-y-1 max-md:py-4"
           >
             <td className="py-3.5 pr-4 max-md:col-start-1 max-md:py-0">
-              <span className={`block font-medium wrap-anywhere ${live ? "" : "text-ink-2"}`}>{t.name}</span>
-              <span className="mt-1 flex flex-wrap items-baseline gap-x-2 text-12 text-ink-3 tnum">
-                <code className={`font-mono text-12 ${live ? "text-ink-2" : "line-through"}`}>{t.hint}…</code>
-                <span>made {formatUtc(t.createdAt, { time: false })}</span>
+              <span className="flex items-center gap-3">
+                <TokenMark hint={t.hint} dim={!live} className="size-9" />
+                <span className="min-w-0">
+                  <span className={`block font-medium wrap-anywhere ${live ? "" : "text-ink-2"}`}>{t.name}</span>
+                  <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-12 text-ink-3 tnum">
+                    <code className={`font-mono text-12 ${live ? "text-ink-2" : "line-through"}`}>{t.hint}…</code>
+                    <span>made {formatUtc(t.createdAt, { time: false })}</span>
+                  </span>
+                </span>
               </span>
             </td>
             <td className="py-3.5 pr-4 text-13 tnum max-md:col-start-1 max-md:py-0">
