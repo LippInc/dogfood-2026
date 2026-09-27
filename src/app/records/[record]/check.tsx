@@ -88,6 +88,20 @@ export function RecordCheck({ envelope, children }: { envelope: Envelope; childr
 }
 
 /**
+ * The certificate sheet itself. Once this browser has checked the signature, the sheet
+ * is "lit": its corner marks, the project's face and the place figure take the accent,
+ * with the seal. Until then, or when the check fails, they stay grey.
+ */
+export function CheckedSheet({ className, children, ...rest }: React.ComponentProps<"article">) {
+  const state = useContext(CheckState);
+  return (
+    <article {...rest} data-check={state.at} className={`${className ?? ""} ${state.at === "valid" ? "lit" : ""}`}>
+      {children}
+    </article>
+  );
+}
+
+/**
  * The certificate's seal: the signature itself, one square per bit. It lights up in
  * the accent once this browser has checked the signature, and its frame turns to the
  * alarm colour if the check fails, so the seal shows what the browser found.
@@ -109,8 +123,12 @@ export function LiveSeal({ signature }: { signature: string }) {
           {state.at === "checking" ? (
             <span className="text-ink-2">Checking in your browser…</span>
           ) : state.at === "valid" ? (
-            <span className="stamp inline-flex items-center gap-1.5 font-semibold text-ok">
-              <Check className="size-4" aria-hidden /> Valid, checked by your browser
+            <span className="stamp inline-flex items-start gap-1.5">
+              <Check className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />
+              <span>
+                <strong className="font-semibold text-ok">Valid</strong>
+                <span className="text-ink-2">, checked by your browser</span>
+              </span>
             </span>
           ) : state.at === "invalid" ? (
             <span className="stamp inline-flex items-center gap-1.5 font-semibold text-flag">

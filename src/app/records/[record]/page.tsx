@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { DitherDigits } from "@/components/dither-digits";
 import { Face } from "@/components/face";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
 import { actorNav, currentActor, getRecord, NotFoundError, type RecordView } from "@/server/dal";
-import { BrowserCheck, ForgeTry, LiveSeal, RecordActions, RecordCheck } from "./check";
+import { BrowserCheck, CheckedSheet, ForgeTry, LiveSeal, RecordActions, RecordCheck } from "./check";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,12 @@ export async function generateMetadata({ params }: PageProps<"/records/[record]"
   }
 }
 
+/** A podium award as the record words it ("Joint 1st place, Health"), read back into its parts; other awards stay whole. */
+function placeOf(award: string): { place: number; ordinal: string; joint: boolean; track: string } | null {
+  const m = /^(Joint )?(([0-9]+)(?:st|nd|rd|th)) place, (.+)$/.exec(award);
+  return m ? { joint: Boolean(m[1]), ordinal: m[2]!, place: Number(m[3]), track: m[4]! } : null;
+}
+
 const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 export default async function RecordPage({ params }: PageProps<"/records/[record]">) {
@@ -46,9 +53,9 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
     <PublicShell event={view.event} active="none" signedInAs={actor?.name ?? null} links={actorNav(actor, view.event.id)}>
       <RecordCheck envelope={view.envelope}>
       <div className="mx-auto flex max-w-[960px] flex-col gap-10 py-10 print:max-w-none print:py-0">
-        <article
+        <CheckedSheet
           aria-labelledby="record-name"
-          className="corner-marks relative flex flex-col gap-8 rounded-sm border border-rule px-6 py-9 outline outline-1 outline-offset-4 outline-rule sm:p-12 print:break-inside-avoid print:border-2 print:border-ink print:p-12"
+          className="corner-marks [&.lit]:[--mark:var(--accent)] relative flex flex-col gap-8 rounded-sm border border-rule px-6 py-9 outline outline-1 outline-offset-4 outline-rule sm:p-12 print:break-inside-avoid print:border-2 print:border-ink print:p-12"
         >
           <div className="flex items-baseline justify-between gap-4">
             <span className="label-mono text-ink-3">[ signed record ]</span>
@@ -100,12 +107,26 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
           </div>
 
           {awards.length ? (
-            <ul className="flex flex-col gap-2 border-t border-rule pt-6 wrap-anywhere">
-              {awards.map((a) => (
-                <li key={a} className="font-display text-24 uppercase leading-tight text-accent-ink sm:text-38">
-                  {a}
-                </li>
-              ))}
+            <ul className="flex flex-col gap-6 border-t border-rule pt-6 wrap-anywhere">
+              {awards.map((a) => {
+                const p = placeOf(a);
+                return (
+                  <li key={a} className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-x-5 sm:grid-cols-[80px_minmax(0,1fr)] sm:gap-x-7">
+                    {p ? (
+                      <DitherDigits
+                        value={String(p.place)}
+                        className="[&_path]:transition-[fill] [&_path]:duration-500 motion-reduce:[&_path]:transition-none [.lit_&_path]:fill-accent"
+                      />
+                    ) : (
+                      <span aria-hidden className="block aspect-square w-full bg-face-bg [.lit_&]:bg-accent" />
+                    )}
+                    <p className="flex flex-col gap-1">
+                      <span className="font-display text-24 uppercase leading-tight text-accent-ink sm:text-38">{p ? `${p.joint ? "Joint " : ""}${p.ordinal} place` : a}</span>
+                      {p ? <span className="font-serif text-17 text-ink-2 sm:text-20">in the {p.track} track</span> : null}
+                    </p>
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
 
@@ -138,7 +159,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
           <p className="hidden text-12 text-ink-2 print:block">
             Check this record at {rec.issuer}/records/{rec.id}
           </p>
-        </article>
+        </CheckedSheet>
 
         <section aria-labelledby="check-title" className="flex flex-col gap-5 print:hidden">
           <div className="flex flex-wrap items-end justify-between gap-4">
