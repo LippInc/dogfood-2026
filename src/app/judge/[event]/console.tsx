@@ -374,7 +374,9 @@ export function JudgeConsoleView({
             {active.length === 0
               ? "Nothing left to review: you declared a conflict on every project in your batch."
               : left === 0
-              ? "Every project reviewed. You can still change a score until judging closes."
+              ? active.every((i) => reviews[i.assignmentId]!.readOnly)
+                ? "Every project reviewed. Your scores are final now."
+                : "Every project reviewed. You can still change a score until judging closes."
               : data.minutesPerReview
                 ? `About ${Math.max(1, Math.round(data.minutesPerReview * left))} min left at your pace`
                 : `${left} still to review`}
@@ -505,7 +507,7 @@ export function JudgeConsoleView({
         aria-labelledby="score-title"
         className="flex flex-col border-t border-rule bg-surface outline-none lg:min-h-0 lg:border-t-0 lg:border-l"
       >
-        <div className="flex-1 px-6 pt-6 pb-4 lg:overflow-y-auto">
+        <div className="flex-1 px-6 pt-6 pb-4 lg:overflow-y-auto lg:scroll-pb-12 lg:pb-10 lg:[mask-image:linear-gradient(to_bottom,black_calc(100%_-_2.5rem),transparent)]">
           <div className="flex items-center justify-between">
             <h2 id="score-title" className="text-15 font-semibold">
               Your score
