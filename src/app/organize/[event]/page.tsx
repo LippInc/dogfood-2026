@@ -187,6 +187,29 @@ export default async function OverviewPage({
     )
     .join("\n\n");
   const runLabel = event.resultsPublishedAt ? "published run" : "preview";
+  // Once published, the Publish panel lists what went out; every value is the DAL's.
+  const receipt = event.resultsPublishedAt
+    ? [
+        {
+          label: "Ranking",
+          value: o.pairwise
+            ? `${o.pairwise.placed} of ${o.pairwise.total} placed, ${plural(o.pairwise.answers, "answer")}`
+            : `${plural(nz.ranked, "project")}, ${nz.k === null ? "no leniency found" : `k = ${nz.k.toFixed(1)}`}`,
+        },
+        {
+          label: "Decisions",
+          value: o.decisions.length
+            ? `${o.decisions.length} made, each in the log`
+            : "none were needed",
+        },
+        ...(o.vote?.state === "closed"
+          ? [{ label: "Community vote", value: `closed, ${plural(o.vote.ballots, "ballot")}` }]
+          : []),
+        ...o.pipeline
+          .filter((s) => s.no === "09")
+          .map((s) => ({ label: s.name, value: s.state })),
+      ]
+    : [];
 
   return (
     <WorkShell
@@ -227,6 +250,7 @@ export default async function OverviewPage({
               submissionsCloseAt={o.submissionsOpenUntil}
               pairwise={o.pairwise !== null}
               vote={o.vote}
+              receipt={receipt}
             />
           </div>
         </Wiring>

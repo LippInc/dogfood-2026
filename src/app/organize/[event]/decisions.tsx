@@ -555,6 +555,7 @@ export function PublishPanel({
   submissionsCloseAt,
   pairwise = false,
   vote = null,
+  receipt = [],
 }: {
   eventSlug: string;
   open: number;
@@ -566,6 +567,8 @@ export function PublishPanel({
   submissionsCloseAt: string | null;
   /** the community vote: publishing closes an open one and calls off one not yet open */
   vote?: { state: "not_set" | "upcoming" | "open" | "closed"; opensAt: string | null; closesAt: string | null; ballots: number } | null;
+  /** once published: what went out, one line each, every value from the data layer */
+  receipt?: { label: string; value: string }[];
 }) {
   const [state, form, pending] = useFormAction(publishAction, idle);
   const decided = total - open;
@@ -596,6 +599,16 @@ export function PublishPanel({
             Since {formatUtc(publishedAt)}. The results page is public, each
             team sees its written feedback, and scoring is frozen.
           </p>
+          {receipt.length ? (
+            <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 border-t border-rule text-13">
+              {receipt.map((r) => (
+                <div key={r.label} className="col-span-2 grid grid-cols-subgrid border-b border-rule py-2">
+                  <dt className="text-ink-2">{r.label}</dt>
+                  <dd className="text-ink tnum">{r.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
           <Link
             href={`/events/${eventSlug}/results`}
             className="text-14 underline underline-offset-4"
