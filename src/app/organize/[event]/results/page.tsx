@@ -115,6 +115,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
 
         <section aria-label="Findings" className="grid gap-6 wrap-anywhere lg:grid-cols-3">
           <div className="rounded-sm border border-rule bg-surface p-5">
+            <p className="label-mono mb-4 text-ink-2">Fig. 01 — Who moves</p>
             <p className="text-38 leading-none font-semibold tnum">
               {movedByExclusion} of {slope.length}
             </p>
@@ -130,6 +131,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             ) : null}
           </div>
           <div className="rounded-sm border border-rule bg-surface p-5">
+            <p className="label-mono mb-4 text-ink-2">Fig. 02 — Leniency</p>
             <p className="text-38 leading-none font-semibold tnum">±{maxLeniency.toFixed(2)}</p>
             <p className="mt-2 text-14 text-ink-2">
               points is the most the engine moves any judge&rsquo;s scores for leniency.{" "}
@@ -140,6 +142,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             </div>
           </div>
           <div className="rounded-sm border border-rule bg-surface p-5">
+            <p className="label-mono mb-4 text-ink-2">Fig. 03 — The noise floor</p>
             {copies.length >= 2 && dup?.kind === "duplicate" ? (
               <>
                 <p className="text-38 leading-none font-semibold tnum">

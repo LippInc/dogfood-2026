@@ -1,4 +1,5 @@
 import type { Influence, JudgeStanding, Normalized } from "@/server/dal";
+import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
 import { overrideAction, undoOverrideAction } from "../decision-actions";
 import { OneClick, WithReason } from "../decisions";
 
@@ -91,6 +92,8 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
   const k = n.variance.k;
   const judges = n.judges.filter((j) => j.nAll > 0 || j.override);
   const idle = n.judges.length - judges.length;
+  const drawn = judges.filter((j) => !j.excluded && k !== null);
+  const span = leniencySpan(drawn.flatMap((j) => [j.tilt ?? 0, j.leniency + 2 * (j.se ?? 0), j.leniency - 2 * (j.se ?? 0)]));
   return (
     <section aria-labelledby="ledger-title" className="flex flex-col gap-3">
       <h2 id="ledger-title" className="text-17 font-semibold">
@@ -103,6 +106,20 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
         {published ? " The results are published, so the judge set is final." : ""}
       </p>
       <Summary judges={judges} />
+      {drawn.length ? (
+        <p className="flex flex-wrap items-center gap-x-5 gap-y-1 text-12 text-ink-2" aria-hidden>
+          <span className="label-mono text-ink">Fig. 04 — Leniency, drawn</span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-2 rounded-full border border-ink-2" /> plain tilt
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-2 rounded-full bg-ink" /> what the engine takes off
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-4 border border-edge bg-sunken" /> two standard errors either side: across the dashed zero, it is not told apart from none
+          </span>
+        </p>
+      ) : null}
       <div className="overflow-x-auto rounded-sm border border-rule bg-surface">
         <table className="w-full text-14">
           <thead>
@@ -111,6 +128,12 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
               <th className="px-3 py-2 text-right font-medium">Reviews counted</th>
               <th className="px-3 py-2 text-right font-medium">Plain tilt</th>
               <th className="px-3 py-2 text-right font-medium">Leniency ± error</th>
+              {drawn.length ? (
+                <th className="px-3 py-2 font-medium">
+                  <span className="sr-only">Leniency, drawn</span>
+                  <LeniencyAxis span={span} />
+                </th>
+              ) : null}
               <th className="px-3 py-2 text-right font-medium">Tilt kept</th>
               <th className="px-3 py-2 font-medium">If flipped</th>
               {published ? null : <th className="px-3 py-2 font-medium">Override</th>}
@@ -128,6 +151,11 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
                 <td className="px-3 py-2 text-right whitespace-nowrap tnum">
                   {j.excluded ? "left out" : k === null ? "not corrected" : j.se === null ? "–" : `${signed(j.leniency)} ± ${f2(j.se)}`}
                 </td>
+                {drawn.length ? (
+                  <td className="px-3 py-2">
+                    {j.excluded || k === null ? null : <LeniencyRow tilt={j.tilt} leniency={j.leniency} se={j.se} span={span} />}
+                  </td>
+                ) : null}
                 <td className="px-3 py-2 text-right tnum">{j.excluded || k === null ? "–" : `${Math.round(j.shrink * 100)} %`}</td>
                 <td className="min-w-[220px] px-3 py-2 text-13">{j.influence ? <IfFlipped inf={j.influence} /> : "–"}</td>
                 {published ? null : (
