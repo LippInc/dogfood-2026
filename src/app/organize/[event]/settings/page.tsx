@@ -18,6 +18,7 @@ import {
 } from "./actions";
 import { RemoveOrganizer } from "./remove-organizer";
 import { RubricEditor } from "./rubric-editor";
+import { type ContentsEntry, SettingsContents } from "./settings-contents";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Settings" };
@@ -59,6 +60,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
     "judging-mode": mode === "pairwise" ? "Pairwise" : "Scores",
     rubric: count(o.rubric.length, "criterion", "criteria"),
   };
+  const contents: ContentsEntry[] = SECTIONS.map(([id, title], i) => ({ id, num: num(i), title, holds: holds[id] }));
   return (
     <WorkShell
       eventName={event.name}
@@ -69,19 +71,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
     >
       <div className="mx-auto max-w-[960px] lg:grid lg:max-w-[1200px] lg:grid-cols-[200px_minmax(0,960px)] lg:gap-10">
         {/* the sheet's contents: one numbered line per section with what it holds now, kept in view while the long form scrolls */}
-        <nav aria-label="Settings sections" className="max-lg:hidden">
-          <ol className="sticky top-6 flex flex-col border-l-2 border-ink">
-            {SECTIONS.map(([id, title], i) => (
-              <li key={id}>
-                <a href={`#${id}-title`} className="flex items-baseline gap-2.5 py-1.5 pl-3 text-13 text-ink-2 hover:text-ink">
-                  <span className="font-mono text-12 text-ink-3">{num(i)}</span>
-                  <span className="min-w-0 grow">{title}</span>
-                  <span className="text-12 text-ink-3 tnum">{holds[id]}</span>
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
+        <SettingsContents variant="rail" entries={contents} />
         <div className="flex min-w-0 flex-col gap-6">
           <div>
             <h1 className="text-24 font-semibold">Settings</h1>
@@ -90,19 +80,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             </p>
           </div>
           {/* on phones the form is five screens long: the same contents, as a two-column index under the heading */}
-          <nav aria-label="Settings sections" className="lg:hidden">
-            <ol className="grid grid-cols-2 gap-x-4 border-t-2 border-ink pt-2">
-              {SECTIONS.map(([id, title], i) => (
-                <li key={id} className="min-w-0 border-b border-rule">
-                  <a href={`#${id}-title`} className="flex min-h-10 items-baseline gap-2 py-2.5 text-13 text-ink-2 hover:text-ink">
-                    <span className="font-mono text-12 text-ink-3">{num(i)}</span>
-                    <span className="min-w-0 grow">{title}</span>
-                    <span className="text-12 text-ink-3 tnum">{holds[id]}</span>
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </nav>
+          <SettingsContents variant="index" entries={contents} />
 
           <SectionForm
             id="details"
