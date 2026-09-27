@@ -546,7 +546,18 @@ describe("tallies", () => {
       expect(t.find((x) => x.projectId === "prj_07")?.votes).toBe(1); // one of the two prj_07 ballots was voided
       expect(t.find((x) => x.projectId === "prj_08")?.votes).toBe(0); // its only ballot was voided: listed with 0, not dropped
       expect(t).toHaveLength(41);
+      // places: the one project with a vote is first; nobody else has a place, rather than all 40 sharing one
+      expect(t.find((x) => x.projectId === "prj_07")?.place).toBe(1);
+      expect(t.filter((x) => x.place !== null)).toHaveLength(1);
+      expect(t.find((x) => x.projectId === "prj_08")?.place).toBeNull();
     }
+  });
+
+  it("equal counts share a place and the next place skips (1, 1, 3); a count of zero has no place", () => {
+    castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_07", "prj_08"] }, CLIENT);
+    castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_07", "prj_08", "prj_10"] }, { ip: "198.51.100.7", agent: "OtherBrowser" });
+    const place = (id: string) => getVotingAdmin(org(), "evt_01").tally!.find((x) => x.projectId === id)?.place;
+    expect([place("prj_07"), place("prj_08"), place("prj_10"), place("prj_11")]).toEqual([1, 1, 3, null]);
   });
 });
 

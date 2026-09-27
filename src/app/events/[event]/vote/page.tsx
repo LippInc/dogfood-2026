@@ -50,7 +50,7 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
           </p>
         ) : null}
       </div>
-      {ballot.state !== "not_set" && ballot.voter === null ? (
+      {(ballot.state === "upcoming" || ballot.state === "open") && ballot.voter === null ? (
         <section aria-labelledby="how-title" className="mb-8 max-w-[760px] border-l-[3px] border-accent bg-surface px-5 py-4">
           <h2 id="how-title" className="text-17 font-semibold">
             How to vote here
@@ -85,7 +85,8 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
           The organizers set this ballot aside as a suspected duplicate, so its picks do not count.
         </p>
       ) : null}
-      {ballot.state === "not_set" ? null : (
+      {/* Once voting has closed, only a voter's own ballot is still worth showing. */}
+      {ballot.state === "not_set" || (ballot.state === "closed" && ballot.voter === null) ? null : (
         <Ballot eventId={event.id} projects={ballot.projects} initialPicks={ballot.picks} max={ballot.votesPerVoter} canVote={canVote} faces={faces} />
       )}
     </PublicShell>

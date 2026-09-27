@@ -577,7 +577,8 @@ export function restoreVoter(actor: Actor | null, eventIdOrSlug: string, body: u
   });
 }
 
-export type Tally = { projectId: string; title: string; teamName: string; votes: number; place: number };
+/** place: shared by equal counts (1, 1, 3); null for a project nobody voted for, which has no place */
+export type Tally = { projectId: string; title: string; teamName: string; votes: number; place: number | null };
 
 /**
  * Counted votes per project. Voided voters are left out; a vote on a merged copy counts
@@ -623,7 +624,7 @@ function tally(db: DbOrTx, eventId: string): Tally[] {
   const list = rows
     .map((r) => ({ projectId: r.id, title: r.title, teamName: r.teamName, n: counted.get(r.id)?.size ?? 0 }))
     .sort((a, b) => b.n - a.n || a.title.localeCompare(b.title));
-  return list.map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, votes: r.n, place: list.findIndex((x) => x.n === r.n) + 1 }));
+  return list.map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, votes: r.n, place: r.n > 0 ? list.findIndex((x) => x.n === r.n) + 1 : null }));
 }
 
 export type DuplicateGroup = { key: string; voters: { id: string; kind: VoterKind; picks: number; createdAt: string; voided: boolean }[] };

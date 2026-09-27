@@ -130,7 +130,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             <ol className="mt-4 divide-y divide-rule border-y border-rule">
               {community.tally.map((t) => (
                 <li key={t.projectId} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-baseline gap-3 py-2.5">
-                  <span className="font-display text-20 tnum">{t.place}</span>
+                  <span className="font-display text-20 tnum">{t.place ?? "–"}</span>
                   <span className="min-w-0 truncate">
                     <Link href={`/events/${event.slug}/projects/${t.projectId}`} className="font-semibold hover:underline">
                       {t.title}
