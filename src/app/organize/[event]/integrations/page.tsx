@@ -30,6 +30,8 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
   const snippet = `<script src="${origin}/embed.js" data-event="${event.slug}" async></script>`;
   const waiting = countWithoutPassword(actor, key);
   const elsewhere = countBeyondReach(actor, key);
+  const on = webhooks.filter((w) => w.enabled).length;
+  const totals = webhooks.reduce((t, w) => ({ delivered: t.delivered + w.counts.delivered, failed: t.failed + w.counts.failed }), { delivered: 0, failed: 0 });
 
   return (
     <WorkShell
@@ -47,10 +49,31 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
             Connect the event to the rest of your tools: the same actions as this interface over JSON, a message to your server whenever something
             happens, and the gallery on your own site.
           </p>
+          <Contents
+            entries={[
+              { id: "api-title", title: "API", holds: "JSON routes, OpenAPI", mark: "set" },
+              {
+                id: "hooks-title",
+                title: "Webhooks",
+                holds: webhooks.length
+                  ? [`${on} of ${webhooks.length} on`, totals.failed ? `${totals.failed} failed` : `${totals.delivered} delivered`].join(" · ")
+                  : "none yet",
+                mark: totals.failed ? "flag" : on ? "set" : "open",
+              },
+              {
+                id: "io-title",
+                title: "Import and export",
+                holds: `${EXPORT_FILES.length} files · ${waiting ? `${waiting} without a password` : "every password set"}`,
+                mark: "set",
+              },
+              { id: "share-title", title: "On your site", holds: "one script tag", mark: "set" },
+            ]}
+          />
         </header>
 
         <section aria-labelledby="api-title" className="flex flex-col gap-3">
-          <h2 id="api-title" className="text-20 font-semibold">
+          <h2 id="api-title" className="scroll-mt-6 text-20 font-semibold">
+            <SectionNo n={1} />
             API
           </h2>
           <p className="max-w-[760px] text-15 text-ink-2">
@@ -72,8 +95,9 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
 
         <section aria-labelledby="hooks-title" className="flex flex-col gap-5">
           <div>
-            <h2 id="hooks-title" className="text-20 font-semibold">
-              Webhooks
+            <h2 id="hooks-title" className="scroll-mt-6 text-20 font-semibold">
+              <SectionNo n={2} />
+            Webhooks
             </h2>
             <p className="mt-1 max-w-[760px] text-15 text-ink-2">
               Each audited action (a submission, a review, a vote, a published result) is POSTed to your URL as JSON, with the audit row&rsquo;s hash.
@@ -178,8 +202,9 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
 
         <section aria-labelledby="io-title" className="flex flex-col gap-4">
           <div>
-            <h2 id="io-title" className="text-20 font-semibold">
-              Import and export
+            <h2 id="io-title" className="scroll-mt-6 text-20 font-semibold">
+              <SectionNo n={3} />
+            Import and export
             </h2>
             <p className="mt-1 max-w-[760px] text-15 text-ink-2">
               Take everything out at any stage. <code className="font-mono text-13">fixtures.json</code> is the organizers&rsquo; fixture format:
@@ -207,8 +232,9 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
 
         <section aria-labelledby="share-title" className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-4">
-            <h2 id="share-title" className="text-20 font-semibold">
-              Put the gallery on your site
+            <h2 id="share-title" className="scroll-mt-6 text-20 font-semibold">
+              <SectionNo n={4} />
+            Put the gallery on your site
             </h2>
             <Link href={`/embed/${event.slug}`} className="text-13 underline underline-offset-4">
               Preview
@@ -225,5 +251,48 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
         </section>
       </div>
     </WorkShell>
+  );
+}
+
+/** A section's number before its heading, as the settings sheet numbers its sections. */
+function SectionNo({ n }: { n: number }) {
+  return (
+    <span aria-hidden className="mr-2.5 font-mono text-13 font-normal text-ink-3">
+      {String(n).padStart(2, "0")}
+    </span>
+  );
+}
+
+type ContentsEntry = { id: string; title: string; holds: string; mark: "set" | "open" | "flag" };
+
+/**
+ * The page's four parts in one row, each saying what it holds now, drawn as the
+ * overview's pipeline stations: a filled square for a part in use, an open one for
+ * a part not set up yet, orange for one that needs you (a delivery that failed).
+ */
+function Contents({ entries }: { entries: ContentsEntry[] }) {
+  return (
+    <nav aria-label="On this page" className="mt-6">
+      <ol className="grid grid-cols-2 gap-y-5 md:grid-cols-4">
+        {entries.map((e, i) => (
+          <li key={e.id} className="relative pt-5 pr-3">
+            <span aria-hidden className="absolute top-[4px] right-0 left-0 h-[2px] bg-rule" />
+            <span
+              aria-hidden
+              className={`absolute top-0 left-0 size-[10px] ${
+                e.mark === "flag" ? "bg-flag-bar" : e.mark === "set" ? "bg-ink" : "border-[1.5px] border-edge bg-surface"
+              }`}
+            />
+            <a href={`#${e.id}`} className="group -mx-1 block rounded-xs px-1 py-0.5">
+              <span className="flex items-baseline gap-1.5">
+                <span className="font-mono text-12 text-ink-3">{String(i + 1).padStart(2, "0")}</span>
+                <span className="truncate text-14 font-medium text-ink group-hover:underline group-hover:underline-offset-4">{e.title}</span>
+              </span>
+              <span className={`mt-0.5 block truncate text-12 ${e.mark === "flag" ? "font-medium text-flag" : "text-ink-2"}`}>{e.holds}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
   );
 }
