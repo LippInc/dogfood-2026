@@ -337,7 +337,8 @@ export type PairwiseComputed = {
  * their score order there). Merged duplicates count for the copy kept; excluded judges
  * (flat, or left out by the organizer) are out; the coin-flip flag is computed for the rest.
  */
-export function computePairwise(db: DbOrTx, event: EventRow): PairwiseComputed {
+/** `scoresOnly`: leave the judges' answers out and fit the reviews' orders alone (the scores-mode cross-check). */
+export function computePairwise(db: DbOrTx, event: EventRow, opts: { scoresOnly?: boolean } = {}): PairwiseComputed {
   const info = submittedProjects(db, event.id);
   const canonical = new Map(info.map((p) => [p.id, p.duplicateOf ?? p.id]));
   const kept = info.filter((p) => !p.duplicateOf);
@@ -354,7 +355,7 @@ export function computePairwise(db: DbOrTx, event: EventRow): PairwiseComputed {
   const excluded = new Set(set.excluded);
 
   const picks: Comparison[] = [];
-  for (const c of activePicks(db, event.id)) {
+  for (const c of opts.scoresOnly ? [] : activePicks(db, event.id)) {
     const a = canonical.get(c.leftProjectId);
     const b = canonical.get(c.rightProjectId);
     if (!a || !b || a === b || trackOf.get(a) !== trackOf.get(b)) continue;

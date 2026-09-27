@@ -546,7 +546,7 @@ export type CrossCheck = {
  * orders agree (Kendall's tau-b) and the projects whose places differ most.
  */
 function crossCheck(db: DbOrTx, event: EventRow, rows: ProjectRow[]): CrossCheck {
-  const pw = computePairwise(db, event);
+  const pw = computePairwise(db, event, { scoresOnly: true });
   const place = new Map(pw.fit.projects.filter((p) => p.comparisons > 0).map((p) => [p.id, p.place]));
   const byTrack = new Map<string, ProjectRow[]>();
   for (const r of rows) {

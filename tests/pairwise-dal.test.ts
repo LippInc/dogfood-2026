@@ -164,11 +164,17 @@ describe("the scores-mode cross-check", () => {
     const org = checker("organizer");
     const check = getNormalization(org, "evt_01").crossCheck!;
     expect(check.tracks.length).toBeGreaterThanOrEqual(7);
-    expect(check.overall!).toBeGreaterThan(0.5);
-    expect(check.overall!).toBeLessThan(1);
+    // the number JUDGING.md quotes
+    expect(check.overall!.toFixed(2)).toBe("0.78");
+    expect(Math.min(...check.tracks.map((t) => t.tau!)).toFixed(2)).toBe("0.33");
     expect(check.tracks.every((t) => t.projects >= 2 && t.movers.length <= 3)).toBe(true);
     toPairwise();
     expect(getNormalization(org, "evt_01").crossCheck).toBeNull();
+    // Known-bad: answers given in pairwise mode must not reach the scores-mode cross-check.
+    const judge = checker("judge_a");
+    for (let k = 0; k < 3; k++) pickPairwise(judge, "evt_01", { ...firstQuestion(judge), outcome: "right" });
+    setJudgingMode(org, "evt_01", { mode: "scores", reason: "back to scores" });
+    expect(getNormalization(org, "evt_01").crossCheck).toEqual(check);
   });
 });
 
