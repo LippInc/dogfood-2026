@@ -361,7 +361,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
               </div>
             </>
           ) : (
-            <div className="mt-6 max-w-[680px]">
+            <div className="mt-6">
               <h1 id="question" className="font-serif text-38 font-semibold">
                 {track.total === 0
                   ? "Nothing to compare in this track"
@@ -369,21 +369,43 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                     ? `All ${track.total} placed`
                     : `${track.placed} of ${track.total} placed`}
               </h1>
-              <p className="mt-3 text-15 text-ink-2">
+              <p className="mt-3 max-w-[680px] text-15 text-ink-2">
                 {track.total === 0
                   ? "You have no projects in this track."
                   : readOnly
                     ? `Your list for ${track.trackName}, best first, as it stood when answers closed. Nothing here can change now.`
                     : `Your list for ${track.trackName}, best first. It counts as it stands when the organizers publish results.`}
               </p>
-              <ol className="mt-6 border-t border-rule lg:hidden">
-                {track.list.map((p, n) => (
-                  <li key={p.id} className="flex items-center gap-3 border-b border-rule py-3">
-                    <span className="w-5 font-mono text-12 text-ink-3 tnum">{String(n + 1).padStart(2, "0")}</span>
-                    <span className="min-w-0 flex-1 truncate text-14 font-medium">{p.title}</span>
-                  </li>
-                ))}
-              </ol>
+              {track.list.length ? (
+                // The finished list, drawn: the same faces the judge compared, in the order their answers made.
+                <figure className="mt-8">
+                  <figcaption className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <span className="label-mono text-ink-2">Fig. 01 · Your list, best first</span>
+                    <span className="text-13 text-ink-2 tnum">
+                      {track.placed} placed with {track.answered} {track.answered === 1 ? "answer" : "answers"}
+                    </span>
+                  </figcaption>
+                  <ol className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3">
+                    {track.list.map((p, n) => (
+                      <li
+                        key={p.id}
+                        className={`min-w-0 overflow-hidden rounded-sm border bg-surface ${p.id === justPlaced?.id ? "judge-flash border-accent" : "border-rule"}`}
+                      >
+                        <div className="relative aspect-[3/1] overflow-hidden border-b border-rule">
+                          {faces[p.id]?.large}
+                          <span className="absolute top-1.5 left-1.5 rounded-xs bg-surface px-1 font-mono text-12 text-ink tnum">
+                            {String(n + 1).padStart(2, "0")}
+                          </span>
+                        </div>
+                        <div className="px-3 pt-2 pb-2.5">
+                          <span className="block truncate text-14 font-medium">{p.title}</span>
+                          <span className="block truncate text-12 text-ink-2">{p.teamName}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </figure>
+              ) : null}
               {nextTrack && !readOnly ? (
                 <Button className="mt-6" size="lg" onClick={() => pickTrack(nextTrack.trackId)}>
                   Continue with {nextTrack.trackName}
