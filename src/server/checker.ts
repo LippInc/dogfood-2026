@@ -2,7 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { assignments, judgeTracks, sessions, teamMembers, teams, userRoles, users } from "./db/schema";
 import { appendAudit } from "./audit";
@@ -98,11 +98,11 @@ export function chooseCheckerUsers(db: Db, eventId: string): Record<CheckerLabel
   return { organizer: DEMO_ORGANIZER.id, judge_a: judgeA, judge_b: judgeB, participant };
 }
 
-/** Create the demo organizer (admin, organizer of the event). Idempotent. */
+/** Create the demo organizer (admin, organizer of the event), or make it admin again. Idempotent. */
 export function ensureDemoOrganizer(db: Db, eventId: string, now: string): void {
   db.insert(users)
     .values({ ...DEMO_ORGANIZER, passwordHash: null, isAdmin: true, createdAt: now })
-    .onConflictDoNothing()
+    .onConflictDoUpdate({ target: users.id, set: { isAdmin: true } })
     .run();
   db.insert(userRoles)
     .values({ userId: DEMO_ORGANIZER.id, eventId, role: "organizer", createdAt: now })
@@ -112,17 +112,25 @@ export function ensureDemoOrganizer(db: Db, eventId: string, now: string): void 
 
 export type CheckerSeedResult =
   | { enabled: true; identities: CheckerIdentity[]; changed: CheckerLabel[] }
-  | { enabled: false; removed: number };
+  | { enabled: false; removed: number; signedOut: number; demoted: boolean };
 
 /** Upsert (or, when disabled, remove) the four checker sessions. Synchronous. */
 export function seedCheckerSessions(db: Db, eventId: string, now: string): CheckerSeedResult {
   return db.transaction((tx) => {
     if (!checkerSessionsEnabled()) {
+      // Demo mode off: the checker sessions go, and so does everything the demo sign-in
+      // buttons handed out for the same identities (ordinary 14-day sessions), and the
+      // demo organizer stops being an administrator, on a reused volume too.
+      const demoUsers = [
+        ...new Set([DEMO_ORGANIZER.id, ...tx.select({ u: sessions.userId }).from(sessions).where(eq(sessions.kind, "checker")).all().map((r) => r.u)]),
+      ];
       const removed = tx.delete(sessions).where(eq(sessions.kind, "checker")).run().changes;
-      if (removed > 0) {
-        appendAudit(tx, { actorUserId: null, actorLabel: "system", action: "checker_sessions.removed", after: { removed } }, now);
+      const signedOut = tx.delete(sessions).where(inArray(sessions.userId, demoUsers)).run().changes;
+      const demoted = tx.update(users).set({ isAdmin: false }).where(and(eq(users.id, DEMO_ORGANIZER.id), eq(users.isAdmin, true))).run().changes > 0;
+      if (removed > 0 || signedOut > 0 || demoted) {
+        appendAudit(tx, { actorUserId: null, actorLabel: "system", action: "checker_sessions.removed", after: { removed, signedOut, demoted } }, now);
       }
-      return { enabled: false as const, removed };
+      return { enabled: false as const, removed, signedOut, demoted };
     }
     const chosen = chooseCheckerUsers(tx as unknown as Db, eventId);
     const identities: CheckerIdentity[] = [];

@@ -70,7 +70,7 @@ export async function boot(): Promise<void> {
   } else {
     const seeded = seedCheckerSessions(h.db, eventId ?? "", now);
     lines.push(
-      `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}.`,
+      `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}${!seeded.enabled && seeded.signedOut ? `; signed out ${seeded.signedOut} demo sign-in ${seeded.signedOut === 1 ? "session" : "sessions"}` : ""}${!seeded.enabled && seeded.demoted ? "; the demo organizer is no longer an administrator" : ""}.`,
     );
   }
   const setup = openAdminSetup(h.db);

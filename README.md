@@ -173,7 +173,10 @@ never promoted, so name an address that has no account yet.
 Why `SEED_CHECKER_SESSIONS: "false"`: the checker's four
 session tokens are public in `.dogfood.toml`. They are derived from
 `DOGFOOD_SEED_SECRET`, whose default (`dogfood-2026-public-demo-secret`) is
-documented on purpose; set your own when the flag is on anywhere public. The
+documented on purpose; set your own when the flag is on anywhere public. With
+the flag off, each start also signs out every session the demo sign-in buttons
+made and takes the demo organizer's administrator rights, so turning demo mode
+off works on a volume that ran with it on. The
 same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 "Privacy"), so a real event sets its own in any case.
 

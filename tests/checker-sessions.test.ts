@@ -7,12 +7,13 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import {
   CHECKER_LABELS,
   checkerToken,
+  DEMO_ORGANIZER,
   ensureDemoOrganizer,
   seedCheckerSessions,
   type CheckerIdentity,
 } from "@/server/checker";
-import { actorForToken, hashPassword, verifyPassword } from "@/server/session";
-import { sessions, teamMembers, userRoles } from "@/server/db/schema";
+import { actorForToken, createLoginSession, hashPassword, verifyPassword } from "@/server/session";
+import { sessions, teamMembers, userRoles, users } from "@/server/db/schema";
 import { sha256 } from "@/server/util";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -147,6 +148,39 @@ describe("checker sessions (database)", () => {
     expect(off).toMatchObject({ enabled: false, removed: 4 });
     expect(actorForToken(h.db, organizerToken)).toBeNull();
     expect(checkerSessionCount()).toBe(0);
+  });
+
+  it("demo mode off also signs out the demo sign-ins and takes the demo organizer's admin; other people keep their sessions", () => {
+    const first = seed();
+    const judgeA = first.find((i) => i.label === "judge_a")!.userId;
+    // What the demo sign-in buttons hand out: ordinary login sessions for the same identities.
+    const demoJudge = createLoginSession(h.db, judgeA).token;
+    const demoOrganizer = createLoginSession(h.db, DEMO_ORGANIZER.id).token;
+    const bystanderId = h.db
+      .select({ u: userRoles.userId })
+      .from(userRoles)
+      .where(eq(userRoles.role, "judge"))
+      .all()
+      .map((r) => r.u)
+      .find((u) => !first.some((i) => i.userId === u))!;
+    const bystander = createLoginSession(h.db, bystanderId).token;
+    const isAdmin = () => h.db.select({ a: users.isAdmin }).from(users).where(eq(users.id, DEMO_ORGANIZER.id)).get()!.a;
+    expect(isAdmin()).toBe(true);
+
+    process.env.SEED_CHECKER_SESSIONS = "false";
+    const off = seedCheckerSessions(h.db, "evt_01", NOW);
+    expect(off).toMatchObject({ enabled: false, removed: 4, demoted: true });
+    expect(off.enabled ? 0 : off.signedOut).toBeGreaterThanOrEqual(2);
+    expect(actorForToken(h.db, demoJudge)).toBeNull();
+    expect(actorForToken(h.db, demoOrganizer)).toBeNull();
+    expect(isAdmin()).toBe(false);
+    // Positive control: someone who is not a demo identity stays signed in.
+    expect(actorForToken(h.db, bystander)?.userId).toBe(bystanderId);
+
+    // Demo mode back on: the demo organizer is an administrator again.
+    process.env.SEED_CHECKER_SESSIONS = "true";
+    ensureDemoOrganizer(h.db, "evt_01", NOW);
+    expect(isAdmin()).toBe(true);
   });
 
   it("known-bad: a token with one character changed resolves to null", () => {
