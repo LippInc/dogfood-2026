@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
-import { assignments, judgeTracks, sessions, teamMembers, teams, userRoles, users } from "./db/schema";
+import { assignments, events, judgeTracks, sessions, teamMembers, teams, userRoles, users } from "./db/schema";
 import { appendAudit } from "./audit";
 import { sha256 } from "./util";
 
@@ -162,6 +162,53 @@ export function seedCheckerSessions(db: Db, eventId: string, now: string): Check
       );
     }
     return { enabled: true as const, identities, changed };
+  });
+}
+
+/** The demo vote's open link: derived from the seed secret, like the checker tokens. */
+export function demoVoteCode(secret = process.env.DOGFOOD_SEED_SECRET || DEFAULT_SEED_SECRET): string {
+  const mac = crypto.createHmac("sha256", secret).update("dogfood-demo-vote-link").digest("hex");
+  return `vote${mac.slice(0, 24)}`;
+}
+
+export const DEMO_VOTE_DAYS = 30;
+
+/**
+ * Demo mode only: give the sample event a community vote a visitor can try, open from
+ * the first start for 30 days to signed-in accounts and to one open link. Only when the
+ * event has no voting set up, so an organizer's own settings are never replaced; the
+ * link is printed at boot. Audited as the system.
+ */
+export function seedDemoVote(db: Db, eventId: string, now: string): { opened: boolean; code: string; closesAt: string | null } {
+  const code = demoVoteCode();
+  return db.transaction((tx) => {
+    const event = tx.select().from(events).where(eq(events.id, eventId)).get();
+    if (!event) return { opened: false, code, closesAt: null };
+    if (event.votingOpenAt || event.votingCloseAt || event.settings.voting) {
+      const linked = event.settings.voting?.linkHash === sha256(code);
+      return { opened: false, code: linked ? code : "", closesAt: event.votingCloseAt };
+    }
+    const openAt = `${now.slice(0, 16)}:00.000Z`;
+    const closesAt = new Date(Date.parse(openAt) + DEMO_VOTE_DAYS * 86_400_000).toISOString();
+    const voting = { modes: ["account", "link"] as ("account" | "link")[], votesPerVoter: 3, linkHash: sha256(code) };
+    tx.update(events)
+      .set({ votingOpenAt: openAt, votingCloseAt: closesAt, settings: { ...event.settings, voting } })
+      .where(eq(events.id, eventId))
+      .run();
+    appendAudit(
+      tx,
+      {
+        actorUserId: null,
+        actorLabel: "system",
+        action: "voting.demo_opened",
+        eventId,
+        targetType: "event",
+        targetId: eventId,
+        after: { votingOpenAt: openAt, votingCloseAt: closesAt, modes: voting.modes, votesPerVoter: voting.votesPerVoter },
+      },
+      now,
+    );
+    return { opened: true, code, closesAt };
   });
 }
 

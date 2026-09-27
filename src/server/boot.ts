@@ -1,7 +1,7 @@
 import "server-only";
 import path from "node:path";
 import { openAdminSetup } from "./admins";
-import { checkerSessionsEnabled, checkerToml, ensureDemoOrganizer, seedCheckerSessions, writeCheckerFile } from "./checker";
+import { checkerSessionsEnabled, checkerToml, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, writeCheckerFile } from "./checker";
 import { databasePath, handle, type Handle } from "./db/client";
 import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
@@ -66,6 +66,10 @@ export async function boot(): Promise<void> {
       for (const i of seeded.identities) lines.push(`  ${i.label.padEnd(12)} Cookie: session=${i.token}`);
       lines.push(`  (who: ${seeded.identities.map((i) => `${i.label} = ${i.name}`).join(", ")})`);
       lines.push(`  the [auth] and [routes] blocks for .dogfood.toml are in ${written}`);
+    }
+    const vote = seedDemoVote(h.db, eventId, now);
+    if (vote.code && vote.closesAt && Date.parse(vote.closesAt) > Date.now()) {
+      lines.push(`community vote (demo): open until ${vote.closesAt.slice(0, 16).replace("T", " ")} UTC; sign in, or use the open link ${base}/vote/${vote.code}`);
     }
   } else {
     const seeded = seedCheckerSessions(h.db, eventId ?? "", now);

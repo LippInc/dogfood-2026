@@ -41,6 +41,11 @@ Herrera, Jonas Vogel) and a participant.
 5. **Audit log** lists every change and every refused request from a signed-in
    user, with the hash chain's head; **Integrations** has webhooks, the `fixtures.json` export and a link
    to your API tokens; `/api-docs` is the API reference.
+6. The community vote is open in demo mode, for 30 days from the first start:
+   signed in as anyone, pick up to three favourites at
+   `/events/sample-hack-2026/vote`, or open the link the start prints
+   (`community vote (demo): ...`) in a private window. The count stays hidden
+   from everyone, organizers included, until the window closes.
 
 ## Check it
 
@@ -79,7 +84,7 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 
 | Tier | Bullet | Status | Where | Hand check |
 |---|---|---|---|---|
-| T3 | Community voting: email gated, link based or authenticated | Built | Organizer: Voting tab. Voters: `/events/sample-hack-2026/vote`, `/vote/<code>` | `isolation_check.py` B1, B3, B4, B6. Email gated means a voter list by address with one personal link each; the portal sends no mail, the organizer sends the links |
+| T3 | Community voting: email gated, link based or authenticated | Built | Organizer: Voting tab. Voters: `/events/sample-hack-2026/vote`, `/vote/<code>` | `isolation_check.py` B1, B3, B4, B6. In demo mode the sample event's vote is open from the first start (tour step 6). Email gated means a voter list by address with one personal link each; the portal sends no mail, the organizer sends the links |
 | T3 | Project comments | Built | Each project page; `GET/POST /api/projects/<id>/comments` | B8: post, organizer hides with a reason, the reason stays in place |
 | T3 | Results hidden during the voting window | Built | `GET /api/events/evt_01/community` | B2: the count is `null` for everyone, organizers included, until the window closes; B10 after |
 | T3 | Randomized project ordering on ballots | Built | Each voter's ballot, seeded per voter | B4: two ballots, two different orders |
