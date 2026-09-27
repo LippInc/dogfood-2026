@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { formatUtc, weightShares } from "@/lib/format";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
+import { Kbd, letters, paragraphs, ProjectLink } from "./judge-bits";
 
 // The judge console (DESIGN.md: the judge keys with autosave and "your ranking so
 // far"). Three panes that scroll on their own: the batch rail in the judge's seeded
@@ -31,38 +32,6 @@ type SaveState =
   | { kind: "error"; message: string };
 
 const SAVE_DELAY = 400;
-const LETTERS_KEY = "judge-letter-keys";
-
-// The single-key shortcut switch, kept in localStorage; if storage is blocked the
-// choice lasts for this page only.
-let lettersInMemory = true;
-const letters = {
-  subscribe(change: () => void) {
-    window.addEventListener("storage", change);
-    window.addEventListener("judge:letters", change);
-    return () => {
-      window.removeEventListener("storage", change);
-      window.removeEventListener("judge:letters", change);
-    };
-  },
-  get(): boolean {
-    try {
-      const stored = localStorage.getItem(LETTERS_KEY);
-      return stored === null ? lettersInMemory : stored !== "off";
-    } catch {
-      return lettersInMemory;
-    }
-  },
-  set(on: boolean) {
-    lettersInMemory = on;
-    try {
-      localStorage.setItem(LETTERS_KEY, on ? "on" : "off");
-    } catch {
-      /* storage blocked: memory only */
-    }
-    window.dispatchEvent(new Event("judge:letters"));
-  },
-};
 
 const num = (n: number) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
 
@@ -85,22 +54,6 @@ function formula(criteria: Criterion[], values: Record<string, number | null>): 
   if (equal) return `(${criteria.map((c) => values[c.key]).join(" + ")}) ÷ ${criteria.length}`;
   const sum = criteria.reduce((s, c) => s + c.weight, 0);
   return `(${criteria.map((c) => `${num(c.weight)}×${values[c.key]}`).join(" + ")}) ÷ ${num(sum)}`;
-}
-
-function paragraphs(text: string): string[] {
-  return text
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-}
-
-function shortUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.host}${u.pathname === "/" ? "" : u.pathname}`.slice(0, 40);
-  } catch {
-    return url.slice(0, 40);
-  }
 }
 
 function initialReviews(items: ConsoleItem[]): Record<string, Review> {
@@ -752,22 +705,6 @@ export function JudgeConsoleView({
   );
 }
 
-function ProjectLink({ label, url }: { label: string; url: string | null }) {
-  if (!url) return <span className="text-14 text-ink-3">No {label.toLowerCase()} submitted</span>;
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer noopener"
-      className="inline-flex h-9 max-w-full items-center gap-2 rounded-sm border border-edge px-3 text-14 hover:bg-raised"
-    >
-      <span className="shrink-0 font-medium">{label}</span>
-      <span className="min-w-0 truncate text-ink-2">{shortUrl(url)}</span>
-      <span className="sr-only">(opens in a new tab)</span>
-    </a>
-  );
-}
-
 function SaveStatus({ state }: { state: SaveState }) {
   return (
     <p role="status" aria-live="polite" className="flex items-center gap-1.5 text-13 text-ink-2">
@@ -793,10 +730,6 @@ function SaveStatus({ state }: { state: SaveState }) {
       )}
     </p>
   );
-}
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-[2px] border border-edge px-1 font-mono text-12 text-ink">{children}</kbd>;
 }
 
 function KeyHints({ lettersOn }: { lettersOn: boolean }) {
