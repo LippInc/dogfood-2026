@@ -356,10 +356,16 @@ describe("once the window closes the count is final", () => {
     const voters = () => (h.sqlite.prepare("SELECT count(*) AS n FROM voters WHERE event_id = 'evt_01'").get() as { n: number }).n;
     const before = voters();
 
+    const refusedBefore = auditCount("authz.refused");
     expectHttpError(() => enterVoting(code, { ip: nextIp(), agent: "Agent" }), 403, "voting_closed");
     expectHttpError(() => makeVotingLink(org(), "evt_01"), 409, "voting_closed");
     expectHttpError(() => addListedVoters(org(), "evt_01", { emails: "late@example.org" }), 409, "voting_closed");
     expect(voters()).toBe(before);
+    // the 403 is logged like every other: one refusal row, anonymous, naming the code
+    const refusals = auditRows().filter((r) => r.action === "authz.refused").slice(refusedBefore);
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]!.actorLabel).toBe("anonymous");
+    expect(refusals[0]!.after).toMatchObject({ attempted: "voting.enter", status: 403, code: "voting_closed" });
   });
 
   it("a participant still gets 403 first, not the 409", () => {

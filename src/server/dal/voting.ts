@@ -245,9 +245,25 @@ export function enterVoting(code: string, client: Client): { eventSlug: string; 
     .all()
     .find((e) => e.settings.voting?.linkHash === hash);
   if (!event || !votingSettings(event).modes.includes("link")) throw new NotFoundError("Voting link");
-  // after the close nobody new comes in: the same refusal a late ballot gets
-  if (votingState(event) === "closed")
+  // after the close nobody new comes in: the same refusal a late ballot gets, logged like every 403
+  if (votingState(event) === "closed") {
+    db.transaction((tx) => {
+      appendAudit(
+        tx,
+        {
+          actorUserId: null,
+          actorLabel: "anonymous",
+          action: "authz.refused",
+          eventId: event.id,
+          targetType: "event",
+          targetId: event.id,
+          after: { attempted: "voting.enter", status: 403, code: "voting_closed" },
+        },
+        new Date().toISOString(),
+      );
+    });
     throw new AuthzError({ ok: false, status: 403, code: "voting_closed", message: `Voting closed at ${formatUtc(event.votingCloseAt)}.` });
+  }
   const ipHash = clientHash(client.ip, event.id);
   limitOrThrow(`linkvoter:${event.id}:${ipHash ?? "none"}`, LIMITS.linkVoter, { eventId: event.id, label: "anonymous", userId: null, what: "open-link entry" });
   const token = newSecret(24);
