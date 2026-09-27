@@ -123,9 +123,17 @@ export async function endSession(db: DbOrTx): Promise<void> {
 
 const ARGON = { memory: 19456, passes: 2, parallelism: 1, tagLength: 32 } as const;
 
+/** crypto.argon2Sync, which only recent Node 24 releases have: an older Node gets a clear error, not a stack trace. */
+function argon2id(params: Parameters<typeof crypto.argon2Sync>[1]): Buffer {
+  if (typeof crypto.argon2Sync !== "function") {
+    throw new Error(`Passwords need Node's built-in argon2 (crypto.argon2Sync), which this Node ${process.version} lacks: use a current Node 24, as the Docker image does.`);
+  }
+  return crypto.argon2Sync("argon2id", params);
+}
+
 export function hashPassword(password: string): string {
   const nonce = crypto.randomBytes(16);
-  const tag = crypto.argon2Sync("argon2id", { message: password, nonce, ...ARGON });
+  const tag = argon2id({ message: password, nonce, ...ARGON });
   return `$argon2id$v=19$m=${ARGON.memory},t=${ARGON.passes},p=${ARGON.parallelism}$${nonce.toString("base64")}$${tag.toString("base64")}`;
 }
 
@@ -134,7 +142,7 @@ export function verifyPassword(password: string, stored: string | null): boolean
   const m = /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/=]+)\$([A-Za-z0-9+/=]+)$/.exec(stored);
   if (!m) return false;
   const expected = Buffer.from(m[5], "base64");
-  const tag = crypto.argon2Sync("argon2id", {
+  const tag = argon2id({
     message: password,
     nonce: Buffer.from(m[4], "base64"),
     memory: Number(m[1]),

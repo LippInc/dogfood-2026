@@ -61,7 +61,8 @@ python tests/isolation_check.py .dogfood.toml
 ```
 
 Its output from a clean `docker compose down -v && docker compose up` is committed
-as `isolation-report.txt`. Our own tests (`npm test`, vitest) cover the permission
+as `isolation-report.txt`. Our own tests (`npm ci && npm test`, vitest, on Node 24
+like the image: passwords use its built-in argon2) cover the permission
 rules, the assignment engine, the normalization engine and its Monte Carlo
 validation, voting and comments, the audit log's append-only triggers and hash
 chain.
