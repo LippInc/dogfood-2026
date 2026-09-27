@@ -9,25 +9,26 @@ import { claimAction } from "./actions";
 
 const idle: ActionResult = { ok: false, message: null };
 
-export function ClaimForm({ token, name }: { token: string; name: string }) {
+export function ClaimForm({ token, name, eventName }: { token: string; name: string; eventName: string }) {
   const [state, form, pending] = useFormAction(claimAction.bind(null, token), idle);
   const e = state.fieldErrors ?? {};
   return (
-    <form {...form} className="flex max-w-[420px] flex-col gap-4">
-      <Field id="claim-name" label="Your name" error={e.name}>
-        {(a) => <Input {...a} name="name" defaultValue={name} autoComplete="name" />}
+    <form {...form} className="flex flex-col gap-4">
+      <Field id="claim-name" label="Your name" help="As the organizers imported it. Change it if it is not how you want to be named." error={e.name}>
+        {(a) => <Input {...a} name="name" defaultValue={name} autoComplete="name" className="max-sm:h-11" />}
       </Field>
       <Field id="claim-password" label="Choose a password" help="At least 10 characters." error={e.password}>
-        {(a) => <Input {...a} name="password" type="password" required minLength={10} autoComplete="new-password" />}
+        {(a) => <Input {...a} name="password" type="password" required minLength={10} autoComplete="new-password" className="max-sm:h-11" />}
       </Field>
-      <div>
-        <Button disabled={pending}>{pending ? "Saving…" : "Set my password and sign in"}</Button>
-      </div>
       {state.message && !state.ok ? (
-        <p role="status" className="text-14 text-flag">
+        <p role="alert" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-flag">
           {state.message}
         </p>
       ) : null}
+      <Button size="xl" disabled={pending}>
+        {pending ? "Saving…" : "Set my password and sign in"}
+      </Button>
+      <p className="text-14 text-ink-3">Saving signs you in and opens {eventName}. This link then stops working.</p>
     </form>
   );
 }
