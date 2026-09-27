@@ -154,6 +154,7 @@ export default async function OverviewPage({
             eventSlug={event.slug}
             decisions={o.decisions}
             faces={faces}
+            published={Boolean(event.resultsPublishedAt)}
           />
           <PublishPanel
             eventSlug={event.slug}

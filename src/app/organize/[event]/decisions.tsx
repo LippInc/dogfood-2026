@@ -164,7 +164,8 @@ function stateLine(d: Decision): string {
     : "Minimum is 2";
 }
 
-function Body({ d, eventSlug }: { d: Decision; eventSlug: string }) {
+/** One decision's working; once the results are published it is final, so no Undo. */
+function Body({ d, eventSlug, published }: { d: Decision; eventSlug: string; published: boolean }) {
   if (d.kind === "flat_judge") {
     const first = d.name.split(" ")[0];
     return (
@@ -203,13 +204,15 @@ function Body({ d, eventSlug }: { d: Decision; eventSlug: string }) {
               <p className="text-13 text-ink-2">
                 Your reason: “{d.resolved.reason}”
               </p>
-              <OneClick
-                label="Undo"
-                variant="outline"
-                action={undoOverrideAction}
-                fields={{ judge: d.judgeId }}
-                eventSlug={eventSlug}
-              />
+              {published ? null : (
+                <OneClick
+                  label="Undo"
+                  variant="outline"
+                  action={undoOverrideAction}
+                  fields={{ judge: d.judgeId }}
+                  eventSlug={eventSlug}
+                />
+              )}
             </div>
           ) : (
             <div className="flex flex-wrap items-start gap-3">
@@ -259,24 +262,28 @@ function Body({ d, eventSlug }: { d: Decision; eventSlug: string }) {
             scores are hidden here.
           </p>
           {d.resolved === "merged" ? (
-            <div className="flex flex-wrap items-center gap-3">
-              {d.copies
-                .filter((c) => c.duplicateOf !== null)
-                .map((c) => (
-                  <OneClick
-                    key={c.id}
-                    label={d.copies.length > 2 ? `Undo: count ${c.id} again` : "Undo the merge"}
-                    variant="outline"
-                    action={unmergeAction}
-                    fields={{ duplicate: c.id }}
-                    eventSlug={eventSlug}
-                  />
-                ))}
-            </div>
+            published ? null : (
+              <div className="flex flex-wrap items-center gap-3">
+                {d.copies
+                  .filter((c) => c.duplicateOf !== null)
+                  .map((c) => (
+                    <OneClick
+                      key={c.id}
+                      label={d.copies.length > 2 ? `Undo: count ${c.id} again` : "Undo the merge"}
+                      variant="outline"
+                      action={unmergeAction}
+                      fields={{ duplicate: c.id }}
+                      eventSlug={eventSlug}
+                    />
+                  ))}
+              </div>
+            )
           ) : d.resolved === "not_duplicates" ? (
             <div className="flex flex-wrap items-center gap-3">
               <p className="text-13 text-ink-2">Ruled different projects; the reason is in the audit log.</p>
-              <OneClick label="Undo" variant="outline" action={undoNotDuplicateAction} fields={{ ids: d.copies.map((c) => c.id) }} eventSlug={eventSlug} />
+              {published ? null : (
+                <OneClick label="Undo" variant="outline" action={undoNotDuplicateAction} fields={{ ids: d.copies.map((c) => c.id) }} eventSlug={eventSlug} />
+              )}
             </div>
           ) : (
             <div className="flex flex-wrap items-start gap-3">
@@ -321,7 +328,7 @@ function Body({ d, eventSlug }: { d: Decision; eventSlug: string }) {
       {d.resolved ? (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-13 text-ink-2">It will be published as it is, marked; the reason is in the audit log.</p>
-          <OneClick label="Undo" variant="outline" action={undoAcceptAction} fields={{ project: d.projectId }} eventSlug={eventSlug} />
+          {published ? null : <OneClick label="Undo" variant="outline" action={undoAcceptAction} fields={{ project: d.projectId }} eventSlug={eventSlug} />}
         </div>
       ) : (
         <div className="flex flex-wrap items-start gap-3">
@@ -348,14 +355,18 @@ export function Decisions({
   eventSlug,
   decisions,
   faces,
+  published,
 }: {
   eventSlug: string;
   decisions: Decision[];
   faces: Record<string, React.ReactNode>;
+  /** once published the list is a record: it counts the decisions made and offers no Undo */
+  published: boolean;
 }) {
   const firstOpen = decisions.find((d) => !d.resolved)?.key ?? null;
   const [open, setOpen] = useState<string | null>(firstOpen);
-  const count = decisions.filter((d) => !d.resolved).length;
+  const openCount = decisions.filter((d) => !d.resolved).length;
+  const count = published ? decisions.length : openCount;
   return (
     <section
       aria-labelledby="decisions-title"
@@ -363,7 +374,7 @@ export function Decisions({
     >
       <div className="flex items-start gap-5">
         <span
-          className={`font-display text-[96px] leading-[80px] ${count ? "text-flag-bar" : "text-ok"}`}
+          className={`font-display text-[96px] leading-[80px] ${!published && count ? "text-flag-bar" : "text-ok"}`}
           aria-hidden
         >
           {count}
@@ -374,15 +385,21 @@ export function Decisions({
             className="text-[32px] leading-[38px] font-semibold"
           >
             <span className="sr-only">{count} </span>
-            {count === 0
+            {published
+              ? decisions.length
+                ? `${decisions.length === 1 ? "decision" : "decisions"} made before publishing`
+                : "decisions needed: nothing was flagged"
+              : count === 0
               ? decisions.length
                 ? "decisions left: results can go out"
                 : "decisions needed: nothing is flagged"
               : `${count === 1 ? "decision" : "decisions"} before results can go out`}
           </h2>
           <p className="mt-2 text-14 text-ink-2">
-            Each is logged with who decided, when and why. Nothing is published
-            until {decisions.length === 1 ? "it is" : "all of them are"} made.
+            Each is logged with who decided, when and why.{" "}
+            {published
+              ? "The results are published, so the decisions are final."
+              : `Nothing is published until ${decisions.length === 1 ? "it is" : "all of them are"} made.`}
           </p>
         </div>
       </div>
@@ -431,7 +448,7 @@ export function Decisions({
                 </button>
                 {expanded ? (
                   <div className="pb-5 pl-[40px]">
-                    <Body d={d} eventSlug={eventSlug} />
+                    <Body d={d} eventSlug={eventSlug} published={published} />
                   </div>
                 ) : null}
               </li>
