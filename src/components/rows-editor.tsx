@@ -74,7 +74,7 @@ export function RowsEditor({
                 );
               }
               return (
-                <label key={f.key} htmlFor={id} className={`flex min-w-0 flex-col gap-1 ${f.width ?? "flex-1"}`}>
+                <label key={f.key} htmlFor={id} className={`flex min-w-0 flex-col gap-1 ${f.width ?? "grow basis-48"}`}>
                   <span className="text-12 text-ink-3">{f.label}</span>
                   {f.type === "select" ? (
                     <select
