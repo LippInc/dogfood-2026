@@ -1,5 +1,5 @@
 # python tests/isolation_check.py .dogfood.toml, after run.py, on a clean docker compose down -v && up
-# image built from commit 5fede56; run at 2026-09-27T09:45Z
+# image built from commit 5c98603; run at 2026-09-27T18:20Z
 
 DOGFOOD 2026 isolation hand-check
 portal: http://localhost:8080
@@ -13,15 +13,15 @@ A  score exports are organizer-only ............................................
 A  audit log is organizer-only .......................................................................... PASS
 A  judge console is the event's judges' page ............................................................ PASS
 B  voting settings are organizer-only ................................................................... PASS
-B  tally hidden from everyone while voting is open ...................................................... PASS
+B  tally hidden from everyone but organizers while voting is open ....................................... PASS
 B  ballot saves obey the voter and the limit ............................................................ PASS
 B  open link voters each get their own ballot ........................................................... PASS
-B  duplicate voters flagged for the organizer ........................................................... PASS
+B  duplicate voters flagged, and the count live, for the organizer only; the open link counted apart .... PASS
 B  listed voters enter by personal link ................................................................. PASS
 B  a voided ballot stops counting and stops voting ...................................................... PASS
 B  comments: post, hide, and the reason stays ........................................................... PASS
-B  rate limits answer 429 with retry-after .............................................................. PASS
-B  closed tally counts every ballot but the voided one .................................................. PASS
+B  rate limits answer 429 with retry-after, whatever address a client claims ............................ PASS
+B  closed tally counts every ballot but the voided one, the open link's apart ........................... PASS
 B  results page hides unpublished scores ................................................................ PASS
 B  voting and comment steps are in the audit log ........................................................ PASS
 C  REST API: OpenAPI document and bearer auth ........................................................... PASS
