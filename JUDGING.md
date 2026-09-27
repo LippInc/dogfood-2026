@@ -147,6 +147,12 @@ Every change and every refused request is written in the same database transacti
 
 **What is not:** a grace period. The close time is exclusive by design: a submission or vote before it counts, one at or after it does not.
 
+### Requests forged by another page
+
+**What is built:** the session cookie is `HttpOnly` and `SameSite=Lax`, so a page on another site cannot make a visitor's browser send it with a write. A page on the same site but another origin (another app on the same host, a sibling subdomain) can, and the API reads a JSON body whatever type it declares, which lets such a page send a write that needs no CORS preflight. So an API write that the browser marks as coming from another origin (`Sec-Fetch-Site`, or `Origin` checked against the host for browsers that lack it) arrives without its cookies (`src/proxy.ts`): signed out, answered 401 like any anonymous call. Requests without those browser headers (curl, scripts, the organizers' checker) and Bearer tokens pass as they are. The forms on the portal's own pages use Next's server actions, which check the origin themselves.
+
+**What is not:** a guard on signing in. The API's sign-in sets the cookie, so such a page could still sign a visitor in to an account its owner controls. Keep apps you do not trust off the portal's host and its parent domain.
+
 ## What it does not do
 
 No calibrated prize probabilities or rank intervals: each score carries a ± of one standard error, and the portal does not turn it into rank intervals or prize odds. A method that produced them was tried in planning and cut: on simulated events with no real differences it named a 50 %+ favourite in 46 of 80 tracks (planning simulation of 2026-09-24, not re-run in this repository). Places are decided within a track; the overall ranking (the organizer's table, and the table above) is a convenience view, since tracks compare only through judges who score in both, so read the order across tracks loosely. With few reviews per judge the engine corrects little, by design. No automatic cross-track assignment.
