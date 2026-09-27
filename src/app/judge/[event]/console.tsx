@@ -692,7 +692,7 @@ export function JudgeConsoleView({
                       <li
                         key={r.id}
                         data-flip={r.id}
-                        className={`grid grid-cols-[22px_12px_minmax(0,1fr)_72px_40px] items-center gap-1 px-3 py-0.5 text-13 ${
+                        className={`grid grid-cols-[22px_12px_minmax(0,1fr)_44px_40px] items-center gap-1 px-3 py-0.5 text-13 ${
                           mine ? "bg-accent-tint shadow-[inset_3px_0_0_var(--accent)]" : ""
                         }`}
                       >
