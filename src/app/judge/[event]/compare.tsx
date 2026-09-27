@@ -252,6 +252,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                   <span className="block truncate text-14 font-medium">{p.title}</span>
                   {tied ? (
                     <span className="block truncate text-12 text-accent-ink">
+                      <span className="sr-only">just placed, </span>
                       <span aria-hidden>= </span>too close to {String(n).padStart(2, "0")}
                     </span>
                   ) : (
