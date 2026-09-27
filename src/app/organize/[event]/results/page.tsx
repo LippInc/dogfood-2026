@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { YardstickLine } from "@/components/yardstick-line";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
+import { Face } from "@/components/face";
 import { LeniencyStrip } from "@/components/figures/leniency-strip";
 import { RankLine, SlopeChart } from "@/components/figures/slope-chart";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
@@ -253,6 +254,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                     <td className="px-3 py-2">
                       <details>
                         <summary className="cursor-pointer">
+                          <Face id={p.id} cols={32} rows={18} className="mr-2 inline-block h-[18px] w-8 align-[-4px]" />
                           <span className="font-medium">{p.title}</span> <span className="font-mono text-12 text-ink-3">{p.id}</span>
                           {p.duplicateOf ? <span className="ml-2 text-12 text-ink-2">merged into {p.duplicateOf}</span> : null}
                           {p.underReviewed ? <span className="ml-2 text-12 text-flag">under-reviewed</span> : null}
