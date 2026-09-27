@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFlip } from "@/components/use-flip";
 import { formatUtc, weightShares } from "@/lib/format";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
-import { Kbd, letters, paragraphs, ProjectLink, RecuseDialog } from "./judge-bits";
+import { Kbd, letters, paragraphs, RecuseDialog, shortUrl } from "./judge-bits";
 import "./judge.css";
 
 // The judge console (DESIGN.md: the judge keys with autosave and "your ranking so
@@ -518,21 +518,24 @@ export function JudgeConsoleView({
                 </ul>
               ) : null}
             </div>
-            <div className="hidden shrink-0 sm:block">
+            <figure className="corner-marks hidden shrink-0 rounded-sm border border-rule px-5 pt-5 pb-3 sm:block">
               <div className="w-32">{faces[p.id]?.large}</div>
-              <p className="mt-2 font-mono text-12 text-ink-3">{p.id}</p>
-            </div>
+              <figcaption className="mt-2 flex justify-between font-mono text-12 text-ink-3">
+                <span>FIG. 01</span>
+                <span>{p.id}</span>
+              </figcaption>
+            </figure>
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <ProjectLink label="Repository" url={p.repoUrl} />
-            <ProjectLink label="Demo video" url={p.videoUrl} />
-            <ProjectLink label="Live demo" url={p.liveUrl} />
-            {[p.thumbnailUrl, ...p.galleryUrls]
-              .filter((u): u is string => Boolean(u))
-              .map((u, n, all) => (
-                <ProjectLink key={u} label={all.length === 1 ? "Image" : `Image ${n + 1}`} url={u} />
-              ))}
-          </div>
+          <Materials
+            rows={[
+              ["Repository", p.repoUrl],
+              ["Demo video", p.videoUrl],
+              ["Live demo", p.liveUrl],
+              ...[p.thumbnailUrl, ...p.galleryUrls]
+                .filter((u): u is string => Boolean(u))
+                .map((u, n, all): [string, string] => [all.length === 1 ? "Image" : `Image ${n + 1}`, u]),
+            ]}
+          />
           <div className="mt-8 border-t border-rule pt-6">
             <h2 className="text-14 font-semibold">About the project</h2>
             {body.length ? (
@@ -542,7 +545,9 @@ export function JudgeConsoleView({
                 </p>
               ))
             ) : (
-              <p className="mt-4 text-15 text-ink-2">The team wrote no longer description; the summary above is all there is.</p>
+              <p className="mt-4 rounded-sm border border-dashed border-edge px-4 py-3 text-15 text-ink-2">
+                The team wrote no longer description; the summary above is all there is.
+              </p>
             )}
           </div>
           {p.answers.length ? (
@@ -814,6 +819,46 @@ export function JudgeConsoleView({
         }}
       />
     </div>
+  );
+}
+
+/** What the team handed in, as one list: every project shows the same rows, so a missing demo is as visible as a present one. */
+function Materials({ rows }: { rows: [string, string | null][] }) {
+  const given = rows.filter(([, url]) => url).length;
+  return (
+    <section aria-labelledby="materials-title" className="mt-6 rounded-sm border border-rule bg-surface">
+      <div className="flex items-baseline justify-between border-b border-rule px-4 py-2">
+        <h2 id="materials-title" className="label-mono text-ink-2">
+          Handed in
+        </h2>
+        <p className="text-12 text-ink-2 tnum">
+          {given} of {rows.length}
+        </p>
+      </div>
+      <dl className="grid grid-cols-[112px_minmax(0,1fr)] text-14">
+        {rows.map(([label, url], n) => (
+          <div key={`${label}-${n}`} className={`contents ${n ? "[&>*]:border-t [&>*]:border-rule" : ""}`}>
+            <dt className="px-4 py-2 text-ink-2">{label}</dt>
+            <dd className="min-w-0 py-2 pr-4">
+              {url ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex max-w-full items-center gap-1.5 font-mono text-13 text-ink underline decoration-edge underline-offset-4 hover:decoration-ink"
+                >
+                  <span className="truncate">{shortUrl(url)}</span>
+                  <span aria-hidden>↗</span>
+                  <span className="sr-only">(opens in a new tab)</span>
+                </a>
+              ) : (
+                <span className="text-ink-3">not submitted</span>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

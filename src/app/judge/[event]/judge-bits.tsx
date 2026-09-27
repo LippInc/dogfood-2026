@@ -47,7 +47,7 @@ export function paragraphs(text: string): string[] {
     .filter(Boolean);
 }
 
-function shortUrl(url: string): string {
+export function shortUrl(url: string): string {
   try {
     const u = new URL(url);
     return `${u.host}${u.pathname === "/" ? "" : u.pathname}`.slice(0, 40);
