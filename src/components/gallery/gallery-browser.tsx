@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Search, X } from "lucide-react";
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 export type BrowserItem = {
   id: string;
@@ -62,6 +62,14 @@ export function GalleryBrowser({
   // The face under the pointer in the Field: named in the Field's caption and lit in the grid.
   const [peek, setPeek] = useState<string | null>(null);
   const peeked = peek ? items.find((i) => i.id === peek) : undefined;
+
+  // Phones: a track chosen by its link (?track=) may sit far along the chip row; bring it into view once.
+  const chipRow = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const row = chipRow.current;
+    const chosen = row?.querySelector<HTMLElement>('[data-track][aria-pressed="true"]');
+    if (row && chosen) row.scrollLeft = chosen.offsetLeft - row.offsetLeft - (row.clientWidth - chosen.offsetWidth) / 2;
+  }, []);
 
   const syncUrl = (nextTrack: string | null, nextQuery: string) => {
     const url = new URL(window.location.href);
@@ -174,7 +182,7 @@ export function GalleryBrowser({
       </section>
 
       {/* Phones: the mosaic becomes scrolling track chips (44px targets). */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden" role="group" aria-label="Filter by track">
+      <div ref={chipRow} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden" role="group" aria-label="Filter by track">
         <button type="button" aria-pressed={track === null} onClick={() => setTrack(null)} className={`${chip} border-edge`}>
           All <span className="tnum">{items.length}</span>
         </button>
@@ -182,6 +190,7 @@ export function GalleryBrowser({
           <button
             key={t.id}
             type="button"
+            data-track={t.id}
             aria-pressed={track === t.id}
             onClick={() => setTrack(track === t.id ? null : t.id)}
             className={`${chip} border-edge`}
@@ -228,7 +237,7 @@ export function GalleryBrowser({
           </label>
           <span className="hidden text-13 text-ink-3 lg:inline">{ORDER_HINT[order]}</span>
           <span className="label-mono tnum text-ink-3 md:ml-auto" aria-live="polite">
-            {visible.length} shown
+            {visible.length === items.length ? `${visible.length} shown` : `${visible.length} of ${items.length} shown`}
           </span>
         </div>
       </div>
