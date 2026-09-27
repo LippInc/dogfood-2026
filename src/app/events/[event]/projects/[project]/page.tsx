@@ -207,7 +207,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
           </figure>
         </div>
 
-        <div className="mt-12 grid gap-10 border-t border-rule pt-10 md:grid-cols-[minmax(0,680px)_1fr] md:gap-16">
+        <div className="mt-12 grid gap-10 border-t border-rule pt-10 md:grid-cols-[minmax(0,680px)_1fr] md:grid-rows-[auto_1fr] md:gap-x-16 md:gap-y-12">
           <div>
             <h2 className="text-15 font-semibold">About the project</h2>
             {p.description ? (
@@ -251,7 +251,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               </section>
             ) : null}
           </div>
-          <aside className="flex flex-col gap-10 text-14">
+          <aside className="flex flex-col gap-10 text-14 md:col-start-2 md:row-span-2 md:row-start-1">
             {/* The entry's record, in the status strip's mono voice: what it is, where it sits, when it came in. */}
             <section aria-labelledby="entry-title">
               <h2 id="entry-title" className="border-t-2 border-ink pt-2 label-mono text-ink">
@@ -332,55 +332,54 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               </section>
             ) : null}
           </aside>
-        </div>
-
-        <section aria-labelledby="comments-title" className="mt-12 max-w-[680px] border-t border-rule pt-8 pb-16">
-          <h2 id="comments-title" className="flex items-baseline gap-2 text-20 font-semibold">
-            Comments <span className="font-mono text-13 font-normal text-ink-3 tnum">{comments.filter((c) => !c.hidden).length}</span>
-          </h2>
-          {comments.length ? (
-            <ol className="mt-5 flex flex-col border-t border-rule wrap-anywhere">
-              {comments.map((c, n) => (
-                <li key={c.id} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 border-b border-rule py-5 sm:grid-cols-[3rem_minmax(0,1fr)]">
-                  <span className="pt-0.5 font-mono text-12 text-ink-3 tnum" aria-hidden="true">
-                    {String(n + 1).padStart(2, "0")}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                      <span className="flex flex-wrap items-baseline gap-x-2">
-                        <span className="text-14 font-semibold">{c.author}</span>
-                        {c.mine ? <span className="label-mono text-accent-ink">you</span> : null}
-                        <span className="font-mono text-12 text-ink-3">{formatUtc(c.createdAt)}</span>
-                      </span>
-                      {canModerate && !c.hidden ? <HideForm commentId={c.id} path={path} /> : null}
-                    </p>
-                    {c.hidden ? (
-                      <p className="sealed mt-2 rounded-xs border border-rule px-3 py-2 text-14 text-ink-2">
-                        <span className="font-medium text-ink">Hidden by the organizers:</span> {c.hidden.reason}
+          <section aria-labelledby="comments-title" className="min-w-0 border-t border-rule pt-8 pb-16 md:col-start-1">
+            <h2 id="comments-title" className="flex items-baseline gap-2 text-20 font-semibold">
+              Comments <span className="font-mono text-13 font-normal text-ink-3 tnum">{comments.filter((c) => !c.hidden).length}</span>
+            </h2>
+            {comments.length ? (
+              <ol className="mt-5 flex flex-col border-t border-rule wrap-anywhere">
+                {comments.map((c, n) => (
+                  <li key={c.id} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 border-b border-rule py-5 sm:grid-cols-[3rem_minmax(0,1fr)]">
+                    <span className="pt-0.5 font-mono text-12 text-ink-3 tnum" aria-hidden="true">
+                      {String(n + 1).padStart(2, "0")}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <span className="flex flex-wrap items-baseline gap-x-2">
+                          <span className="text-14 font-semibold">{c.author}</span>
+                          {c.mine ? <span className="label-mono text-accent-ink">you</span> : null}
+                          <span className="font-mono text-12 text-ink-3">{formatUtc(c.createdAt)}</span>
+                        </span>
+                        {canModerate && !c.hidden ? <HideForm commentId={c.id} path={path} /> : null}
                       </p>
-                    ) : (
-                      <p className="mt-1.5 font-serif text-17 leading-7 whitespace-pre-line">{c.body}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="mt-3 text-15 text-ink-2">No comments yet.</p>
-          )}
-          <div className="mt-6">
-            {actor ? (
-              <CommentForm projectId={p.id} path={path} />
+                      {c.hidden ? (
+                        <p className="sealed mt-2 rounded-xs border border-rule px-3 py-2 text-14 text-ink-2">
+                          <span className="font-medium text-ink">Hidden by the organizers:</span> {c.hidden.reason}
+                        </p>
+                      ) : (
+                        <p className="mt-1.5 font-serif text-17 leading-7 whitespace-pre-line">{c.body}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
             ) : (
-              <p className="text-15 text-ink-2">
-                <Link href={`/sign-in?next=${encodeURIComponent(path)}`} className="font-medium text-ink underline underline-offset-4">
-                  Sign in
-                </Link>{" "}
-                to comment.
-              </p>
+              <p className="mt-3 text-15 text-ink-2">No comments yet.</p>
             )}
-          </div>
-        </section>
+            <div className="mt-6">
+              {actor ? (
+                <CommentForm projectId={p.id} path={path} />
+              ) : (
+                <p className="text-15 text-ink-2">
+                  <Link href={`/sign-in?next=${encodeURIComponent(path)}`} className="font-medium text-ink underline underline-offset-4">
+                    Sign in
+                  </Link>{" "}
+                  to comment.
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
       </article>
     </PublicShell>
   );
