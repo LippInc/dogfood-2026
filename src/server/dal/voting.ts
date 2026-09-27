@@ -6,7 +6,8 @@ import type { Actor, Resource, VoterKind } from "../authz";
 import { DEFAULT_SEED_SECRET } from "../checker";
 import { getDb, type DbOrTx } from "../db/client";
 import { events, projects, teams, tracks, voters, votes } from "../db/schema";
-import { NotFoundError, RateLimitedError, ValidationError } from "../errors";
+import { formatUtc } from "@/lib/format";
+import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from "../errors";
 import { seededRng, shuffle } from "../judging/random";
 import { guardRead, mutate } from "../mutate";
 import { LIMITS, take, type Limit } from "../rate-limit";
@@ -302,8 +303,19 @@ function organizer<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOr
   });
 }
 
+/**
+ * Once the window has closed the count is public, so it is final: the window can no
+ * longer move (which would hide the count again and let more ballots in) and no
+ * ballot can be set aside or restored.
+ */
+function voteFinal(event: EventRow) {
+  if (votingState(event) === "closed")
+    throw new ConflictError("voting_closed", `Voting closed ${formatUtc(event.votingCloseAt)}; the window and the count are final.`);
+}
+
 export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizer(actor, eventIdOrSlug, (tx, event) => {
+    voteFinal(event);
     const input = parse(SettingsInput, body);
     const before = { votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt, ...votingSettings(event), linkHash: undefined };
     const voting = { ...votingSettings(event), modes: [...new Set(input.modes)].sort() as VoterKind[], votesPerVoter: input.votesPerVoter };
@@ -384,6 +396,7 @@ export const VoidInput = z.object({ voterId: z.string().min(1), reason: z.string
 /** Set a ballot aside (a suspected duplicate), with a reason; its votes stop counting. */
 export function voidVoter(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizer(actor, eventIdOrSlug, (tx, event) => {
+    voteFinal(event);
     const { voterId, reason } = parse(VoidInput, body);
     const v = tx.select().from(voters).where(and(eq(voters.id, voterId), eq(voters.eventId, event.id))).get();
     if (!v) throw new NotFoundError("Voter");
@@ -397,6 +410,7 @@ export const RestoreInput = z.object({ voterId: z.string().min(1) });
 
 export function restoreVoter(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizer(actor, eventIdOrSlug, (tx, event) => {
+    voteFinal(event);
     const { voterId } = parse(RestoreInput, body);
     const v = tx.select().from(voters).where(and(eq(voters.id, voterId), eq(voters.eventId, event.id))).get();
     if (!v) throw new NotFoundError("Voter");

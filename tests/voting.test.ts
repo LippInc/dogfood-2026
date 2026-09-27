@@ -322,6 +322,43 @@ describe("voiding a voter", () => {
   });
 });
 
+describe("once the window closes the count is final", () => {
+  beforeEach(() => {
+    openVoting();
+  });
+
+  it("known-bad: after closing, no set-aside, no restore and no window change — 409 voting_closed, count unchanged", () => {
+    const kept = castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_07"] }, CLIENT);
+    const voided = castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_08"] }, CLIENT);
+    voidVoter(org(), "evt_01", { voterId: voided.voterId, reason: "Same browser as another ballot" }); // positive control: allowed while open
+    h.sqlite.prepare("UPDATE events SET voting_close_at = '2026-01-02T00:00:00.000Z' WHERE id = 'evt_01'").run();
+    const before = getCommunityResults("evt_01").tally;
+    const rows = auditCount("voter.void") + auditCount("voter.restore") + auditCount("voting.settings");
+
+    expectHttpError(() => voidVoter(org(), "evt_01", { voterId: kept.voterId, reason: "Changed my mind after the count" }), 409, "voting_closed");
+    expectHttpError(() => restoreVoter(org(), "evt_01", { voterId: voided.voterId }), 409, "voting_closed");
+    expectHttpError(
+      () => saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["link"], votesPerVoter: "3" }),
+      409,
+      "voting_closed",
+    );
+    expectHttpError(() => saveVotingSettings(org(), "evt_01", { votingOpenAt: "", votingCloseAt: "", modes: ["link"], votesPerVoter: "3" }), 409, "voting_closed");
+
+    expect(getCommunityResults("evt_01").tally).toEqual(before);
+    expect(getCommunityResults("evt_01").state).toBe("closed");
+    expect(auditCount("voter.void") + auditCount("voter.restore") + auditCount("voting.settings")).toBe(rows);
+  });
+
+  it("a participant still gets 403 first, not the 409", () => {
+    h.sqlite.prepare("UPDATE events SET voting_close_at = '2026-01-02T00:00:00.000Z' WHERE id = 'evt_01'").run();
+    expectHttpError(
+      () => saveVotingSettings(participant(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["link"], votesPerVoter: "3" }),
+      403,
+      "not_an_organizer",
+    );
+  });
+});
+
 describe("tallies", () => {
   beforeEach(() => {
     openVoting();

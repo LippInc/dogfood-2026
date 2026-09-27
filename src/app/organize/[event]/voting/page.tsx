@@ -18,6 +18,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
   if (!actor) unauthorized();
   const v = guardPage(() => getVotingAdmin(actor, key));
   const { event } = v;
+  const closed = v.state === "closed";
   return (
     <WorkShell
       eventName={event.name}
@@ -37,7 +38,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                 ? `Opens ${formatUtc(event.votingOpenAt)}, closes ${formatUtc(event.votingCloseAt)}.`
                 : v.state === "open"
                   ? `Open until ${formatUtc(event.votingCloseAt)}. The counts stay hidden from everyone, you included, until then; turnout and duplicate flags are live.`
-                  : `Closed ${formatUtc(event.votingCloseAt)}. The counts are public on the results page.`}
+                  : `Closed ${formatUtc(event.votingCloseAt)}. The counts are public on the results page, and final: the window cannot move and no ballot can be set aside or restored.`}
           </p>
         </header>
 
@@ -62,7 +63,10 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             <h2 id="dup-title" className="text-15 font-semibold">
               Suspected duplicates
             </h2>
-            <p className="mt-1 text-14 text-ink-2">Ballots from the same network address and browser. Look at them; set one aside only with a reason.</p>
+            <p className="mt-1 text-14 text-ink-2">
+              Ballots from the same network address and browser.{" "}
+              {closed ? "Voting has closed, so they stay as they are." : "Look at them; set one aside only with a reason."}
+            </p>
             {v.suspected.length === 0 ? (
               <p className="mt-3 text-14 text-ink-2">None so far.</p>
             ) : (
@@ -79,8 +83,12 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                             <span className="font-mono text-12">{voter.id}</span> · {KIND[voter.kind]} · {voter.picks} {voter.picks === 1 ? "pick" : "picks"} · from{" "}
                             {formatUtc(voter.createdAt)}
                           </span>
-                          {/* keyed on voided, so the form starts closed again after each change */}
-                          <VoidForm key={`${voter.id}:${voter.voided}`} eventSlug={event.slug} voterId={voter.id} voided={voter.voided} />
+                          {closed ? (
+                            voter.voided ? <span className="text-13 text-ink-2">set aside</span> : null
+                          ) : (
+                            // keyed on voided, so the form starts closed again after each change
+                            <VoidForm key={`${voter.id}:${voter.voided}`} eventSlug={event.slug} voterId={voter.id} voided={voter.voided} />
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -115,29 +123,43 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             <h2 id="settings-title" className="mb-4 text-17 font-semibold">
               Window and voters
             </h2>
-            <VotingSettingsForm
-              eventSlug={event.slug}
-              openAt={utcInput(event.votingOpenAt)}
-              closeAt={utcInput(event.votingCloseAt)}
-              modes={v.settings.modes}
-              votesPerVoter={v.settings.votesPerVoter}
-            />
+            {closed ? (
+              <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-14">
+                <dt className="text-ink-2">Opened</dt>
+                <dd>{formatUtc(event.votingOpenAt)}</dd>
+                <dt className="text-ink-2">Closed</dt>
+                <dd>{formatUtc(event.votingCloseAt)}</dd>
+                <dt className="text-ink-2">Who could vote</dt>
+                <dd>{v.settings.modes.map((m) => KIND[m]).join(", ") || "nobody"}</dd>
+                <dt className="text-ink-2">Favourites per voter</dt>
+                <dd className="tnum">{v.settings.votesPerVoter}</dd>
+              </dl>
+            ) : (
+              <VotingSettingsForm
+                eventSlug={event.slug}
+                openAt={utcInput(event.votingOpenAt)}
+                closeAt={utcInput(event.votingCloseAt)}
+                modes={v.settings.modes}
+                votesPerVoter={v.settings.votesPerVoter}
+              />
+            )}
           </section>
           <div className="flex flex-col gap-6">
             <section aria-labelledby="link-title" className="rounded-sm border border-rule bg-surface p-5">
               <h2 id="link-title" className="mb-3 text-17 font-semibold">
                 Open voting link
               </h2>
-              <VotingLinkForm eventSlug={event.slug} active={v.settings.linkActive} />
+              {closed ? <p className="text-14 text-ink-2">Voting has closed; the link only says so.</p> : <VotingLinkForm eventSlug={event.slug} active={v.settings.linkActive} />}
             </section>
             <section aria-labelledby="list-title" className="rounded-sm border border-rule bg-surface p-5">
               <h2 id="list-title" className="mb-1 text-17 font-semibold">
                 Voter list
               </h2>
               <p className="mb-3 text-14 text-ink-2">
-                {v.listed.length} on the list, {v.listed.filter((l) => l.voted).length} voted. The portal sends no email: copy the links and send them yourself.
+                {v.listed.length} on the list, {v.listed.filter((l) => l.voted).length} voted.
+                {closed ? "" : " The portal sends no email: copy the links and send them yourself."}
               </p>
-              <VoterListForm eventSlug={event.slug} />
+              {closed ? null : <VoterListForm eventSlug={event.slug} />}
             </section>
           </div>
         </div>
