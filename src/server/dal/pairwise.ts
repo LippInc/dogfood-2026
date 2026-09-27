@@ -23,7 +23,7 @@ import { eventFacts, requireEvent, type EventRow } from "./events";
 import { finishedReviews, inJudgeTracks, judgeNames, judgeSet, rubricOf, submittedProjects, weightedTotal, type ProjectInfo } from "./judging";
 import { parse } from "./parse";
 
-// Pairwise mode (BUILD-PLAN decision 18; the engine is src/server/judging/pairwise.ts).
+// Pairwise mode (JUDGING.md "Pairwise mode"; the engine is src/server/judging/pairwise.ts).
 // A judge's list and next question are replayed from their own answers on every read
 // and every write, so there is no second copy of that state to drift; a write must
 // answer exactly the question the server would ask now (409 otherwise).

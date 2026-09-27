@@ -14,8 +14,8 @@ import {
   type Obs,
 } from "@/server/judging/normalize";
 
-// The engine against the planning run's numbers on the real fixture (BUILD-PLAN
-// decision 11 oracle, own-ideas/fixture-proof-preview.txt): flat judge jdg_07 left
+// The engine against the numbers an independent planning run computed on the real
+// fixture before the build (a separate script, not in this repo): flat judge jdg_07 left
 // out, W = 0.438, β̂² = 0.010, σ̂² = 0.428, k = 42.6, and the engine's top eight.
 
 let h: Handle;

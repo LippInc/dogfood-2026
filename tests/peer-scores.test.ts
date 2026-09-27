@@ -7,7 +7,7 @@ import { runMigrations } from "@/server/db/migrate";
 import { getJudgeScores } from "@/server/dal/scores";
 import { actorForToken } from "@/server/session";
 
-// Written before the feature (CLAUDE.md "Tests"): the same peer URL answers 403 to
+// Written before the feature: the same peer URL answers 403 to
 // judge_b and 200 with rows to judge_a, and never falls back to the caller's rows.
 
 const NOW = "2026-09-26T12:00:00.000Z";

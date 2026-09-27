@@ -1,5 +1,5 @@
 import "server-only";
-// The flat-judge rule (BUILD-PLAN decision 11): a judge with at least three finished
+// The flat-judge rule (JUDGING.md): a judge with at least three finished
 // reviews whose score vector is identical on every project they scored carries no
 // ranking information, so the engine leaves them out as a whole judge, with a
 // visible flag that states the reason. The organizer can override the rule either

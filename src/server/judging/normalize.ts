@@ -1,6 +1,6 @@
 import "server-only";
 
-// The normalization engine (BUILD-PLAN decision 11, re-decided 2026-09-24).
+// The normalization engine (JUDGING.md explains the model and how it was checked).
 //
 // Each finished review's organizer-weighted total y is modelled as
 //     y = project level + judge leniency + noise.

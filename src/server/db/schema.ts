@@ -50,7 +50,7 @@ export const ROLES = ["organizer", "judge", "participant"] as const;
 export type Role = (typeof ROLES)[number];
 
 // Roles are rows, not a column: a judge who is also a team member is one user with
-// two rows here (BUILD-PLAN decision 4).
+// two rows here.
 export const userRoles = sqliteTable(
   "user_roles",
   {

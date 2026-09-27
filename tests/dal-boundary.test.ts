@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-// The architecture rule this file guards (CLAUDE.md, "Architecture rules"):
+// The architecture rule this file guards (ARCHITECTURE.md, rule 1):
 // one data access layer. No file outside src/server/ may import drizzle-orm,
 // better-sqlite3, or any server module other than @/server/dal and
 // @/server/boot — including via relative paths that resolve into src/server.

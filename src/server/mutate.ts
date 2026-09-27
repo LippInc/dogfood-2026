@@ -7,7 +7,7 @@ import { LIMITS, take } from "./rate-limit";
 
 // The audited write path. Every mutation in the app goes through mutate(): the
 // permission check, the change and its audit row commit in ONE synchronous
-// better-sqlite3 transaction (BUILD-PLAN decisions 13 and 16). A 403 refusal is
+// better-sqlite3 transaction (ARCHITECTURE.md, rule 1 onward). A 403 refusal is
 // itself recorded: the refusal row commits and nothing else does.
 
 type AuditDetail = Omit<AuditEntry, "actorUserId" | "actorLabel" | "action"> & { action?: string };

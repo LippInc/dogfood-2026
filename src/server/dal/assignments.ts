@@ -14,7 +14,7 @@ import { isJudgeIn, judgeRows } from "./judges";
 import { judgeSet } from "./judging";
 import { parse } from "./parse";
 
-// Assignment runs (BUILD-PLAN decision 12): the organizer starts a fresh run once,
+// Assignment runs: the organizer starts a fresh run once,
 // then top-ups as judges join, reviews go missing or a judge is excluded. Every run
 // stores its seed and parameters, so it can be replayed; every pair it creates
 // records the run. An under-reviewed project gets a judge only by an organizer's

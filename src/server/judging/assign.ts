@@ -1,7 +1,7 @@
 import "server-only";
 import { pick, seededRng, shuffle } from "./random";
 
-// Judge assignment (BUILD-PLAN decision 12). Pure: the caller loads projects,
+// Judge assignment. Pure: the caller loads projects,
 // judges, conflicts and the pairs that already exist, and stores what comes back.
 //
 // Fresh runs start with a bridge pre-pass: every judge with two or more tracks gets

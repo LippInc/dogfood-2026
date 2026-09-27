@@ -13,7 +13,7 @@ import { normalize, type Obs } from "@/server/judging/normalize";
 // engine with k estimated (what ships). Score:
 // Kendall tau-b against the truth over project pairs in the same track ("within")
 // and over all pairs ("pooled"). Three assertions, margins declared before the run
-// (BUILD-PLAN decision 11), and (1b) and (2b), the same two against the raw mean with the
+// (when the engine was chosen), and (1b) and (2b), the same two against the raw mean with the
 // flat judge out, declared 2026-09-27 before their first run; a red one is a
 // stop-and-tell, never a change of engine.
 

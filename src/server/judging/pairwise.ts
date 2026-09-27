@@ -1,6 +1,6 @@
 import "server-only";
 
-// Pairwise mode (BUILD-PLAN decision 18; JUDGING.md "Pairwise mode"). A judge never
+// Pairwise mode (JUDGING.md "Pairwise mode"). A judge never
 // gives a score: they place each project they were assigned into their own ranked list
 // by answering "which is better?" about two projects at a time (binary insertion), and
 // the event's ranking comes from every judge's answers through one Bradley-Terry fit:

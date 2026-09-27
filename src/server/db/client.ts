@@ -31,7 +31,7 @@ let current: Handle | null = null;
 
 /**
  * The process-wide handle. It opens lazily on the first query, so `next build`
- * never touches /data (BUILD-PLAN decision 8).
+ * never touches /data.
  */
 export function handle(): Handle {
   if (!current) current = openDatabase(databasePath());

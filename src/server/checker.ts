@@ -8,7 +8,7 @@ import { accountClaims, apiTokens, assignments, events, judgeInvites, judgeTrack
 import { appendAudit } from "./audit";
 import { sha256 } from "./util";
 
-// Deterministic checker sessions (BUILD-PLAN decision 5). The acceptance checker
+// Deterministic checker sessions. The acceptance checker
 // never logs in: it sends four headers. The seed derives each token from
 // DOGFOOD_SEED_SECRET, stores only its SHA-256, and upserts the four sessions on
 // every boot, so `docker compose down -v && up` reproduces the same headers and a
