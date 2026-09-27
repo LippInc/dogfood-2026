@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { crc32, deflateSync } from "node:zlib";
 
 // Page marks: every page carries a small 1-bit pattern of its own, in the project
 // faces' language (SHA-256 of a seed picks a motif and its geometry, a 4x4 Bayer
@@ -25,9 +26,10 @@ export function pageSeed(path: string | null | undefined, extra = ""): string {
 }
 
 /** Which edge the mark is dense at: it fades towards the opposite side. */
-export type MarkAnchor = "right" | "left" | "top-right";
+export type MarkAnchor = "right" | "left" | "top-right" | "bottom";
 
-export type Mark = { cols: number; rows: number; d: string; lit: string; id: string };
+/** A drawn mark: SVG paths in cell units, and the on cells as a grid (1 per cell, row by row) for markPng. */
+export type Mark = { cols: number; rows: number; d: string; lit: string; id: string; on: Uint8Array };
 
 const BAYER4 = [
   [0, 8, 2, 10],
@@ -105,9 +107,9 @@ function hatch(r: () => number, W: number, H: number): Motif {
   return (x, y) => clamp01(0.5 + 0.8 * Math.sin((x * c + y * sn) * k + phase));
 }
 
-/** Two or three soft spots. */
+/** Two or three soft spots (more on a long band, so they are not lost along it). */
 function spots(r: () => number, W: number, H: number): Motif {
-  const count = r() < 0.5 ? 2 : 3;
+  const count = (r() < 0.5 ? 2 : 3) * Math.max(1, Math.round(W / (H * 6)));
   const list = Array.from({ length: count }, () => ({
     cx: between(r, 0.1, 0.9) * W,
     cy: between(r, 0.15, 0.85) * H,
@@ -126,6 +128,7 @@ function envelope(anchor: MarkAnchor, u: number, v: number): number {
   };
   if (anchor === "right") return fade(u, 0.65);
   if (anchor === "left") return fade(1 - u, 0.65);
+  if (anchor === "bottom") return fade(v, 1) ** 1.5;
   return fade(u, 0.6) * fade(1 - v, 0.75);
 }
 
@@ -133,6 +136,7 @@ function envelope(anchor: MarkAnchor, u: number, v: number): number {
 function nearness(anchor: MarkAnchor, u: number, v: number): number {
   if (anchor === "right") return u;
   if (anchor === "left") return 1 - u;
+  if (anchor === "bottom") return v;
   return (1 - v) * clamp01(u / 0.6);
 }
 
@@ -170,13 +174,60 @@ export function pageMark(seed: string, cols: number, rows: number, anchor: MarkA
   const near = onCells.filter((c) => c[2] > 0.9);
   const lit = near.length ? near[Math.floor(litAt * near.length) % near.length]! : null;
   let litPath = "";
+  const on = new Uint8Array(cols * rows);
   for (const [x, y] of onCells) {
+    on[y * cols + x] = 1;
     const cell = `M${x} ${y}h${CELL}v${CELL}h-${CELL}z`;
     if (lit && lit[0] === x && lit[1] === y) litPath = cell;
     else d += cell;
   }
-  const mark: Mark = { cols, rows, d, lit: litPath, id };
+  const mark: Mark = { cols, rows, d, lit: litPath, id, on };
   if (cache.size > 2000) cache.clear();
   cache.set(key, mark);
   return mark;
+}
+
+function chunk(type: string, data: Buffer): Buffer {
+  const head = Buffer.alloc(4);
+  head.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+  const tail = Buffer.alloc(4);
+  tail.writeUInt32BE(crc32(body) >>> 0);
+  return Buffer.concat([head, body, tail]);
+}
+
+/**
+ * A mark as a 1-bit PNG with its off pixels transparent, for a CSS mask over a token
+ * colour: a long band as an SVG path runs to tens of kilobytes on every page, as a PNG
+ * to one or two. Drawn at `scale` image pixels per CSS pixel, so a cell stays a crisp
+ * square on a high-density screen; `pitch` is the CSS size of a cell, whose square
+ * covers all but one pixel of it (the same grid as the SVG marks).
+ */
+export function markPng(mark: Mark, pitch: number, scale = 2): string {
+  const step = pitch * scale;
+  const square = (pitch - 1) * scale;
+  const width = mark.cols * step;
+  const height = mark.rows * step;
+  const stride = Math.ceil(width / 8) + 1;
+  const raw = Buffer.alloc(stride * height);
+  for (let py = 0; py < height; py++) {
+    if (py % step >= square) continue;
+    const y = Math.floor(py / step);
+    for (let x = 0; x < mark.cols; x++) {
+      if (!mark.on[y * mark.cols + x]) continue;
+      for (let px = x * step; px < x * step + square; px++) raw[py * stride + 1 + (px >> 3)]! |= 0x80 >> (px & 7);
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr.set([1, 0, 0, 0, 0], 8); // 1-bit greyscale, no interlace
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("tRNS", Buffer.from([0, 0])), // grey 0, the off pixels, is transparent
+    chunk("IDAT", deflateSync(raw, { level: 9 })),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+  return png.toString("base64");
 }

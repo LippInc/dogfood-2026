@@ -1,6 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
-import { PAGE_PATH_HEADER, pageMark, pageSeed, type MarkAnchor } from "@/lib/page-mark";
+import { markPng, PAGE_PATH_HEADER, pageMark, pageSeed, type MarkAnchor } from "@/lib/page-mark";
 
 /** The pixel size of one cell: marks are drawn at whole pixels, so every gap is one pixel wide. */
 const PITCH = 4;
@@ -42,5 +42,31 @@ export async function PageMark({
       <path d={lit ? mark.d : mark.d + mark.lit} className="fill-face-dot" />
       {lit && mark.lit ? <path d={mark.lit} className="fill-accent" /> : null}
     </svg>
+  );
+}
+
+/**
+ * A long band of the page's mark (the foot of the public pages), drawn as a PNG mask
+ * over the edge colour, quieter than the faces' dots, instead of an SVG path, which at
+ * this size would weigh tens of kilobytes on every page. No accent cell: the smaller
+ * mark in the status strip keeps the page's pink square.
+ */
+export async function PageBand({ anchor, cols, rows, className = "" }: { anchor: MarkAnchor; cols: number; rows: number; className?: string }) {
+  const path = (await headers()).get(PAGE_PATH_HEADER);
+  const mark = pageMark(pageSeed(path), cols, rows, anchor);
+  const image = `url(data:image/png;base64,${markPng(mark, PITCH)})`;
+  return (
+    <div
+      className={`page-mark shrink-0 bg-edge ${className}`}
+      data-page-mark={mark.id}
+      aria-hidden="true"
+      style={{
+        width: cols * PITCH,
+        height: rows * PITCH,
+        maskImage: image,
+        maskSize: "100% 100%",
+        maskRepeat: "no-repeat",
+      }}
+    />
   );
 }
