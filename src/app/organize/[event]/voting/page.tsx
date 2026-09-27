@@ -82,9 +82,11 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
   const early = v.state === "not_set" || v.state === "upcoming";
   // nothing flagged: the duplicates panel needs one line, not a card beside turnout
   const quiet = v.suspected.length === 0;
+  const final = closed || over;
   const setup = (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
-      <section aria-labelledby="settings-title" className="rounded-sm border border-rule bg-surface p-5 lg:col-span-2">
+      {/* while it can change, the form takes two columns; once final, the three panels are equal summaries in one row */}
+      <section aria-labelledby="settings-title" className={`rounded-sm border border-rule bg-surface p-5 ${final ? "" : "lg:col-span-2"}`}>
         <h2 id="settings-title" className="mb-4 text-17 font-semibold">
           Window and voters
         </h2>
@@ -119,7 +121,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
           />
         )}
       </section>
-      <div className="flex flex-col gap-6">
+      <div className={`flex flex-col gap-6 ${final ? "lg:col-span-2 lg:grid lg:grid-cols-2" : ""}`}>
         <section aria-labelledby="link-title" className="rounded-sm border border-rule bg-surface p-5">
           <h2 id="link-title" className="mb-3 text-17 font-semibold">
             Open voting link
