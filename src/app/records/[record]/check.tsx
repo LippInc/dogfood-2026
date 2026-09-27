@@ -38,7 +38,8 @@ function fromBase64url(s: string): Uint8Array<ArrayBuffer> {
 export async function checkInBrowser(envelope: Envelope, keysUrl = "/.well-known/dogfood-keys.json"): Promise<State> {
   if (!globalThis.crypto?.subtle) return { at: "unsupported", why: "This browser has no WebCrypto." };
   const res = await fetch(keysUrl, { cache: "no-store" });
-  if (!res.ok) return { at: "invalid", why: `Could not load the public keys (${res.status}).` };
+  // A key download that fails says nothing about the record: say the check could not run here.
+  if (!res.ok) return { at: "unsupported", why: `The public keys could not be loaded (${res.status}), so your browser could not check it.` };
   const { keys } = (await res.json()) as { keys: Key[] };
   const kid = envelope.record.keyId;
   const key = keys.find((k) => k.kid === kid);
@@ -49,10 +50,16 @@ export async function checkInBrowser(envelope: Envelope, keysUrl = "/.well-known
   } catch {
     return { at: "unsupported", why: "This browser cannot check Ed25519 signatures yet." };
   }
+  let signature: Uint8Array<ArrayBuffer>;
+  try {
+    signature = fromBase64url(String(envelope.signature));
+  } catch {
+    return { at: "invalid", why: "The signature is not in the expected form (base64url)." };
+  }
   const ok = await crypto.subtle.verify(
     { name: "Ed25519" },
     publicKey,
-    fromBase64url(envelope.signature),
+    signature,
     new TextEncoder().encode(canonical(envelope.record)),
   );
   return ok ? { at: "valid", kid: key.kid } : { at: "invalid", why: "The signature does not match this record." };

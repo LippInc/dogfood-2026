@@ -38,7 +38,8 @@ export function VerifyForm() {
     setBusy(true);
     try {
       const [browser, portal] = await Promise.all([
-        checkInBrowser(envelope),
+        // A browser that cannot run its check must not throw away the portal's answer.
+        checkInBrowser(envelope).catch(() => ({ at: "unsupported" as const, why: "Your browser could not run its own check." })),
         fetch("/api/records/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(envelope) }).then((r) => r.json()),
       ]);
       setOutcome({ browser, portal, record: envelope.record });
