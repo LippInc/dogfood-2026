@@ -57,6 +57,13 @@
       "when": 1790464472523,
       "tag": "0007_normalized_se",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790495361549,
+      "tag": "0008_pairwise_comparisons",
+      "breakpoints": true
     }
   ]
 }

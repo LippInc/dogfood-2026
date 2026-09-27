@@ -110,6 +110,8 @@ export type EventSettings = {
   acceptedUnderReviewed?: string[];
   /** Community voting (T3): who may vote, how many favourites each, the open link's hash. */
   voting?: { modes: ("account" | "listed" | "link")[]; votesPerVoter: number; linkHash?: string | null };
+  /** How judges judge (decision 18): a rubric per project (the default) or the better of two. */
+  judgingMode?: "scores" | "pairwise";
 };
 
 export const events = sqliteTable(
@@ -443,6 +445,38 @@ export const judgeOverrides = sqliteTable(
   (t) => [
     check("judge_overrides_mode_check", sql`${t.mode} in ('include', 'exclude')`),
     check("judge_overrides_reason_nonempty", sql`length(trim(${t.reason})) >= 3`),
+  ],
+);
+
+// Pairwise mode (decision 18): one row per answer a judge gave to "which is better?".
+// Never updated except voided_at (the judge's undo) and never deleted; the judge's list
+// and next question are replayed from these rows. new_project_id is the one being placed.
+export const PAIRWISE_OUTCOMES = ["left", "right", "tie"] as const;
+export const comparisons = sqliteTable(
+  "comparisons",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").notNull(),
+    judgeUserId: text("judge_user_id").notNull().references(() => users.id),
+    trackId: text("track_id").notNull(),
+    leftProjectId: text("left_project_id").notNull(),
+    rightProjectId: text("right_project_id").notNull(),
+    newProjectId: text("new_project_id").notNull(),
+    outcome: text("outcome", { enum: PAIRWISE_OUTCOMES }).notNull(),
+    createdAt: text("created_at").notNull(),
+    voidedAt: text("voided_at"),
+  },
+  (t) => [
+    index("comparisons_event_judge_idx").on(t.eventId, t.judgeUserId),
+    uniqueIndex("comparisons_once").on(t.eventId, t.judgeUserId, t.leftProjectId, t.rightProjectId).where(sql`voided_at is null`),
+    foreignKey({ columns: [t.leftProjectId, t.eventId], foreignColumns: [projects.id, projects.eventId] }),
+    foreignKey({ columns: [t.rightProjectId, t.eventId], foreignColumns: [projects.id, projects.eventId] }),
+    foreignKey({ columns: [t.trackId, t.eventId], foreignColumns: [tracks.id, tracks.eventId] }),
+    check("comparisons_outcome_check", sql`${t.outcome} in ('left', 'right', 'tie')`),
+    check("comparisons_two_projects", sql`${t.leftProjectId} <> ${t.rightProjectId}`),
+    check("comparisons_new_is_shown", sql`${t.newProjectId} in (${t.leftProjectId}, ${t.rightProjectId})`),
+    check("comparisons_created_iso", isoTimestamp(t.createdAt)),
+    check("comparisons_voided_iso", sql`${t.voidedAt} is null or julianday(${t.voidedAt}) is not null`),
   ],
 );
 
