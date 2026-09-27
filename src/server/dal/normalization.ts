@@ -3,7 +3,8 @@ import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignments, events, judgeOverrides, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, users } from "../db/schema";
+import { assignments, auditLog, events, judgeOverrides, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, users } from "../db/schema";
+import type { ChainAnchor } from "../audit";
 import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import type { FlatFlag } from "../judging/flat";
@@ -908,6 +909,8 @@ export type PublishedResults =
       published: true;
       publishedAt: string;
       runId: string;
+      /** the audit log entry that published the run: a later rewrite of the log changes its hash */
+      anchor: ChainAnchor | null;
       /** how the stored run was made: the score engine's method, or PAIRWISE_METHOD */
       method: string;
       k: number | null;
@@ -964,10 +967,18 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     t.rows.push(r);
     byTrack.set(r.trackId, t);
   }
+  const anchor =
+    db
+      .select({ entry: auditLog.id, hash: auditLog.hash })
+      .from(auditLog)
+      .where(and(eq(auditLog.action, "results.publish"), eq(auditLog.targetId, runId)))
+      .orderBy(desc(auditLog.id))
+      .get() ?? null;
   return {
     published: true,
     publishedAt: event.resultsPublishedAt,
     runId,
+    anchor,
     method: run.method,
     k: (run.params as { k?: number | null }).k ?? null,
     tracks: [...byTrack.values()].map((t) => {

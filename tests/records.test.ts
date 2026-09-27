@@ -292,3 +292,38 @@ describe("signed records and certificates", () => {
     expect(crypto.verify(null, Buffer.from(canonical(tampered), "utf8"), key, signature)).toBe(false);
   });
 });
+
+describe("the audit log anchor", () => {
+  it("a record pins the log's newest entry when it was signed, inside the signature, and the published results pin their own entry", () => {
+    publish();
+    const results = getPublishedResults("evt_01");
+    if (!results.published) throw new Error("not published");
+    const publishRow = auditRows().filter((r) => r.action === "results.publish").at(-1)!;
+    expect(results.anchor).toEqual({ entry: publishRow.id, hash: publishRow.hash });
+
+    const judge = actorById(topJudge().id);
+    const { id } = issueOwnRecord(judge, "evt_01", "judge");
+    // the newest entry at signing time: the one just before the record's own issue entry
+    const rows = auditRows();
+    const head = rows[rows.findIndex((r) => r.action === "record.issue" && r.targetId === id) - 1]!;
+    const view = getRecord(id);
+    expect((view.envelope.record as { auditLog?: unknown }).auditLog).toEqual({ entry: head.id, hash: head.hash });
+    expect(view.anchor).toEqual({ entry: head.id, hash: head.hash, holds: true });
+    expect(view.verification.valid).toBe(true);
+    // the anchor is signed: changing it breaks the signature
+    const forged = { ...view.envelope, record: { ...view.envelope.record, auditLog: { entry: head.id, hash: "0".repeat(64) } } };
+    expect(verifyRecord(forged).valid).toBe(false);
+  });
+
+  it("a rewrite of the log up to the pinned entry shows on the record (known-bad: a log changed after issuing)", () => {
+    publish();
+    const judge = actorById(topJudge().id);
+    const { id } = issueOwnRecord(judge, "evt_01", "judge");
+    const pinned = getRecord(id).anchor!;
+    // What someone with the database file could do: lift the append-only trigger and re-hash an entry.
+    h.sqlite.exec("DROP TRIGGER audit_log_no_update");
+    h.sqlite.prepare("UPDATE audit_log SET hash = ? WHERE id = ?").run("f".repeat(64), pinned.entry);
+    expect(getRecord(id).anchor).toEqual({ ...pinned, holds: false });
+    expect(getRecord(id).verification.valid).toBe(true); // the record itself is still genuine
+  });
+});

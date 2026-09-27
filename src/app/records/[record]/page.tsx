@@ -122,6 +122,13 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
               <dd className="font-mono text-13">{rec.keyId} (Ed25519)</dd>
             </div>
           </dl>
+          {view.anchor ? (
+            <p className="text-13 text-ink-2">
+              Signed when the portal&rsquo;s audit log ended at entry #{view.anchor.entry} (hash{" "}
+              <span className="font-mono">{view.anchor.hash.slice(0, 16)}</span>&hellip;).{" "}
+              {view.anchor.holds ? "The log still holds that entry as signed." : "The log no longer holds that entry as signed: it was changed after this record was issued."}
+            </p>
+          ) : null}
           <p className="hidden text-12 text-ink-2 print:block">
             Check this record at {rec.issuer}/records/{rec.id}
           </p>

@@ -54,6 +54,12 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                 : ""}
             </p>
           )}
+          {results.anchor ? (
+            <p className="mt-3 max-w-[760px] text-13 text-ink-2">
+              Published as entry #{results.anchor.entry} of the portal&rsquo;s audit log (hash{" "}
+              <span className="font-mono">{results.anchor.hash.slice(0, 16)}</span>&hellip;): a later change to the log up to that entry would change this hash.
+            </p>
+          ) : null}
           <div className="mt-10 flex flex-col gap-12">
             {results.tracks.map((t) => {
               const shown = competitionPlaces(t.rows);

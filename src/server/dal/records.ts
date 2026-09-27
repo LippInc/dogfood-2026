@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { competitionPlaces, ordinal } from "@/lib/places";
-import { appendAudit } from "../audit";
+import { appendAudit, anchorHolds, chainHead, type ChainAnchor } from "../audit";
 import type { Actor, Resource } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignments, comparisons, projects, RECORD_KINDS, signedRecords, teamMembers, teams, tracks, users, type RecordKind, type SignedEnvelope } from "../db/schema";
@@ -83,7 +83,16 @@ function awards(event: EventRow, projectId: string): string[] {
   return out;
 }
 
-function buildRecord(db: DbOrTx, event: EventRow, userId: string, kind: RecordKind, id: string, keyId: string, issuedAt: string): Record<string, unknown> {
+function buildRecord(
+  db: DbOrTx,
+  event: EventRow,
+  userId: string,
+  kind: RecordKind,
+  id: string,
+  keyId: string,
+  issuedAt: string,
+  auditLog: ChainAnchor | null,
+): Record<string, unknown> {
   const person = db.select({ name: users.name }).from(users).where(eq(users.id, userId)).get();
   const base = {
     format: RECORD_FORMAT,
@@ -92,6 +101,9 @@ function buildRecord(db: DbOrTx, event: EventRow, userId: string, kind: RecordKi
     issuer: issuer(),
     keyId,
     issuedAt,
+    // The audit log's newest entry when the record was signed: whoever holds the record
+    // holds a signed copy of that entry's hash, so a later rewrite of the log shows.
+    ...(auditLog ? { auditLog } : {}),
     event: { id: event.id, name: event.name, slug: event.slug, resultsPublishedAt: event.resultsPublishedAt },
     person: { name: person?.name ?? "Unknown" },
   };
@@ -116,7 +128,7 @@ function issueIn(tx: DbOrTx, event: EventRow, userId: string, kind: RecordKind, 
   if (existing) return { id: existing.id, created: false };
   const key = ensureSigningKey(tx, now);
   const id = newId("rec", 16);
-  const envelope = signRecord(key, buildRecord(tx, event, userId, kind, id, key.id, now));
+  const envelope = signRecord(key, buildRecord(tx, event, userId, kind, id, key.id, now, chainHead(tx)));
   tx.insert(signedRecords).values({ id, eventId: event.id, kind, userId, keyId: key.id, envelope, issuedAt: now }).run();
   return { id, created: true };
 }
@@ -221,6 +233,8 @@ export type RecordView = {
   signedText: string;
   verification: Verification;
   keys: PublishedKey[];
+  /** the audit log entry the record pins, and whether the log still holds it as signed */
+  anchor: (ChainAnchor & { holds: boolean }) | null;
 };
 
 /** A record by its id, with this portal's own check of its signature. Public: the id is the share link. */
@@ -239,6 +253,10 @@ export function getRecord(id: string): RecordView {
     signedText: canonicalJson(row.envelope.record),
     verification: verifyEnvelope(row.envelope, keys),
     keys,
+    anchor: (() => {
+      const a = (row.envelope.record as { auditLog?: ChainAnchor }).auditLog;
+      return a ? { ...a, holds: anchorHolds(db, a) } : null;
+    })(),
   };
 }
 

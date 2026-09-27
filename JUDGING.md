@@ -147,7 +147,7 @@ In scores mode the organizer's Results tab carries the same engine as a cross-ch
 
 ## The audit trail
 
-Every change and every refused request is written in the same database transaction as the change. Triggers refuse UPDATE and DELETE on the log, and they are re-created at every start. Each row carries the hash of the row before it. The organizer's audit page and `audit.csv` show the head hash. Limits, stated plainly: the triggers stop the application, not someone holding the database file; the chain is tamper-evident only against a head hash you kept outside the portal.
+Every change and every refused request is written in the same database transaction as the change. Triggers refuse UPDATE and DELETE on the log, and they are re-created at every start. Each row carries the hash of the row before it. The organizer's audit page and `audit.csv` show the head hash. Limits, stated plainly: the triggers stop the application, not someone holding the database file; the chain is tamper-evident only against a head hash kept outside the portal. The portal spreads such heads as it goes: each signed certificate and judging record carries the newest entry's number and hash inside its signature (the record's page says whether the log still holds that entry as signed), and the public results page shows the entry that published the results. The signing key itself is sealed under the portal's secret, so a copy of the database cannot sign new records to match a rewritten log.
 
 ## Threat model
 

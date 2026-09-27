@@ -1,5 +1,5 @@
 import "server-only";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { DbOrTx } from "./db/client";
 import { auditLog } from "./db/schema";
 import { canonicalJson, nowIso, sha256 } from "./util";
@@ -44,6 +44,19 @@ export function chainHash(prevHash: string, row: ChainedFields): string {
  * as the change it records; better-sqlite3 transactions serialize writers, so the
  * chain head read here cannot race another append.
  */
+/** One entry of the chain and its hash: what a signed record or the published results pin. */
+export type ChainAnchor = { entry: number; hash: string };
+
+/** The newest entry of the chain, or null before the first. */
+export function chainHead(db: DbOrTx): ChainAnchor | null {
+  return db.select({ entry: auditLog.id, hash: auditLog.hash }).from(auditLog).orderBy(desc(auditLog.id)).limit(1).get() ?? null;
+}
+
+/** Whether the chain still holds this entry with this hash; a rewrite that reaches it changes the hash. */
+export function anchorHolds(db: DbOrTx, anchor: ChainAnchor): boolean {
+  return db.select({ hash: auditLog.hash }).from(auditLog).where(eq(auditLog.id, anchor.entry)).get()?.hash === anchor.hash;
+}
+
 export function appendAudit(tx: DbOrTx, entry: AuditEntry, at: string = nowIso()): string {
   const head = tx.select({ hash: auditLog.hash }).from(auditLog).orderBy(desc(auditLog.id)).limit(1).get();
   const prevHash = head?.hash ?? GENESIS_HASH;
