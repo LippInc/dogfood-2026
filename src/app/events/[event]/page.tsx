@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
+import { ProjectImage } from "@/components/project-cover";
 import { GalleryBrowser } from "@/components/gallery/gallery-browser";
 import { PublicShell } from "@/components/shell/public-shell";
 import { plural } from "@/lib/format";
@@ -52,8 +53,16 @@ export default async function GalleryPage({ params, searchParams }: PageProps<"/
     teamName: p.teamName,
     trackId: p.trackId,
     trackName: p.trackName,
+    tags: p.tags,
   }));
-  const tileFaces = Object.fromEntries(items.map((p) => [p.id, <Face key={p.id} id={p.id} />]));
+  const thumbnails = new Map(gallery.projects.map((p) => [p.id, p.thumbnailUrl]));
+  const tileFaces = Object.fromEntries(
+    items.map((p) => {
+      const src = thumbnails.get(p.id);
+      const face = <Face key={p.id} id={p.id} />;
+      return [p.id, src ? <ProjectImage key={p.id} src={src} alt="" fallback={face} /> : face];
+    }),
+  );
   const smallFaces = Object.fromEntries(items.map((p) => [p.id, <Face key={p.id} id={p.id} cols={32} rows={18} />]));
 
   return (

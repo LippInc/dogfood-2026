@@ -85,6 +85,8 @@ export type GalleryProject = {
   trackId: string;
   trackName: string;
   submittedAt: string | null;
+  thumbnailUrl: string | null;
+  tags: string[];
 };
 
 export type Gallery = {
@@ -125,6 +127,8 @@ export function getGallery(idOrSlug: string): Gallery {
       trackId: tracks.id,
       trackName: tracks.name,
       submittedAt: projects.submittedAt,
+      thumbnailUrl: projects.thumbnailUrl,
+      tags: projects.tags,
     })
     .from(projects)
     .innerJoin(teams, eq(teams.id, projects.teamId))

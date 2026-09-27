@@ -126,6 +126,9 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
                   repoUrl: project.repoUrl,
                   videoUrl: project.videoUrl,
                   liveUrl: project.liveUrl,
+                  thumbnailUrl: project.thumbnailUrl,
+                  galleryUrls: project.galleryUrls,
+                  tags: project.tags,
                   status: project.status,
                   answers: project.answers,
                 }

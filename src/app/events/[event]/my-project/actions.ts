@@ -48,6 +48,16 @@ export async function saveProjectAction(_prev: ActionResult, form: FormData): Pr
     repoUrl: form.get("repoUrl"),
     videoUrl: form.get("videoUrl"),
     liveUrl: form.get("liveUrl"),
+    thumbnailUrl: form.get("thumbnailUrl"),
+    // one image address per line; tags separated by commas
+    galleryUrls: String(form.get("galleryUrls") ?? "")
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean),
+    tags: String(form.get("tags") ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
     answers,
     status: intent,
   };

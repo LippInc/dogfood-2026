@@ -492,6 +492,15 @@ export function JudgeConsoleView({
               <p className="mt-4 text-14 text-ink-2">
                 by <span className="font-semibold text-ink">{p.teamName}</span> · {p.teamSize} {p.teamSize === 1 ? "member" : "members"}
               </p>
+              {p.tags.length ? (
+                <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Tech tags">
+                  {p.tags.map((t) => (
+                    <li key={t} className="rounded-xs border border-rule px-1.5 py-0.5 font-mono text-12 text-ink-2">
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
             <div className="hidden shrink-0 sm:block">
               <div className="w-32">{faces[p.id]?.large}</div>
@@ -502,6 +511,11 @@ export function JudgeConsoleView({
             <ProjectLink label="Repository" url={p.repoUrl} />
             <ProjectLink label="Demo video" url={p.videoUrl} />
             <ProjectLink label="Live demo" url={p.liveUrl} />
+            {[p.thumbnailUrl, ...p.galleryUrls]
+              .filter((u): u is string => Boolean(u))
+              .map((u, n, all) => (
+                <ProjectLink key={u} label={all.length === 1 ? "Image" : `Image ${n + 1}`} url={u} />
+              ))}
           </div>
           <div className="mt-8 border-t border-rule pt-6">
             <h2 className="text-14 font-semibold">About the project</h2>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ExternalLink, FolderGit2, PlayCircle } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
+import { ProjectImage } from "@/components/project-cover";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
 import Link from "next/link";
@@ -70,6 +71,20 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               by <span className="font-semibold text-ink">{p.team.name}</span> · {p.team.members}{" "}
               {p.team.members === 1 ? "member" : "members"}
             </p>
+            {p.tags.length ? (
+              <ul className="mt-4 flex flex-wrap gap-2" aria-label="Tech tags">
+                {p.tags.map((t) => (
+                  <li key={t}>
+                    <Link
+                      href={`/events/${event.slug}?q=${encodeURIComponent(t)}`}
+                      className="inline-flex rounded-xs border border-rule px-2 py-0.5 font-mono text-13 text-ink-2 hover:border-edge hover:text-ink"
+                    >
+                      {t}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <div className="mt-6 flex flex-wrap gap-3">
               {p.repoUrl ? <LinkButton href={p.repoUrl} icon={<FolderGit2 className="size-4" aria-hidden />} label="Repository" /> : null}
               {p.videoUrl ? <LinkButton href={p.videoUrl} icon={<PlayCircle className="size-4" aria-hidden />} label="Demo video" /> : null}
@@ -78,7 +93,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             </div>
           </header>
           <div className="overflow-hidden rounded-xs border border-rule">
-            <Face id={p.id} />
+            {p.thumbnailUrl ? <ProjectImage src={p.thumbnailUrl} alt={`The team's picture of ${p.title}`} fallback={<Face id={p.id} />} /> : <Face id={p.id} />}
           </div>
         </div>
 
@@ -90,6 +105,26 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             ) : (
               <p className="mt-4 text-15 text-ink-3">The team wrote no description beyond the summary.</p>
             )}
+            {p.galleryUrls.length > 0 ? (
+              <section className="mt-12 border-t border-rule pt-8" aria-labelledby="images-title">
+                <h2 id="images-title" className="text-15 font-semibold">
+                  Images
+                </h2>
+                <ul className="mt-4 grid gap-4 sm:grid-cols-2">
+                  {p.galleryUrls.map((src, n) => (
+                    <li key={src} className="overflow-hidden rounded-xs border border-rule">
+                      <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+                        <ProjectImage
+                          src={src}
+                          alt={`Image ${n + 1} of ${p.galleryUrls.length} from ${p.team.name}`}
+                          fallback={<p className="flex aspect-video items-center justify-center p-4 text-13 text-ink-3">This image did not load. Open it on its own host.</p>}
+                        />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
             {p.answers.length > 0 ? (
               <section className="mt-12 border-t border-rule pt-8" aria-labelledby="answers-title">
                 <h2 id="answers-title" className="text-15 font-semibold">

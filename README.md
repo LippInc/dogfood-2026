@@ -94,9 +94,11 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 
 - **Events and teams.** An administrator creates an event with dates, tracks,
   prizes, custom questions and a weighted rubric. People sign up, form a team,
-  share an invite link, draft and edit a project until the deadline; the server
+  share an invite link, draft and edit a project until the deadline (name,
+  tagline, description, repository, demo video and live links, a thumbnail, an
+  image gallery, tech tags, the track and the organizer's questions); the server
   refuses changes after it. The public gallery shows every submitted project,
-  searchable and filterable by track.
+  searchable (tags included) and filterable by track.
 - **Judging.** The organizer invites judges by link (no mail server needed) and
   assigns projects with a seeded, stored assignment run; judges score in a
   keyboard-first console with autosave and see only their own scores. The
@@ -218,6 +220,9 @@ start, and the fixture import never overwrites what the organizers changed.
 
 ## What it does not do yet
 
+- Thumbnails and gallery images are links to images on the team's own host; the
+  portal stores no uploaded files. They load from that host, without a referrer,
+  and a card falls back to its generated picture when one does not load.
 - Webhook targets on private or local addresses are refused, when added and at
   every delivery (`WEBHOOKS_ALLOW_PRIVATE=true` lifts that for a receiver on the
   same machine), but a host name whose DNS answer changes between the check and

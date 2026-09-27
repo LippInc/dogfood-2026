@@ -28,6 +28,24 @@ const optionalUrl = webUrl
   .optional()
   .transform((v) => (v ? v : null));
 
+/** Tech tags are kept as typed but compared without case: "Rust" and "rust" are one tag. */
+function distinctTags(tags: string[]): string[] {
+  const seen = new Set<string>();
+  return tags.filter((t) => {
+    const key = t.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+export const MAX_GALLERY_IMAGES = 6;
+export const MAX_TAGS = 8;
+const tagList = z
+  .array(z.string().trim().min(1, "a tag cannot be empty").max(24, "a tag is at most 24 characters"))
+  .default([])
+  .transform(distinctTags)
+  .pipe(z.array(z.string()).max(MAX_TAGS, `at most ${MAX_TAGS} tags`));
+
 export const ProjectInput = z.object({
   title: z.string().trim().min(1, "a title is required").max(120),
   summary: z.string().trim().max(280).default(""),
@@ -36,6 +54,10 @@ export const ProjectInput = z.object({
   repoUrl: optionalUrl,
   videoUrl: optionalUrl,
   liveUrl: optionalUrl,
+  /** an image on the team's own host, shown on the gallery card; http(s) only */
+  thumbnailUrl: optionalUrl,
+  galleryUrls: z.array(webUrl).max(MAX_GALLERY_IMAGES, `at most ${MAX_GALLERY_IMAGES} images`).default([]),
+  tags: tagList,
   answers: z.record(z.string(), z.string().trim().max(5_000)).default({}),
   status: z.enum(["draft", "submitted"]).default("submitted"),
 });
@@ -137,6 +159,9 @@ export function createProject(actor: Actor | null, eventIdOrSlug: string, body: 
         repoUrl: input.repoUrl,
         videoUrl: input.videoUrl,
         liveUrl: input.liveUrl,
+        thumbnailUrl: input.thumbnailUrl,
+        galleryUrls: input.galleryUrls,
+        tags: input.tags,
         status: input.status,
         submittedAt: input.status === "submitted" ? now : null,
         createdAt: now,
@@ -158,7 +183,9 @@ export function createProject(actor: Actor | null, eventIdOrSlug: string, body: 
   });
 }
 
-const EDITABLE = ["title", "summary", "description", "trackId", "repoUrl", "videoUrl", "liveUrl", "status"] as const;
+const EDITABLE = ["title", "summary", "description", "trackId", "repoUrl", "videoUrl", "liveUrl", "thumbnailUrl", "galleryUrls", "tags", "status"] as const;
+
+const sameField = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b);
 
 /**
  * Edit (and optionally submit) a project. Only its team's members, and only while
@@ -211,12 +238,15 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
         repoUrl: input.repoUrl,
         videoUrl: input.videoUrl,
         liveUrl: input.liveUrl,
+        thumbnailUrl: input.thumbnailUrl,
+        galleryUrls: input.galleryUrls,
+        tags: input.tags,
         status,
       };
       const before: Record<string, unknown> = {};
       const after: Record<string, unknown> = {};
       for (const k of EDITABLE) {
-        if (project[k] !== next[k]) {
+        if (!sameField(project[k], next[k])) {
           before[k] = project[k];
           after[k] = next[k];
         }
@@ -355,6 +385,9 @@ export type PublicProject = {
   repoUrl: string | null;
   videoUrl: string | null;
   liveUrl: string | null;
+  thumbnailUrl: string | null;
+  galleryUrls: string[];
+  tags: string[];
   submittedAt: string | null;
   team: { name: string; members: number };
   track: { id: string; name: string };
@@ -375,6 +408,9 @@ export function getPublicProject(eventIdOrSlug: string, projectId: string): { ev
       repoUrl: projects.repoUrl,
       videoUrl: projects.videoUrl,
       liveUrl: projects.liveUrl,
+      thumbnailUrl: projects.thumbnailUrl,
+      galleryUrls: projects.galleryUrls,
+      tags: projects.tags,
       submittedAt: projects.submittedAt,
       status: projects.status,
       duplicateOf: projects.duplicateOf,
@@ -408,6 +444,9 @@ export function getPublicProject(eventIdOrSlug: string, projectId: string): { ev
       repoUrl: p.repoUrl,
       videoUrl: p.videoUrl,
       liveUrl: p.liveUrl,
+      thumbnailUrl: p.thumbnailUrl,
+      galleryUrls: p.galleryUrls,
+      tags: p.tags,
       submittedAt: p.submittedAt,
       team: { name: p.teamName, members },
       track: { id: p.trackId, name: p.trackName },

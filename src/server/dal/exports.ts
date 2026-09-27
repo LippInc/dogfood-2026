@@ -248,6 +248,10 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
         title: p.title,
         summary: p.summary,
         repo_url: p.repoUrl ?? "",
+        // beyond the organizers' format, only when present, so fixture data exports byte for byte
+        ...(p.thumbnailUrl ? { thumbnail_url: p.thumbnailUrl } : {}),
+        ...(p.galleryUrls.length ? { gallery_urls: p.galleryUrls } : {}),
+        ...(p.tags.length ? { tags: p.tags } : {}),
         submitted_at: p.submittedAt,
       })),
       scores: scoreRows,

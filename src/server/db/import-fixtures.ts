@@ -67,6 +67,19 @@ export const FixtureSchema = z.looseObject({
         .or(z.string().url({ protocol: /^https?$/, message: "must be a full URL, starting with https://" }))
         .optional()
         .default(""),
+      // Not in the organizers' format; the portal's own fixtures.json export adds them
+      // when a project has them, so they survive a move between portals.
+      thumbnail_url: z
+        .literal("")
+        .or(z.string().url({ protocol: /^https?$/, message: "must be a full URL, starting with https://" }))
+        .optional()
+        .default(""),
+      gallery_urls: z
+        .array(z.string().url({ protocol: /^https?$/, message: "must be a full URL, starting with https://" }))
+        .max(6)
+        .optional()
+        .default([]),
+      tags: z.array(z.string().trim().min(1).max(24)).max(8).optional().default([]),
       submitted_at: z.string().min(1),
     }),
   ),
@@ -426,6 +439,9 @@ export function importFixtures(
               title: p.title,
               summary: p.summary,
               repoUrl: p.repo_url === "" ? null : p.repo_url,
+              thumbnailUrl: p.thumbnail_url === "" ? null : p.thumbnail_url,
+              galleryUrls: p.gallery_urls,
+              tags: p.tags.filter((t, i) => p.tags.findIndex((u) => u.toLowerCase() === t.toLowerCase()) === i),
               status: "submitted",
               submittedAt: p.submitted_at,
               createdAt: p.submitted_at,

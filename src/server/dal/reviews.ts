@@ -38,6 +38,9 @@ export type ConsoleProject = {
   repoUrl: string | null;
   videoUrl: string | null;
   liveUrl: string | null;
+  thumbnailUrl: string | null;
+  galleryUrls: string[];
+  tags: string[];
   teamName: string;
   teamSize: number;
   trackName: string;
@@ -94,6 +97,9 @@ export function getJudgeConsole(actor: Actor | null, eventIdOrSlug: string): Jud
       repoUrl: projects.repoUrl,
       videoUrl: projects.videoUrl,
       liveUrl: projects.liveUrl,
+      thumbnailUrl: projects.thumbnailUrl,
+      galleryUrls: projects.galleryUrls,
+      tags: projects.tags,
       teamName: teams.name,
       teamSize: sql<number>`(select count(*) from ${teamMembers} m where m.team_id = ${teams.id})`,
       trackName: tracks.name,
@@ -151,6 +157,9 @@ export function getJudgeConsole(actor: Actor | null, eventIdOrSlug: string): Jud
         repoUrl: r.repoUrl,
         videoUrl: r.videoUrl,
         liveUrl: r.liveUrl,
+        thumbnailUrl: r.thumbnailUrl,
+        galleryUrls: r.galleryUrls,
+        tags: r.tags,
         teamName: r.teamName,
         teamSize: r.teamSize,
         trackName: r.trackName,

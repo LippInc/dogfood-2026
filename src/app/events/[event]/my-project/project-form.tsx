@@ -19,6 +19,9 @@ export type FormProject = {
   repoUrl: string | null;
   videoUrl: string | null;
   liveUrl: string | null;
+  thumbnailUrl: string | null;
+  galleryUrls: string[];
+  tags: string[];
   status: "draft" | "submitted";
   answers: Record<string, string>;
 };
@@ -130,6 +133,17 @@ export function ProjectForm({
               {(a) => <Input {...a} name="liveUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.liveUrl ?? ""} />}
             </Field>
           </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field id="thumbnailUrl" label="Thumbnail" help="The address of one image, shown on your gallery card at 16:9." error={e.thumbnailUrl}>
+              {(a) => <Input {...a} name="thumbnailUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.thumbnailUrl ?? ""} />}
+            </Field>
+            <Field id="tags" label="Tech tags" help="Up to 8, separated by commas. Visitors can search for them." error={e.tags}>
+              {(a) => <Input {...a} name="tags" placeholder="rust, webgpu, accessibility" defaultValue={(project?.tags ?? []).join(", ")} />}
+            </Field>
+          </div>
+          <Field id="galleryUrls" label="Image gallery" help="Up to 6 image addresses, one per line, shown on your project page." error={e.galleryUrls}>
+            {(a) => <Textarea {...a} name="galleryUrls" rows={3} placeholder="https://" defaultValue={(project?.galleryUrls ?? []).join("\n")} className="font-mono text-14" />}
+          </Field>
           {questions.length > 0 ? (
             <section aria-labelledby="questions-title" className="flex flex-col gap-5 border-t border-rule pt-6">
               <h2 id="questions-title" className="text-17 font-semibold">

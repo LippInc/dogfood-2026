@@ -11,6 +11,7 @@ export type BrowserItem = {
   teamName: string;
   trackId: string;
   trackName: string;
+  tags: string[];
 };
 export type BrowserTrack = { id: string; name: string; count: number };
 type Order = "shuffled" | "az" | "track";
@@ -23,7 +24,7 @@ const ORDER_HINT: Record<Order, string> = {
 
 function matches(item: BrowserItem, q: string): boolean {
   if (!q) return true;
-  const hay = `${item.title} ${item.teamName} ${item.trackName} ${item.id}`.toLowerCase();
+  const hay = `${item.title} ${item.teamName} ${item.trackName} ${item.id} ${item.tags.join(" ")}`.toLowerCase();
   return q
     .toLowerCase()
     .split(/\s+/)
@@ -231,6 +232,16 @@ export function GalleryBrowser({
                   <p className="mt-2 text-13 text-ink-3">
                     {i.teamName} · {i.trackName}
                   </p>
+                  {i.tags.length ? (
+                    <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Tech tags">
+                      {i.tags.slice(0, 4).map((t) => (
+                        <li key={t} className="rounded-xs border border-rule px-1.5 py-0.5 font-mono text-12 text-ink-2">
+                          {t}
+                        </li>
+                      ))}
+                      {i.tags.length > 4 ? <li className="px-1 py-0.5 text-12 text-ink-3">+{i.tags.length - 4}</li> : null}
+                    </ul>
+                  ) : null}
                 </div>
               </Link>
             </li>
