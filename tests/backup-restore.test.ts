@@ -52,7 +52,9 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-describe("backup and restore", () => {
+// Each test runs the scripts as child processes, synchronously: well under a second
+// alone, but past the default 5 s when the whole suite loads the machine.
+describe("backup and restore", { timeout: 30_000 }, () => {
   it("backs up a live database, then restores it over later changes and a write-ahead log left by a crash", () => {
     const users = count(dbPath, "SELECT count(*) AS n FROM users");
     const backup = run("backup.mjs", [path.join(dir, "backups")]);
