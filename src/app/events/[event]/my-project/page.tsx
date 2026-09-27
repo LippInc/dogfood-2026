@@ -91,9 +91,9 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
               {work.feedback.place !== null ? (
                 <>
                   <span className="flex flex-col">
-                    <span className="label-mono text-ink-3">Place</span>
+                    <span className="label-mono text-ink-3">Place</span>{" "}
                     <span className="font-display text-[88px] leading-[80px] tnum">{work.feedback.place}</span>
-                  </span>
+                  </span>{" "}
                   <span className="pb-1.5 text-24 font-semibold">in {work.feedback.trackName}</span>
                 </>
               ) : (
