@@ -5,7 +5,7 @@ import { Face } from "@/components/face";
 import { LeniencyStrip } from "@/components/figures/leniency-strip";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import {
   currentActor,
@@ -122,7 +122,7 @@ export default async function OverviewPage({
   const reminders = judges.unfinished
     .map(
       (j) =>
-        `Hi ${j.name}, ${j.assigned - j.done} of your ${j.assigned} reviews for ${event.name} are still open. Your console: ${origin}/judge/${event.slug}`,
+        `Hi ${j.name}, ${j.assigned - j.done} of your ${plural(j.assigned, "review")} for ${event.name} ${j.assigned - j.done === 1 ? "is" : "are"} still open. Your console: ${origin}/judge/${event.slug}`,
     )
     .join("\n\n");
 
@@ -185,7 +185,7 @@ export default async function OverviewPage({
               </span>
               <span className="text-13 text-ink-2 tnum">
                 of {judges.total} finished · {judges.reviewsDone} of{" "}
-                {judges.reviewsAssigned} reviews in
+                {plural(judges.reviewsAssigned, "review")} in
               </span>
             </p>
             {judges.segments.length ? (
@@ -250,7 +250,7 @@ export default async function OverviewPage({
                 </p>
                 <LeniencyStrip
                   points={nz.points}
-                  label={`Leniency of ${nz.points.length} judges: plain averages against what the data supports`}
+                  label={`Leniency of ${plural(nz.points.length, "judge")}: plain averages against what the data supports`}
                 />
                 <p className="text-13 leading-5 text-ink-2">
                   {nz.k === null

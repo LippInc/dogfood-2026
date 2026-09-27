@@ -5,7 +5,7 @@ import { LeniencyStrip } from "@/components/figures/leniency-strip";
 import { RankLine, SlopeChart } from "@/components/figures/slope-chart";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, plural } from "@/lib/format";
 import { currentActor, getNormalization, listRecords, METHOD_LABEL, type ProjectRow } from "@/server/dal";
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
@@ -78,7 +78,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             <strong>{METHOD_LABEL}.</strong>{" "}
             {n.variance.k === null
               ? "This run found no steady leniency (β̂² = 0), so it ranks by the plain mean of each project's counted reviews."
-              : `This run: k = ${n.variance.k.toFixed(1)} (β̂² = ${n.variance.beta2.toFixed(3)}, σ̂² = ${n.variance.sigma2.toFixed(3)}), so a judge needs ${Math.round(n.variance.k)} reviews before half their tilt counts.`}{" "}
+              : `This run: k = ${n.variance.k.toFixed(1)} (β̂² = ${n.variance.beta2.toFixed(3)}, σ̂² = ${n.variance.sigma2.toFixed(3)}), so a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.`}{" "}
             Flat-judge rule: a judge with 3 or more reviews and the same scores on every project is left out, as a flag the organizer can overturn with a reason.
             {excludedNames.length ? ` Left out in this run: ${excludedNames.join(", ")}.` : " Nobody is left out in this run."}
           </p>
@@ -115,7 +115,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             <p className="text-38 leading-none font-semibold tnum">±{maxLeniency.toFixed(2)}</p>
             <p className="mt-2 text-14 text-ink-2">
               is the largest leniency the data supports.{" "}
-              {n.variance.k !== null ? `At k = ${n.variance.k.toFixed(1)} a judge needs ${Math.round(n.variance.k)} reviews before half their tilt counts.` : ""}
+              {n.variance.k !== null ? `At k = ${n.variance.k.toFixed(1)} a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.` : ""}
             </p>
             <div className="mt-4">
               <LeniencyStrip points={points} label="Leniency per judge: plain average against what the data supports" />

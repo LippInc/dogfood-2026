@@ -3,13 +3,13 @@ import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { GalleryBrowser } from "@/components/gallery/gallery-browser";
 import { PublicShell } from "@/components/shell/public-shell";
+import { plural } from "@/lib/format";
 import { actorNav, currentActor, getGallery, NotFoundError, type Gallery } from "@/server/dal";
 
 // Server-rendered on every request: every project is on page one, in a fresh
 // shuffled order, so no project is always first. Nothing is baked in at build time.
 export const dynamic = "force-dynamic";
 
-const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
 function loadGallery(key: string): Gallery {
   try {

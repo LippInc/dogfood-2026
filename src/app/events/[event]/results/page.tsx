@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { PublicShell } from "@/components/shell/public-shell";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, plural } from "@/lib/format";
 import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, type Gallery } from "@/server/dal";
 import { competitionPlaces, ordinal } from "@/lib/places";
 
@@ -89,7 +89,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             The results are hidden until the organizers publish them
           </h2>
           <p className="mt-3 text-17 text-ink-2">
-            Judging covers {counts.projects} projects in {counts.tracks} tracks. Until the organizers publish, no score, average or rank leaves the judges&apos; and
+            Judging covers {plural(counts.projects, "project")} in {plural(counts.tracks, "track")}. Until the organizers publish, no score, average or rank leaves the judges&apos; and
             organizers&apos; screens, and the API refuses to hand them out. When they publish, this page shows each place with its score.
           </p>
         </section>

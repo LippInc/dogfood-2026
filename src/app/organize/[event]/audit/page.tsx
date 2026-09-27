@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { unauthorized } from "next/navigation";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { currentActor, getAuditLog } from "@/server/dal";
 
@@ -37,7 +37,7 @@ export default async function AuditPage({ params }: PageProps<"/organize/[event]
         >
           {chain.ok ? (
             <>
-              Chain verified from the first row: {chain.rows} rows in the whole log. Head hash <span className="font-mono text-13 break-all">{chain.head}</span>
+              Chain verified from the first row: {plural(chain.rows, "row")} in the whole log. Head hash <span className="font-mono text-13 break-all">{chain.head}</span>
             </>
           ) : (
             <>The chain is broken at row {chain.brokenAtId}: a row was changed outside the app. Treat everything after it as unverified.</>
@@ -83,7 +83,7 @@ export default async function AuditPage({ params }: PageProps<"/organize/[event]
           </table>
         </div>
         <p className="text-13 text-ink-2">
-          Showing the latest {lines.length} of {total} entries for this event; audit.csv has all of them, oldest first, each with its own hash and the one before.
+          Showing the latest {lines.length} of {plural(total, "entry", "entries")} for this event; audit.csv has all of them, oldest first, each with its own hash and the one before.
         </p>
       </div>
     </WorkShell>

@@ -4,7 +4,7 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { currentActor, getAssignments, getJudges } from "@/server/dal";
 import { revokeInviteAction } from "./actions";
@@ -37,7 +37,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
         <header>
           <h1 className="text-24 font-semibold">Judges</h1>
           <p className="mt-2 text-15 text-ink-2 tnum">
-            {judges.length} judges · {finished} of {assigned} assigned reviews finished
+            {plural(judges.length, "judge")} · {finished} of {plural(assigned, "assigned review")} finished
             {a.underReviewed.length ? ` · ${a.underReviewed.length} under-reviewed ${a.underReviewed.length === 1 ? "project" : "projects"}` : ""}
           </p>
         </header>
@@ -65,7 +65,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                   </TableHeader>
                   <TableBody>
                     {judges.map((j) => {
-                      const reminder = `Hi ${j.name}, ${j.pending} of your ${j.assigned} reviews for ${event.name} are still open. Your console: ${origin}/judge/${event.slug}`;
+                      const reminder = `Hi ${j.name}, ${j.pending} of your ${plural(j.assigned, "review")} for ${event.name} ${j.pending === 1 ? "is" : "are"} still open. Your console: ${origin}/judge/${event.slug}`;
                       return (
                         <TableRow key={j.id} className="align-top">
                           <TableCell>

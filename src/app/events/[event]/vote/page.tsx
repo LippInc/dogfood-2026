@@ -39,7 +39,7 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
             : ballot.state === "upcoming"
               ? `Voting opens ${formatUtc(ballot.event.votingOpenAt, { weekday: true })} and closes ${formatUtc(ballot.event.votingCloseAt, { weekday: true })}.`
               : ballot.state === "open"
-                ? `Pick up to ${ballot.votesPerVoter} favourites before ${formatUtc(ballot.event.votingCloseAt, { weekday: true })}. The list is shuffled for you, so no project gets the top spot on every ballot. Nobody sees a count until voting closes.`
+                ? `${ballot.votesPerVoter === 1 ? "Pick your favourite" : `Pick up to ${ballot.votesPerVoter} favourites`} before ${formatUtc(ballot.event.votingCloseAt, { weekday: true })}. The list is shuffled for you, so no project gets the top spot on every ballot. Nobody sees a count until voting closes.`
                 : `Voting closed ${formatUtc(ballot.event.votingCloseAt, { weekday: true })}.`}
         </p>
         {ballot.state === "closed" ? (

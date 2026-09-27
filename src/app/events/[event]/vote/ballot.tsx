@@ -34,7 +34,7 @@ export function Ballot({
     if (!canVote) return;
     const chosen = picks.includes(id);
     if (!chosen && left === 0) {
-      setStatus({ ok: false, text: `You have used all ${max} votes. Take one back to choose another.` });
+      setStatus({ ok: false, text: max === 1 ? "You have used your vote. Take it back to choose another." : `You have used all ${max} votes. Take one back to choose another.` });
       return;
     }
     const next = chosen ? picks.filter((p) => p !== id) : [...picks, id];
@@ -60,7 +60,7 @@ export function Ballot({
           <span className="font-semibold tnum">
             {picks.length} of {max}
           </span>{" "}
-          votes used{canVote && left > 0 ? `, ${left} left` : ""}
+          {max === 1 ? "vote" : "votes"} used{canVote && left > 0 ? `, ${left} left` : ""}
         </p>
         <p role="status" aria-live="polite" className={`text-14 ${status ? (status.ok ? "text-ok" : "text-flag") : "text-ink-2"}`}>
           {pending ? "Saving…" : (status?.text ?? "")}

@@ -5,6 +5,11 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** "1 project", "2 projects": a count with its noun in the right number. */
+export function plural(n: number, noun: string, many = `${noun}s`): string {
+  return `${n} ${n === 1 ? noun : many}`;
+}
+
 export function formatUtc(iso: string | null | undefined, opts: { weekday?: boolean; time?: boolean } = {}): string {
   if (!iso) return "";
   const d = new Date(iso);
