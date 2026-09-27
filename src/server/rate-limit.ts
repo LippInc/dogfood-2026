@@ -13,8 +13,15 @@ export const LIMITS = {
   linkVoter: { capacity: 8, perSeconds: 3600 },
   /** comments per account */
   comment: { capacity: 5, perSeconds: 600 },
-  /** password sign-in attempts per email address */
+  /** password sign-in attempts per email address from one network address */
   signIn: { capacity: 10, perSeconds: 900 },
+  /**
+   * password sign-in attempts per email address from anywhere: a ceiling on guessing
+   * one account's password from many addresses. It is 10 times the per-address limit,
+   * so a stranger at one address cannot lock the owner out; doing it from many
+   * addresses takes 100 wrong tries within the hour.
+   */
+  signInAccount: { capacity: 100, perSeconds: 3600 },
   /**
    * sign-ups and password sign-ins together, per network address: each one costs an
    * argon2 hash, so this bounds what one address can make the server compute. Roomy
