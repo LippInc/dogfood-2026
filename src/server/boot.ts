@@ -1,7 +1,7 @@
 import "server-only";
 import path from "node:path";
 import { openAdminSetup } from "./admins";
-import { checkerSessionsEnabled, checkerToml, demoModeRefusal, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, writeCheckerFile } from "./checker";
+import { checkerSessionsEnabled, checkerToml, demoModeRefusal, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, writeCheckerFile, type DemoGrants } from "./checker";
 import { databasePath, handle, type Handle } from "./db/client";
 import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
@@ -15,6 +15,17 @@ import { nowIso } from "./util";
 // the administrator setup for ADMIN_EMAILS, upsert the checker sessions, and
 // print the readiness lines. Everything here is synchronous better-sqlite3 work.
 // Next opens its port before this finishes; the line to wait for is ours.
+
+/** The boot line's account of what demo mode handed out and turning it off ended; empty when nothing. */
+function demoGrantsLine(r: DemoGrants): string {
+  const parts = [
+    r.apiTokens ? `${r.apiTokens} API ${r.apiTokens === 1 ? "token" : "tokens"} revoked` : "",
+    r.webhooks ? `${r.webhooks} ${r.webhooks === 1 ? "webhook" : "webhooks"} turned off` : "",
+    r.claimLinks ? `${r.claimLinks} unused account ${r.claimLinks === 1 ? "link" : "links"} deleted` : "",
+    r.judgeInvites ? `${r.judgeInvites} judge ${r.judgeInvites === 1 ? "invite" : "invites"} revoked` : "",
+  ].filter(Boolean);
+  return parts.length ? `; made as a demo identity: ${parts.join(", ")}` : "";
+}
 
 export function fixturesPath(): string {
   return process.env.FIXTURES_PATH ?? path.join(process.cwd(), "fixtures.json");
@@ -75,7 +86,7 @@ export async function boot(): Promise<void> {
     const seeded = seedCheckerSessions(h.db, eventId ?? "", now);
     const refusal = demoModeRefusal();
     lines.push(
-      `${refusal ? `checker sessions REFUSED: ${refusal}; set your own DOGFOOD_SEED_SECRET, or SEED_CHECKER_SESSIONS=false` : `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")`}${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}${!seeded.enabled && seeded.signedOut ? `; signed out ${seeded.signedOut} demo sign-in ${seeded.signedOut === 1 ? "session" : "sessions"}` : ""}${!seeded.enabled && seeded.demoted ? "; the demo organizer is no longer an administrator" : ""}.`,
+      `${refusal ? `checker sessions REFUSED: ${refusal}; set your own DOGFOOD_SEED_SECRET, or SEED_CHECKER_SESSIONS=false` : `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")`}${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}${!seeded.enabled && seeded.signedOut ? `; signed out ${seeded.signedOut} demo sign-in ${seeded.signedOut === 1 ? "session" : "sessions"}` : ""}${!seeded.enabled && seeded.demoted ? "; the demo organizer is no longer an administrator" : ""}${!seeded.enabled ? demoGrantsLine(seeded.revoked) : ""}.`,
     );
   }
   const setup = openAdminSetup(h.db);

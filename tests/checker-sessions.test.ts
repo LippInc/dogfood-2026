@@ -14,8 +14,8 @@ import {
   seedCheckerSessions,
   type CheckerIdentity,
 } from "@/server/checker";
-import { actorForToken, createLoginSession, hashPassword, verifyPassword } from "@/server/session";
-import { sessions, teamMembers, userRoles, users } from "@/server/db/schema";
+import { API_TOKEN_PREFIX, actorForToken, createLoginSession, hashPassword, verifyPassword } from "@/server/session";
+import { accountClaims, apiTokens, auditLog, judgeInvites, sessions, teamMembers, userRoles, users, webhooks } from "@/server/db/schema";
 import { sha256 } from "@/server/util";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -211,6 +211,62 @@ describe("checker sessions (database)", () => {
     process.env.SEED_CHECKER_SESSIONS = "true";
     ensureDemoOrganizer(h.db, "evt_01", NOW);
     expect(isAdmin()).toBe(true);
+  });
+
+  it("demo mode off also ends what the demo identities handed out: API tokens, webhooks, unused account links, open judge invites; another person's stay", () => {
+    const first = seed();
+    const judgeA = first.find((i) => i.label === "judge_a")!.userId;
+    const bystander = h.db
+      .select({ u: userRoles.userId })
+      .from(userRoles)
+      .where(eq(userRoles.role, "judge"))
+      .all()
+      .map((r) => r.u)
+      .find((u) => !first.some((i) => i.userId === u))!;
+    const later = "2026-10-10T12:00:00.000Z";
+    const token = (id: string, userId: string) => {
+      const value = `${API_TOKEN_PREFIX}${id}${"0".repeat(20)}`;
+      h.db.insert(apiTokens).values({ id, userId, name: id, tokenHash: sha256(value), hint: value.slice(0, 8), createdAt: NOW }).run();
+      return value;
+    };
+    const demoToken = token("tok_demo", judgeA);
+    const otherToken = token("tok_other", bystander);
+    const hook = (id: string, createdBy: string) =>
+      h.db.insert(webhooks).values({ id, eventId: "evt_01", url: "https://example.org/hook", secret: "s", actions: ["*"], createdAt: NOW, createdBy }).run();
+    hook("whk_demo", DEMO_ORGANIZER.id);
+    hook("whk_other", bystander);
+    const claim = (tokenHash: string, createdBy: string, usedAt: string | null) =>
+      h.db.insert(accountClaims).values({ tokenHash, userId: bystander, eventId: "evt_01", createdBy, createdAt: NOW, expiresAt: later, usedAt }).run();
+    claim("claim_demo_unused", DEMO_ORGANIZER.id, null);
+    claim("claim_demo_used", DEMO_ORGANIZER.id, NOW);
+    claim("claim_other", bystander, null);
+    const invite = (id: string, createdBy: string) =>
+      h.db.insert(judgeInvites).values({ id, eventId: "evt_01", codeHash: `hash_${id}`, name: id, trackIds: [], createdAt: NOW, createdBy }).run();
+    invite("inv_demo", DEMO_ORGANIZER.id);
+    invite("inv_other", bystander);
+    expect(actorForToken(h.db, demoToken)?.userId).toBe(judgeA);
+
+    process.env.SEED_CHECKER_SESSIONS = "false";
+    const off = seedCheckerSessions(h.db, "evt_01", NOW);
+    expect(off).toMatchObject({ enabled: false, revoked: { apiTokens: 1, webhooks: 1, claimLinks: 1, judgeInvites: 1 } });
+
+    expect(actorForToken(h.db, demoToken)).toBeNull();
+    expect(actorForToken(h.db, otherToken)?.userId).toBe(bystander);
+    const hookOff = (id: string) => h.db.select({ d: webhooks.disabledAt }).from(webhooks).where(eq(webhooks.id, id)).get()!.d;
+    expect(hookOff("whk_demo")).toBe(NOW);
+    expect(hookOff("whk_other")).toBeNull();
+    const claims = h.db.select({ t: accountClaims.tokenHash }).from(accountClaims).all().map((r) => r.t).sort();
+    expect(claims).toEqual(["claim_demo_used", "claim_other"]);
+    const inviteRevoked = (id: string) => h.db.select({ r: judgeInvites.revokedAt }).from(judgeInvites).where(eq(judgeInvites.id, id)).get()!.r;
+    expect(inviteRevoked("inv_demo")).toBe(NOW);
+    expect(inviteRevoked("inv_other")).toBeNull();
+    const row = h.db.select().from(auditLog).where(eq(auditLog.action, "checker_sessions.removed")).all().at(-1)!;
+    expect(row.after).toMatchObject({ revoked: { apiTokens: 1, webhooks: 1, claimLinks: 1, judgeInvites: 1 } });
+
+    // a second boot with demo mode still off finds nothing more to end
+    const again = seedCheckerSessions(h.db, "evt_01", NOW);
+    expect(again).toMatchObject({ enabled: false, revoked: { apiTokens: 0, webhooks: 0, claimLinks: 0, judgeInvites: 0 } });
+    expect(actorForToken(h.db, otherToken)?.userId).toBe(bystander);
   });
 
   it("known-bad: a token with one character changed resolves to null", () => {

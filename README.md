@@ -206,8 +206,11 @@ documented on purpose; set your own when the flag is on anywhere public. The
 portal enforces that: with the flag on, the default secret and a `PUBLIC_URL`
 that is not a local address, it refuses demo mode and says so at start. With
 the flag off, each start also signs out every session the demo sign-in buttons
-made and takes the demo organizer's administrator rights, so turning demo mode
-off works on a volume that ran with it on. The
+made, takes the demo organizer's administrator rights, and ends what anyone
+acting as a demo identity handed out: their API tokens are revoked, their
+webhooks turned off, their unused account links deleted and their open judge
+invites revoked. So turning demo mode off works on a volume that ran with it
+on. The
 same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 "Privacy"), so a real event sets its own in any case.
 

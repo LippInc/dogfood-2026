@@ -2,9 +2,9 @@ import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
-import { assignments, events, judgeTracks, sessions, teamMembers, teams, userRoles, users } from "./db/schema";
+import { accountClaims, apiTokens, assignments, events, judgeInvites, judgeTracks, sessions, teamMembers, teams, userRoles, users, webhooks } from "./db/schema";
 import { appendAudit } from "./audit";
 import { sha256 } from "./util";
 
@@ -132,7 +132,10 @@ export function ensureDemoOrganizer(db: Db, eventId: string, now: string): void 
 
 export type CheckerSeedResult =
   | { enabled: true; identities: CheckerIdentity[]; changed: CheckerLabel[] }
-  | { enabled: false; removed: number; signedOut: number; demoted: boolean };
+  | { enabled: false; removed: number; signedOut: number; demoted: boolean; revoked: DemoGrants };
+
+/** What the demo identities handed out that outlives a session, ended when demo mode goes off. */
+export type DemoGrants = { apiTokens: number; webhooks: number; claimLinks: number; judgeInvites: number };
 
 /** Upsert (or, when disabled, remove) the four checker sessions. Synchronous. */
 export function seedCheckerSessions(db: Db, eventId: string, now: string): CheckerSeedResult {
@@ -147,10 +150,24 @@ export function seedCheckerSessions(db: Db, eventId: string, now: string): Check
       const removed = tx.delete(sessions).where(eq(sessions.kind, "checker")).run().changes;
       const signedOut = tx.delete(sessions).where(inArray(sessions.userId, demoUsers)).run().changes;
       const demoted = tx.update(users).set({ isAdmin: false }).where(and(eq(users.id, DEMO_ORGANIZER.id), eq(users.isAdmin, true))).run().changes > 0;
-      if (removed > 0 || signedOut > 0 || demoted) {
-        appendAudit(tx, { actorUserId: null, actorLabel: "system", action: "checker_sessions.removed", after: { removed, signedOut, demoted } }, now);
+      // Anyone could act as these identities while demo mode was on, so what they handed out
+      // that outlives a session ends too: API tokens are revoked, webhooks turned off, unused
+      // account links deleted and open judge invites revoked.
+      const revoked: DemoGrants = {
+        apiTokens: tx.update(apiTokens).set({ revokedAt: now }).where(and(inArray(apiTokens.userId, demoUsers), isNull(apiTokens.revokedAt))).run().changes,
+        webhooks: tx.update(webhooks).set({ disabledAt: now }).where(and(inArray(webhooks.createdBy, demoUsers), isNull(webhooks.disabledAt))).run().changes,
+        claimLinks: tx.delete(accountClaims).where(and(inArray(accountClaims.createdBy, demoUsers), isNull(accountClaims.usedAt))).run().changes,
+        judgeInvites: tx
+          .update(judgeInvites)
+          .set({ revokedAt: now })
+          .where(and(inArray(judgeInvites.createdBy, demoUsers), isNull(judgeInvites.acceptedAt), isNull(judgeInvites.revokedAt)))
+          .run().changes,
+      };
+      const anyRevoked = Object.values(revoked).some((n) => n > 0);
+      if (removed > 0 || signedOut > 0 || demoted || anyRevoked) {
+        appendAudit(tx, { actorUserId: null, actorLabel: "system", action: "checker_sessions.removed", after: { removed, signedOut, demoted, revoked } }, now);
       }
-      return { enabled: false as const, removed, signedOut, demoted };
+      return { enabled: false as const, removed, signedOut, demoted, revoked };
     }
     const chosen = chooseCheckerUsers(tx as unknown as Db, eventId);
     const identities: CheckerIdentity[] = [];

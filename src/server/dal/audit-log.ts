@@ -105,7 +105,7 @@ function sentence(r: Row, n: Names): Part[] {
     case "checker_sessions.issued":
       return [actor, t(" issued the four checker sessions")];
     case "checker_sessions.removed":
-      return [actor, t(" removed the checker sessions")];
+      return [actor, t(" ended demo mode's access: the checker sessions, the demo sign-ins, and the API tokens, webhooks, account links and judge invites made as a demo identity")];
     case "user.sign_up":
       return [actor, t(" created an account")];
     case "session.sign_in":
