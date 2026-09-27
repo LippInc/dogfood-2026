@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Search, X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 export type BrowserItem = {
   id: string;
@@ -59,6 +59,9 @@ export function GalleryBrowser({
   );
   const [query, setQueryState] = useState(initialQuery);
   const [order, setOrder] = useState<Order>("shuffled");
+  // The face under the pointer in the Field: named in the Field's caption and lit in the grid.
+  const [peek, setPeek] = useState<string | null>(null);
+  const peeked = peek ? items.find((i) => i.id === peek) : undefined;
 
   const syncUrl = (nextTrack: string | null, nextQuery: string) => {
     const url = new URL(window.location.href);
@@ -98,7 +101,16 @@ export function GalleryBrowser({
           <h2 id="field-title" className="label-mono text-ink">
             Fig. 01 — The field
           </h2>
-          <p className="text-13 text-ink-3">Every project, by track. Choose a track to filter.</p>
+          <p className="min-w-0 truncate text-13 text-ink-3">
+            {peeked ? (
+              <>
+                <span className="font-mono text-12 text-accent-ink">{peeked.id}</span> <span className="font-semibold text-ink">{peeked.title}</span> by{" "}
+                {peeked.teamName}
+              </>
+            ) : (
+              "Every project, by track, each face drawn from its id. Choose a track to filter."
+            )}
+          </p>
           <button
             type="button"
             aria-pressed={track === null}
@@ -109,7 +121,7 @@ export function GalleryBrowser({
           </button>
         </div>
         <div className="mt-6 grid grid-cols-4 gap-x-4 gap-y-8 xl:grid-cols-8">
-          {tracks.map((t) => {
+          {tracks.map((t, ti) => {
             const inTrack = items.filter((i) => i.trackId === t.id);
             const lit = track === t.id;
             return (
@@ -123,9 +135,15 @@ export function GalleryBrowser({
                   <span className="truncate">{t.name}</span>
                   <span className="tnum text-ink-3">{t.count}</span>
                 </button>
-                <div className="mt-3 grid grid-cols-2 gap-1" aria-hidden="true">
-                  {inTrack.map((i) => (
-                    <div key={i.id} title={i.title}>
+                <div className="mt-3 grid grid-cols-2 gap-1" aria-hidden="true" onMouseLeave={() => setPeek(null)}>
+                  {inTrack.map((i, k) => (
+                    <div
+                      key={i.id}
+                      title={i.title}
+                      onMouseEnter={() => setPeek(i.id)}
+                      className={`develop ${peek === i.id ? "lit" : ""}`}
+                      style={{ "--i": ti * 2 + k } as CSSProperties}
+                    >
                       {smallFaces[i.id]}
                     </div>
                   ))}
@@ -219,12 +237,20 @@ export function GalleryBrowser({
         <ul className="mt-6 grid gap-x-6 gap-y-6 sm:grid-cols-2 sm:gap-y-10 md:mt-8 lg:grid-cols-3 xl:grid-cols-4">
           {visible.map((i) => (
             <li key={i.id} className="border-b border-rule pb-6 sm:border-0 sm:pb-0">
-              <Link href={`/events/${eventSlug}/projects/${i.id}`} className="tile flex gap-4 sm:block">
-                <div className="relative w-[120px] shrink-0 self-start overflow-hidden rounded-xs border border-rule sm:w-auto">
-                  {tileFaces[i.id]}
-                  <span className="absolute left-2.5 top-2.5 hidden rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 sm:inline">
-                    {i.id}
-                  </span>
+              <Link
+                href={`/events/${eventSlug}/projects/${i.id}`}
+                onMouseEnter={() => setPeek(i.id)}
+                onMouseLeave={() => setPeek(null)}
+                className={`tile flex gap-4 sm:block ${peek === i.id ? "lit" : ""}`}
+              >
+                <div className="relative w-[120px] shrink-0 self-start sm:w-auto">
+                  <div className="relative overflow-hidden rounded-xs border border-rule">
+                    {tileFaces[i.id]}
+                    <span className="absolute left-2.5 top-2.5 hidden rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 sm:inline">
+                      {i.id}
+                    </span>
+                  </div>
+                  <span className="crop-marks" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 wrap-anywhere">
                   <h3 className="font-display text-20 leading-tight sm:mt-4">{i.title}</h3>

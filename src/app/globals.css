@@ -220,6 +220,34 @@
       linear-gradient(var(--mark), var(--mark)) bottom 12px right 12px / 1px 14px no-repeat,
       var(--surface);
   }
+  /* crop marks round a tile's face, shown when the tile is pointed at, focused or lit */
+  .crop-marks {
+    --mark: var(--accent);
+    position: absolute;
+    inset: -6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms ease-out;
+    background:
+      linear-gradient(var(--mark), var(--mark)) top left / 12px 2px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top left / 2px 12px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top right / 12px 2px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top right / 2px 12px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom left / 12px 2px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom left / 2px 12px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom right / 12px 2px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom right / 2px 12px no-repeat;
+  }
+  .tile:hover .crop-marks,
+  .tile:focus-visible .crop-marks,
+  .lit .crop-marks {
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .crop-marks {
+      transition: none;
+    }
+  }
   .sig-bits path {
     transition: fill 600ms ease-out;
   }
@@ -237,7 +265,7 @@
   /*
    * Motion, only for people who have not asked for less. Only opacity, transforms and
    * absolutely placed marks move, so nothing around them reflows. --i staggers a list.
-   *   reveal: a row rises into place
+   *   reveal: a row rises into place (develop: the same, for the Field's faces, left to right)
    *   settle: a score dot travels from the raw average to the published score
    *   draw: an error bar opens out from its centre
    *   grow-bar: a count bar grows from its left edge
@@ -261,6 +289,10 @@
     }
     .stamp {
       animation: stamp 360ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+    }
+    .develop {
+      animation: reveal 600ms ease-out both;
+      animation-delay: calc(min(var(--i, 0), 24) * 28ms);
     }
   }
   @keyframes stamp {
