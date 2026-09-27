@@ -287,7 +287,7 @@ export const SettingsInput = z
     votesPerVoter: z.coerce.number().int().min(1).max(20),
   })
   .refine((v) => (v.votingOpenAt === "") === (v.votingCloseAt === ""), { message: "set both times or neither", path: ["votingCloseAt"] })
-  .refine((v) => !v.votingOpenAt || Date.parse(v.votingOpenAt) < Date.parse(v.votingCloseAt), { message: "closes after it opens", path: ["votingCloseAt"] });
+  .refine((v) => !v.votingOpenAt || Date.parse(v.votingOpenAt) < Date.parse(v.votingCloseAt), { message: "must be after voting opens", path: ["votingCloseAt"] });
 
 function organizer<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOrTx, event: EventRow) => { result: T; audit: Parameters<typeof mutate<T>>[0]["run"] extends (tx: never) => { audit: infer A } ? A : never }) {
   let event: EventRow;
