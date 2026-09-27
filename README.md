@@ -1,5 +1,7 @@
 # Dogfood portal
 
+![Every score shows its working: the gallery's field of faces, every place on one scale with its ±, a signed judging record, the judge console and the phone view](docs/readme-hero.png)
+
 A self-hostable hackathon submission and judging portal, built for Dogfood 2026.
 Every score, average and rank on its screens can be traced to how it was reached.
 
