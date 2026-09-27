@@ -81,23 +81,26 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
           action={addOrganizerAction}
           hidden={hidden}
           submitLabel="Add organizer"
+          resetOnSuccess
+          before={
+            <ul className="divide-y divide-rule rounded-sm border border-rule">
+              {organizers.map((g) => (
+                <li key={g.userId} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
+                  <span className="min-w-0">
+                    <span className="block text-14 font-medium">
+                      {g.name}
+                      {g.userId === actor.userId ? <span className="ml-2 text-12 font-normal text-ink-2">you</span> : null}
+                    </span>
+                    <span className="block truncate text-13 text-ink-2">
+                      {g.email} · since {formatUtc(g.since)}
+                    </span>
+                  </span>
+                  {organizers.length > 1 ? <RemoveOrganizer eventSlug={event.slug} userId={g.userId} name={g.name} /> : null}
+                </li>
+              ))}
+            </ul>
+          }
         >
-          <ul className="mb-4 divide-y divide-rule rounded-sm border border-rule">
-            {organizers.map((g) => (
-              <li key={g.userId} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
-                <span className="min-w-0">
-                  <span className="block text-14 font-medium">
-                    {g.name}
-                    {g.userId === actor.userId ? <span className="ml-2 text-12 font-normal text-ink-2">you</span> : null}
-                  </span>
-                  <span className="block truncate text-13 text-ink-2">
-                    {g.email} · since {formatUtc(g.since)}
-                  </span>
-                </span>
-                {organizers.length > 1 ? <RemoveOrganizer eventSlug={event.slug} userId={g.userId} name={g.name} /> : null}
-              </li>
-            ))}
-          </ul>
           <label className="flex flex-col gap-1 text-13 text-ink-2 sm:max-w-[420px]">
             Email of their account
             <input name="email" type="email" autoComplete="off" className={input} />
