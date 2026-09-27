@@ -19,6 +19,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
   if (!actor) unauthorized();
   const { event, tracks, judges, invites } = guardPage(() => getJudges(actor, key));
   const a = getAssignments(actor, event.id);
+  const published = Boolean(event.resultsPublishedAt);
   const origin = process.env.PUBLIC_URL ?? "http://localhost:8080";
   const assigned = judges.reduce((s, j) => s + j.assigned, 0);
   const finished = judges.reduce((s, j) => s + j.done, 0);
@@ -130,11 +131,13 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                 Assignment
               </h2>
               <p className="mt-1 mb-4 text-14 text-ink-2">
-                {a.hasAssignments
-                  ? `A top-up keeps every existing pair and fills only missing reviews${a.wouldAdd ? `: ${a.wouldAdd} to add right now` : "; right now there is nothing to add"}.`
-                  : `Gives each of the ${a.projects} submitted projects its reviews from judges of its own track: the most constrained project first, the least-loaded judge, ties by a stored seed.`}
+                {published
+                  ? "Results are published, so the assignments are final."
+                  : a.hasAssignments
+                    ? `A top-up keeps every existing pair and fills only missing reviews${a.wouldAdd ? `: ${a.wouldAdd} to add right now` : "; right now there is nothing to add"}.`
+                    : `Gives each of the ${a.projects} submitted projects its reviews from judges of its own track: the most constrained project first, the least-loaded judge, ties by a stored seed.`}
               </p>
-              <RunForm eventSlug={event.slug} hasAssignments={a.hasAssignments} target={a.target} />
+              {published ? null : <RunForm eventSlug={event.slug} hasAssignments={a.hasAssignments} target={a.target} />}
               {a.runs.length ? (
                 <ol className="mt-5 flex flex-col gap-2 border-t border-rule pt-4">
                   {a.runs.map((r) => (
@@ -175,14 +178,18 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                         · {u.track} · {u.eligible} eligible {u.eligible === 1 ? "judge" : "judges"} in the track
                       </span>
                     </summary>
-                    <ByHandForm
-                      eventSlug={event.slug}
-                      projectId={u.projectId}
-                      judges={judges
-                        .filter((j) => !j.excluded)
-                        .map((j) => ({ id: j.id, name: j.name, inTrack: j.tracks.some((t) => t.id === u.trackId) }))
-                        .sort((x, y) => Number(y.inTrack) - Number(x.inTrack) || x.name.localeCompare(y.name))}
-                    />
+                    {published ? (
+                      <p className="mt-2 text-13 text-ink-2">Results are published, so no judge is added now.</p>
+                    ) : (
+                      <ByHandForm
+                        eventSlug={event.slug}
+                        projectId={u.projectId}
+                        judges={judges
+                          .filter((j) => !j.excluded)
+                          .map((j) => ({ id: j.id, name: j.name, inTrack: j.tracks.some((t) => t.id === u.trackId) }))
+                          .sort((x, y) => Number(y.inTrack) - Number(x.inTrack) || x.name.localeCompare(y.name))}
+                      />
+                    )}
                   </details>
                 </li>
               ))}

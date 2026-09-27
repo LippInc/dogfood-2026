@@ -86,6 +86,11 @@ export type RunSummary = {
   bridge: AssignResult["bridge"];
 };
 
+/** Once the results are published nobody new is assigned: those reviews could never be scored. */
+function assignmentsOpen(event: EventRow) {
+  if (event.resultsPublishedAt) throw new ConflictError("results_published", "Results are published, so the assignments are final.");
+}
+
 export function runAssignment(actor: Actor | null, eventIdOrSlug: string, body: unknown): RunSummary {
   let event: EventRow;
   return mutate({
@@ -96,6 +101,7 @@ export function runAssignment(actor: Actor | null, eventIdOrSlug: string, body: 
       return { kind: "event", event: eventFacts(event) };
     },
     run: (tx) => {
+      assignmentsOpen(event);
       const input = parse(RunInput, body);
       const hasAny = tx.select({ n: sql<number>`count(*)` }).from(assignments).where(eq(assignments.eventId, event.id)).get()!.n > 0;
       if (input.mode === "fresh" && hasAny) {
@@ -189,6 +195,7 @@ export function assignByHand(actor: Actor | null, eventIdOrSlug: string, body: u
       return { kind: "event", event: eventFacts(event) };
     },
     run: (tx) => {
+      assignmentsOpen(event);
       const input = parse(ManualInput, body);
       const project = tx
         .select({ id: projects.id, teamId: projects.teamId, trackId: projects.trackId, status: projects.status })

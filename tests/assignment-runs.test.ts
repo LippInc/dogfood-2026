@@ -10,6 +10,7 @@ import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { assignByHand, getAssignments, runAssignment } from "@/server/dal/assignments";
 import { judgeSet } from "@/server/dal/judging";
+import { acceptUnderReviewed, dismissDuplicate, publishResults, setJudgeOverride } from "@/server/dal/normalization";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -338,6 +339,22 @@ describe("assignByHand", () => {
     expect(auditRows().length).toBe(before + 2); // the by_hand row and the participant's refusal; the 409/422 roll back
     expect(auditRows().filter((r) => r.action === "authz.refused")).toHaveLength(1);
     expect(runCount()).toBe(2); // the fixture run and the hand run, nothing else
+  });
+});
+
+describe("after the results are published", () => {
+  it("known-bad: neither a top-up nor a hand assignment — 409 results_published, no pair added", () => {
+    const org = actorById("usr_organizer");
+    setJudgeOverride(org, "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    dismissDuplicate(org, "evt_01", { ids: ["prj_07", "prj_41"], reason: "Two different entries" });
+    acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    publishResults(org, "evt_01");
+    const pairs = () => (h.sqlite.prepare("SELECT count(*) AS n FROM assignments WHERE event_id = 'evt_01'").get() as { n: number }).n;
+    const before = pairs();
+
+    expectHttpError(() => runAssignment(org, "evt_01", { mode: "topup", seed: 42 }), 409, "results_published");
+    expectHttpError(() => assignByHand(org, "evt_01", { projectId: "prj_19", judgeUserId: "jdg_01", reason: "Too late to help" }), 409, "results_published");
+    expect(pairs()).toBe(before);
   });
 });
 
