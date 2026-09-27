@@ -169,7 +169,7 @@ export function GalleryBrowser({
                       style={{ "--i": ti * 2 + k } as CSSProperties}
                     >
                       <div
-                        className={`transition-opacity duration-150 motion-reduce:transition-none ${shown.has(i.id) ? "" : "opacity-25"}`}
+                        className={`transition-opacity duration-150 motion-reduce:transition-none ${shown.has(i.id) ? "" : "opacity-30"}`}
                       >
                         {smallFaces[i.id]}
                       </div>
