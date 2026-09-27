@@ -3,6 +3,7 @@ import { unauthorized } from "next/navigation";
 import { RowsEditor } from "@/components/rows-editor";
 import { SectionForm } from "@/components/section-form";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
+import { UtcNow } from "@/components/utc-now";
 import { guardPage, utcInput } from "@/lib/page-guard";
 import { formatUtc } from "@/lib/format";
 import { currentActor, getOrganizerEvent, listOrganizers } from "@/server/dal";
@@ -72,6 +73,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               <input type="number" name="maxTeamSize" min={1} max={20} defaultValue={event.settings.maxTeamSize ?? 4} className={input} />
             </label>
           </div>
+          <UtcNow />
         </SectionForm>
 
         <SectionForm

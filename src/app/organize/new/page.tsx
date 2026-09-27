@@ -3,6 +3,7 @@ import { forbidden, unauthorized } from "next/navigation";
 import { RowsEditor } from "@/components/rows-editor";
 import { SectionForm } from "@/components/section-form";
 import { WorkShell } from "@/components/shell/work-shell";
+import { UtcNow } from "@/components/utc-now";
 import { currentActor } from "@/server/dal";
 import { createEventAction } from "../actions";
 
@@ -56,6 +57,7 @@ export default async function NewEventPage() {
               <input type="number" name="maxTeamSize" min={1} max={20} defaultValue={4} className={input} />
             </label>
           </div>
+          <UtcNow />
           <div className="flex flex-col gap-2">
             <p className="text-14 font-medium">Tracks</p>
             <RowsEditor name="tracks" initial={[]} blank={{ name: "" }} addLabel="Add a track" fields={[{ key: "name", label: "Track name", type: "text" }]} />

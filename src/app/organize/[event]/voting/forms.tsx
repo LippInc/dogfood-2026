@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFormAction } from "@/components/use-form-action";
 import { Field } from "@/components/field";
+import { UtcNow } from "@/components/utc-now";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,6 +64,7 @@ export function VotingSettingsForm({
           )}
         </Field>
       </div>
+      <UtcNow />
       {pastClose ? (
         <p role="status" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-flag">
           That close time has passed: saving ends the vote now, and the count becomes public and final.
