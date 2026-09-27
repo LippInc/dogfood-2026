@@ -264,14 +264,16 @@ export function RecordActions({ envelope, id }: { envelope: Envelope; id: string
     a.click();
     URL.revokeObjectURL(url);
   };
-  const button = "inline-flex h-10 items-center rounded-sm border border-edge px-4 text-14 font-medium hover:bg-raised";
+  // One row on a phone: the shorter labels below sm, the full ones from sm up (each name is the visible label).
+  const button = "inline-flex h-10 items-center whitespace-nowrap rounded-sm border border-edge px-3 text-14 font-medium hover:bg-raised sm:px-4";
   return (
     <div className="flex flex-wrap gap-2">
       <button type="button" onClick={() => window.print()} className={button}>
         Print
       </button>
       <button type="button" onClick={download} className={button}>
-        Download the record (.json)
+        <span className="sm:hidden">Download .json</span>
+        <span className="max-sm:hidden">Download the record (.json)</span>
       </button>
       <button
         type="button"
@@ -286,7 +288,15 @@ export function RecordActions({ envelope, id }: { envelope: Envelope; id: string
           }
         }}
       >
-        <span aria-live="polite">{copied ? "Link copied" : "Copy the link"}</span>
+        <span aria-live="polite">
+          {copied ? (
+            "Link copied"
+          ) : (
+            <>
+              Copy <span className="max-sm:hidden">the </span>link
+            </>
+          )}
+        </span>
       </button>
     </div>
   );
