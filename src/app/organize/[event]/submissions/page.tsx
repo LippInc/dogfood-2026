@@ -12,6 +12,9 @@ import { currentActor, getOverview, getSubmissions, type SubmissionRow } from "@
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Submissions" };
 
+const SHOWS = ["all", "needs", "drafts"] as const;
+type Show = (typeof SHOWS)[number];
+
 /** "1 Mar, 10:24": the whole event sits in one year and the column head says UTC, so each row drops both. */
 const when = (iso: string) => formatUtc(iso).replace(/ \d{4},/, ",").replace(" UTC", "");
 
@@ -26,9 +29,10 @@ function ReviewCells({ done, assigned }: { done: number; assigned: number }) {
   );
 }
 
-export default async function SubmissionsPage({ params }: PageProps<"/organize/[event]/submissions">) {
+export default async function SubmissionsPage({ params, searchParams }: PageProps<"/organize/[event]/submissions">) {
   const { event: key } = await params;
-    const actor = await currentActor();
+  const { show: showParam, track: trackParam } = await searchParams;
+  const actor = await currentActor();
   if (!actor) unauthorized();
   const { event, rows, submitted, drafts } = guardPage(() => getSubmissions(actor, key));
   // The under-reviewed projects the overview still asks about, from its own decisions, so the two pages never disagree.
@@ -36,15 +40,29 @@ export default async function SubmissionsPage({ params }: PageProps<"/organize/[
     guardPage(() => getOverview(actor, key)).decisions.flatMap((d) => (d.kind === "under_reviewed" && d.resolved === null ? [d.projectId] : [])),
   );
   const flagOf = (r: SubmissionRow) => (r.suspectedDuplicate ? "suspected duplicate" : underOpen.has(r.id) ? "under-reviewed" : null);
+  const needs = rows.filter((r) => flagOf(r) !== null).length;
 
-  const shown = rows;
-  const show = "all" as "all" | "needs" | "drafts";
-  const track: string | null = null;
-  const href = (_s: string, _t: string | null) => `/organize/${event.slug}/submissions`;
+  const tracks = [...new Map(rows.map((r) => [r.trackName, rows.filter((x) => x.trackName === r.trackName).length])).entries()];
+  const show: Show = SHOWS.find((s) => s === showParam) ?? "all";
+  const track = typeof trackParam === "string" && tracks.some(([t]) => t === trackParam) ? trackParam : null;
+  // A track chip counts what it would show under the chosen filter, so "Security 0" under Drafts says so before the click.
+  const byShow = rows.filter((r) => show === "all" || (show === "needs" ? flagOf(r) !== null : r.status === "draft"));
+  const shown = byShow.filter((r) => !track || r.trackName === track);
+  const href = (s: Show, t: string | null) => {
+    const q = new URLSearchParams();
+    if (s !== "all") q.set("show", s);
+    if (t) q.set("track", t);
+    const qs = q.toString();
+    return `/organize/${event.slug}/submissions${qs ? `?${qs}` : ""}`;
+  };
 
   const arrivals = rows
     .filter((r) => r.status === "submitted" && r.submittedAt)
     .map((r) => ({ id: r.id, title: r.title, at: r.submittedAt!, flagged: Boolean(r.suspectedDuplicate && !r.duplicateOf && !r.mergedIn.length) }));
+  const chip =
+    "group inline-flex items-baseline gap-1.5 rounded-sm border border-edge px-3 py-1 text-13 hover:border-ink aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-surface";
+  const count = "tnum text-ink-3 group-aria-[current=page]:text-surface";
+
   return (
     <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Submissions")} person={actor.name} role="Organizer">
       <div className="flex flex-col gap-6">
@@ -89,6 +107,39 @@ export default async function SubmissionsPage({ params }: PageProps<"/organize/[
             <h2 id="list-title" className="sr-only">
               Every project
             </h2>
+            {/* Filters are plain links, so the list is server-rendered for every view and each view has its own address. */}
+            <nav aria-label="Filter the list" className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:gap-x-5">
+              <div className="flex flex-wrap gap-1.5">
+                <Link href={href("all", track)} aria-current={show === "all" ? "page" : undefined} className={chip}>
+                  All <span className={count}>{track ? tracks.find(([t]) => t === track)![1] : rows.length}</span>
+                </Link>
+                {needs ? (
+                  <Link href={href("needs", track)} aria-current={show === "needs" ? "page" : undefined} className={chip}>
+                    <span className="inline-block size-2 self-center bg-flag-bar" aria-hidden />
+                    Needs a look <span className={count}>{needs}</span>
+                  </Link>
+                ) : (
+                  <span className="inline-flex items-baseline gap-1.5 rounded-sm border border-dashed border-rule px-3 py-1 text-13 text-ink-3">
+                    Nothing needs a look
+                  </span>
+                )}
+                {drafts ? (
+                  <Link href={href("drafts", track)} aria-current={show === "drafts" ? "page" : undefined} className={chip}>
+                    Drafts <span className={count}>{drafts}</span>
+                  </Link>
+                ) : (
+                  <span className="inline-flex items-baseline gap-1.5 rounded-sm border border-dashed border-rule px-3 py-1 text-13 text-ink-3">No drafts</span>
+                )}
+              </div>
+              <span className="hidden h-5 w-px bg-rule md:block" aria-hidden />
+              <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
+                {tracks.map(([t]) => (
+                  <Link key={t} href={href(show, track === t ? null : t)} aria-current={track === t ? "page" : undefined} className={`${chip} shrink-0 whitespace-nowrap`}>
+                    {t} <span className={count}>{byShow.filter((r) => r.trackName === t).length}</span>
+                  </Link>
+                ))}
+              </div>
+            </nav>
             <div className="rounded-sm border border-rule bg-surface">
               <table className="w-full text-14 max-md:block">
                 <thead className="max-md:hidden">
