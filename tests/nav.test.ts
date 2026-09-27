@@ -51,8 +51,8 @@ describe("the top bar's role links", () => {
     // positive control: unscoped, an organizer of two events gets two "Organizer" links
     expect(actorNav(both).filter((l) => l.label === "Organizer")).toHaveLength(2);
 
-    expect(actorNav(both, "evt_01")).toEqual([{ href: "/organize/sample-hack-2026", label: "Organizer" }]);
-    expect(actorNav(both, second.id)).toEqual([{ href: `/organize/${second.slug}`, label: "Organizer" }]);
+    expect(actorNav(both, "evt_01")).toEqual([{ href: "/organize/sample-hack-2026", label: "Organizer", event: "Sample Hack 2026" }]);
+    expect(actorNav(both, second.id)).toEqual([{ href: `/organize/${second.slug}`, label: "Organizer", event: "Second Hack" }]);
     expect(actorNav(both, "evt_elsewhere")).toEqual([]);
     expect(actorNav(null, "evt_01")).toEqual([]);
   });

@@ -4,7 +4,8 @@ import type { Actor } from "../authz";
 import { getDb } from "../db/client";
 import { events } from "../db/schema";
 
-export type NavLink = { href: string; label: string };
+/** event: the event's name, for lists that span events (the home page) */
+export type NavLink = { href: string; label: string; event: string };
 
 /**
  * Where a signed-in person can go from the top bar, derived from their roles. An
@@ -16,21 +17,21 @@ export function actorNav(actor: Actor | null, eventId?: string): NavLink[] {
   const roles = eventId ? actor.roles.filter((r) => r.eventId === eventId) : actor.roles;
   const eventIds = [...new Set(roles.map((r) => r.eventId))];
   if (eventIds.length === 0) return [];
-  const slugs = new Map(
+  const byId = new Map(
     getDb()
-      .select({ id: events.id, slug: events.slug })
+      .select({ id: events.id, slug: events.slug, name: events.name })
       .from(events)
       .where(inArray(events.id, eventIds))
       .all()
-      .map((e) => [e.id, e.slug]),
+      .map((e) => [e.id, e]),
   );
   const links: NavLink[] = [];
   for (const r of roles) {
-    const slug = slugs.get(r.eventId);
-    if (!slug) continue;
-    if (r.role === "judge") links.push({ href: `/judge/${slug}`, label: "Judge console" });
-    if (r.role === "organizer") links.push({ href: `/organize/${slug}`, label: "Organizer" });
-    if (r.role === "participant") links.push({ href: `/events/${slug}/my-project`, label: "My project" });
+    const e = byId.get(r.eventId);
+    if (!e) continue;
+    if (r.role === "judge") links.push({ href: `/judge/${e.slug}`, label: "Judge console", event: e.name });
+    if (r.role === "organizer") links.push({ href: `/organize/${e.slug}`, label: "Organizer", event: e.name });
+    if (r.role === "participant") links.push({ href: `/events/${e.slug}/my-project`, label: "My project", event: e.name });
   }
   return links;
 }
