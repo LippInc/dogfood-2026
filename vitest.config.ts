@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 
@@ -13,7 +13,16 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
     pool: "forks",
+    // The Monte Carlo proofs keep every core busy for a minute or more; run them after the
+    // rest, so tests that time real work (argon2, a local webhook receiver) never share the
+    // machine with them. `vitest run` still runs both groups.
+    projects: [
+      {
+        extends: true,
+        test: { name: "unit", include: ["tests/**/*.test.ts"], exclude: [...configDefaults.exclude, "tests/**/*-mc.test.ts"], sequence: { groupOrder: 0 } },
+      },
+      { extends: true, test: { name: "monte-carlo", include: ["tests/**/*-mc.test.ts"], sequence: { groupOrder: 1 } } },
+    ],
   },
 });
