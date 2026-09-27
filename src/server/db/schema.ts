@@ -791,3 +791,24 @@ export const fixtureImports = sqliteTable("fixture_imports", {
   importedAt: text("imported_at").notNull(),
   counts: text("counts", { mode: "json" }).$type<Record<string, number>>().notNull(),
 });
+
+// ---------------------------------------------------------------------------
+// Rate limits
+// ---------------------------------------------------------------------------
+
+// The token buckets of src/server/rate-limit.ts, kept in the database so a restart
+// keeps them and every process on the same file shares them. A key with no row has
+// a full bucket; rows idle for longer than the slowest refill are deleted as limits
+// are taken, so the table holds only buckets that are still refilling.
+export const rateBuckets = sqliteTable(
+  "rate_buckets",
+  {
+    key: text("key").primaryKey(),
+    tokens: real("tokens").notNull(),
+    /** when `tokens` was last worked out, in milliseconds since 1970 */
+    at: integer("at").notNull(),
+    /** the last take was refused, so the next refusal is not the first */
+    refused: integer("refused", { mode: "boolean" }).notNull(),
+  },
+  (t) => [index("rate_buckets_at_idx").on(t.at), check("rate_buckets_tokens", sql`${t.tokens} >= 0`)],
+);

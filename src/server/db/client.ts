@@ -42,6 +42,11 @@ export function getDb(): Db {
   return handle().db;
 }
 
+/** The handle if one is open, without opening one. */
+export function currentHandle(): Handle | null {
+  return current;
+}
+
 /** Tests swap in an in-memory database. */
 export function setHandleForTests(h: Handle | null): void {
   current = h;

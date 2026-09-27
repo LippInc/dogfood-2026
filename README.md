@@ -263,8 +263,7 @@ start, and the fixture import never overwrites what the organizers changed.
   accounts that matter in another).
 - The per-address limits (open-link entries; sign-ups and sign-ins) and the
   duplicate-ballot flags key on the client's network address, so people behind
-  one address (an office, a venue's wifi) share a limit. The limits live in
-  memory and reset on restart.
+  one address (an office, a venue's wifi) share a limit.
 - Results cannot be unpublished from the interface.
 - Organizers are trusted with their own event: nothing stops an organizer from
   also being on a team in it. What the portal does is log every organizer

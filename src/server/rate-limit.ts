@@ -1,8 +1,12 @@
 import "server-only";
+import { eq, lt } from "drizzle-orm";
+import { currentHandle, getDb } from "./db/client";
+import { rateBuckets } from "./db/schema";
 
-// Token buckets in memory: the portal runs as one process, so one Map is the whole
-// state, and a restart forgets it (a limit, not a ledger). Each key holds up to
-// `capacity` tokens and regains them evenly over `perSeconds`.
+// Token buckets in the database (rate_buckets), so a restart keeps them and every
+// process on the same file shares them. Each key holds up to `capacity` tokens and
+// regains them evenly over `perSeconds`. A key with no row has a full bucket, so rows
+// idle for longer than the slowest refill are deleted as limits are taken.
 
 export type Limit = { capacity: number; perSeconds: number };
 
@@ -30,29 +34,34 @@ export const LIMITS = {
   accountAddress: { capacity: 60, perSeconds: 600 },
 } satisfies Record<string, Limit>;
 
-type Bucket = { tokens: number; at: number; refused: boolean };
-const buckets = new Map<string, Bucket>();
+/** after this long without a take, every bucket is full again */
+const SLOWEST_REFILL_MS = Math.max(...Object.values(LIMITS).map((l) => l.perSeconds)) * 1000;
 
 export type Take = { ok: true } | { ok: false; retryAfter: number; firstRefusal: boolean };
 
 export function take(key: string, limit: Limit, now = Date.now()): Take {
   const rate = limit.capacity / (limit.perSeconds * 1000);
-  const b = buckets.get(key) ?? { tokens: limit.capacity, at: now, refused: false };
-  b.tokens = Math.min(limit.capacity, b.tokens + (now - b.at) * rate);
-  b.at = now;
-  if (b.tokens >= 1) {
-    b.tokens -= 1;
-    b.refused = false;
-    buckets.set(key, b);
-    return { ok: true };
-  }
-  const firstRefusal = !b.refused;
-  b.refused = true;
-  buckets.set(key, b);
-  return { ok: false, retryAfter: Math.max(1, Math.ceil((1 - b.tokens) / rate / 1000)), firstRefusal };
+  return getDb().transaction((tx) => {
+    tx.delete(rateBuckets).where(lt(rateBuckets.at, now - SLOWEST_REFILL_MS)).run();
+    const row = tx.select().from(rateBuckets).where(eq(rateBuckets.key, key)).get();
+    const b = row ? { tokens: row.tokens, at: row.at, refused: row.refused } : { tokens: limit.capacity, at: now, refused: false };
+    b.tokens = Math.min(limit.capacity, b.tokens + Math.max(0, now - b.at) * rate);
+    b.at = now;
+    let result: Take;
+    if (b.tokens >= 1) {
+      b.tokens -= 1;
+      b.refused = false;
+      result = { ok: true };
+    } else {
+      result = { ok: false, retryAfter: Math.max(1, Math.ceil((1 - b.tokens) / rate / 1000)), firstRefusal: !b.refused };
+      b.refused = true;
+    }
+    tx.insert(rateBuckets).values({ key, ...b }).onConflictDoUpdate({ target: rateBuckets.key, set: b }).run();
+    return result;
+  });
 }
 
-/** For tests. */
+/** For tests: empty the buckets of the database in use, if one is open. */
 export function resetRateLimits() {
-  buckets.clear();
+  currentHandle()?.db.delete(rateBuckets).run();
 }

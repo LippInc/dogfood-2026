@@ -92,6 +92,10 @@ The chain: each row's `hash` is `sha256(prev_hash + "\n" + canonical JSON of the
 
 **`fixture_imports`** — one row per import call. `id`; `source`; `sha256` of the imported file; `imported_at`; `counts` json (rows inserted per table).
 
+## Rate limits
+
+**`rate_buckets`** — one token bucket of the rate limits (`src/server/rate-limit.ts`), kept here so a restart keeps it and every process on the same file shares it. `key` pk (the limit and whom it counts, e.g. `signin:<email>:<address>`); `tokens` real (CHECK: never below 0); `at` (milliseconds since 1970, when `tokens` was last worked out); `refused` (the last take was refused, so the next refusal is not audited again). A key with no row has a full bucket; rows idle for longer than the slowest refill (an hour) are deleted as limits are taken.
+
 ## Relationships
 
 - Event 1—n tracks, prizes, custom questions, rubric criteria, teams, projects, assignments, votes, comments, signed records, webhooks.
