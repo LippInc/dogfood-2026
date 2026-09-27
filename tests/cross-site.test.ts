@@ -23,6 +23,8 @@ describe("crossOriginWrite", () => {
     expect(crossOriginWrite("POST", h({ origin: "not a url" }))).toBe(true);
     expect(crossOriginWrite("POST", h({ origin: "http://localhost:8080" }))).toBe(false);
     expect(crossOriginWrite("POST", h({ origin: "https://portal.example.org", "x-forwarded-host": "portal.example.org" }))).toBe(false);
+    expect(crossOriginWrite("POST", h({ origin: "https://portal.example.org", "x-forwarded-host": "portal.example.org, internal:8080" }))).toBe(false);
+    expect(crossOriginWrite("POST", h({ origin: "https://other.example.org", "x-forwarded-host": "portal.example.org, internal:8080" }))).toBe(true);
   });
 
   it("positive controls: the portal's own pages, safe methods and non-browser clients pass", () => {

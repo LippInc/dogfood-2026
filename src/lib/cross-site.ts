@@ -20,7 +20,8 @@ export function crossOriginWrite(method: string, headers: Headers): boolean {
   const origin = headers.get("origin");
   if (!origin) return false;
   if (origin === "null") return true;
-  const host = headers.get("x-forwarded-host") ?? headers.get("host");
+  // a chain of proxies lists hosts left to right; the first is the one the browser used
+  const host = (headers.get("x-forwarded-host") ?? headers.get("host"))?.split(",")[0]!.trim();
   try {
     return new URL(origin).host !== host;
   } catch {
