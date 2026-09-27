@@ -2,8 +2,9 @@
 
 import { ChevronDown, ChevronRight, Clock, Lock, LockOpen } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useFormAction } from "@/components/use-form-action";
+import { useRescueFocus } from "@/components/use-rescue-focus";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatUtc } from "@/lib/format";
@@ -69,9 +70,12 @@ export function WithReason({
 }) {
   const [open, setOpen] = useState(false);
   const [state, form, pending] = useFormAction(action, idle);
+  // Cancel removes the box and its buttons: focus goes back to the button that opened it.
+  const opener = useRef<HTMLButtonElement>(null);
+  useRescueFocus(() => opener.current, open);
   if (!open) {
     return (
-      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+      <Button ref={opener} type="button" variant="outline" onClick={() => setOpen(true)}>
         {label}
       </Button>
     );
@@ -365,6 +369,9 @@ export function Decisions({
 }) {
   const firstOpen = decisions.find((d) => !d.resolved)?.key ?? null;
   const [open, setOpen] = useState<string | null>(firstOpen);
+  // Making or undoing a decision swaps its form for the result: focus lands back on its row.
+  const rowButtons = useRef(new Map<string, HTMLButtonElement>());
+  useRescueFocus(() => (open ? rowButtons.current.get(open) : undefined), decisions.map((d) => `${d.key}:${d.resolved}`).join("|"));
   const openCount = decisions.filter((d) => !d.resolved).length;
   const count = published ? decisions.length : openCount;
   return (
@@ -416,6 +423,10 @@ export function Decisions({
             return (
               <li key={d.key} className="border-b border-rule">
                 <button
+                  ref={(el) => {
+                    if (el) rowButtons.current.set(d.key, el);
+                    else rowButtons.current.delete(d.key);
+                  }}
                   type="button"
                   aria-expanded={expanded}
                   onClick={() => setOpen(expanded ? null : d.key)}
@@ -476,6 +487,9 @@ export function PublishPanel({
 }) {
   const [state, form, pending] = useFormAction(publishAction, idle);
   const decided = total - open;
+  // Publishing replaces the form, so focus would fall to the page: land on "Published".
+  const publishedHeading = useRef<HTMLHeadingElement>(null);
+  useRescueFocus(() => publishedHeading.current, publishedAt);
   return (
     <section
       aria-labelledby="publish-title"
@@ -485,6 +499,8 @@ export function PublishPanel({
       {publishedAt ? (
         <>
           <h2
+            ref={publishedHeading}
+            tabIndex={-1}
             id="publish-title"
             className="flex items-center gap-2 text-24 font-semibold"
           >
