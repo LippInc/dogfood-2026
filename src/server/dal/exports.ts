@@ -139,8 +139,8 @@ function normalizedCsv(db: DbOrTx, event: EventRow): string {
       p.trackRank ?? "",
       p.underReviewed ? "yes" : "no",
       n.variance.k === null ? "" : n.variance.k.toFixed(3),
-      n.variance.beta2.toFixed(4),
-      n.variance.sigma2.toFixed(4),
+      n.variance.measured ? n.variance.beta2.toFixed(4) : "",
+      n.variance.measured ? n.variance.sigma2.toFixed(4) : "",
       n.excluded.join(" "),
     ]),
   );

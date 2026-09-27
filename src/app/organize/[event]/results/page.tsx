@@ -76,7 +76,9 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
           <h1 className="text-24 font-semibold">The ranking and its working</h1>
           <p className="max-w-[860px] text-15 leading-6">
             <strong>{METHOD_LABEL}.</strong>{" "}
-            {n.variance.k === null
+            {!n.variance.measured
+              ? "No project has two counted reviews yet, so this run cannot measure leniency or review noise: it ranks by the plain mean of each project's reviews, with no ±."
+              : n.variance.k === null
               ? "This run found no steady leniency (β̂² = 0), so it ranks by the plain mean of each project's counted reviews."
               : `This run: k = ${n.variance.k.toFixed(1)} (β̂² = ${n.variance.beta2.toFixed(3)}, σ̂² = ${n.variance.sigma2.toFixed(3)}), so a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.`}{" "}
             Flat-judge rule: a judge with 3 or more reviews and the same scores on every project is left out, as a flag the organizer can overturn with a reason.

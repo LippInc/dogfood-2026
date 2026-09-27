@@ -27,6 +27,7 @@ import {
   type Decision,
 } from "@/server/dal/normalization";
 import { getSubmissions } from "@/server/dal/submissions";
+import { exportFile } from "@/server/dal/exports";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -504,5 +505,26 @@ describe("acceptUnderReviewed and publishResults", () => {
     expect(eventRow().resultsPublishedAt).toBeNull();
     expect(count("SELECT count(*) AS n FROM normalization_runs")).toBe(0);
     expect(count("SELECT count(*) AS n FROM normalized_scores")).toBe(0);
+  });
+});
+
+describe("normalized.csv before anything is measured", () => {
+  it("leaves beta2 and sigma2 empty while no project has two counted reviews; the fixture's measured run fills them", () => {
+    const rows = () =>
+      exportFile(organizer(), "evt_01", "normalized.csv")
+        .body.trim()
+        .split(/\r?\n/)
+        .slice(1)
+        .map((line) => line.split(","));
+    // the last columns are k, beta2, sigma2, excluded_judges; read from the end so a quoted comma cannot shift them
+    const variance = (r: string[]) => ({ beta2: r.at(-3), sigma2: r.at(-2) });
+
+    // positive control: the fixture has projects reviewed several times, so both are measured
+    expect(variance(rows()[0]!).sigma2).toMatch(/^\d+\.\d{4}$/);
+
+    h.sqlite.exec("DELETE FROM score_items; DELETE FROM score_comments; DELETE FROM scores;");
+    const after = rows();
+    expect(after.length).toBeGreaterThan(0);
+    expect(after.every((r) => variance(r).beta2 === "" && variance(r).sigma2 === "")).toBe(true);
   });
 });

@@ -130,7 +130,8 @@ export type JudgeStanding = {
 };
 
 export type Normalized = {
-  variance: { W: number; beta2: number; sigma2: number; k: number | null };
+  /** measured: false while no project has two counted reviews (β̂² and σ̂² then have no data) */
+  variance: { W: number; beta2: number; sigma2: number; k: number | null; measured: boolean };
   projects: ProjectRow[];
   judges: JudgeStanding[];
   ranked: number;
@@ -355,7 +356,7 @@ export function computeNormalization(
   }
 
   return {
-    variance: { W: fit.W, beta2: fit.beta2, sigma2: fit.sigma2, k: fit.kUsed },
+    variance: { W: fit.W, beta2: fit.beta2, sigma2: fit.sigma2, k: fit.kUsed, measured: fit.measured },
     projects: rows,
     judges,
     ranked: score.size,
