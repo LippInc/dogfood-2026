@@ -267,6 +267,21 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { tim
     }
   });
 
+  // (1c), added after the third outside reading called (1) and (1b) loose: their margin is the
+  // run-to-run sd of the difference, not the error of its mean over the runs. Here, with no bias
+  // at all, the engine may lose at most 0.010 tau to the raw mean with the flat judge out, at 95 %
+  // confidence. The margin was set after the runs above were seen, so it is a tighter statement
+  // of what was measured, not a declared prediction; a regression past it fails.
+  it("(1c) no-bias control, tighter: the 95 % lower bound of the engine's mean difference from the raw mean with the flat judge out is above -0.010, within-track and pooled", () => {
+    const r = resultsFor("no-bias control");
+    for (const key of ["within", "pooled"] as const) {
+      const diff = r.engine![key].map((x, i) => x - r["raw, flat judge out"]![key][i]!);
+      const low = mean(diff) - (1.96 * sd(diff)) / Math.sqrt(diff.length);
+      console.log(`(1c) ${key}: mean difference ${mean(diff).toFixed(4)}, 95 % lower bound ${low.toFixed(4)}, over ${diff.length} runs`);
+      expect(low, `${key}: mean ${mean(diff).toFixed(4)}, 95 % lower bound ${low.toFixed(4)}`).toBeGreaterThan(-0.01);
+    }
+  });
+
   it("(2b) batch confound, flat judge out of the raw mean too: the engine's pooled tau is still not below it", () => {
     const r = resultsFor("batch confound (known-bad for leniency)");
     expect(mean(r.engine!.pooled)).toBeGreaterThanOrEqual(mean(r["raw, flat judge out"]!.pooled));

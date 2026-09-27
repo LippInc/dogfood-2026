@@ -195,6 +195,12 @@ describe("pairwise Monte Carlo on the fixture's judges and assignments", () => {
     const res = compare(200, 5000, { h: 0, nu: 0, tau: heterogeneous });
     console.log(`no pulls, 200 runs: engine tau ${f3(mean(res.engine))}, win rate ${f3(mean(res.naive))}, difference ${f3(mean(res.diff))} (sd ${f3(sd(res.diff))})`);
     expect(mean(res.diff)).toBeGreaterThan(-sd(res.diff));
+    // (b2), added after the third outside reading called (b) loose (its margin is the run-to-run sd,
+    // not the error of the mean): at 95 % confidence the engine trails by at most 0.020 tau. The
+    // margin was set after this run was seen, so it states the measurement tighter; it was not declared.
+    const low = mean(res.diff) - (1.96 * sd(res.diff)) / Math.sqrt(res.diff.length);
+    console.log(`(b2) no pulls: mean difference ${f3(mean(res.diff))}, 95 % lower bound ${f3(low)}, over ${res.diff.length} runs`);
+    expect(low).toBeGreaterThan(-0.02);
   }, 180_000);
 
   it("(d): the 95 % intervals of each project's strength against its track's mean cover the truth 90 to 99 % of the time", () => {
