@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
-import { Delivery } from "@/components/figures/delivery";
+import { Delivery, DeliveryTall } from "@/components/figures/delivery";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Badge } from "@/components/ui/badge";
@@ -111,7 +111,10 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
 
           <figure className="flex flex-col gap-3 border-t-2 border-ink pt-3">
             <figcaption className="label-mono text-ink">Fig. 01 — One delivery</figcaption>
-            <div className="overflow-x-auto">
+            <div className="md:hidden">
+              <DeliveryTall delays={RETRY_DELAYS_S} />
+            </div>
+            <div className="overflow-x-auto max-md:hidden">
               <div className="min-w-[680px]">
                 <Delivery delays={RETRY_DELAYS_S} />
               </div>
