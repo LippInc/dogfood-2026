@@ -6,9 +6,10 @@ import { RankLine, SlopeChart } from "@/components/figures/slope-chart";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
 import { formatUtc, plural } from "@/lib/format";
-import { currentActor, getNormalization, listRecords, METHOD_LABEL, type ProjectRow } from "@/server/dal";
+import { currentActor, getNormalization, getPairwiseRanking, judgingModeOf, listRecords, METHOD_LABEL, type ProjectRow } from "@/server/dal";
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
+import { PairwiseResults } from "./pairwise-results";
 import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +69,19 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const maxLeniency = kept.reduce((m, j) => Math.max(m, Math.abs(j.leniency)), 0);
   const copies = dup?.kind === "duplicate" ? dup.copies.filter((c) => c.rankRaw !== null).sort((a, b) => a.rankRaw! - b.rankRaw!) : [];
   const records = event.resultsPublishedAt ? listRecords(actor, key) : [];
+
+  if (judgingModeOf(event) === "pairwise") {
+    const ranking = guardPage(() => getPairwiseRanking(actor, key));
+    const known = ranking.tracks.some((t) => t.trackId === track) ? (track as string) : null;
+    return (
+      <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Results")} person={actor.name} role="Organizer">
+        <div className="flex flex-col gap-8">
+          <PairwiseResults ranking={ranking} eventId={event.id} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} chosen={known} />
+          <RecordsSection eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} records={records} />
+        </div>
+      </WorkShell>
+    );
+  }
 
   return (
     <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Results")} person={actor.name} role="Organizer">
@@ -310,54 +324,60 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
           </p>
         ) : null}
 
-        <section aria-labelledby="records-title" className="flex flex-col gap-4 border-t border-rule pt-8">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h2 id="records-title" className="text-20 font-semibold">
-                Certificates and judging records
-              </h2>
-              <p className="mt-1 max-w-[720px] text-14 text-ink-2">
-                {event.resultsPublishedAt
-                  ? `Each is signed with the portal's Ed25519 key, so anyone holding one can check it is real. People can also fetch their own: judges from the console, team members from their project page. ${count(records.filter((r) => r.kind === "judge").length, "judging record")} and ${count(records.filter((r) => r.kind === "participant").length, "certificate")} issued so far. A record keeps the names it was issued with, so issue them once people have claimed their accounts and set their names.`
-                  : "Once the results are published, every judge with a finished review can get a signed judging record and every member of a submitting team a signed certificate."}
-              </p>
-            </div>
-            {event.resultsPublishedAt ? (
-              <form action={issueEveryRecord.bind(null, event.slug)}>
-                <button className="inline-flex h-9 items-center rounded-sm bg-primary px-4 text-14 font-medium text-on-primary hover:opacity-90">
-                  Issue every record
-                </button>
-              </form>
-            ) : null}
-          </div>
-          {records.length ? (
-            <div className="max-h-[480px] overflow-y-auto rounded-sm border border-rule">
-              <table className="w-full text-14">
-                <thead className="sticky top-0 bg-surface text-left text-13 text-ink-2">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Person</th>
-                    <th className="px-3 py-2 font-medium">Record</th>
-                    <th className="px-3 py-2 font-medium max-sm:hidden">Issued (UTC)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-rule">
-                  {records.map((r) => (
-                    <tr key={r.id}>
-                      <td className="px-3 py-2">{r.name}</td>
-                      <td className="px-3 py-2">
-                        <Link href={`/records/${r.id}`} className="underline underline-offset-4">
-                          {r.kind === "judge" ? "Judging record" : "Certificate"}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2 font-mono text-12 text-ink-2 max-sm:hidden">{formatUtc(r.issuedAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </section>
+        <RecordsSection eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} records={records} />
       </div>
     </WorkShell>
+  );
+}
+
+function RecordsSection({ eventSlug, published, records }: { eventSlug: string; published: boolean; records: ReturnType<typeof listRecords> }) {
+  return (
+  <section aria-labelledby="records-title" className="flex flex-col gap-4 border-t border-rule pt-8">
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h2 id="records-title" className="text-20 font-semibold">
+          Certificates and judging records
+        </h2>
+        <p className="mt-1 max-w-[720px] text-14 text-ink-2">
+          {published
+            ? `Each is signed with the portal's Ed25519 key, so anyone holding one can check it is real. People can also fetch their own: judges from the console, team members from their project page. ${count(records.filter((r) => r.kind === "judge").length, "judging record")} and ${count(records.filter((r) => r.kind === "participant").length, "certificate")} issued so far. A record keeps the names it was issued with, so issue them once people have claimed their accounts and set their names.`
+            : "Once the results are published, every judge with a finished review can get a signed judging record and every member of a submitting team a signed certificate."}
+        </p>
+      </div>
+      {published ? (
+        <form action={issueEveryRecord.bind(null, eventSlug)}>
+          <button className="inline-flex h-9 items-center rounded-sm bg-primary px-4 text-14 font-medium text-on-primary hover:opacity-90">
+            Issue every record
+          </button>
+        </form>
+      ) : null}
+    </div>
+    {records.length ? (
+      <div className="max-h-[480px] overflow-y-auto rounded-sm border border-rule">
+        <table className="w-full text-14">
+          <thead className="sticky top-0 bg-surface text-left text-13 text-ink-2">
+            <tr>
+              <th className="px-3 py-2 font-medium">Person</th>
+              <th className="px-3 py-2 font-medium">Record</th>
+              <th className="px-3 py-2 font-medium max-sm:hidden">Issued (UTC)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-rule">
+            {records.map((r) => (
+              <tr key={r.id}>
+                <td className="px-3 py-2">{r.name}</td>
+                <td className="px-3 py-2">
+                  <Link href={`/records/${r.id}`} className="underline underline-offset-4">
+                    {r.kind === "judge" ? "Judging record" : "Certificate"}
+                  </Link>
+                </td>
+                <td className="px-3 py-2 font-mono text-12 text-ink-2 max-sm:hidden">{formatUtc(r.issuedAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : null}
+  </section>
   );
 }
