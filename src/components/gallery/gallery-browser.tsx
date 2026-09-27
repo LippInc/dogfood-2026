@@ -89,6 +89,11 @@ export function GalleryBrowser({
     }
     return list;
   }, [items, tracks, track, query, order]);
+  // The Field draws what the grid shows: faces the grid has left out fade back.
+  const shown = useMemo(() => new Set(visible.map((i) => i.id)), [visible]);
+  const q = query.trim();
+  const matchesIn = (trackId: string) => items.filter((i) => i.trackId === trackId && matches(i, q)).length;
+  const trackName = track ? tracks.find((t) => t.id === track)?.name : undefined;
 
   const chip =
     "inline-flex h-11 shrink-0 items-center gap-2 rounded-sm border px-4 text-15 aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent";
@@ -106,6 +111,13 @@ export function GalleryBrowser({
               <>
                 <span className="font-mono text-12 text-accent-ink">{peeked.id}</span> <span className="font-semibold text-ink">{peeked.title}</span> by{" "}
                 {peeked.teamName}
+              </>
+            ) : q || track ? (
+              <>
+                <span className="tnum font-semibold text-ink">
+                  {visible.length} of {items.length}
+                </span>{" "}
+                {q ? <>match “{q}”{trackName ? ` in ${trackName}` : ""}</> : <>in {trackName}</>}. The rest fade back.
               </>
             ) : (
               "Every project, by track, each face drawn from its id. Choose a track to filter."
@@ -133,7 +145,7 @@ export function GalleryBrowser({
                   className="group flex w-full items-baseline gap-1.5 border-t-2 border-ink pt-2 text-left text-13 text-ink-2 hover:text-ink aria-pressed:border-accent aria-pressed:text-ink"
                 >
                   <span className="truncate">{t.name}</span>
-                  <span className="tnum text-ink-3">{t.count}</span>
+                  <span className="tnum text-ink-3">{q ? `${matchesIn(t.id)} of ${t.count}` : t.count}</span>
                 </button>
                 <div className="mt-3 grid grid-cols-2 gap-1" aria-hidden="true" onMouseLeave={() => setPeek(null)}>
                   {inTrack.map((i, k) => (
@@ -144,7 +156,11 @@ export function GalleryBrowser({
                       className={`develop ${peek === i.id ? "lit" : ""}`}
                       style={{ "--i": ti * 2 + k } as CSSProperties}
                     >
-                      {smallFaces[i.id]}
+                      <div
+                        className={`transition-opacity duration-150 motion-reduce:transition-none ${shown.has(i.id) ? "" : "opacity-25"}`}
+                      >
+                        {smallFaces[i.id]}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -167,7 +183,7 @@ export function GalleryBrowser({
             onClick={() => setTrack(track === t.id ? null : t.id)}
             className={`${chip} border-edge`}
           >
-            {t.name} <span className="tnum">{t.count}</span>
+            {t.name} <span className="tnum">{q ? `${matchesIn(t.id)} of ${t.count}` : t.count}</span>
           </button>
         ))}
       </div>
