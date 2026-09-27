@@ -21,7 +21,9 @@ import { RemoveOrganizer } from "./remove-organizer";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Settings" };
 
-const input = "h-8 w-full rounded-sm border border-edge bg-surface px-2.5 text-14";
+/** A field refused on save is marked aria-invalid by SectionForm: flag edge and bar, like the error list under it. */
+const invalid = "aria-[invalid=true]:border-flag-bar aria-[invalid=true]:shadow-[inset_3px_0_0_var(--flag-bar)]";
+const input = `h-8 w-full rounded-sm border border-edge bg-surface px-2.5 text-14 ${invalid}`;
 
 /** The sections in page order, for the contents rail: [SectionForm id, title]. */
 const SECTIONS: [string, string][] = [
@@ -80,6 +82,14 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             description={event.resultsPublishedAt ? "Results are published, so the dates are final; the name, description and team size can still change." : undefined}
             action={saveDetailsAction}
             hidden={hidden}
+            fieldLabels={{
+              name: "Name",
+              description: "Description",
+              submissionsOpenAt: "Submissions open",
+              submissionsCloseAt: "Submissions close",
+              judgingCloseAt: "Judging closes",
+              maxTeamSize: "Most people on one team",
+            }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-13 text-ink-2 sm:col-span-2">
@@ -88,7 +98,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               </label>
               <label className="flex flex-col gap-1 text-13 text-ink-2 sm:col-span-2">
                 Description (shown on the About page)
-                <textarea name="description" defaultValue={event.description} rows={4} className="w-full rounded-sm border border-edge bg-surface px-2.5 py-2 font-serif text-15" />
+                <textarea name="description" defaultValue={event.description} rows={4} className={`w-full rounded-sm border border-edge bg-surface px-2.5 py-2 font-serif text-15 ${invalid}`} />
               </label>
               <label className="flex flex-col gap-1 text-13 text-ink-2">
                 Submissions open (UTC, empty = from now)
@@ -118,6 +128,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             hidden={hidden}
             submitLabel="Add organizer"
             resetOnSuccess
+            fieldLabels={{ email: "Email" }}
             before={
               <ul className="divide-y divide-rule rounded-sm border border-rule">
                 {organizers.map((g) => (
@@ -149,6 +160,8 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             description="Projects enter one track; judges are assigned by track. A track that has projects or judges can be renamed, not removed."
             action={saveTracksAction}
             hidden={hidden}
+            fieldLabels={{ tracks: "Tracks" }}
+            rowLabel="Track"
           >
             <RowsEditor
               name="tracks"
@@ -159,7 +172,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             />
           </SectionForm>
 
-          <SectionForm id="prizes" title="Prizes" description="A name and a line on what wins it. Shown on the About page." action={savePrizesAction} hidden={hidden}>
+          <SectionForm id="prizes" title="Prizes" description="A name and a line on what wins it. Shown on the About page." action={savePrizesAction} hidden={hidden} fieldLabels={{ prizes: "Prizes" }} rowLabel="Prize">
             <RowsEditor
               name="prizes"
               initial={o.prizes.map((p) => ({ id: p.id, name: p.name, description: p.description }))}
@@ -178,6 +191,8 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             description="Asked on every team's project form; judges read the answers next to the project. A required question must be answered before a team can submit."
             action={saveQuestionsAction}
             hidden={hidden}
+            fieldLabels={{ questions: "Questions" }}
+            rowLabel="Question"
           >
             <RowsEditor
               name="questions"
@@ -214,6 +229,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             action={saveJudgingModeAction}
             hidden={hidden}
             submitLabel="Save the judging mode"
+            fieldLabels={{ mode: "Judging mode", reason: "Why" }}
           >
             <fieldset className="flex flex-col gap-2" disabled={Boolean(event.resultsPublishedAt)}>
               <legend className="sr-only">Judging mode</legend>
@@ -272,6 +288,8 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             }
             action={saveRubricAction}
             hidden={hidden}
+            fieldLabels={{ criteria: "Criteria" }}
+            rowLabel="Criterion"
           >
             <RowsEditor
               name="rubric"
