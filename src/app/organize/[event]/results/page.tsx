@@ -237,14 +237,14 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             <table className="w-full text-14">
               <thead>
                 <tr className="border-b border-rule text-left text-13 text-ink-2">
-                  <th className="px-3 py-2 font-medium">Rank</th>
+                  <th className="px-3 py-2 font-medium max-md:w-14">Rank</th>
                   <th className="px-3 py-2 font-medium">Project</th>
-                  <th className="px-3 py-2 font-medium">{chosen ? "In track" : "Track"}</th>
-                  <th className="px-3 py-2 text-right font-medium">Reviews</th>
-                  <th className="px-3 py-2 text-right font-medium">Raw, all judges</th>
-                  <th className="px-3 py-2 text-right font-medium">Raw, counted</th>
-                  <th className="px-3 py-2 text-right font-medium">Normalized</th>
-                  <th className="px-3 py-2 text-right font-medium">Move</th>
+                  <th className="px-3 py-2 font-medium max-md:hidden">{chosen ? "In track" : "Track"}</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Reviews</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Raw, all judges</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Raw, counted</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Normalized</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Move</th>
                 </tr>
               </thead>
               <tbody>
@@ -255,9 +255,22 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                       <details>
                         <summary className="cursor-pointer">
                           <Face id={p.id} cols={32} rows={18} className="mr-2 inline-block h-[18px] w-8 align-[-4px]" />
-                          <span className="font-medium">{p.title}</span> <span className="font-mono text-12 text-ink-3">{p.id}</span>
+                          <span className="font-medium">{p.title}</span> <span className="font-mono text-12 text-ink-3 max-md:hidden">{p.id}</span>
                           {p.duplicateOf ? <span className="ml-2 text-12 text-ink-2">merged into {p.duplicateOf}</span> : null}
                           {p.underReviewed ? <span className="ml-2 text-12 text-flag">under-reviewed</span> : null}
+                          <span className="mt-0.5 block pl-[3.25rem] text-12 text-ink-2 md:hidden">
+                          {chosen ? `in track ${rk(p.trackRankRaw)} → ${rk(p.trackRank)}` : p.trackName} · {p.n === p.nAll ? plural(p.n, "review") : `${p.n} of ${p.nAll} reviews`}
+                          <span className="mt-0.5 block text-13 whitespace-nowrap">
+                          raw {f2(p.rawAll)} →{" "}
+                          <span className="font-semibold text-ink tnum">{f2(p.score)}</span>
+                          {p.se !== null ? <span className="text-ink-3 tnum"> ±{f2(p.se)}</span> : null}
+                          {p.duplicateOf ? null : (
+                            <span className="ml-2 tnum">
+                              <Move p={p} />
+                            </span>
+                          )}
+                          </span>
+                          </span>
                         </summary>
                         {p.receipts.length ? (
                           <div className="mt-3 mb-1 rounded-sm bg-sunken p-3">
@@ -315,17 +328,17 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                         )}
                       </details>
                     </td>
-                    <td className="px-3 py-2 text-13 text-ink-2">{chosen ? `${rk(p.trackRankRaw)} → ${rk(p.trackRank)}` : p.trackName}</td>
-                    <td className="px-3 py-2 text-right tnum">{p.n === p.nAll ? p.n : `${p.n} of ${p.nAll}`}</td>
-                    <td className="px-3 py-2 text-right tnum">
+                    <td className="px-3 py-2 text-13 text-ink-2 max-md:hidden">{chosen ? `${rk(p.trackRankRaw)} → ${rk(p.trackRank)}` : p.trackName}</td>
+                    <td className="px-3 py-2 text-right tnum max-md:hidden">{p.n === p.nAll ? p.n : `${p.n} of ${p.nAll}`}</td>
+                    <td className="px-3 py-2 text-right tnum max-md:hidden">
                       {f2(p.rawAll)} <span className="text-12 text-ink-3">#{rk(p.rankRaw)}</span>
                     </td>
-                    <td className="px-3 py-2 text-right tnum">{f2(p.rawKept)}</td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap tnum">
+                    <td className="px-3 py-2 text-right tnum max-md:hidden">{f2(p.rawKept)}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tnum max-md:hidden">
                       <span className="font-semibold">{f2(p.score)}</span>
                       {p.se !== null ? <span className="ml-1 text-12 text-ink-3">±{f2(p.se)}</span> : null}
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap tnum">{p.duplicateOf ? "" : <Move p={p} />}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tnum max-md:hidden">{p.duplicateOf ? "" : <Move p={p} />}</td>
                   </tr>
                 ))}
               </tbody>
