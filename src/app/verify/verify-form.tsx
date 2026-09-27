@@ -31,6 +31,49 @@ function StepMark({ mark }: { mark: Mark }) {
   return <Minus className="size-4 text-ink-3" aria-hidden />;
 }
 
+type SealState = "unchecked" | "checking" | "valid" | "invalid";
+
+/**
+ * The record's seal, drawn live in the figure: the signature itself, one square per bit.
+ * Before anything is pasted it is an empty, hatched slot the size of the 512 bits; once a
+ * record is read its bits appear in grey; they light up when both checks pass, and the
+ * frame turns to the alarm colour when they fail.
+ */
+function SealFigure({ signature, state }: { signature: string | null; state: SealState }) {
+  const drawn = signature ? <SignatureBits signature={signature} lit={state === "valid"} /> : null;
+  return (
+    <figure className="mt-4 flex flex-col gap-2" data-seal={drawn ? state : "empty"}>
+      <div
+        className={`overflow-hidden rounded-xs border transition-colors duration-500 motion-reduce:transition-none ${
+          !drawn ? "border-dashed border-edge" : state === "valid" ? "border-accent" : state === "invalid" ? "border-2 border-flag-bar" : "border-rule"
+        }`}
+      >
+        {drawn ?? <div aria-hidden className="sealed aspect-[34/18] w-full" />}
+      </div>
+      <figcaption className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <span className="label-mono text-ink-3">The seal · 512 bits</span>
+        <span className="text-13 text-ink-2">
+          {!drawn ? (
+            "drawn from the signature you paste"
+          ) : state === "valid" ? (
+            <span className="inline-flex items-center gap-1 font-semibold text-ok">
+              <Check className="size-4" aria-hidden /> Valid
+            </span>
+          ) : state === "invalid" ? (
+            <span className="inline-flex items-center gap-1 font-semibold text-flag">
+              <X className="size-4" aria-hidden /> Not valid
+            </span>
+          ) : state === "checking" ? (
+            "checking…"
+          ) : (
+            "not checked yet"
+          )}
+        </span>
+      </figcaption>
+    </figure>
+  );
+}
+
 export function VerifyForm() {
   const [text, setText] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -66,7 +109,12 @@ export function VerifyForm() {
   const id = typeof outcome?.record.id === "string" ? outcome.record.id : null;
   const valid = outcome?.portal.valid && outcome.browser.at !== "invalid";
   const kind = outcome?.record.kind === "judge" ? "judging record" : "certificate";
-  const parsed = text.trim() ? envelopeOf(text) !== null : null;
+  const pasted = text.trim() ? envelopeOf(text) : null;
+  const parsed = text.trim() ? pasted !== null : null;
+  const sealState: SealState = busy ? "checking" : !outcome ? "unchecked" : valid ? "valid" : "invalid";
+  const pastedKind = pasted?.record.kind === "judge" ? "A judging record" : "A certificate";
+  const pastedName = (pasted?.record.person as { name?: unknown } | undefined)?.name;
+  const pastedId = typeof pasted?.record.id === "string" ? pasted.record.id : null;
   const browserMark: Mark = !outcome ? "idle" : outcome.browser.at === "valid" ? "ok" : outcome.browser.at === "invalid" ? "bad" : "idle";
   const portalMark: Mark = !outcome ? "idle" : outcome.portal.valid ? "ok" : "bad";
 
@@ -174,12 +222,22 @@ export function VerifyForm() {
         <h2 id="how-title" className="label-mono text-ink">
           Fig. 01 — What the check does
         </h2>
+        <SealFigure signature={pasted?.signature ?? null} state={sealState} />
         <ol className="mt-4 flex flex-col divide-y divide-rule border-b border-rule">
           <li className="flex gap-3 py-3">
             <span className="font-mono text-12 leading-5 text-ink-3">01</span>
             <span className="min-w-0 flex-1 text-14">
               <span className="font-medium">Read the record.</span>{" "}
               <span className="text-ink-2">Its keys are sorted at every depth and the spaces dropped: those exact bytes were signed.</span>
+              {pasted ? (
+                <span className="mt-1 block text-13 text-ink-2">
+                  {pastedKind}
+                  {typeof pastedName === "string" ? ` for ${pastedName}` : ""}
+                  {pastedId ? <span className="font-mono text-12"> · {pastedId}</span> : null}
+                </span>
+              ) : parsed === false ? (
+                <span className="mt-1 block text-13 text-ink-2">Not JSON with a record and a signature.</span>
+              ) : null}
             </span>
             <StepMark mark={parsed === null ? "idle" : parsed ? "ok" : "bad"} />
           </li>
