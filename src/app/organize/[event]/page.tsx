@@ -18,6 +18,7 @@ import {
 } from "@/server/dal";
 import { CopyButton } from "./judges/forms";
 import { Decisions, PublishPanel } from "./decisions";
+import { PipelineScroll } from "./pipeline-scroll";
 import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,7 @@ function Pipeline({ stages }: { stages: Stage[] }) {
       className="border-b border-rule bg-surface"
     >
       {/* Phones scroll the stations sideways in one row; wider screens show all ten. */}
-      <ol className="mx-auto flex max-w-[1440px] overflow-x-auto px-4 pt-5 pb-4 sm:grid sm:grid-cols-5 sm:gap-y-5 sm:overflow-visible lg:grid-cols-10 lg:px-8">
+      <ol id="pipeline-stations" className="mx-auto flex max-w-[1440px] overflow-x-auto px-4 pt-5 pb-4 sm:grid sm:grid-cols-5 sm:gap-y-5 sm:overflow-visible lg:grid-cols-10 lg:px-8">
         {stages.map((s, i) => {
           const done = i < reached;
           return (
@@ -53,6 +54,7 @@ function Pipeline({ stages }: { stages: Stage[] }) {
               key={s.no}
               className="relative w-[132px] shrink-0 pt-5 pr-3 sm:w-auto"
               aria-current={s.current ? "step" : undefined}
+              data-station={s.open ? "open" : undefined}
             >
               {/* the line: ink through the stages reached, a hairline after */}
               <span
@@ -89,6 +91,7 @@ function Pipeline({ stages }: { stages: Stage[] }) {
           );
         })}
       </ol>
+      <PipelineScroll listId="pipeline-stations" />
     </nav>
   );
 }
