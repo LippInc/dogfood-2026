@@ -168,14 +168,22 @@ function Stages({ work }: { work: MyWork }) {
   const { event, team, project, open } = work;
   const published = Boolean(event.resultsPublishedAt);
   const short = (iso: string) => formatUtc(iso, { time: false });
-  const steps: { name: string; state: string; done: boolean }[] = [
-    { name: "Team", state: team ? `${team.members.length} ${team.members.length === 1 ? "member" : "members"}` : "not started", done: Boolean(team) },
+  const submitted = project?.status === "submitted";
+  // After the close a step the team never reached is missed, not "now": it can no longer happen.
+  const steps: { name: string; state: string; done: boolean; missed: boolean }[] = [
+    {
+      name: "Team",
+      state: team ? `${team.members.length} ${team.members.length === 1 ? "member" : "members"}` : open ? "not started" : "no team",
+      done: Boolean(team),
+      missed: !team && !open,
+    },
     {
       name: "Project",
-      state: !project ? "not started" : project.status === "submitted" ? `submitted ${short(project.submittedAt ?? event.submissionsCloseAt)}` : "draft",
-      done: project?.status === "submitted",
+      state: !project ? (open ? "not started" : "none handed in") : submitted ? `submitted ${short(project.submittedAt ?? event.submissionsCloseAt)}` : open ? "draft" : "draft, never submitted",
+      done: submitted,
+      missed: !submitted && !open,
     },
-    { name: open ? "Submissions close" : "Submissions closed", state: short(event.submissionsCloseAt), done: !open },
+    { name: open ? "Submissions close" : "Submissions closed", state: short(event.submissionsCloseAt), done: !open, missed: false },
     {
       name: "Judging",
       state: published
@@ -186,22 +194,30 @@ function Stages({ work }: { work: MyWork }) {
             : "in progress"
           : "after the close",
       done: published,
+      missed: false,
     },
-    { name: "Results", state: published ? `published ${short(event.resultsPublishedAt!)}` : "not yet", done: published },
+    { name: "Results", state: published ? `published ${short(event.resultsPublishedAt!)}` : "not yet", done: published, missed: false },
   ];
-  const now = steps.findIndex((s) => !s.done);
+  const now = steps.findIndex((s) => !s.done && !s.missed);
   return (
     <nav aria-label="Where your team stands" className="mb-2 border-y border-rule py-5">
-      <ol className="grid grid-cols-2 gap-y-5 sm:grid-cols-5">
+      <ol className="flex flex-col gap-3 sm:grid sm:grid-cols-5 sm:gap-0">
         {steps.map((s, i) => (
-          <li key={s.name} className="relative pt-4 pr-3" aria-current={i === now ? "step" : undefined}>
-            <span aria-hidden className={`absolute top-0 right-0 left-0 h-[3px] ${s.done ? "bg-ink" : i === now ? "bg-accent" : "bg-rule"}`} />
-            {i === now ? <span aria-hidden className="absolute -top-[3px] left-0 size-[9px] bg-accent" /> : null}
-            <p className="font-mono text-12 text-ink-3">{String(i + 1).padStart(2, "0")}</p>
-            <p className={`text-14 ${i === now ? "font-semibold" : s.done ? "" : "text-ink-2"}`}>{s.name}</p>
+          <li key={s.name} className="relative pl-4 sm:pt-4 sm:pr-3 sm:pl-0" aria-current={i === now ? "step" : undefined}>
+            <span
+              aria-hidden
+              className={`absolute top-0 bottom-0 left-0 w-[3px] sm:right-0 sm:bottom-auto sm:h-[3px] sm:w-auto ${
+                s.done ? "bg-ink" : i === now ? "bg-accent" : s.missed ? "border-l-[3px] border-dashed border-edge sm:border-t-[3px] sm:border-l-0" : "bg-rule"
+              }`}
+            />
+            {i === now ? <span aria-hidden className="absolute top-0 -left-[3px] size-[9px] bg-accent sm:-top-[3px] sm:left-0" /> : null}
+            <p className="flex items-baseline gap-2 sm:block">
+              <span className="font-mono text-12 text-ink-3 sm:block">{String(i + 1).padStart(2, "0")}</span>
+              <span className={`text-14 ${i === now ? "font-semibold" : s.done ? "" : "text-ink-2"}`}>{s.name}</span>
+            </p>
             <p className="text-12 text-ink-2">
               {s.state}
-              <span className="sr-only">{s.done ? ", done" : i === now ? ", now" : ", to come"}</span>
+              <span className="sr-only">{s.done ? ", done" : i === now ? ", now" : s.missed ? ", missed" : ", to come"}</span>
             </p>
           </li>
         ))}
