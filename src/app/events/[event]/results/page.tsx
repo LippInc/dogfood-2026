@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc, plural } from "@/lib/format";
-import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, type Gallery } from "@/server/dal";
+import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, type Gallery } from "@/server/dal";
 import { competitionPlaces, ordinal } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +25,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
   const actor = await currentActor();
   const results = getPublishedResults(event.id);
   const community = getCommunityResults(event.id);
+  const pairwise = results.published && results.method === PAIRWISE_METHOD;
   return (
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       <div className="pt-10">
@@ -32,14 +33,26 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
       </div>
       {results.published ? (
         <>
-          <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-            Published {formatUtc(results.publishedAt)}. Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge
-            proved to be across the event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. Places compare within a track. The ± under each score
-            is one standard error: scores closer than about two of them are not told apart, so read small gaps as ties.
-            {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
-              ? " A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is."
-              : ""}
-          </p>
+          {pairwise ? (
+            <p className="mt-6 max-w-[760px] text-17 text-ink-2">
+              Published {formatUtc(results.publishedAt)}. Judges answered &ldquo;which of these two is better?&rdquo; about their own projects, and each
+              project&rsquo;s win % is its chance to beat an average project of its track, with the pull of the side a project was shown on and of the
+              project a judge had just opened measured and taken out. Places compare within a track. The ± is one standard error: win % closer than about two
+              of them are not told apart, so read small gaps as ties.
+              {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
+                ? " A project marked under-compared was compared by fewer than two judges; the organizers chose to publish it as it is."
+                : ""}
+            </p>
+          ) : (
+            <p className="mt-6 max-w-[760px] text-17 text-ink-2">
+              Published {formatUtc(results.publishedAt)}. Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge
+              proved to be across the event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. Places compare within a track. The ± under each score
+              is one standard error: scores closer than about two of them are not told apart, so read small gaps as ties.
+              {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
+                ? " A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is."
+                : ""}
+            </p>
+          )}
           <div className="mt-10 flex flex-col gap-12">
             {results.tracks.map((t) => {
               const shown = competitionPlaces(t.rows);
@@ -70,12 +83,14 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                             </span>
                           </span>
                           <span className="text-right">
-                            <span className="block text-20 font-semibold tnum">{r.score === null ? "–" : r.score.toFixed(2)}</span>
-                            <span className="block text-12 text-ink-2 tnum">
-                              {r.se !== null ? `± ${r.se.toFixed(2)} · ` : ""}
-                              {r.n} {r.n === 1 ? "review" : "reviews"}
+                            <span className="block text-20 font-semibold tnum">
+                              {r.score === null ? "–" : pairwise ? `${Math.round(r.score * 100)} %` : r.score.toFixed(2)}
                             </span>
-                            {r.n < 2 ? <span className="block text-12 text-flag">under-reviewed</span> : null}
+                            <span className="block text-12 text-ink-2 tnum">
+                              {r.se !== null ? (pairwise ? `± ${Math.max(1, Math.round(r.se * 100))} · ` : `± ${r.se.toFixed(2)} · `) : ""}
+                              {r.n} {pairwise ? (r.n === 1 ? "judge" : "judges") : r.n === 1 ? "review" : "reviews"}
+                            </span>
+                            {r.n < 2 ? <span className="block text-12 text-flag">{pairwise ? "under-compared" : "under-reviewed"}</span> : null}
                           </span>
                         </li>
                       );

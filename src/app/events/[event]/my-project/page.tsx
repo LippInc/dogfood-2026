@@ -5,7 +5,7 @@ import { Deadline } from "@/components/deadline";
 import { PublicShell } from "@/components/shell/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc } from "@/lib/format";
-import { actorNav, currentActor, getMyWork, myRecords, NotFoundError, type MyWork } from "@/server/dal";
+import { actorNav, currentActor, getMyWork, myRecords, NotFoundError, PAIRWISE_METHOD, type MyWork } from "@/server/dal";
 import { openOwnRecord } from "../../../records/actions";
 import { ProjectForm } from "./project-form";
 import { StartTeam, TeamPanel } from "./team-panel";
@@ -27,6 +27,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
   const { event, team, project, open } = work;
   const closeLabel = formatUtc(event.submissionsCloseAt, { weekday: true });
   const certificate = work.feedback ? myRecords(actor, key).find((r) => r.kind === "participant") : undefined;
+  const pairwise = work.feedback?.method === PAIRWISE_METHOD;
   const recordButton = "inline-flex h-10 items-center rounded-sm border border-edge px-4 text-14 font-medium hover:bg-surface";
 
   const side = (
@@ -69,8 +70,17 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
             {work.feedback.score !== null ? (
               <span className="font-normal text-ink-2">
                 {" "}
-                · score {work.feedback.score.toFixed(2)}
-                {work.feedback.se !== null ? ` ± ${work.feedback.se.toFixed(2)}` : ""}
+                {pairwise ? (
+                  <>
+                    · wins {Math.round(work.feedback.score * 100)} %{work.feedback.se !== null ? ` ± ${Math.max(1, Math.round(work.feedback.se * 100))}` : ""} against the
+                    track&rsquo;s average
+                  </>
+                ) : (
+                  <>
+                    · score {work.feedback.score.toFixed(2)}
+                    {work.feedback.se !== null ? ` ± ${work.feedback.se.toFixed(2)}` : ""}
+                  </>
+                )}
               </span>
             ) : null}
           </h2>
@@ -87,7 +97,9 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
             <span className="text-14 text-ink-2">Signed by the portal, so anyone can check it is real.</span>
           </div>
           <p className="mt-4 text-15 text-ink-2">
-            Every review of your project, judges unnamed. The score is the reviews&rsquo; weighted average, adjusted for each judge&rsquo;s leniency across the event.
+            {pairwise
+              ? "Your place comes from the judges’ answers to “which of these two is better?”, with any scores given before the event switched to that way of judging counted as the order they imply. Your win % is your chance to beat an average project of your track. The written reviews below, judges unnamed, are the ones given as scores."
+              : "Every review of your project, judges unnamed. The score is the reviews’ weighted average, adjusted for each judge’s leniency across the event."}
           </p>
           <ol className="mt-6 grid gap-4 md:grid-cols-2">
             {work.feedback.reviews.map((r, i) => (

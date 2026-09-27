@@ -610,7 +610,8 @@ export function storePairwiseRun(tx: DbOrTx, event: EventRow, actorId: string, p
       .values({
         runId: id,
         projectId: p.id,
-        n: p.comparisons,
+        // judges who compared it: the pairwise counterpart of a project's reviews
+        n: pw.judgesPer.get(p.id) ?? 0,
         rawMean: has ? (pw.winRate.get(p.id) ?? null) : null,
         normalizedMean: has ? p.winPct : null,
         se: has ? p.winPctSe : null,

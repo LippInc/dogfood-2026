@@ -287,6 +287,8 @@ export type MyWork = {
 };
 
 export type TeamFeedback = {
+  /** how the published run was made: the score engine's method or PAIRWISE_METHOD */
+  method: string;
   place: number | null;
   score: number | null;
   /** one standard error of the score */
@@ -317,6 +319,7 @@ function teamFeedback(db: DbOrTx, event: EventRow, projectId: string): TeamFeedb
       )
     : new Map<string, string>();
   return {
+    method: published.method,
     place: row?.place ?? null,
     score: row?.score ?? null,
     se: row?.se ?? null,
