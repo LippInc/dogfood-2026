@@ -114,7 +114,8 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
               </button>
             </form>
           ) : null}
-          <KeysButton />
+          {/* once answers are final no key answers anything, so the keys are not offered */}
+          {state.readOnly ? null : <KeysButton />}
         </>
       }
       person={actor.name}

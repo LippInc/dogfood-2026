@@ -122,7 +122,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (keysOpen || recuseFor || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (readOnly || keysOpen || recuseFor || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("textarea, input, select, [contenteditable='true']")) return;
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -146,7 +146,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [answer, keysOpen, lettersOn, recuseFor, undo]);
+  }, [answer, keysOpen, lettersOn, readOnly, recuseFor, undo]);
 
   const listRef = useFlip<HTMLOListElement>(track ? `${track.trackId}:${track.list.map((p) => p.id).join()}:${track.current?.newId ?? ""}` : "");
 
