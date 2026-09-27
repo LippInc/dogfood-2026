@@ -10,7 +10,8 @@ Covers, as numbered checks: the OpenAPI document and bearer auth, a settings
 round trip, webhooks (private targets refused, a change queued with its audit
 hash), signed records end to end (publish, issue, verify, tamper), the offline
 verifier script, the embed widget and its frame headers, and bulk import and
-export with personal claim links. Standard library only.
+export with personal claim links, and pairwise judging (C9, run before C4 because
+publishing makes the judging mode final). Standard library only.
 """
 
 import csv
@@ -34,6 +35,7 @@ def section_c(u, people, cfg):
     visitor = people["visitor"]
     participant = people["participant"]
     judge_a = people["judge_a"]
+    judge_b = people["judge_b"]
     organizer = people["organizer"]
     auth = cfg.get("auth", {})
 
@@ -166,6 +168,61 @@ def section_c(u, people, cfg):
         for what in ("disable", "enable"):
             s, _, _ = organizer.request("POST", one + "/" + what)
             expect(c, s == 200, organizer, "POST", one + "/" + what, s, "200")
+    checks.append(c)
+
+    # C9 -- pairwise judging (JUDGING.md "Pairwise mode"). It runs here, before C4, because
+    # publishing makes the judging mode final; it puts the event back in scores mode after.
+    c = Check("C", "pairwise judging: only judges answer, only the question asked, peers isolated, only organizers rank")
+    mode_url = u(f"/api/events/{EVENT_ID}/judging-mode")
+    state_url = u(f"/api/judge/{EVENT_ID}/pairwise")
+    pick_url = u(f"/api/judge/{EVENT_ID}/pairwise/pick")
+    undo_url = u(f"/api/judge/{EVENT_ID}/pairwise/undo")
+    ranking_url = u(f"/api/events/{EVENT_ID}/pairwise")
+    to_pairwise = {"mode": "pairwise", "reason": "isolation check C9"}
+    s, body, _ = judge_a.request("POST", pick_url, {"trackId": "x", "left": "a", "right": "b", "outcome": "left"})
+    expect(c, s == 409 and error_code(body) == "not_pairwise", judge_a, "POST", pick_url, f"{s} {error_code(body)}", "409 not_pairwise in scores mode")
+    for person in (participant, judge_a):
+        s, _, _ = person.request("PUT", mode_url, to_pairwise)
+        expect(c, s == 403, person, "PUT", mode_url, s, "403: only an organizer switches the mode")
+    s, _, _ = organizer.request("PUT", mode_url, to_pairwise)
+    switched = expect(c, s == 200, organizer, "PUT", mode_url, s, "200")
+    question = None
+    if switched:
+        s, body, _ = judge_a.request("GET", state_url)
+        if expect(c, s == 200, judge_a, "GET", state_url, s, "200"):
+            track = next((t for t in as_json(body).get("tracks", []) if t.get("current")), None)
+            if expect(c, track is not None, judge_a, "GET", state_url, "no question", "a question in some track"):
+                q = track["current"]
+                question = {"trackId": track["trackId"], "left": q["left"]["id"], "right": q["right"]["id"]}
+    if question:
+        swapped = {**question, "left": question["right"], "right": question["left"], "outcome": "left"}
+        s, body, _ = judge_a.request("POST", pick_url, swapped)
+        expect(c, s == 409 and error_code(body) == "question_changed", judge_a, "POST", pick_url,
+               f"{s} {error_code(body)}", "409 question_changed for the sides swapped")
+        s, _, _ = judge_a.request("POST", pick_url, {**question, "outcome": "left"})
+        expect(c, s == 200, judge_a, "POST", pick_url, s, "200 for the question asked")
+        s, _, _ = organizer.request("POST", pick_url, {**question, "outcome": "left"})
+        expect(c, s == 403, organizer, "POST", pick_url, s, "403: the organizer is not a judge here")
+        s, body, _ = judge_b.request("GET", state_url)
+        if expect(c, s == 200, judge_b, "GET", state_url, s, "200"):
+            answered = sum(t.get("answered", 0) for t in as_json(body).get("tracks", []))
+            expect(c, answered == 0, judge_b, "GET", state_url, f"{answered} answers", "0: judge_a's answer never shows")
+        s, _, _ = participant.request("GET", state_url)
+        expect(c, s == 403, participant, "GET", state_url, s, "403")
+        s, _, _ = judge_a.request("GET", ranking_url)
+        expect(c, s == 403, judge_a, "GET", ranking_url, s, "403: only organizers read the ranking")
+        s, body, _ = organizer.request("GET", ranking_url)
+        if expect(c, s == 200, organizer, "GET", ranking_url, s, "200"):
+            picks = as_json(body).get("counts", {}).get("picks")
+            expect(c, picks == 1, organizer, "GET", ranking_url, f"{picks} answers", "1 answer in the fit")
+        s, _, _ = judge_a.request("POST", undo_url, {"trackId": question["trackId"]})
+        expect(c, s == 200, judge_a, "POST", undo_url, s, "200: the answer is taken back")
+        s, body, _ = judge_a.request("POST", undo_url, {"trackId": question["trackId"]})
+        expect(c, s == 409 and error_code(body) == "nothing_to_undo", judge_a, "POST", undo_url,
+               f"{s} {error_code(body)}", "409 nothing_to_undo")
+    if switched:
+        s, _, _ = organizer.request("PUT", mode_url, {"mode": "scores", "reason": "isolation check C9 done"})
+        expect(c, s == 200, organizer, "PUT", mode_url, s, "200 back to scores for C4")
     checks.append(c)
 
     # C4 -- records: settle the three decisions, publish, issue, verify, tamper

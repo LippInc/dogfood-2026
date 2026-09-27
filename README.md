@@ -64,7 +64,7 @@ The organizers' suite covers T1 and T2 only; asked on Discord (#ask-everything,
 2026-09-25), the organizers said "T3 and T4 are judged by hand", so run.py prints
 "claimed but not verified" for T3 and T4 by design. Our hand check for role
 isolation and every T3 and T4 bullet is `tests/isolation_check.py` (Section C, for
-T4, is `tests/isolation_t4.py`; standard library only, plus Node for the offline
+T4 and pairwise judging (C9), is `tests/isolation_t4.py`; standard library only, plus Node for the offline
 record check when it is installed). It writes votes and comments and publishes the
 sample event's results, so run it on a fresh instance after run.py:
 
@@ -76,7 +76,7 @@ Its output from a clean `docker compose down -v && docker compose up` is committ
 as `isolation-report.txt`. Our own tests (`npm ci && npm test`, vitest, on Node 24
 like the image: passwords use its built-in argon2) cover the permission
 rules, the assignment engine, the normalization engine and its Monte Carlo
-validation, voting and comments, the audit log's append-only triggers and hash
+validation, the pairwise engine and its Monte Carlo proof, voting and comments, the audit log's append-only triggers and hash
 chain.
 
 How it is built: `ARCHITECTURE.md` (a request's path through the one permission
