@@ -80,6 +80,8 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
   const zeros = v.tally ? v.tally.filter((t) => t.votes === 0 && t.openLink === 0) : [];
   // not set up, not open yet, or published with no vote: nothing to count or flag, so the setup leads
   const early = v.state === "not_set" || v.state === "upcoming";
+  // nothing flagged: the duplicates panel needs one line, not a card beside turnout
+  const quiet = v.suspected.length === 0;
   const setup = (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
       <section aria-labelledby="settings-title" className="rounded-sm border border-rule bg-surface p-5 lg:col-span-2">
@@ -179,7 +181,13 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
 
         {early ? null : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
-          <section aria-labelledby="turnout-title" className="flex flex-col rounded-sm border border-rule bg-surface p-5">
+          {/* With nothing flagged, turnout runs the full width as one strip (number, channels, window) and the
+              duplicates panel shrinks to a line, instead of a two-column card holding "None so far." */}
+          <section
+            aria-labelledby="turnout-title"
+            className={`flex flex-col rounded-sm border border-rule bg-surface p-5 ${quiet ? "lg:col-span-3 lg:grid lg:grid-cols-3 lg:gap-x-10" : ""}`}
+          >
+            <div>
             <h2 id="turnout-title" className="text-15 font-semibold">
               Turnout
             </h2>
@@ -187,8 +195,10 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
               <span className="text-38 leading-none font-semibold tnum">{v.turnout.ballots}</span>
               <span className="text-13 text-ink-2">ballots counted{v.turnout.voided ? ` · ${v.turnout.voided} set aside` : ""}</span>
             </p>
+            </div>
+            <div className={quiet ? "lg:pt-1" : ""}>
             {/* the ballots by the way they came in: one bar, split by channel; dashed and empty before the first */}
-            <div className={`mt-4 flex h-3 w-full gap-[2px] ${v.turnout.ballots ? "" : "border border-dashed border-edge"}`} aria-hidden>
+            <div className={`mt-4 flex h-3 w-full gap-[2px] ${quiet ? "lg:mt-0" : ""} ${v.turnout.ballots ? "" : "border border-dashed border-edge"}`} aria-hidden>
               {v.turnout.byKind
                 .filter((k) => k.ballots > 0)
                 .map((k) => (
@@ -204,13 +214,25 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                 </li>
               ))}
             </ul>
+            </div>
             {event.votingOpenAt && event.votingCloseAt ? (
-              <div className="mt-5 lg:mt-auto lg:pt-5">
+              <div className={quiet ? "mt-5 lg:mt-0 lg:pt-1 [&>figure]:lg:border-t-0 [&>figure]:lg:pt-0" : "mt-5 lg:mt-auto lg:pt-5"}>
                 <WindowFigure openAt={event.votingOpenAt} closeAt={event.votingCloseAt} />
               </div>
             ) : null}
           </section>
-          <section aria-labelledby="dup-title" className="rounded-sm border border-rule bg-surface p-5 lg:col-span-2">
+          <section aria-labelledby="dup-title" className={`rounded-sm border border-rule bg-surface lg:col-span-2 ${quiet ? "px-5 py-4 lg:col-span-3" : "p-5"}`}>
+            {quiet ? (
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h2 id="dup-title" className="text-15 font-semibold">
+                  Suspected duplicates
+                </h2>
+                <p className="text-14 text-ink-2">
+                  {closed ? "None: no two ballots came from the same network address and browser." : "None so far. Ballots from the same network address and browser show here, for you to look at."}
+                </p>
+              </div>
+            ) : (
+              <>
             <h2 id="dup-title" className="text-15 font-semibold">
               Suspected duplicates
             </h2>
@@ -218,9 +240,9 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
               Ballots from the same network address and browser.{" "}
               {closed ? "Voting has closed, so they stay as they are." : "Look at them; set one aside only with a reason."}
             </p>
-            {v.suspected.length === 0 ? (
-              <p className="mt-3 text-14 text-ink-2">{closed ? "None." : "None so far."}</p>
-            ) : (
+              </>
+            )}
+            {quiet ? null : (
               <ul className="mt-3 flex flex-col gap-3">
                 {v.suspected.map((g) => (
                   // orange means "needs you": once voting has closed nothing here can be acted on, so the bar goes neutral
