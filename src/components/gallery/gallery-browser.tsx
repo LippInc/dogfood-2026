@@ -188,8 +188,36 @@ export function GalleryBrowser({
         </div>
       </section>
 
-      {/* Phones: the mosaic becomes scrolling track chips (44px targets). */}
-      <div ref={chipRow} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden" role="group" aria-label="Filter by track">
+      {/* Phones: the Field shrinks to a picture (one column per track, no labels), and the chips below are its controls. */}
+      <div className="border-t border-rule pt-4 md:hidden" aria-hidden="true">
+        <p className="label-mono flex justify-between text-ink">
+          <span>Fig. 01 — The field</span>
+          <span className="tnum text-ink-3">
+            {visible.length === items.length ? items.length : `${visible.length} / ${items.length}`}
+          </span>
+        </p>
+        <div className="mt-3 grid grid-cols-8 gap-1">
+          {tracks.map((t) => (
+            <div key={t.id} className={`flex flex-col gap-1 border-t-2 pt-1 ${track === t.id ? "lit border-accent" : "border-ink"}`}>
+              {items
+                .filter((i) => i.trackId === t.id)
+                .map((i) => (
+                  <div
+                    key={i.id}
+                    className={`transition-opacity duration-150 motion-reduce:transition-none ${shown.has(i.id) ? "" : "opacity-30"} ${
+                      i.id === mine ? "outline-2 outline-offset-1 outline-ink" : ""
+                    }`}
+                  >
+                    {smallFaces[i.id]}
+                  </div>
+                ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Phones: the mosaic's filter becomes scrolling track chips (44px targets). */}
+      <div ref={chipRow} className="-mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden" role="group" aria-label="Filter by track">
         <button type="button" aria-pressed={track === null} onClick={() => setTrack(null)} className={`${chip} border-edge`}>
           All <span className="tnum">{items.length}</span>
         </button>
