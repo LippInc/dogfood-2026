@@ -15,6 +15,19 @@ const WHAT: Record<string, string> = {
   judge_b: "A second judge on other projects: the same console, and a 403 if it asks for Judge A's scores.",
 };
 
+/** Where a ?next= path leads, in words; the path itself is shown under it. */
+function destination(path: string): string {
+  const [, first, , third] = path.split("?")[0].split("/");
+  if (first === "judge") return "the judge console";
+  if (first === "organize") return "the organizer's pages";
+  if (first === "judge-invite") return "your judge invitation";
+  if (first === "join") return "the team invitation";
+  if (first === "vote") return "the vote";
+  if (first === "account") return "your account";
+  if (first === "events" && third === "my-project") return "your team's project";
+  return "the page you asked for";
+}
+
 const LABEL: Record<string, string> = {
   organizer: "Organizer",
   judge_a: "Judge A",
@@ -34,15 +47,27 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
             Sign in
           </h1>
           <p className="mt-2 text-15 text-ink-2">Judges and team members get their account from an invite link.</p>
+          {next ? (
+            <div className="mt-6 rounded-xs border border-rule bg-sunken px-4 py-3">
+              <p className="label-mono text-ink-3">Then back to</p>
+              <p className="mt-1 text-15">
+                {destination(next)}
+                <span className="mt-0.5 block truncate font-mono text-13 text-ink-2">{next}</span>
+              </p>
+            </div>
+          ) : null}
           <div className="mt-8">
             <PasswordForm next={next} />
           </div>
-          <p className="mt-6 text-14 text-ink-2">
-            New here?{" "}
-            <Link href={next ? `/sign-up?next=${encodeURIComponent(next)}` : "/sign-up"} className="underline decoration-edge underline-offset-4">
-              Create an account
-            </Link>
-          </p>
+          <div className="mt-6 flex flex-col gap-2 text-14 text-ink-2">
+            <p>
+              New here?{" "}
+              <Link href={next ? `/sign-up?next=${encodeURIComponent(next)}` : "/sign-up"} className="underline decoration-edge underline-offset-4 hover:decoration-ink">
+                Create an account
+              </Link>
+            </p>
+            <p>Forgot the password? The portal&apos;s administrator can send you a reset link.</p>
+          </div>
         </section>
         {demo.length > 0 ? (
           <section aria-labelledby="demo-title" className="rounded-sm border border-rule bg-surface p-6">
