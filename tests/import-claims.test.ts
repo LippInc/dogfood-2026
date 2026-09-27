@@ -166,6 +166,19 @@ describe("bulk import, export and account claims", () => {
     expect(admin.isAdmin).toBe(true); // ensureDemoOrganizer makes usr_organizer an admin
     expectHttpError(() => importEventFile(admin, {}), 422, "invalid");
     expectHttpError(() => importEventFile(admin, undefined), 422, "invalid");
+
+    // the message says what is wrong in plain words, not Zod's raw dump
+    const messageOf = (body: unknown) => {
+      try {
+        importEventFile(admin, body);
+      } catch (err) {
+        return (err as Error).message;
+      }
+      return "";
+    };
+    expect(messageOf(undefined)).toMatch(/not a JSON object with an event in it/);
+    expect(messageOf(undefined)).not.toMatch(/✖/);
+    expect(messageOf({ event: { name: "No id" }, tracks: [], judges: [], teams: [], projects: [], scores: [] })).toMatch(/event\.id: /);
   });
 
   it("round trip: an export from portal A imports into a fresh portal B with the same tables, the same normalized CSV, and the importer as organizer", () => {
