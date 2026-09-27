@@ -173,10 +173,16 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                 <p className="mt-2 text-14 text-ink-2">projects ranked. Read neighbouring ranks as ties; the results page shows scores next to places.</p>
               </>
             )}
+          </div>
+        </section>
+
+        {n.signal || n.yardstick ? (
+          <section aria-label="Checks on the whole run" className="grid rounded-sm border border-rule bg-surface wrap-anywhere lg:grid-cols-2">
             {n.signal ? (
-              <div className="mt-6 border-t border-rule pt-4">
+              <div className="border-rule p-5">
+                <p className="label-mono mb-3 text-ink-2">Signal check</p>
                 <p className="text-14">
-                  <strong>Signal check: permutation share {n.signal.share.toFixed(3)}.</strong>{" "}
+                  <strong>Permutation share {n.signal.share.toFixed(3)}.</strong>{" "}
                   {n.signal.share > 0.05
                     ? `Shuffling the review totals spreads the projects at least as far apart as the real scores in ${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles, so these scores cannot tell the projects apart better than chance.`
                     : `Shuffling the review totals almost never spreads the projects as far apart as the real scores (${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles): the projects really differ.`}
@@ -194,12 +200,13 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
               </div>
             ) : null}
             {n.yardstick ? (
-              <div className="mt-6 border-t border-rule pt-4">
+              <div className="border-rule p-5 max-lg:border-t max-lg:first:border-t-0 lg:border-l lg:first:border-l-0">
+                <p className="label-mono mb-3 text-ink-2">The organizers&rsquo; yardstick</p>
                 <YardstickLine y={n.yardstick} figure />
               </div>
             ) : null}
-          </div>
-        </section>
+          </section>
+        ) : null}
 
         <section aria-labelledby="table-title" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
