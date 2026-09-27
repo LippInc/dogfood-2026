@@ -788,7 +788,7 @@ export function JudgeConsoleView({
             ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-2 border-t border-rule px-6 py-3">
+        <div className="flex items-center gap-2 border-t border-rule bg-surface px-6 py-3 max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:px-4">
           <Button size="lg" onClick={saveAndNext} className="flex-1 justify-between">
             {readOnly ? "Open next" : "Save and open next"}
             <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">Ctrl ↵</kbd>
