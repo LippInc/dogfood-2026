@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { verifyAuditChain } from "../audit";
 import { getDb, type DbOrTx } from "../db/client";
@@ -279,7 +279,7 @@ export function getAuditLog(actor: Actor | null, eventIdOrSlug: string, opts: { 
     .orderBy(desc(auditLog.id))
     .limit(opts.limit ?? 500)
     .all();
-  const total = db.$count(auditLog, eq(auditLog.eventId, event.id));
+  const total = db.select({ n: sql<number>`count(*)` }).from(auditLog).where(eq(auditLog.eventId, event.id)).get()!.n;
   return { event, lines: lines(db, event.id, rows), total, chain: verifyAuditChain(db) };
 }
 

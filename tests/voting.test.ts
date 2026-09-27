@@ -373,6 +373,14 @@ describe("the audit log keeps what a ballot holds sealed until voting closes", (
     expect(auditCsv(h.db, "evt_01")).toContain("prj_07");
     expect(verifyAuditChain(h.db).ok).toBe(true);
   });
+
+  it("counts the event's log rows as a plain number for the page", () => {
+    castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_07"] }, CLIENT);
+    const { total } = getAuditLog(org(), "evt_01");
+    const rows = (h.sqlite.prepare("SELECT count(*) AS n FROM audit_log WHERE event_id = 'evt_01'").get() as { n: number }).n;
+    expect(typeof total).toBe("number");
+    expect(total).toBe(rows);
+  });
 });
 
 describe("duplicate detection", () => {
