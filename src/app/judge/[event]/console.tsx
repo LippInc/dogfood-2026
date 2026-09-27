@@ -411,7 +411,7 @@ export function JudgeConsoleView({
                     n === index
                       ? "border-accent bg-accent"
                       : r.status === "recused"
-                        ? "border-rule bg-sunken"
+                        ? "border-edge bg-[repeating-linear-gradient(135deg,var(--edge)_0_1px,transparent_1px_4px)]"
                         : finished
                           ? "border-ink bg-ink"
                           : "border-edge bg-transparent"
@@ -420,13 +420,14 @@ export function JudgeConsoleView({
               );
             })}
           </ol>
-          <p className="mt-3 text-13 text-ink-2">
+          <p className={`mt-3 text-13 ${left === 0 && active.length > 0 ? "flex items-start gap-1.5 text-ink" : "text-ink-2"}`}>
+            {left === 0 && active.length > 0 ? <Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden /> : null}
             {active.length === 0
               ? "Nothing left to review: you declared a conflict on every project in your batch."
               : left === 0
               ? active.every((i) => reviews[i.assignmentId]!.readOnly)
-                ? "Every project reviewed. Your scores are final now."
-                : "Every project reviewed. You can still change a score until judging closes."
+                ? "Batch complete. Your scores are final now."
+                : "Batch complete. You can still change a score until judging closes."
               : data.minutesPerReview
                 ? `About ${Math.max(1, Math.round(data.minutesPerReview * left))} min left at your pace`
                 : `${left} still to review`}
@@ -437,28 +438,33 @@ export function JudgeConsoleView({
             const r = reviews[i.assignmentId]!;
             const t = totalOf(criteria, r.values);
             const here = n === index;
+            const recused = r.status === "recused";
             return (
               <li key={i.assignmentId}>
                 <button
                   type="button"
                   onClick={() => go(n)}
                   aria-current={here ? "true" : undefined}
-                  className={`flex w-full items-center gap-3 border-b border-rule px-5 py-3 text-left hover:bg-raised ${
+                  className={`flex w-full items-center gap-3 border-b border-rule px-5 py-3 text-left hover:bg-raised focus-visible:-outline-offset-2 ${
                     here ? "lit border-l-[3px] border-l-accent bg-accent-tint pl-[17px]" : ""
                   }`}
                 >
                   <span className="w-5 font-mono text-12 text-ink-3 tnum">{String(n + 1).padStart(2, "0")}</span>
-                  <span className="w-12 shrink-0">{faces[i.project.id]?.small}</span>
+                  <span className={`w-12 shrink-0 ${recused && !here ? "opacity-40" : ""}`}>{faces[i.project.id]?.small}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-14 font-medium">{i.project.title}</span>
+                    <span className={`block truncate text-14 font-medium ${recused ? "text-ink-2 line-through decoration-edge" : ""}`}>{i.project.title}</span>
                     <span className="block truncate text-12 text-ink-2">{i.project.trackName}</span>
                   </span>
-                  <span
-                    key={t === null ? "open" : t.toFixed(2)}
-                    className={`text-13 tnum ${t !== null ? "judge-tick" : ""} ${here ? "font-medium text-accent-ink" : "text-ink-2"}`}
-                  >
-                    {r.status === "recused" ? "recused" : here && t === null ? "scoring" : t === null ? "–" : t.toFixed(2)}
-                  </span>
+                  {recused ? (
+                    <span className={`label-mono ${here ? "text-accent-ink" : "text-ink-3"}`}>conflict</span>
+                  ) : (
+                    <span
+                      key={t === null ? "open" : t.toFixed(2)}
+                      className={`tnum ${t !== null ? "judge-tick text-13" : "text-12"} ${here ? "font-medium text-accent-ink" : t === null ? "text-ink-3" : "text-ink-2"}`}
+                    >
+                      {here && t === null ? "scoring" : t === null ? "to score" : t.toFixed(2)}
+                    </span>
+                  )}
                 </button>
               </li>
             );
