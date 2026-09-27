@@ -171,6 +171,20 @@ function organizerResource(tx: Tx, idOrSlug: string, ref: { event?: EventRow }):
   return { kind: "event", event: eventFacts(ref.event) };
 }
 
+const DATE_KEYS = ["submissionsOpenAt", "submissionsCloseAt", "judgingCloseAt"] as const;
+
+/** Dates compare as instants: the form sends "…T18:00", the store may hold "…T18:00:00Z". */
+function sameValue(key: string, a: unknown, b: unknown): boolean {
+  if (!(DATE_KEYS as readonly string[]).includes(key)) return a === b;
+  const t = (v: unknown) => (typeof v === "string" && v ? Date.parse(v) : null);
+  return t(a) === t(b);
+}
+
+/** Published results are final: their scoring and the dates that framed it no longer change. */
+function resultsFinal(e: EventRow, what: string) {
+  if (e.resultsPublishedAt) throw new ConflictError("results_published", `Results are published, so ${what} final.`);
+}
+
 export function updateEventDetails(actor: Actor | null, idOrSlug: string, body: unknown) {
   const ref: { event?: EventRow } = {};
   return mutate({
@@ -190,11 +204,14 @@ export function updateEventDetails(actor: Actor | null, idOrSlug: string, body: 
       const before: Record<string, unknown> = {};
       const after: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(next)) {
-        if (e[k as keyof typeof next] !== v) {
-          before[k] = e[k as keyof typeof next];
+        const stored = e[k as keyof typeof next];
+        if (sameValue(k, stored, v)) (next as Record<string, unknown>)[k] = stored; // keep the stored form of an unchanged date
+        else {
+          before[k] = stored;
           after[k] = v;
         }
       }
+      if (DATE_KEYS.some((k) => k in after)) resultsFinal(e, "the event's dates are");
       if ((e.settings.maxTeamSize ?? 4) !== d.maxTeamSize) {
         before.maxTeamSize = e.settings.maxTeamSize ?? 4;
         after.maxTeamSize = d.maxTeamSize;
@@ -331,6 +348,7 @@ export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown)
     load: (tx) => organizerResource(tx, idOrSlug, ref),
     run: (tx) => {
       const e = ref.event!;
+      resultsFinal(e, "the rubric is");
       const rows = parse(RubricRows, body);
       uniqueNames(rows.map((r) => ({ name: r.label })), "criteria");
       const existing = tx.select().from(rubricCriteria).where(eq(rubricCriteria.eventId, e.id)).orderBy(asc(rubricCriteria.position)).all();

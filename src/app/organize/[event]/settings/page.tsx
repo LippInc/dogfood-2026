@@ -39,7 +39,13 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
           </p>
         </div>
 
-        <SectionForm id="details" title="Event" action={saveDetailsAction} hidden={hidden}>
+        <SectionForm
+          id="details"
+          title="Event"
+          description={event.resultsPublishedAt ? "Results are published, so the dates are final; the name, description and team size can still change." : undefined}
+          action={saveDetailsAction}
+          hidden={hidden}
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-13 text-ink-2 sm:col-span-2">
               Name
@@ -171,7 +177,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
                   {c.label} {Math.round((c.weight / totalWeight) * 100)} %
                 </span>
               ))}
-              .
+              .{event.resultsPublishedAt ? " Results are published, so the rubric is final." : ""}
             </>
           }
           action={saveRubricAction}
