@@ -7,7 +7,7 @@ import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
 import { competitionPlaces, ordinal } from "@/lib/places";
 import Link from "next/link";
-import { actorNav, currentActor, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
+import { actorNav, currentActor, getGallery, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
 import { CommentForm, HideForm } from "./comments";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +67,21 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
       if (i >= 0) return { track: t, row: t.rows[i]!, place: competitionPlaces(t.rows)[i]!, pairwise: results.method === PAIRWISE_METHOD };
     }
     return null;
+  })();
+  // FIG. 02: the other projects in its track, so a visitor can walk the track without going back to the gallery.
+  // Once published, in the published order with each place; before that, by id (an order that ranks nothing).
+  const trackmates: { id: string; title: string; team: string; place: number | null; joint: boolean }[] = (() => {
+    if (standing) {
+      const places = competitionPlaces(standing.track.rows);
+      return standing.track.rows.map((r, i) => ({ id: r.projectId, title: r.title, team: r.teamName, place: places[i]!.place, joint: places[i]!.joint }));
+    }
+    try {
+      return getGallery(event.id)
+        .projects.filter((x) => x.trackId === p.track.id)
+        .map((x) => ({ id: x.id, title: x.title, team: x.teamName, place: null, joint: false }));
+    } catch {
+      return [];
+    }
   })();
   return (
     <PublicShell event={event} active="projects" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
@@ -208,6 +223,55 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                   : "Scores stay with the judges and organizers until the results are published."}
               </p>
             )}
+            {trackmates.length > 1 ? (
+              <section aria-labelledby="track-title">
+                <h2 id="track-title" className="flex items-baseline justify-between gap-4 border-t-2 border-ink pt-2">
+                  <span className="label-mono text-ink">Fig. 02 — Its track</span>
+                  <span className="text-13 text-ink-3">
+                    {p.track.name} · <span className="tnum">{trackmates.length}</span> projects{standing ? ", as published" : ""}
+                  </span>
+                </h2>
+                <ol className="mt-2 flex flex-col">
+                  {trackmates.map((m) => {
+                    const here = m.id === p.id;
+                    return (
+                      <li key={m.id} className={here ? "lit" : undefined}>
+                        <Link
+                          href={`/events/${event.slug}/projects/${m.id}`}
+                          aria-current={here ? "page" : undefined}
+                          className="tile grid grid-cols-[3rem_4rem_minmax(0,1fr)] items-center gap-3 rounded-xs px-2 py-1.5 hover:bg-surface aria-[current=page]:bg-accent-tint"
+                        >
+                          {m.place !== null ? (
+                            <span className={`font-display text-20 leading-none tnum ${m.place === 1 ? "text-accent-ink" : ""}`}>
+                              {m.place}
+                              {m.joint ? <span className="sr-only"> (joint)</span> : null}
+                            </span>
+                          ) : (
+                            <span className="font-mono text-12 text-ink-3">{m.id}</span>
+                          )}
+                          <span className="block overflow-hidden rounded-xs border border-rule">
+                            <Face id={m.id} cols={32} rows={18} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-14 font-semibold">{m.title}</span>
+                            <span className="block truncate text-13 text-ink-2">
+                              {m.team}
+                              {here ? <span className="text-accent-ink"> · this project</span> : null}
+                            </span>
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <Link
+                  href={`/events/${event.slug}?track=${p.track.id}`}
+                  className="mt-2 ml-2 inline-block text-13 text-ink-2 underline decoration-edge underline-offset-4 hover:text-ink hover:decoration-ink"
+                >
+                  {p.track.name} in the gallery
+                </Link>
+              </section>
+            ) : null}
           </aside>
         </div>
 
