@@ -46,9 +46,12 @@ export function RowsEditor({
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
+  // A new row nobody typed into is left out, so the blank row the editor starts with
+  // never fails validation ("a prize needs a name"); a stored row is always sent.
+  const typed = rows.filter((row) => row.id !== undefined || fields.some((f) => f.type === "text" && String(row[f.key] ?? "").trim() !== ""));
   return (
     <div className="flex flex-col gap-2">
-      <input type="hidden" name={name} value={JSON.stringify(rows)} />
+      <input type="hidden" name={name} value={JSON.stringify(typed)} />
       <ol className="flex flex-col gap-2">
         {rows.map((row, i) => (
           <li key={row.id ?? `new-${i}`} className="flex flex-wrap items-end gap-2 rounded-sm border border-rule bg-surface p-2.5">

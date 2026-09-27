@@ -118,7 +118,7 @@ describe("backup and restore", () => {
     const home = path.join(dir, "home");
     fs.mkdirSync(path.join(home, "data"), { recursive: true });
     fs.copyFileSync(dbPath, path.join(home, "data", "portal.db"));
-    const env = { ...process.env, PORTAL_HEALTH_URL: "http://127.0.0.1:9/api/health" };
+    const env: NodeJS.ProcessEnv = { ...process.env, PORTAL_HEALTH_URL: "http://127.0.0.1:9/api/health" };
     delete env.DATABASE_PATH;
     const script = (name: string, args: string[]) =>
       execFileSync(process.execPath, [path.join(process.cwd(), "scripts", name), ...args], { cwd: home, env, encoding: "utf8" });
