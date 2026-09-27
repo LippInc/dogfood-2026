@@ -327,6 +327,23 @@ describe("one ballot per known person", () => {
   });
 });
 
+describe("the flags see across ways of voting", () => {
+  it("a signed-in ballot and an open-link ballot from the same browser and network are flagged together; another browser is not (positive control)", () => {
+    openVoting();
+    const p = actorById("usr_organizer");
+    castBallot(p, "evt_01", null, { projectIds: ["prj_01"] }, CLIENT);
+    const { code } = makeVotingLink(org(), "evt_01");
+    const same = enterVoting(code, CLIENT).token;
+    castBallot(null, "evt_01", same, { projectIds: ["prj_02"] }, CLIENT);
+    const other = linkToken();
+    castBallot(null, "evt_01", other, { projectIds: ["prj_03"] }, { ip: "10.9.9.9", agent: "Other" });
+
+    const { suspected } = getVotingAdmin(org(), "evt_01");
+    expect(suspected).toHaveLength(1);
+    expect(suspected[0]!.voters.map((v) => v.kind).sort()).toEqual(["account", "link"]);
+  });
+});
+
 describe("the pick limit", () => {
   const limitNow = () => JSON.parse((h.sqlite.prepare("SELECT settings FROM events WHERE id = 'evt_01'").get() as { settings: string }).settings).voting.votesPerVoter;
   const settings = (n: string) => ({ votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["account", "listed", "link"], votesPerVoter: n });
