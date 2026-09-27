@@ -241,6 +241,8 @@ export function GalleryBrowser({
                 href={`/events/${eventSlug}/projects/${i.id}`}
                 onMouseEnter={() => setPeek(i.id)}
                 onMouseLeave={() => setPeek(null)}
+                onFocus={() => setPeek(i.id)}
+                onBlur={() => setPeek(null)}
                 className={`tile flex gap-4 sm:block ${peek === i.id ? "lit" : ""}`}
               >
                 <div className="relative w-[120px] shrink-0 self-start sm:w-auto">
