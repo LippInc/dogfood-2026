@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { authorize, type Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
@@ -125,7 +125,8 @@ function activePicks(db: DbOrTx, eventId: string) {
     .select()
     .from(comparisons)
     .where(and(eq(comparisons.eventId, eventId), isNull(comparisons.voidedAt)))
-    .orderBy(asc(comparisons.createdAt), asc(comparisons.id))
+    // Insertion order (rowid; rows are never deleted): two answers in one millisecond still replay in the order given.
+    .orderBy(asc(sql`rowid`))
     .all();
 }
 
@@ -298,7 +299,7 @@ export function undoPairwise(actor: Actor | null, eventIdOrSlug: string, body: u
             isNull(comparisons.voidedAt),
           ),
         )
-        .orderBy(desc(comparisons.createdAt), desc(comparisons.id))
+        .orderBy(desc(sql`rowid`))
         .get();
       if (!last) throw new ConflictError("nothing_to_undo", "There is no answer to take back in this track.");
       tx.update(comparisons).set({ voidedAt: new Date().toISOString() }).where(eq(comparisons.id, last.id)).run();
@@ -404,10 +405,20 @@ export function computePairwise(db: DbOrTx, event: EventRow, opts: { scoresOnly?
     covered.set(key, set);
   }
   const criteria = rubricOf(db, event.id);
+  // A judge who scored both copies of a merged duplicate counts once for the kept copy, their
+  // totals averaged, as in scores mode; otherwise that judge's order would hold the project twice.
+  const perJudgeProject = new Map<string, { judgeId: string; trackId: string; projectId: string; sum: number; n: number }>();
+  for (const r of reviews) {
+    const projectId = canonical.get(r.projectId);
+    if (!projectId || !trackOf.has(projectId)) continue;
+    const key = `${r.judgeId}|${projectId}`;
+    const row = perJudgeProject.get(key) ?? { judgeId: r.judgeId, trackId: trackOf.get(projectId)!, projectId, sum: 0, n: 0 };
+    row.sum += weightedTotal(criteria, r.values);
+    row.n += 1;
+    perJudgeProject.set(key, row);
+  }
   const implied = impliedFromScores(
-    reviews
-      .filter((r) => canonical.has(r.projectId) && trackOf.has(canonical.get(r.projectId)!))
-      .map((r) => ({ judgeId: r.judgeId, trackId: trackOf.get(canonical.get(r.projectId)!)!, projectId: canonical.get(r.projectId)!, total: weightedTotal(criteria, r.values) })),
+    [...perJudgeProject.values()].map((r) => ({ judgeId: r.judgeId, trackId: r.trackId, projectId: r.projectId, total: r.sum / r.n })),
     covered,
   );
   const all = [...picks, ...implied];

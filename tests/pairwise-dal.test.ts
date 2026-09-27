@@ -1,6 +1,6 @@
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ensureDemoOrganizer, seedCheckerSessions } from "@/server/checker";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
@@ -12,7 +12,8 @@ import { acceptUnderReviewed, getNormalization, getPublishedResults, kendallTauB
 import { getOverview } from "@/server/dal/overview";
 import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { authorize, type EventFacts } from "@/server/authz";
-import { getPairwiseRanking, getPairwiseState, pickPairwise, pullShare, setJudgingMode, undoPairwise, PAIRWISE_METHOD, PULL_SHOWN_WITHIN } from "@/server/dal/pairwise";
+import { computePairwise, getPairwiseRanking, getPairwiseState, pickPairwise, pullShare, setJudgingMode, undoPairwise, PAIRWISE_METHOD, PULL_SHOWN_WITHIN } from "@/server/dal/pairwise";
+import { requireEvent } from "@/server/dal/events";
 import { actorForToken } from "@/server/session";
 
 // Pairwise mode's rules (JUDGING.md "Pairwise mode"): only the event's judges answer,
@@ -169,6 +170,51 @@ describe("pairwise mode: who may do what", () => {
     setJudgeTracks(checker("organizer"), "evt_01", judge.userId, { trackIds: keep });
     expect(getPairwiseState(judge, "evt_01").tracks.map((t) => t.trackId)).toEqual(keep);
     expect(h.db.select().from(judgeTracks).where(and(eq(judgeTracks.judgeUserId, judge.userId), eq(judgeTracks.trackId, before[0]!))).all()).toHaveLength(0);
+  });
+});
+
+describe("pairwise mode: order and duplicates", () => {
+  it("replays and undoes answers in the order given, even two in one millisecond (known-bad: ids that sort the other way)", () => {
+    toPairwise();
+    const judge = checker("judge_a");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-27T08:30:00.000Z"));
+    try {
+      const q1 = firstQuestion(judge);
+      pickPairwise(judge, "evt_01", { ...q1, outcome: "left" });
+      const q2 = firstQuestion(judge);
+      pickPairwise(judge, "evt_01", { ...q2, outcome: "left" });
+      const rows = h.db.select().from(comparisons).all();
+      expect(new Set(rows.map((r) => r.createdAt)).size).toBe(1);
+      // the second answer's id now sorts first: only insertion order tells them apart
+      const second = rows.find((r) => r.newProjectId === q2.newId && r.leftProjectId === q2.left)!;
+      h.sqlite.prepare("UPDATE comparisons SET id = 'cmp_000' WHERE id = ?").run(second.id);
+      expect(getPairwiseState(judge, "evt_01").tracks.reduce((n, t) => n + t.answered, 0)).toBe(2);
+      undoPairwise(judge, "evt_01", { trackId: q2.trackId });
+      expect(h.db.select().from(comparisons).where(eq(comparisons.id, "cmp_000")).get()!.voidedAt).not.toBeNull();
+      expect(firstQuestion(judge)).toEqual(q2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a judge who scored both copies of a merged duplicate orders the kept copy once", () => {
+    toPairwise();
+    mergeDuplicate(checker("organizer"), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    const pw = computePairwise(h.db, requireEvent(h.db, "evt_01"));
+    for (const judge of ["jdg_19", "jdg_21", "jdg_26"]) {
+      const mine = pw.used.filter((c) => c.judgeId === judge && c.kind === "scores");
+      const pairs = mine.map((c) => [c.a, c.b].sort().join("|"));
+      expect(new Set(pairs).size).toBe(pairs.length);
+      expect(mine.every((c) => c.a !== c.b)).toBe(true);
+      // k projects in a track weigh k - 1 together
+      const byTrack = new Map<string, number>();
+      for (const c of mine) byTrack.set(c.trackId, (byTrack.get(c.trackId) ?? 0) + c.weight);
+      for (const [track, weight] of byTrack) {
+        const k = new Set(mine.filter((c) => c.trackId === track).flatMap((c) => [c.a, c.b])).size;
+        expect(weight).toBeCloseTo(k - 1, 10);
+      }
+    }
   });
 });
 
