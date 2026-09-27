@@ -99,6 +99,15 @@ export function hasRole(actor: Actor, eventId: string, role: Role): boolean {
   return actor.roles.some((r) => r.eventId === eventId && r.role === role);
 }
 
+/**
+ * Who holds an event's organizer powers: its organizers, and the portal's administrators in every event (the
+ * organizers' published role matrix gives ADMIN every column an ORGANIZER has). Every act is logged under the
+ * actor who made it, so an administrator acting in someone else's event shows by name in that event's log.
+ */
+export function runsEvent(actor: Actor, eventId: string): boolean {
+  return actor.isAdmin || hasRole(actor, eventId, "organizer");
+}
+
 export function isJudgeAnywhere(actor: Actor): boolean {
   return actor.roles.some((r) => r.role === "judge");
 }
@@ -171,7 +180,7 @@ export function authorize(
     case "event.manage":
     case "event.export": {
       if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");
-      return hasRole(actor, resource.event.id, "organizer")
+      return runsEvent(actor, resource.event.id)
         ? allow
         : refuse("not_an_organizer", "Only this event's organizers can do this.");
     }
@@ -182,7 +191,7 @@ export function authorize(
       // another event's people in (and their first password with them). An administrator,
       // who can send anyone a reset link anyway, reaches everyone.
       if (resource.kind !== "organizer_candidate") return refuse("bad_resource", "This action needs an event and an account.");
-      if (!hasRole(actor, resource.event.id, "organizer")) return refuse("not_an_organizer", "Only this event's organizers can do this.");
+      if (!runsEvent(actor, resource.event.id)) return refuse("not_an_organizer", "Only this event's organizers can do this.");
       if (!actor.isAdmin && resource.otherEventIds.some((id) => !hasRole(actor, id, "organizer"))) {
         return refuse("account_in_other_event", "That account also belongs to an event you do not run, so only the portal's administrator can make it an organizer here.");
       }
@@ -324,7 +333,7 @@ export function authorize(
 
     case "records.issue_all": {
       if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");
-      if (!hasRole(actor, resource.event.id, "organizer")) return refuse("not_an_organizer", "Only this event's organizers can do this.");
+      if (!runsEvent(actor, resource.event.id)) return refuse("not_an_organizer", "Only this event's organizers can do this.");
       return resource.event.resultsPublishedAt ? allow : refuse("results_not_published", "Records and certificates are issued once the results are published.");
     }
 

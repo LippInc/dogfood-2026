@@ -56,7 +56,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
   const { event, project: p } = load(eventKey, projectKey);
   const actor = await currentActor();
   const comments = listComments(actor, p.id);
-  const canModerate = Boolean(actor?.roles.some((r) => r.eventId === event.id && r.role === "organizer"));
+  const canModerate = Boolean(actor && (actor.isAdmin || actor.roles.some((r) => r.eventId === event.id && r.role === "organizer")));
   const path = `/events/${event.slug}/projects/${p.id}`;
   // Once published, this project's own row of the published run: its place, score and ±, as the results page shows them.
   const results = event.resultsPublishedAt ? getPublishedResults(event.id) : null;

@@ -447,17 +447,15 @@ export function getOrganizerEvent(actor: Actor | null, idOrSlug: string): Organi
   };
 }
 
-/** Events this person organizes (and, for an administrator, whether they may create one). */
+/** Events this person runs: the ones they organize, and every event for an administrator (who may also create one). */
 export function organizedEvents(actor: Actor | null): { canCreate: boolean; events: { id: string; slug: string; name: string; submissionsCloseAt: string }[] } {
   if (!actor) return { canCreate: false, events: [] };
   const ids = actor.roles.filter((r) => r.role === "organizer").map((r) => r.eventId);
-  const list = ids.length
-    ? getDb()
-        .select({ id: events.id, slug: events.slug, name: events.name, submissionsCloseAt: events.submissionsCloseAt })
-        .from(events)
-        .where(inArray(events.id, ids))
-        .orderBy(asc(events.createdAt))
-        .all()
-    : [];
+  const columns = { id: events.id, slug: events.slug, name: events.name, submissionsCloseAt: events.submissionsCloseAt };
+  const list = actor.isAdmin
+    ? getDb().select(columns).from(events).orderBy(asc(events.createdAt)).all()
+    : ids.length
+      ? getDb().select(columns).from(events).where(inArray(events.id, ids)).orderBy(asc(events.createdAt)).all()
+      : [];
   return { canCreate: actor.isAdmin, events: list };
 }

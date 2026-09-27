@@ -14,7 +14,10 @@ export type NavLink = { href: string; label: string; event: string };
  */
 export function actorNav(actor: Actor | null, eventId?: string): NavLink[] {
   if (!actor) return [];
-  const roles = eventId ? actor.roles.filter((r) => r.eventId === eventId) : actor.roles;
+  const own = eventId ? actor.roles.filter((r) => r.eventId === eventId) : actor.roles;
+  // An administrator runs every event (runsEvent in authz.ts): on an event's own pages its organizer link shows for them too.
+  const roles: { eventId: string; role: string }[] =
+    eventId && actor.isAdmin && !own.some((r) => r.role === "organizer") ? [...own, { eventId, role: "organizer" }] : own;
   const eventIds = [...new Set(roles.map((r) => r.eventId))];
   if (eventIds.length === 0) return [];
   const byId = new Map(

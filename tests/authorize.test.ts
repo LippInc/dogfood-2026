@@ -30,14 +30,17 @@ const organizer: Actor = {
   roles: [{ eventId: "evt_01", role: "organizer" }],
   sessionKind: "checker",
 };
+// an organizer of another event, not an administrator: runs evt_99 only
 const organizerElsewhere: Actor = {
   userId: "usr_other",
   name: "O2",
   email: "o2@x.org",
-  isAdmin: true,
+  isAdmin: false,
   roles: [{ eventId: "evt_99", role: "organizer" }],
   sessionKind: "checker",
 };
+// a portal administrator with no role in evt_01: the published role matrix gives ADMIN every organizer column
+const adminElsewhere: Actor = { ...organizerElsewhere, userId: "usr_admin", name: "A2", email: "a2@x.org", isAdmin: true, roles: [] };
 
 const closedEvent: EventFacts = {
   id: "evt_01",
@@ -156,6 +159,10 @@ describe("authorize (pure)", () => {
 
       it(`${action}: a missing session is 401`, () => {
         expectRefusal(act(null), 401, "unauthenticated");
+      });
+
+      it(`${action}: a portal administrator with no role in the event passes (the matrix's ADMIN row)`, () => {
+        expect(act(adminElsewhere).ok).toBe(true);
       });
     }
   });
