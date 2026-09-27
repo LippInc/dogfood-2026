@@ -66,9 +66,9 @@ Herrera, Jonas Vogel) and a participant.
 python run.py .dogfood.toml
 ```
 
-The organizers' suite covers T1 and T2 only; asked on Discord (#ask-everything,
-2026-09-25, answered by the admin souvlakee), the organizers said "T3 and T4 are
-judged by hand", so run.py prints
+The organizers' suite covers T1 and T2 only; asked on Discord, the admin
+souvlakee answered in #ask-everything on 2026-09-25 at 07:33 UTC: "T3 and T4 are
+judged by hand so judges review your code, UI, and architecture directly." So run.py prints
 "claimed but not verified" for T3 and T4 by design. Our hand check for role
 isolation and every T3 and T4 bullet is `tests/isolation_check.py` (Section C, for
 T4 and pairwise judging (C9), is `tests/isolation_t4.py`; standard library only, plus Node for the offline
