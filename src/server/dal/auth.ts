@@ -36,7 +36,7 @@ export async function signInWithPassword(emailRaw: string, password: string, cli
   const db = getDb();
   const byAddress = addressLimit(client);
   if (byAddress) return { ok: false, message: `Too many sign-in attempts from your network. Try again in ${Math.ceil(byAddress / 60)} min.`, retryAfter: byAddress };
-  // Password guessing: at most 10 tries per address per 15 minutes, whoever sends them.
+  // Password guessing: at most 10 tries per email address per 15 minutes, whoever sends them.
   const t = take(`signin:${email}`, LIMITS.signIn);
   if (!t.ok) {
     if (t.firstRefusal) {
@@ -44,7 +44,7 @@ export async function signInWithPassword(emailRaw: string, password: string, cli
         appendAudit(tx, { actorUserId: null, actorLabel: "anonymous", action: "ratelimit.refused", targetType: "limit", targetId: "sign-in", after: { retryAfter: t.retryAfter } }),
       );
     }
-    return { ok: false, message: `Too many attempts for this address. Try again in ${Math.ceil(t.retryAfter / 60)} min.`, retryAfter: t.retryAfter };
+    return { ok: false, message: `Too many attempts for this email address. Try again in ${Math.ceil(t.retryAfter / 60)} min.`, retryAfter: t.retryAfter };
   }
   const user = db.select().from(users).where(eq(users.email, email)).get();
   const valid = verifyPassword(password, user?.passwordHash ?? DUMMY_HASH) && Boolean(user?.passwordHash);

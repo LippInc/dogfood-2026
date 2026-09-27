@@ -129,9 +129,10 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   documented at `/api-docs` and as OpenAPI 3.1 at `/api/openapi.json`.
   The document is built from the server's own validators, and a test fails if a
   route and the document disagree. Scripts use named API tokens that act with
-  their owner's permissions and cannot make more tokens. Webhooks send any audited action to your URL,
-  signed with HMAC-SHA256 and retried with backoff; each delivery is written in
-  the same transaction as the change, so none is lost or invented.
+  their owner's permissions and cannot make more tokens. Webhooks send any
+  audited action to your URL (a ballot change without its picks), signed with
+  HMAC-SHA256 and retried with backoff; each delivery is written in the same
+  transaction as the change, so none is lost or invented.
 - **Import and export.** Every stage exports as CSV, and a whole event as
   `event.json` or as `fixtures.json`, the organizers' own fixture format, which
   an administrator can import into another portal to get the same projects,
@@ -221,9 +222,10 @@ start, and the fixture import never overwrites what the organizers changed.
   email-verified, and a forgotten password cannot be reset from the interface
   (a reset link made by an organizer would let one event's organizer take over
   accounts that matter in another).
-- Rate limits and duplicate-ballot flags key on the client address from
-  `X-Forwarded-For`; run the portal behind a reverse proxy that overwrites it, or
-  a client can pick its own. The limits live in memory and reset on restart.
+- The per-address limits (open-link entries; sign-ups and sign-ins) and the
+  duplicate-ballot flags key on the client address from `X-Forwarded-For`; run
+  the portal behind a reverse proxy that overwrites it, or a client can pick its
+  own. The limits live in memory and reset on restart.
 - Results cannot be unpublished from the interface.
 - Organizers are trusted with their own event: nothing stops an organizer from
   also being on a team in it. What the portal does is log every organizer

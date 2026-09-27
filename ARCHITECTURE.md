@@ -50,7 +50,7 @@ One registry, `OPERATIONS` in `src/server/openapi.ts`, lists every JSON route wi
 
 ## Background work
 
-The only background work is the webhook worker: `startWebhookWorker()` runs a timer inside the server process (`src/server/webhooks.ts`), wakes every 2 seconds and sends up to 20 due deliveries, earliest due first. A failed delivery retries with backoff (10 s to 2 h, at most six attempts); each one is signed `Dogfood-Signature: t=…,v1=<HMAC-SHA256>` and is checked again against private-network targets at send time. Rate limits (`src/server/rate-limit.ts`) are token buckets in one in-memory Map: ballot saves, new link voters, comments, sign-in attempts. A restart forgets them, and a second portal process would keep its own counts — one reason the portal is built to run as a single process.
+The only background work is the webhook worker: `startWebhookWorker()` runs a timer inside the server process (`src/server/webhooks.ts`), wakes every 2 seconds and sends up to 20 due deliveries, earliest due first. A failed delivery retries with backoff (10 s to 2 h, at most six attempts); each one is signed `Dogfood-Signature: t=…,v1=<HMAC-SHA256>` and is checked again against private-network targets at send time. Rate limits (`src/server/rate-limit.ts`) are token buckets in one in-memory Map: ballot saves per voter, new open-link voters per network address, comments per account, sign-in attempts per email address, and sign-ups and sign-ins together per network address. A restart forgets them, and a second portal process would keep its own counts — one reason the portal is built to run as a single process.
 
 ## Headers, public, organizer-only
 
