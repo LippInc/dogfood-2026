@@ -315,7 +315,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
               </h2>
               <p className="mt-1 max-w-[720px] text-14 text-ink-2">
                 {event.resultsPublishedAt
-                  ? `Each is signed with the portal's Ed25519 key, so anyone holding one can check it is real. People can also fetch their own: judges from the console, team members from their project page. ${count(records.filter((r) => r.kind === "judge").length, "judging record")} and ${count(records.filter((r) => r.kind === "participant").length, "certificate")} issued so far.`
+                  ? `Each is signed with the portal's Ed25519 key, so anyone holding one can check it is real. People can also fetch their own: judges from the console, team members from their project page. ${count(records.filter((r) => r.kind === "judge").length, "judging record")} and ${count(records.filter((r) => r.kind === "participant").length, "certificate")} issued so far. A record keeps the names it was issued with, so issue them once people have claimed their accounts and set their names.`
                   : "Once the results are published, every judge with a finished review can get a signed judging record and every member of a submitting team a signed certificate."}
               </p>
             </div>
