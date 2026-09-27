@@ -46,18 +46,44 @@ function organizer(): Actor {
   return { userId: "usr_organizer", name: "Organizer", email: "organizer@example.org", isAdmin: false, roles, sessionKind: "login" };
 }
 
-/** Projects ranked in both runs whose normalized rank differs by a place or more, and those left unranked. */
+/**
+ * What an override did, measured independently of the check: projects ranked in both
+ * runs whose normalized rank differs by a place or more, those left unranked, the
+ * size of the largest move, and the tracks whose first place changed.
+ */
 function compare(before: Normalized, after: Normalized) {
   const rankAfter = new Map(after.projects.map((p) => [p.id, p.rankNormalized]));
   let moved = 0;
   let unranked = 0;
+  let largest = 0;
   for (const p of before.projects) {
     if (p.rankNormalized === null) continue;
     const to = rankAfter.get(p.id) ?? null;
     if (to === null) unranked++;
-    else if (Math.abs(to - p.rankNormalized) >= 1) moved++;
+    else if (Math.abs(to - p.rankNormalized) >= 1) {
+      moved++;
+      largest = Math.max(largest, Math.abs(to - p.rankNormalized));
+    }
   }
-  return { moved, unranked };
+  const firsts = (n: Normalized) => {
+    const best = new Map<string, number>();
+    for (const p of n.projects) if (p.trackRank !== null) best.set(p.trackId, Math.min(best.get(p.trackId) ?? Infinity, p.trackRank));
+    const out = new Map<string, string>();
+    for (const [track, rank] of best)
+      out.set(
+        track,
+        n.projects
+          .filter((p) => p.trackId === track && p.trackRank === rank)
+          .map((p) => p.id)
+          .sort()
+          .join("|"),
+      );
+    return out;
+  };
+  const a = firsts(before);
+  const b = firsts(after);
+  const changed = [...new Set([...a.keys(), ...b.keys()])].filter((t) => a.get(t) !== b.get(t)).sort();
+  return { moved, unranked, largest, changed };
 }
 
 describe("the judge ledger", () => {
@@ -93,7 +119,13 @@ describe("the judge ledger", () => {
       expect(mode).toBe(j.excluded ? "include" : "exclude");
       setJudgeOverride(org, "evt_01", { judgeUserId: j.id, mode, reason: "influence check test" });
       const after = computeNormalization(h.db, requireEvent(h.db, "evt_01"));
-      expect(compare(before, after), j.id).toEqual({ moved: j.influence!.moved, unranked: j.influence!.unranked });
+      const inf = j.influence!;
+      expect(compare(before, after), j.id).toEqual({
+        moved: inf.moved,
+        unranked: inf.unranked,
+        largest: inf.biggest ? Math.abs(inf.biggest.to - inf.biggest.from) : 0,
+        changed: inf.leaders.map((l) => l.trackId).sort(),
+      });
       revokeJudgeOverride(org, "evt_01", { judgeUserId: j.id });
     }
     // not vacuous: some judge's reviews do move the ranking
@@ -160,8 +192,24 @@ describe("the judge ledger", () => {
     }
   });
 
+  it("the duplicate's ranks and the leniency range, as JUDGING.md states them", () => {
+    const org = organizer();
+    const before = getNormalization(org, "evt_01").normalization;
+    const raw = (n: Normalized, id: string) => n.projects.find((p) => p.id === id)!.rankRaw;
+    const lenient = before.judges.filter((j) => j.se !== null);
+    const largest = Math.max(...lenient.map((j) => Math.abs(j.leniency)));
+    const seRange = [Math.min(...lenient.map((j) => j.se!)), Math.max(...lenient.map((j) => j.se!))];
+    mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    const merged = computeNormalization(h.db, requireEvent(h.db, "evt_01"));
+    const kept = merged.projects.find((p) => p.id === "prj_07")!;
+    expect([raw(before, "prj_07"), raw(before, "prj_41"), before.ranked]).toEqual([31.5, 9, 41]);
+    expect([kept.rankRaw, kept.rankNormalized, merged.ranked]).toEqual([25.5, 22, 40]);
+    expect(largest).toBeCloseTo(0.062, 3);
+    expect(seRange.map((x) => Number(x.toFixed(3)))).toEqual([0.093, 0.099]);
+  });
+
   it("known-bad: comparing a run with itself finds nothing to predict", () => {
     const n = computeNormalization(h.db, requireEvent(h.db, "evt_01"));
-    expect(compare(n, n)).toEqual({ moved: 0, unranked: 0 });
+    expect(compare(n, n)).toEqual({ moved: 0, unranked: 0, largest: 0, changed: [] });
   });
 });

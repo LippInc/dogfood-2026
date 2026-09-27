@@ -228,6 +228,10 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { tim
     }
     console.log(`${RUNS} runs per scenario, seed ${SEED}\n${lines.join("\n")}`);
     expect(lines.length).toBe(2 + SCENARIOS.length * 3);
+    // JUDGING.md carries this very table: every row must appear there as printed
+    const doc = fs.readFileSync(path.join(process.cwd(), "JUDGING.md"), "utf8");
+    const missing = lines.slice(2).filter((line) => !doc.includes(line));
+    expect(missing, "rows of the Monte Carlo table that JUDGING.md does not state as printed").toEqual([]);
   });
 
   it("(1) no-bias control: loses to the raw mean by no more than the sd of the per-run difference, within-track and pooled", () => {
@@ -263,7 +267,12 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { tim
       lines.push(`${sc.key}: an honest judge flagged in ${((panels / RUNS) * 100).toFixed(1)} % of ${RUNS} simulated panels`);
     }
     console.log(lines.join("\n"));
-    expect(lines).toHaveLength(3);
+    // fixed seeds: the rates JUDGING.md states
+    expect(lines).toEqual([
+      "no-bias control: an honest judge flagged in 7.7 % of 1000 simulated panels",
+      "moderate bias: an honest judge flagged in 8.0 % of 1000 simulated panels",
+      "moderate bias, noisy judges: an honest judge flagged in 6.2 % of 1000 simulated panels",
+    ]);
   });
 
   it("known-bad: an engine with shifted project indices fails assertion (1)", () => {
@@ -272,5 +281,6 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { tim
     const diff = r.shifted!.within.map((x, i) => x - r.raw!.within[i]!);
     console.log(`shifted engine, control, 100 runs: mean within diff ${mean(diff).toFixed(3)} (sd ${sd(diff).toFixed(3)})`);
     expect(mean(diff)).toBeLessThan(-sd(diff));
+    expect(mean(diff)).toBeCloseTo(-0.961, 3); // the figure JUDGING.md quotes
   });
 });

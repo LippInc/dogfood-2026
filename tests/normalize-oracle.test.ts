@@ -130,7 +130,7 @@ describe("the engine's self-test (planted leniency)", () => {
     const { obs } = planted(0, 12);
     const v = estimateVariance(obs);
     console.log(`planted sd 0: beta2=${v.beta2.toFixed(4)}`);
-    expect(v.beta2).toBeLessThan(0.03);
+    expect(v.beta2).toBeLessThan(0.00005); // JUDGING.md: "comes out at 0.0000"
   });
 
   it("a global transform of every score moves every normalized score the same way", () => {
@@ -145,12 +145,11 @@ describe("the engine's self-test (planted leniency)", () => {
 });
 
 describe("the signal check (permutation share)", () => {
-  it("on the fixture finds no project differences beyond chance (planning run: 0.767)", async () => {
+  it("on the fixture finds no project differences beyond chance: 1,529 of 2,000 shuffles, 0.7645 (the planning run's Python version: 0.767)", async () => {
     const { permutationShare } = await import("@/server/judging/normalize");
     const s = permutationShare(kept);
     console.log(`fixture permutation share ${s.share.toFixed(3)} over ${s.trials} shuffles`);
-    expect(s.share).toBeGreaterThan(0.7);
-    expect(s.share).toBeLessThan(0.84);
+    expect(s.share).toBe(1529 / 2000); // fixed seed, 2,000 shuffles: the number JUDGING.md states
   });
 
   it("positive control: planted project differences are detected (share at most 0.05)", async () => {
