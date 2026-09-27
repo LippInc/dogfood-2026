@@ -231,7 +231,7 @@ export default async function OverviewPage({
         <div className="grid grid-cols-[minmax(0,1fr)] gap-x-8 gap-y-10 lg:grid-cols-3">
           <Figure
             id="judges-card"
-            no="02"
+            no="01"
             title="Judges"
             aside={
               <Link href={`/organize/${event.slug}/judges`} className={linkCls}>
@@ -297,7 +297,7 @@ export default async function OverviewPage({
           </Figure>
 
           {o.pairwise ? (
-            <Figure id="norm-card" no="03" title="Ranking" aside={runLabel}>
+            <Figure id="norm-card" no="02" title="Ranking" aside={runLabel}>
               <p className="flex items-baseline gap-2">
                 <span className="text-38 leading-none font-semibold tnum">
                   {o.pairwise.placed}
@@ -318,7 +318,7 @@ export default async function OverviewPage({
               </Link>
             </Figure>
           ) : (
-            <Figure id="norm-card" no="03" title="Normalization" aside={runLabel}>
+            <Figure id="norm-card" no="02" title="Normalization" aside={runLabel}>
               {nz.ranked ? (
                 <>
                   <p className="flex items-baseline gap-2">
@@ -357,7 +357,7 @@ export default async function OverviewPage({
 
           <Figure
             id="audit-card"
-            no="04"
+            no="03"
             title="Audit log"
             aside={
               <Link href={`/organize/${event.slug}/audit`} className={linkCls}>
@@ -405,7 +405,7 @@ export default async function OverviewPage({
                 Nothing logged for this event yet.
               </p>
             )}
-            <div className="mt-auto flex flex-col gap-2 border-t border-rule pt-3">
+            <div className="flex flex-col gap-2 border-t border-rule pt-3">
               <p className="text-12 text-ink-2">Take it out, at any stage</p>
               <div className="flex flex-wrap gap-2">
                 {EXPORTS.map((f) => (
