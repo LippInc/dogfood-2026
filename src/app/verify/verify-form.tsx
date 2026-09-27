@@ -15,7 +15,59 @@ type Outcome = {
   portal: { valid: boolean; reason?: string; message?: string };
   record: Record<string, unknown>;
   signature: string;
+  copy?: Copy;
 };
+
+/** What the portal's own public copy of a failed record says: which fields differ, or that it never issued that id. */
+type Change = { path: string; pasted: string | null; signed: string | null };
+type Copy = { at: "none"; id: string } | { at: "changed"; id: string; changes: Change[] } | { at: "signature"; id: string };
+
+/** Every leaf of a record as "path -> JSON value", arrays by index. */
+function leaves(v: unknown, path = "", out: Record<string, string> = {}): Record<string, string> {
+  if (v && typeof v === "object") {
+    const entries = Array.isArray(v) ? v.map((x, i) => [`${path}[${i}]`, x] as const) : Object.entries(v).map(([k, x]) => [path ? `${path}.${k}` : k, x] as const);
+    for (const [p, x] of entries) leaves(x, p, out);
+  } else out[path] = JSON.stringify(v);
+  return out;
+}
+
+/**
+ * When a record fails, ask the portal for its public copy by the record's id (the same
+ * GET a record's share link uses) and name what differs. Only the id leaves this page.
+ */
+async function compareWithCopy(record: Record<string, unknown>, signature: string): Promise<Copy | undefined> {
+  const id = record.id;
+  if (typeof id !== "string" || !/^rec_[a-z0-9]{1,64}$/.test(id)) return undefined;
+  const res = await fetch(`/api/records/${encodeURIComponent(id)}`, { cache: "no-store" });
+  if (res.status === 404) return { at: "none", id };
+  if (!res.ok) return undefined;
+  const body = (await res.json()) as { envelope?: Envelope; verification?: { valid?: boolean } };
+  if (!body.envelope || !body.verification?.valid) return undefined;
+  const mine = leaves(record);
+  const theirs = leaves(body.envelope.record);
+  const changes = [...new Set([...Object.keys(theirs), ...Object.keys(mine)])]
+    .filter((k) => mine[k] !== theirs[k])
+    .map((k) => ({ path: k, pasted: mine[k] ?? null, signed: theirs[k] ?? null }));
+  if (changes.length) return { at: "changed", id, changes };
+  return String(body.envelope.signature) !== signature ? { at: "signature", id } : undefined;
+}
+
+/** A value with the part that differs from the other one marked: the common start and end stay plain. */
+function Marked({ value, other }: { value: string | null; other: string | null }) {
+  if (value === null) return <span className="font-sans italic text-ink-3">not there</span>;
+  if (other === null) return <mark className="rounded-[2px] bg-accent-tint px-0.5 text-ink">{value}</mark>;
+  let a = 0;
+  while (a < value.length && a < other.length && value[a] === other[a]) a++;
+  let b = 0;
+  while (b < value.length - a && b < other.length - a && value[value.length - 1 - b] === other[other.length - 1 - b]) b++;
+  return (
+    <>
+      {value.slice(0, a)}
+      <mark className="rounded-[2px] bg-accent-tint px-0.5 text-ink">{value.slice(a, value.length - b)}</mark>
+      {value.slice(value.length - b)}
+    </>
+  );
+}
 
 function envelopeOf(text: string): Envelope | null {
   try {
@@ -114,7 +166,10 @@ export function VerifyForm() {
         checkInBrowser(envelope).catch(() => ({ at: "unsupported" as const, why: "Your browser could not run its own check." })),
         fetch("/api/records/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(envelope) }).then((r) => r.json()),
       ]);
-      setOutcome({ browser, portal, record: envelope.record, signature: String(envelope.signature) });
+      const signature = String(envelope.signature);
+      const failed = !portal.valid || browser.at === "invalid";
+      const copy = failed ? await compareWithCopy(envelope.record, signature).catch(() => undefined) : undefined;
+      setOutcome({ browser, portal, record: envelope.record, signature, copy });
     } catch {
       setProblem("The check could not run. Try again.");
     } finally {
@@ -294,7 +349,41 @@ export function VerifyForm() {
                 <p>
                   <strong className="font-semibold text-flag">Not valid.</strong> {outcome.portal.message ?? "The signature does not match this record."}
                 </p>
-                <p className="mt-2 text-14 text-ink-2">
+                {outcome.copy?.at === "changed" ? (
+                  <div className="mt-4">
+                    <p className="text-14">
+                      Against the portal&rsquo;s own copy of <span className="font-mono text-13">{outcome.copy.id}</span>,{" "}
+                      {outcome.copy.changes.length === 1 ? "one field was changed" : `${outcome.copy.changes.length} fields were changed`}:
+                    </p>
+                    <ul className="mt-2 flex flex-col divide-y divide-rule rounded-sm border border-rule bg-surface">
+                      {outcome.copy.changes.slice(0, 6).map((c) => (
+                        <li key={c.path} className="grid gap-1 px-4 py-3 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
+                          <span className="font-mono text-12 leading-5 text-ink-3 wrap-anywhere">{c.path}</span>
+                          <span className="grid grid-cols-[64px_minmax(0,1fr)] gap-x-3 gap-y-1 text-13">
+                            <span className="text-ink-2">Pasted</span>
+                            <span className="font-mono wrap-anywhere">
+                              <Marked value={c.pasted} other={c.signed} />
+                            </span>
+                            <span className="text-ink-2">Signed</span>
+                            <span className="font-mono wrap-anywhere">
+                              <Marked value={c.signed} other={c.pasted} />
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {outcome.copy.changes.length > 6 ? <p className="mt-2 text-13 text-ink-2">And {outcome.copy.changes.length - 6} more.</p> : null}
+                  </div>
+                ) : outcome.copy?.at === "signature" ? (
+                  <p className="mt-2 text-14 text-ink-2">
+                    Every field matches the portal&rsquo;s own copy of <span className="font-mono text-13">{outcome.copy.id}</span>: the signature itself was changed.
+                  </p>
+                ) : outcome.copy?.at === "none" ? (
+                  <p className="mt-2 text-14 text-ink-2">
+                    This portal holds no record with the id <span className="font-mono text-13">{outcome.copy.id}</span>, so it did not issue this one.
+                  </p>
+                ) : null}
+                <p className="mt-3 text-14 text-ink-2">
                   The signature covers every byte: one changed letter is enough to fail the check.
                 </p>
               </div>
@@ -355,7 +444,10 @@ export function VerifyForm() {
             <StepMark mark={portalMark} />
           </li>
         </ol>
-        <p className="mt-3 text-13 text-ink-3">Nothing you paste is stored: the portal only answers valid or not valid.</p>
+        <p className="mt-3 text-13 text-ink-3">
+          Nothing you paste is stored: the portal only answers valid or not valid. When a record fails, this page asks the portal for its public copy by the
+          record&rsquo;s id, to show what changed.
+        </p>
       </aside>
     </div>
   );
