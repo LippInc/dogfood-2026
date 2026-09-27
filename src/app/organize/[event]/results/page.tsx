@@ -436,29 +436,39 @@ function RecordsSection({ eventSlug, published, records }: { eventSlug: string; 
       ) : null}
     </div>
     {records.length ? (
-      <div className="max-h-[480px] overflow-y-auto rounded-sm border border-rule">
-        <table className="w-full text-14">
-          <thead className="sticky top-0 bg-surface text-left text-13 text-ink-2">
-            <tr>
-              <th className="px-3 py-2 font-medium">Person</th>
-              <th className="px-3 py-2 font-medium">Record</th>
-              <th className="px-3 py-2 font-medium max-sm:hidden">Issued (UTC)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-rule">
-            {records.map((r) => (
-              <tr key={r.id}>
-                <td className="px-3 py-2">{r.name}</td>
-                <td className="px-3 py-2">
-                  <Link href={`/records/${r.id}`} className="underline underline-offset-4">
-                    {r.kind === "judge" ? "Judging record" : "Certificate"}
-                  </Link>
-                </td>
-                <td className="px-3 py-2 font-mono text-12 text-ink-2 max-sm:hidden">{formatUtc(r.issuedAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex flex-col rounded-sm border border-rule bg-surface">
+        {(
+          [
+            ["judge", "Judging records"],
+            ["participant", "Certificates"],
+          ] as const
+        ).map(([kind, heading]) => {
+          const group = records.filter((r) => r.kind === kind);
+          if (!group.length) return null;
+          const times = [...new Set(group.map((r) => r.issuedAt))].sort();
+          return (
+            <div key={kind} className="border-rule p-4 not-first:border-t sm:p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="label-mono text-ink">
+                  {heading} · {group.length}
+                </h3>
+                <p className="font-mono text-12 text-ink-2">
+                  issued {formatUtc(times[0]!)}
+                  {times.length > 1 ? ` to ${formatUtc(times[times.length - 1]!)}` : ""}
+                </p>
+              </div>
+              <ul className="mt-3 columns-2 gap-6 text-14 sm:columns-3 lg:columns-5">
+                {group.map((r) => (
+                  <li key={r.id} className="break-inside-avoid">
+                    <Link href={`/records/${r.id}`} title={`${kind === "judge" ? "Judging record" : "Certificate"}, issued ${formatUtc(r.issuedAt)}`} className="inline-block leading-6 underline decoration-edge underline-offset-4 hover:decoration-ink">
+                      {r.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </div>
     ) : null}
   </section>
