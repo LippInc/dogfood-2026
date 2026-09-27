@@ -35,7 +35,7 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
     ["Results", event.resultsPublishedAt ? `Published ${formatUtc(event.resultsPublishedAt)}` : "Not yet published"],
   ];
   return (
-    <PublicShell event={event} active="about" signedInAs={actor?.name ?? null} links={actorNav(actor)}>
+    <PublicShell event={event} active="about" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       <div className="pt-10">
         <h1 className="font-display text-[48px] leading-[52px] md:text-64">About</h1>
         {event.description ? (

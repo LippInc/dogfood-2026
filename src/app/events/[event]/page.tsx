@@ -57,7 +57,7 @@ export default async function GalleryPage({ params, searchParams }: PageProps<"/
   const smallFaces = Object.fromEntries(items.map((p) => [p.id, <Face key={p.id} id={p.id} cols={32} rows={18} />]));
 
   return (
-    <PublicShell event={event} active="projects" signedInAs={actor?.name ?? null} links={actorNav(actor)}>
+    <PublicShell event={event} active="projects" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       <div className="flex flex-col gap-3 pb-6 pt-8 md:flex-row md:items-end md:justify-between md:pb-8 md:pt-10">
         <h1 className="font-display text-[48px] leading-[52px] md:text-64">Projects</h1>
         <p className="label-mono tnum text-ink-2 tracking-[0.06em] sm:tracking-[0.12em] md:pb-2">

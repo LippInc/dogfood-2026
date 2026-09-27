@@ -6,10 +6,15 @@ import { events } from "../db/schema";
 
 export type NavLink = { href: string; label: string };
 
-/** Where a signed-in person can go from the top bar, derived from their roles. */
-export function actorNav(actor: Actor | null): NavLink[] {
+/**
+ * Where a signed-in person can go from the top bar, derived from their roles. An
+ * event's own pages pass its id: the bar then lists only the roles in that event,
+ * so someone on teams in two events does not see "My project" twice.
+ */
+export function actorNav(actor: Actor | null, eventId?: string): NavLink[] {
   if (!actor) return [];
-  const eventIds = [...new Set(actor.roles.map((r) => r.eventId))];
+  const roles = eventId ? actor.roles.filter((r) => r.eventId === eventId) : actor.roles;
+  const eventIds = [...new Set(roles.map((r) => r.eventId))];
   if (eventIds.length === 0) return [];
   const slugs = new Map(
     getDb()
@@ -20,7 +25,7 @@ export function actorNav(actor: Actor | null): NavLink[] {
       .map((e) => [e.id, e.slug]),
   );
   const links: NavLink[] = [];
-  for (const r of actor.roles) {
+  for (const r of roles) {
     const slug = slugs.get(r.eventId);
     if (!slug) continue;
     if (r.role === "judge") links.push({ href: `/judge/${slug}`, label: "Judge console" });

@@ -57,7 +57,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
   const canModerate = Boolean(actor?.roles.some((r) => r.eventId === event.id && r.role === "organizer"));
   const path = `/events/${event.slug}/projects/${p.id}`;
   return (
-    <PublicShell event={event} active="projects" signedInAs={actor?.name ?? null} links={actorNav(actor)}>
+    <PublicShell event={event} active="projects" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       <article className="pt-10">
         <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-start md:gap-12">
           <header>

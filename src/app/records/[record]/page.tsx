@@ -43,7 +43,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
   const heading = rec.kind === "judge" ? "Judging record" : awards.length ? "Certificate of achievement" : "Certificate of participation";
 
   return (
-    <PublicShell event={view.event} active="none" signedInAs={actor?.name ?? null} links={actorNav(actor)}>
+    <PublicShell event={view.event} active="none" signedInAs={actor?.name ?? null} links={actorNav(actor, view.event.id)}>
       <div className="mx-auto flex max-w-[960px] flex-col gap-10 py-10 print:max-w-none print:py-0">
         <article
           aria-labelledby="record-name"

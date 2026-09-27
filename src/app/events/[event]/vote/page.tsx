@@ -30,7 +30,7 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
   const here = `/events/${event.slug}/vote`;
 
   return (
-    <PublicShell event={event} active="vote" signedInAs={actor?.name ?? null} links={actorNav(actor)}>
+    <PublicShell event={event} active="vote" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       <div className="pt-10 pb-6">
         <h1 className="font-display text-[48px] leading-[52px] md:text-64">Vote</h1>
         <p className="mt-4 max-w-[760px] text-17 text-ink-2">
