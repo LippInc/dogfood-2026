@@ -58,7 +58,7 @@ export default async function VoteLinkPage({ params }: PageProps<"/vote/[code]">
         <div className="mt-8 flex flex-col gap-4">
           {closed ? (
             <Link href={`/events/${info.event.slug}/results`} className={`${buttonVariants({ variant: "outline", size: "xl" })} self-start`}>
-              See the community vote on the results page
+              See the community vote
             </Link>
           ) : (
             <EnterButton code={code} />
