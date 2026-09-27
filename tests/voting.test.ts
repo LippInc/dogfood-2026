@@ -294,6 +294,39 @@ describe("castBallot over the open link", () => {
   });
 });
 
+describe("one ballot per known person", () => {
+  const ownOf = (userId: string) =>
+    (
+      h.sqlite
+        .prepare("SELECT p.id AS id FROM projects p JOIN team_members m ON m.team_id = p.team_id WHERE m.user_id = ? AND p.event_id = 'evt_01'")
+        .get(userId) as { id: string } | undefined
+    )?.id;
+
+  it("known-bad: someone who voted signed in cannot also vote with their personal link, nor the other way round (409 already_voted, nothing saved)", () => {
+    openVoting();
+    const p = participant();
+    const [a, b] = ["prj_05", "prj_06", "prj_07"].filter((id) => id !== ownOf(p.userId));
+    const { links } = addListedVoters(org(), "evt_01", { emails: p.email });
+    const token = links[0]!.path.slice("/vote/".length);
+
+    castBallot(p, "evt_01", null, { projectIds: [a!] }, CLIENT);
+    const votesBefore = count("SELECT count(*) AS n FROM votes");
+    expectHttpError(() => castBallot(null, "evt_01", token, { projectIds: [b!] }, CLIENT), 409, "already_voted");
+    expectHttpError(() => castBallot(p, "evt_01", token, { projectIds: [b!] }, CLIENT), 409, "already_voted");
+    expect(count("SELECT count(*) AS n FROM votes")).toBe(votesBefore);
+
+    // positive controls: an empty save is harmless; once the account ballot is emptied the link takes the picks,
+    // and then the account is the second ballot
+    expect(castBallot(null, "evt_01", token, { projectIds: [] }, CLIENT).picks).toEqual([]);
+    castBallot(p, "evt_01", null, { projectIds: [] }, CLIENT);
+    expect(castBallot(null, "evt_01", token, { projectIds: [b!] }, CLIENT).picks).toEqual([b]);
+    expectHttpError(() => castBallot(p, "evt_01", null, { projectIds: [a!] }, CLIENT), 409, "already_voted");
+    // someone else's personal link is not affected
+    const other = addListedVoters(org(), "evt_01", { emails: "someone-else@example.org" }).links[0]!.path.slice("/vote/".length);
+    expect(castBallot(null, "evt_01", other, { projectIds: [a!] }, CLIENT).picks).toEqual([a]);
+  });
+});
+
 describe("listed voters", () => {
   beforeEach(() => {
     openVoting();

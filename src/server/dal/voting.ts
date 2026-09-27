@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { appendAudit } from "../audit";
 import type { Actor, Resource, VoterKind } from "../authz";
@@ -129,6 +129,23 @@ function voterPerson(db: DbOrTx, actor: Actor | null, who: ReturnType<typeof res
   return null;
 }
 
+/**
+ * Another ballot with picks that belongs to the same known person in this event: their
+ * account's, or the personal link for their account's address. Its kind, or null.
+ */
+function otherBallot(db: DbOrTx, eventId: string, userId: string, currentVoterId: string | null): VoterKind | null {
+  const email = db.select({ email: users.email }).from(users).where(eq(users.id, userId)).get()?.email;
+  const rows = db
+    .select({ id: voters.id, kind: voters.kind })
+    .from(voters)
+    .where(and(eq(voters.eventId, eventId), or(eq(voters.userId, userId), email ? and(eq(voters.kind, "listed"), eq(voters.email, email)) : undefined)))
+    .all();
+  for (const r of rows) {
+    if (r.id !== currentVoterId && db.select({ p: votes.projectId }).from(votes).where(eq(votes.voterId, r.id)).get()) return r.kind;
+  }
+  return null;
+}
+
 function picksOf(db: DbOrTx, voterId: string): string[] {
   return db
     .select({ p: votes.projectId })
@@ -245,6 +262,12 @@ export function castBallot(actor: Actor | null, eventIdOrSlug: string, token: st
         const own = ownProjectIds(tx, event.id, person);
         if (ids.some((id) => own.has(id))) {
           throw new ValidationError("You cannot vote for your own team's project.", { projectIds: ["your own team's project"] });
+        }
+        // One known person, one ballot: someone on the voter list who also has an account
+        // keeps their picks on the ballot they started (emptying it frees the other).
+        const elsewhere = ids.length ? otherBallot(tx, event.id, person, who?.row?.id ?? null) : null;
+        if (elsewhere) {
+          throw new ConflictError("already_voted", `You already voted ${elsewhere === "account" ? "while signed in" : "with your personal link"}; change your picks there.`);
         }
       }
       const now = new Date().toISOString();
