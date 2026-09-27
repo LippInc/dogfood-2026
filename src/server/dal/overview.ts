@@ -77,7 +77,13 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       open: 0,
       done: closed,
     },
-    { no: "04", name: "Eligibility", state: openAt("04") ? `${openAt("04")} to decide` : "checked", open: openAt("04"), done: closed && !openAt("04") },
+    {
+      no: "04",
+      name: "Eligibility",
+      state: openAt("04") ? `${openAt("04")} to decide` : gallery.counts.projects === 0 ? "nothing yet" : "checked",
+      open: openAt("04"),
+      done: closed && !openAt("04"),
+    },
     {
       no: "05",
       name: "Assignment",
