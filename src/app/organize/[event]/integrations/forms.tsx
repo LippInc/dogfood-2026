@@ -122,7 +122,7 @@ export function ClaimLinksForm({ eventSlug, waiting, elsewhere }: { eventSlug: s
           Make personal links
         </Button>
         <span className="text-14 text-ink-2">
-          {waiting === 1 ? "1 person has" : `${waiting} people have`} no password yet. A new batch replaces the links not used so far.
+          {waiting ? "One link each. A new batch replaces the links not used so far." : "Everyone in this event has a password."}
           {elsewhere
             ? ` ${elsewhere === 1 ? "1 more also belongs" : `${elsewhere} more also belong`} to an event you do not run: only the portal's administrator can send ${elsewhere === 1 ? "that person" : "them"} a password-reset link.`
             : null}

@@ -20,6 +20,16 @@ const small = "inline-flex h-8 items-center rounded-sm border border-edge px-3 t
 /** The retry schedule, in seconds: the same as RETRY_DELAYS_S in src/server/webhooks.ts, which pages cannot import (only the DAL). */
 const RETRY_DELAYS_S = [10, 60, 300, 1800, 7200] as const;
 const MAX_ATTEMPTS = RETRY_DELAYS_S.length + 1;
+/** What each export holds, in the overview's words; a file added to the DAL later shows with no line until it is named here. */
+const EXPORT_HOLDS: Record<string, string> = {
+  "scores.csv": "every raw score",
+  "projects.csv": "the projects",
+  "normalized.csv": "the normalized ranking",
+  "audit.csv": "the audit log",
+  "comparisons.csv": "every pairwise answer",
+  "event.json": "the whole event, with settings and decisions",
+  "fixtures.json": "the fixture format, to import elsewhere",
+};
 
 export default async function IntegrationsPage({ params }: PageProps<"/organize/[event]/integrations">) {
   const { event: key } = await params;
@@ -150,20 +160,29 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
               <code className="font-mono text-13">event.json</code>.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <ul aria-label="Exports" className="grid border-t border-rule md:grid-cols-2 md:gap-x-10">
             {EXPORT_FILES.map((f) => (
-              <a key={f} href={exportHref(event.id, f)} className="inline-flex h-8 items-center rounded-sm border border-edge px-3 font-mono text-12 hover:bg-raised">
-                {f}
-              </a>
+              <li key={f} className="border-b border-rule">
+                <a href={exportHref(event.id, f)} className="group grid grid-cols-[9.5rem_1fr] items-baseline gap-4 py-2.5 hover:bg-raised">
+                  <span className="font-mono text-13 text-ink underline decoration-edge underline-offset-4 group-hover:decoration-ink">{f}</span>
+                  <span className="text-13 text-ink-2">{EXPORT_HOLDS[f] ?? ""}</span>
+                </a>
+              </li>
             ))}
-          </div>
-          <div className="flex flex-col gap-2 rounded-sm border border-rule p-5">
-            <h3 className="text-15 font-semibold">Personal links for imported people</h3>
-            <p className="max-w-[760px] text-14 text-ink-2">
-              People who came in through an import have an account but no password. The portal sends no mail: make each of them a personal link
-              here and send it; it lets that one person set a password, once, within 14 days.
+          </ul>
+          <div className="grid gap-x-6 gap-y-3 rounded-sm border border-rule bg-surface p-5 md:grid-cols-[auto_1fr]">
+            <p className="flex items-baseline gap-2 md:flex-col md:gap-1">
+              <span className={`font-display text-38 tnum ${waiting ? "text-ink" : "text-ok"}`}>{waiting}</span>
+              <span className="text-13 text-ink-2 md:max-w-[9rem]">{waiting === 1 ? "person has" : "people have"} no password yet</span>
             </p>
-            <ClaimLinksForm eventSlug={event.slug} waiting={waiting} elsewhere={elsewhere} />
+            <div className="flex min-w-0 flex-col gap-2">
+              <h3 className="text-15 font-semibold">Personal links for imported people</h3>
+              <p className="max-w-[760px] text-14 text-ink-2">
+                People who came in through an import have an account but no password. The portal sends no mail: make each of them a personal link
+                here and send it; it lets that one person set a password, once, within 14 days.
+              </p>
+              <ClaimLinksForm eventSlug={event.slug} waiting={waiting} elsewhere={elsewhere} />
+            </div>
           </div>
         </section>
 
