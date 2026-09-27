@@ -45,8 +45,8 @@ Herrera, Jonas Vogel) and a participant.
    its reviews and a signed certificate, which `/verify` checks.
 5. Sign in as a judge: the keyboard-first console shows only that judge's own
    scores; asking the API for another judge's is refused with 403.
-6. **Audit log** lists every change and every refused request from a signed-in
-   user, with the hash chain's head; **Integrations** has webhooks, the `fixtures.json` export and a link
+6. **Audit log** lists every change and every request refused to a signed-in
+   user (up to 60 per person in 10 minutes), with the hash chain's head; **Integrations** has webhooks, the `fixtures.json` export and a link
    to your API tokens; `/api-docs` is the API reference.
 7. Pairwise judging, on a fresh start (`docker compose down -v && docker compose
    up`) or any time before you publish: as the organizer, **Settings**, "How
@@ -171,8 +171,10 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   judges and scores, and the same ranking as before any decision (settings and
   the organizer's decisions stay in `event.json`). Imported people get into their accounts through one-time personal
   links the organizer sends.
-- **Audit log.** Every change and every refused request is recorded in the same
-  transaction as the change; the database refuses edits and deletes of the log,
+- **Audit log.** Every change, and every request refused to someone signed in
+  or holding a voting link, is recorded in the same transaction as the change
+  (past 60 refusals in 10 minutes a person gets 429 and no row, so the log
+  cannot be flooded); the database refuses edits and deletes of the log,
   and each row carries the hash of the one before.
 
 ## Running it for a real event

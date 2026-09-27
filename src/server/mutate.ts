@@ -2,7 +2,8 @@ import "server-only";
 import { appendAudit, type AuditEntry } from "./audit";
 import { authorize, type Action, type Actor, type Refusal, type Resource } from "./authz";
 import { getDb, type Tx } from "./db/client";
-import { AuthzError } from "./errors";
+import { AuthzError, RateLimitedError } from "./errors";
+import { LIMITS, take } from "./rate-limit";
 
 // The audited write path. Every mutation in the app goes through mutate(): the
 // permission check, the change and its audit row commit in ONE synchronous
@@ -28,6 +29,9 @@ export type MutationSpec<T> = {
 
 type Who = { userId: string | null; name: string };
 
+/** Whose refusals share one limit: an account by its id, a voter holding a link by the name the row gives it. */
+const refusalKey = (who: Who) => `refusals:${who.userId ?? `voter:${who.name}`}`;
+
 export function refusalAudit(actor: Who, action: Action, resource: Resource, refusal: Refusal): AuditEntry {
   const eventId = "event" in resource ? resource.event.id : null;
   return {
@@ -52,7 +56,7 @@ export function refusalAudit(actor: Who, action: Action, resource: Resource, ref
 
 export function mutate<T>(spec: MutationSpec<T>): T {
   const now = spec.now ?? new Date();
-  const outcome = getDb().transaction((tx): { refused: Refusal } | { result: T } => {
+  const outcome = getDb().transaction((tx): { refused: Refusal } | { throttled: number } | { result: T } => {
     const resource = spec.load(tx);
     const decision = authorize(spec.actor, spec.action, resource, now);
     // A session actor, or (for a ballot) the voter the link proves.
@@ -63,6 +67,9 @@ export function mutate<T>(spec: MutationSpec<T>): T {
         : null;
     if (!decision.ok) {
       if (decision.status === 403 && who) {
+        // One row per 403, up to LIMITS.refusal per person; past that the answer is 429 and no row.
+        const allowed = take(refusalKey(who), LIMITS.refusal, now.getTime());
+        if (!allowed.ok) return { throttled: allowed.retryAfter };
         appendAudit(tx, refusalAudit(who, spec.action, resource, decision), now.toISOString());
       }
       return { refused: decision };
@@ -74,6 +81,7 @@ export function mutate<T>(spec: MutationSpec<T>): T {
     }
     return { result };
   });
+  if ("throttled" in outcome) throw new RateLimitedError(outcome.throttled);
   if ("refused" in outcome) throw new AuthzError(outcome.refused);
   return outcome.result;
 }
@@ -86,6 +94,8 @@ export function guardRead(actor: Actor | null, action: Action, resource: Resourc
   const decision = authorize(actor, action, resource, now);
   if (decision.ok) return actor!;
   if (decision.status === 403 && actor) {
+    const allowed = take(refusalKey({ userId: actor.userId, name: actor.name }), LIMITS.refusal, now.getTime());
+    if (!allowed.ok) throw new RateLimitedError(allowed.retryAfter);
     getDb().transaction((tx) => {
       appendAudit(tx, refusalAudit({ userId: actor.userId, name: actor.name }, action, resource, decision), now.toISOString());
     });

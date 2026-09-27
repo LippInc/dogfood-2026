@@ -84,7 +84,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 ## Audit log
 
-**`audit_log`** — one row per change and per refused request, written in the same synchronous transaction as the change it records. `id` integer autoincrement; `at`; `actor_user_id` (null: the system — boot, import); `actor_label`; `action`; `event_id`; `target_type`; `target_id`; `before`, `after` json snapshots; `prev_hash`; `hash`.
+**`audit_log`** — one row per change and per 403 refusal of a known person (a signed-in account, or a voter holding a link; at most 60 refusals per person in 10 minutes, then 429 and no row), written in the same synchronous transaction as the change it records. A request with no valid session (401) writes no row. `id` integer autoincrement; `at`; `actor_user_id` (null: the system — boot, import); `actor_label`; `action`; `event_id`; `target_type`; `target_id`; `before`, `after` json snapshots; `prev_hash`; `hash`.
 
 Append-only by construction: two triggers reject every UPDATE and DELETE with `RAISE(ABORT)`. They are re-asserted at every boot, and a trigger whose SQL was replaced (a no-op) is dropped and restored.
 

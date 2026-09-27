@@ -25,7 +25,7 @@ The rule: nothing outside `src/server/` touches the database. `tests/dal-boundar
 
 ## The audit log
 
-- `appendAudit()` writes one row per change in the same transaction as the change, and one row per 403 refusal.
+- `appendAudit()` writes one row per change in the same transaction as the change, and one row per 403 refusal; past 60 refusals of one person in 10 minutes, `mutate()` and `guardRead()` answer 429 instead and write nothing (`LIMITS.refusal`).
 - Append-only is enforced by the database: triggers reject UPDATE and DELETE (`src/server/db/triggers.ts`), re-asserted with `CREATE TRIGGER IF NOT EXISTS` at every boot.
 - Each row stores the hash of the row before it; its own hash is `sha256(prevHash + "\n" + canonicalJson(row))` over its fields (`chainHash`, `src/server/audit.ts`). `verifyAuditChain()` recomputes the chain and names the row where it breaks.
 - An organizer reads the log on the audit page (`src/app/organize/[event]/audit/page.tsx`, through `getAuditLog`) and exports it as `audit.csv` with the other exports (`src/server/dal/exports.ts`, `GET /api/events/{event}/export/{file}`).

@@ -32,6 +32,12 @@ export const LIMITS = {
    * enough for a venue where everyone shares one address.
    */
   accountAddress: { capacity: 60, perSeconds: 600 },
+  /**
+   * refused requests per person (a signed-in account, or a voter holding a link): each
+   * 403 writes an audit row, so past this the person is answered 429 and nothing is
+   * written, and one account cannot fill the log. Far above what any honest use meets.
+   */
+  refusal: { capacity: 60, perSeconds: 600 },
 } satisfies Record<string, Limit>;
 
 /** after this long without a take, every bucket is full again */
