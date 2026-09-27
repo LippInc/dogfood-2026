@@ -190,7 +190,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
           <LiveSeal signature={view.envelope.signature} />
           </div>
           <p className="hidden text-12 text-ink-2 print:block">
-            Check this record at {rec.issuer}/records/{rec.id}
+            Check this record at {rec.issuer}/records/<span className="font-mono text-13 text-ink">{rec.id}</span>
           </p>
         </CheckedSheet>
 
