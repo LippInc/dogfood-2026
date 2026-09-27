@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Community vote" };
 
 const KIND: Record<string, string> = { account: "accounts", listed: "voter list", link: "open link" };
+/** How the audit log names a voter who is not a signed-in account, followed by the id's last six characters. */
+const VOTER: Record<string, string> = { account: "Account voter", listed: "Listed voter", link: "Link voter" };
 /** One fill per channel in the turnout bar, told apart without colour: solid ink, solid ink-2, hatched. */
 const CHANNEL: Record<string, string> = {
   account: "bg-ink",
@@ -229,9 +231,13 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                     <ul className="mt-2 flex flex-col gap-2">
                       {g.voters.map((voter) => (
                         <li key={voter.id} className="flex flex-wrap items-center justify-between gap-2 text-14">
-                          <span className={voter.voided ? "text-ink-3 line-through" : ""}>
-                            <span className="font-mono text-12">{voter.id}</span> · {KIND[voter.kind]} · {voter.picks} {voter.picks === 1 ? "pick" : "picks"} · from{" "}
-                            {formatUtc(voter.createdAt)}
+                          {/* named as the audit log names the voter ("Link voter 4kdtgr"), so a row can be found there; the full id on hover */}
+                          <span className={voter.voided ? "text-ink-3 line-through" : ""} title={voter.id}>
+                            <span className="font-medium">{VOTER[voter.kind] ?? "Voter"}</span> <span className="font-mono text-12">{voter.id.slice(-6)}</span>
+                            <span className={voter.voided ? "" : "text-ink-2"}>
+                              {" "}
+                              · {voter.picks} {voter.picks === 1 ? "pick" : "picks"} · from {formatUtc(voter.createdAt)}
+                            </span>
                           </span>
                           {closed ? (
                             voter.voided ? <span className="text-13 text-ink-2">set aside</span> : null
