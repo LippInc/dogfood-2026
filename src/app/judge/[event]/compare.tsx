@@ -161,7 +161,8 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
     );
   }
 
-  const q = track.current;
+  // Once answers are final, an open question is no longer shown as one.
+  const q = readOnly ? null : track.current;
   const placing = q ? (q.left.id === q.newId ? q.left : q.right) : null;
   const against = q ? (q.left.id === q.newId ? q.right : q.left) : null;
   const left = questionsLeft(track);
@@ -223,9 +224,11 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
           <p className="mt-3 text-13 text-ink-2">
             {track.total === 0
               ? "No projects of yours in this track."
-              : q
-                ? `About ${left} more ${left === 1 ? "question" : "questions"} in ${track.trackName}.`
-                : "All placed. You can take back your last answer until judging closes."}
+              : readOnly
+                ? "Your answers are final. This list counts as it stands."
+                : q
+                  ? `About ${left} more ${left === 1 ? "question" : "questions"} in ${track.trackName}.`
+                  : "All placed. You can take back your last answer until judging closes."}
           </p>
         </div>
         <ol ref={listRef} aria-label={`Your list in ${track.trackName}, best first`} className="flex-1 overflow-y-auto max-lg:max-h-56">
@@ -275,9 +278,11 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
             </li>
           ) : null}
         </ol>
-        <div className="border-t border-rule px-5 py-4 text-13 text-ink-2 max-lg:hidden">
-          <KeyHints lettersOn={lettersOn} />
-        </div>
+        {readOnly ? null : (
+          <div className="border-t border-rule px-5 py-4 text-13 text-ink-2 max-lg:hidden">
+            <KeyHints lettersOn={lettersOn} />
+          </div>
+        )}
       </aside>
 
       {/* The question */}
@@ -294,16 +299,18 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
             </p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <StatusLine status={status} />
-              <Button variant="outline" onClick={undo} disabled={!canAnswer || track.answered === 0}>
-                <Undo2 aria-hidden />
-                Undo last answer
-                <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">U</kbd>
-              </Button>
+              {readOnly ? null : (
+                <Button variant="outline" onClick={undo} disabled={!canAnswer || track.answered === 0}>
+                  <Undo2 aria-hidden />
+                  Undo last answer
+                  <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">U</kbd>
+                </Button>
+              )}
             </div>
           </div>
           {readOnly ? (
-            <p className="mt-4 flex items-start gap-2 border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-13 text-flag">
-              <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <p className="mt-4 flex items-start gap-2 border-l-[3px] border-edge bg-sunken px-3 py-2 text-13 text-ink">
+              <Lock className="mt-0.5 size-3.5 shrink-0 text-ink-2" aria-hidden />
               {readOnly}
             </p>
           ) : null}
@@ -356,12 +363,18 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
           ) : (
             <div className="mt-6 max-w-[680px]">
               <h1 id="question" className="font-serif text-38 font-semibold">
-                {track.total === 0 ? "Nothing to compare in this track" : `All ${track.total} placed`}
+                {track.total === 0
+                  ? "Nothing to compare in this track"
+                  : track.placed === track.total
+                    ? `All ${track.total} placed`
+                    : `${track.placed} of ${track.total} placed`}
               </h1>
               <p className="mt-3 text-15 text-ink-2">
                 {track.total === 0
                   ? "You have no projects in this track."
-                  : `Your list for ${track.trackName}, best first. It counts as it stands when the organizers publish results.`}
+                  : readOnly
+                    ? `Your list for ${track.trackName}, best first, as it stood when answers closed. Nothing here can change now.`
+                    : `Your list for ${track.trackName}, best first. It counts as it stands when the organizers publish results.`}
               </p>
               <ol className="mt-6 border-t border-rule lg:hidden">
                 {track.list.map((p, n) => (
@@ -371,7 +384,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                   </li>
                 ))}
               </ol>
-              {nextTrack ? (
+              {nextTrack && !readOnly ? (
                 <Button className="mt-6" size="lg" onClick={() => pickTrack(nextTrack.trackId)}>
                   Continue with {nextTrack.trackName}
                   <ArrowRight aria-hidden />
