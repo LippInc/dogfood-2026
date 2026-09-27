@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Lock, LockOpen } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Lock, LockOpen } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useFormAction } from "@/components/use-form-action";
@@ -465,11 +465,14 @@ export function PublishPanel({
   open,
   total,
   publishedAt,
+  submissionsCloseAt,
 }: {
   eventSlug: string;
   open: number;
   total: number;
   publishedAt: string | null;
+  /** set while submissions are still open: publishing waits for the close */
+  submissionsCloseAt: string | null;
 }) {
   const [state, form, pending] = useFormAction(publishAction, idle);
   const decided = total - open;
@@ -504,16 +507,18 @@ export function PublishPanel({
             id="publish-title"
             className="flex items-center gap-2 text-24 font-semibold"
           >
-            {open ? (
+            {submissionsCloseAt ? (
+              <Clock className="size-5" aria-hidden />
+            ) : open ? (
               <Lock className="size-5" aria-hidden />
             ) : (
               <LockOpen className="size-5" aria-hidden />
             )}
-            {open ? "Locked" : "Ready"}
+            {submissionsCloseAt ? "After the close" : open ? "Locked" : "Ready"}
           </h2>
           <form {...form} className="flex flex-col gap-3">
             <input type="hidden" name="event" value={eventSlug} />
-            {open ? null : (
+            {open || submissionsCloseAt ? null : (
               <label className="flex items-start gap-2 text-14">
                 <input
                   type="checkbox"
@@ -524,13 +529,15 @@ export function PublishPanel({
                 I have read the ranking and want it public now.
               </label>
             )}
-            <Button size="xl" disabled={open > 0 || pending} className="w-full">
+            <Button size="xl" disabled={open > 0 || Boolean(submissionsCloseAt) || pending} className="w-full">
               {pending ? "Publishing…" : "Publish results"}
             </Button>
             <p className="text-center text-13 text-ink-2">
-              {open
-                ? `Make the ${open === 1 ? "last decision" : `${open} decisions`} first`
-                : "Every decision is made."}
+              {submissionsCloseAt
+                ? `Submissions are open until ${formatUtc(submissionsCloseAt)}; results can be published once they close.`
+                : open
+                  ? `Make the ${open === 1 ? "last decision" : `${open} decisions`} first`
+                  : "Every decision is made."}
             </p>
             <Result state={state} />
           </form>

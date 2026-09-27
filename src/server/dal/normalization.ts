@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignments, events, judgeOverrides, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, userRoles, users } from "../db/schema";
+import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError } from "../errors";
 import type { FlatFlag } from "../judging/flat";
 import { averageRanks, normalize, permutationShare, type Obs, type SignalCheck } from "../judging/normalize";
@@ -773,6 +774,14 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
 export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
   return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     notPublished(event);
+    // A project sent after publishing would be missing from the published results, and
+    // the dates are final from then on, so the window could no longer be closed early.
+    if (Date.now() < Date.parse(event.submissionsCloseAt)) {
+      throw new ConflictError(
+        "submissions_open",
+        `Submissions are open until ${formatUtc(event.submissionsCloseAt)}. Results can be published once they close.`,
+      );
+    }
     const n = computeNormalization(tx, event, { signal: true });
     const open = decisions(tx, event, n).filter((d) => !d.resolved);
     if (open.length) {

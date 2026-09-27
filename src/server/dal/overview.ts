@@ -21,6 +21,8 @@ export type Overview = {
   event: EventRow;
   decisions: Decision[];
   open: number;
+  /** the submission close while it is still ahead (publishing waits for it), else null */
+  submissionsOpenUntil: string | null;
   pipeline: Stage[];
   judges: {
     total: number;
@@ -93,14 +95,20 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
     {
       no: "07",
       name: "Normalization",
-      state: openAt("07") ? `${openAt("07")} to decide` : n.variance.k === null ? "no leniency found" : `k = ${n.variance.k.toFixed(1)}`,
+      state: openAt("07")
+        ? `${openAt("07")} to decide`
+        : n.ranked === 0
+          ? "waiting"
+          : n.variance.k === null
+            ? "no leniency found"
+            : `k = ${n.variance.k.toFixed(1)}`,
       open: openAt("07"),
       done: n.ranked > 0 && !openAt("07"),
     },
     {
       no: "08",
       name: "Results",
-      state: event.resultsPublishedAt ? "published" : open.length ? "locked" : "ready",
+      state: event.resultsPublishedAt ? "published" : !closed ? "after the close" : open.length ? "locked" : "ready",
       open: 0,
       done: Boolean(event.resultsPublishedAt),
     },
@@ -123,6 +131,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
     event,
     decisions: list,
     open: open.length,
+    submissionsOpenUntil: closed ? null : event.submissionsCloseAt,
     pipeline,
     judges: {
       total: judges.length,
@@ -168,6 +177,8 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       "voter.restore",
       "comment.hide",
       "fixtures.import",
+      "event.create",
+      "event.rubric",
     ]),
   };
 }

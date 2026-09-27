@@ -162,6 +162,7 @@ export default async function OverviewPage({
             open={o.open}
             total={o.decisions.length}
             publishedAt={event.resultsPublishedAt}
+            submissionsCloseAt={o.submissionsOpenUntil}
           />
         </div>
 

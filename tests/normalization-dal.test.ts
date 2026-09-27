@@ -58,6 +58,7 @@ function expectHttpError(call: () => unknown, status: number, code: string) {
   const error = caught as HttpError;
   expect(error.status).toBe(status);
   expect(error.code).toBe(code);
+  return error;
 }
 
 const count = (sql: string) => (h.sqlite.prepare(sql).get() as { n: number }).n;
@@ -475,6 +476,26 @@ describe("acceptUnderReviewed and publishResults", () => {
       409,
       "results_published",
     );
+  });
+
+  it("known-bad: publishing while submissions are open is 409 submissions_open, after the 403 for a participant; after the close it goes through", () => {
+    setJudgeOverride(organizer(), "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    const closeAt = (h.sqlite.prepare("SELECT submissions_close_at AS c FROM events WHERE id = 'evt_01'").get() as { c: string }).c;
+    const setClose = (iso: string) => h.sqlite.prepare("UPDATE events SET submissions_close_at = ? WHERE id = 'evt_01'").run(iso);
+    setClose(new Date(Date.now() + 86_400_000).toISOString());
+
+    const participant = addUser("usr_early", "early@example.org", "Early");
+    expectHttpError(() => publishResults(participant, "evt_01"), 403, "not_an_organizer");
+    const err = expectHttpError(() => publishResults(organizer(), "evt_01"), 409, "submissions_open");
+    expect(err.message).toMatch(/^Submissions are open until .+\. Results can be published once they close\.$/);
+    expect(eventRow().resultsPublishedAt).toBeNull();
+    expect(count("SELECT count(*) AS n FROM normalization_runs")).toBe(0);
+    expect(auditOf("results.publish")).toHaveLength(0);
+
+    setClose(closeAt); // positive control: the same event, closed again, publishes
+    expect(publishResults(organizer(), "evt_01").runId).toMatch(/^nrm_/);
   });
 
   it("known-bad: a participant cannot publish — 403, nothing published", () => {
