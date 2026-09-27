@@ -112,7 +112,7 @@ function sentence(r: Row, n: Names): Part[] {
     case "checker_sessions.issued":
       return [actor, t(" issued the four checker sessions")];
     case "checker_sessions.removed":
-      return [actor, t(" ended demo mode's access: the checker sessions, the demo sign-ins, and the API tokens, webhooks, account links and judge invites made as a demo identity")];
+      return [actor, t(" ended demo mode's access: the checker sessions, the demo sign-ins, and the API tokens, webhooks, account links, password reset links and judge invites made as a demo identity")];
     case "user.sign_up":
       return [actor, t(" created an account")];
     case "session.sign_in":
@@ -303,6 +303,12 @@ function sentence(r: Row, n: Names): Part[] {
     }
     case "user.claim":
       return [actor, t(" set a password with their link")];
+    case "user.reset_link":
+      return [actor, t(" made a one-time link for "), person(target), t(" to set a new password")];
+    case "user.password_reset": {
+      const ended = Number(after.sessionsEnded ?? 0);
+      return [actor, t(` set a new password with a one-time link, which signed out ${ended} ${ended === 1 ? "session" : "sessions"}`)];
+    }
     case "ratelimit.refused":
       return [actor, t(` was asked to slow down (too many ${LIMIT_WORDS[target] ?? target}; wait ${after.retryAfter} s)`)];
     default:

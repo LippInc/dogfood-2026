@@ -22,6 +22,7 @@ function demoGrantsLine(r: DemoGrants): string {
     r.apiTokens ? `${r.apiTokens} API ${r.apiTokens === 1 ? "token" : "tokens"} revoked` : "",
     r.webhooks ? `${r.webhooks} ${r.webhooks === 1 ? "webhook" : "webhooks"} turned off` : "",
     r.claimLinks ? `${r.claimLinks} unused account ${r.claimLinks === 1 ? "link" : "links"} deleted` : "",
+    r.resetLinks ? `${r.resetLinks} unused password reset ${r.resetLinks === 1 ? "link" : "links"} deleted` : "",
     r.judgeInvites ? `${r.judgeInvites} judge ${r.judgeInvites === 1 ? "invite" : "invites"} revoked` : "",
   ].filter(Boolean);
   return parts.length ? `; made as a demo identity: ${parts.join(", ")}` : "";

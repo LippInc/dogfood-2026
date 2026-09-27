@@ -698,6 +698,29 @@ export const accountClaims = sqliteTable(
   ],
 );
 
+// Someone who lost their password asks an administrator, who makes a one-time link for
+// that account (the token is shown once; only its SHA-256 is stored). It works once,
+// within a day; a new one replaces an unused one.
+export const passwordResets = sqliteTable(
+  "password_resets",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: text("created_at").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+  },
+  (t) => [
+    index("password_resets_user_idx").on(t.userId),
+    check("password_resets_expiry", sql`julianday(${t.expiresAt}) > julianday(${t.createdAt})`),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Webhooks
 // ---------------------------------------------------------------------------

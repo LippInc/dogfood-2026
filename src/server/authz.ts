@@ -34,6 +34,7 @@ export type VoterKind = "account" | "listed" | "link";
 export type Action =
   | "event.create"
   | "portal.audit"
+  | "portal.accounts"
   | "event.manage"
   | "event.export"
   | "team.create"
@@ -160,6 +161,9 @@ export function authorize(
 
     case "portal.audit":
       return actor.isAdmin ? allow : refuse("not_an_admin", "Only an administrator of this portal can read the portal's own log.");
+
+    case "portal.accounts":
+      return actor.isAdmin ? allow : refuse("not_an_admin", "Only an administrator of this portal can make a password reset link.");
 
     case "event.manage":
     case "event.export": {

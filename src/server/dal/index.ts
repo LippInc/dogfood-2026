@@ -139,6 +139,7 @@ export {
   type WebhookView,
 } from "./webhooks";
 export { claimAccount, countWithoutPassword, describeClaim, makeClaimLinks, type ClaimLink } from "./claims";
+export { describePasswordReset, guardAccounts, makePasswordReset, resetPassword, type ResetLink } from "./password-resets";
 export { importEventFile, type EventImport } from "./imports";
 export { createApiToken, listApiTokens, revokeApiToken, type TokenView } from "./tokens";
 export {

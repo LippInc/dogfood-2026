@@ -28,6 +28,9 @@ export default async function OrganizeHome() {
               <Link href="/organize/log" className="text-14 font-medium underline underline-offset-4">
                 Portal log
               </Link>
+              <Link href="/organize/accounts" className="text-14 font-medium underline underline-offset-4">
+                Accounts
+              </Link>
               <Link href="/organize/new" className="inline-flex h-8 items-center rounded-sm border border-primary bg-primary px-3 text-14 font-medium text-on-primary">
                 New event
               </Link>

@@ -16,6 +16,7 @@ export { CaptainInput, TeamName } from "./teams";
 export { BallotInput, RestoreInput, SettingsInput, VoidInput, VoterList } from "./voting";
 export { WebhookInput } from "./webhooks";
 export { ClaimInput } from "./claims";
+export { ResetInput, ResetLinkInput } from "./password-resets";
 export { TokenInput } from "./tokens";
 export { OrganizerInput } from "./organizers";
 export { FixtureSchema } from "../db/import-fixtures";

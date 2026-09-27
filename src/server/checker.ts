@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
-import { accountClaims, apiTokens, assignments, events, judgeInvites, judgeTracks, sessions, teamMembers, teams, userRoles, users, webhooks } from "./db/schema";
+import { accountClaims, apiTokens, assignments, events, judgeInvites, judgeTracks, passwordResets, sessions, teamMembers, teams, userRoles, users, webhooks } from "./db/schema";
 import { appendAudit } from "./audit";
 import { sha256 } from "./util";
 
@@ -135,7 +135,7 @@ export type CheckerSeedResult =
   | { enabled: false; removed: number; signedOut: number; demoted: boolean; revoked: DemoGrants };
 
 /** What the demo identities handed out that outlives a session, ended when demo mode goes off. */
-export type DemoGrants = { apiTokens: number; webhooks: number; claimLinks: number; judgeInvites: number };
+export type DemoGrants = { apiTokens: number; webhooks: number; claimLinks: number; resetLinks: number; judgeInvites: number };
 
 /** Upsert (or, when disabled, remove) the four checker sessions. Synchronous. */
 export function seedCheckerSessions(db: Db, eventId: string, now: string): CheckerSeedResult {
@@ -152,11 +152,12 @@ export function seedCheckerSessions(db: Db, eventId: string, now: string): Check
       const demoted = tx.update(users).set({ isAdmin: false }).where(and(eq(users.id, DEMO_ORGANIZER.id), eq(users.isAdmin, true))).run().changes > 0;
       // Anyone could act as these identities while demo mode was on, so what they handed out
       // that outlives a session ends too: API tokens are revoked, webhooks turned off, unused
-      // account links deleted and open judge invites revoked.
+      // account and password reset links deleted and open judge invites revoked.
       const revoked: DemoGrants = {
         apiTokens: tx.update(apiTokens).set({ revokedAt: now }).where(and(inArray(apiTokens.userId, demoUsers), isNull(apiTokens.revokedAt))).run().changes,
         webhooks: tx.update(webhooks).set({ disabledAt: now }).where(and(inArray(webhooks.createdBy, demoUsers), isNull(webhooks.disabledAt))).run().changes,
         claimLinks: tx.delete(accountClaims).where(and(inArray(accountClaims.createdBy, demoUsers), isNull(accountClaims.usedAt))).run().changes,
+        resetLinks: tx.delete(passwordResets).where(and(inArray(passwordResets.createdBy, demoUsers), isNull(passwordResets.usedAt))).run().changes,
         judgeInvites: tx
           .update(judgeInvites)
           .set({ revokedAt: now })

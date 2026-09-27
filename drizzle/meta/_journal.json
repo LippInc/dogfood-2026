@@ -71,6 +71,13 @@
       "when": 1790505935323,
       "tag": "0009_rate_buckets",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790520482877,
+      "tag": "0010_password_resets",
+      "breakpoints": true
     }
   ]
 }

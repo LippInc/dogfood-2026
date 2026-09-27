@@ -84,6 +84,9 @@ export const OPERATIONS: Operation[] = [
   { method: "POST", path: "/api/events/{event}/claims", tag: "Accounts", summary: "Personal links for everyone in the event without a password, returned once", access: "organizer", ok: 201 },
   { method: "GET", path: "/api/claims/{token}", tag: "Accounts", summary: "Whose personal link this is (410 once used or expired)", access: "anyone", also: [410] },
   { method: "POST", path: "/api/claims/{token}", tag: "Accounts", summary: "Set your password with your personal link and sign in", access: "anyone", body: In.ClaimInput, also: [410] },
+  { method: "POST", path: "/api/password-resets", tag: "Accounts", summary: "A one-time link for an account to set a new password, returned once (it works once, within a day)", access: "administrator", body: In.ResetLinkInput, ok: 201, also: [404, 409], note: "The four demo identities have no password to reset: 409 demo_account." },
+  { method: "GET", path: "/api/password-resets/{token}", tag: "Accounts", summary: "Whose reset link this is (410 once used or expired)", access: "anyone", also: [410] },
+  { method: "POST", path: "/api/password-resets/{token}", tag: "Accounts", summary: "Set a new password with a reset link and sign in; every other signed-in session of the account ends", access: "anyone", body: In.ResetInput, also: [410] },
 
   // Teams and projects
   { method: "POST", path: "/api/events/{event}/teams", tag: "Teams and projects", summary: "Start a team (you become its captain)", access: "signed in", body: In.TeamName, ok: 201 },

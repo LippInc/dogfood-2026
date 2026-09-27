@@ -205,7 +205,10 @@ Open it and sign up with the address in `ADMIN_EMAILS`: that account is an
 administrator, and on **Your events** it creates your event (dates, tracks,
 prizes, rubric) or imports one from a `fixtures.json`-format file. Judges and
 teams join through the links the portal gives you; co-organizers sign up and you
-add them by their email on the event's **Settings** tab. Accounts are not
+add them by their email on the event's **Settings** tab. Someone who forgets
+their password asks you: on **Accounts** (next to Portal log) you make a
+one-time link for their address, which works once, within a day, and signs
+that account out everywhere when the new password is set. Accounts are not
 email-verified, so the address alone proves nothing: without the setup link a
 sign-up with a named address is refused, and an account that already exists is
 never promoted, so name an address that has no account yet.
@@ -219,8 +222,8 @@ that is not a local address, it refuses demo mode and says so at start. With
 the flag off, each start also signs out every session the demo sign-in buttons
 made, takes the demo organizer's administrator rights, and ends what anyone
 acting as a demo identity handed out: their API tokens are revoked, their
-webhooks turned off, their unused account links deleted and their open judge
-invites revoked. So turning demo mode off works on a volume that ran with it
+webhooks turned off, their unused account and password reset links deleted and
+their open judge invites revoked. So turning demo mode off works on a volume that ran with it
 on. The
 same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 "Privacy"), so a real event sets its own in any case.
@@ -272,11 +275,12 @@ start, and the fixture import never overwrites what the organizers changed.
   same machine), but a host name whose DNS answer changes between the check and
   the request is not caught. Webhook secrets are kept in the database as they
   are, because the portal signs with them.
-- No email: invitations, voter links, personal links for imported people and
-  reminders are links the organizer copies and sends. Accounts are not
-  email-verified, and a forgotten password cannot be reset from the interface
-  (a reset link made by an organizer would let one event's organizer take over
-  accounts that matter in another).
+- No email: invitations, voter links, personal links for imported people,
+  password reset links and reminders are links the organizer or administrator
+  copies and sends. Accounts are not email-verified. A forgotten password is
+  reset only by a portal administrator's one-time link, never by an event's
+  organizer (whose link would let one event's organizer take over accounts that
+  matter in another).
 - The per-address limits (open-link entries; sign-ups and sign-ins) and the
   duplicate-ballot flags key on the client's network address, so people behind
   one address (an office, a venue's wifi) share a limit.
