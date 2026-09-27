@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Minus, X } from "lucide-react";
+import { Check, FileText, Minus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DitherDigits } from "@/components/dither-digits";
@@ -142,6 +142,7 @@ export function VerifyForm() {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [file, setFile] = useState<{ name: string; size: number } | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
   // The answer lands below the box: bring it into view once it is there.
@@ -151,9 +152,17 @@ export function VerifyForm() {
     resultRef.current?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
   }, [outcome]);
 
-  async function check() {
+  // Opening or dropping a file is already the request: read it and check it at once.
+  async function openFile(f: File) {
+    const body = await f.text();
+    setText(body);
+    setFile({ name: f.name, size: f.size });
+    await check(body);
+  }
+
+  async function check(source = text) {
     setOutcome(null);
-    const envelope = envelopeOf(text);
+    const envelope = envelopeOf(source);
     if (!envelope) {
       setProblem("That is not a signed record: expected JSON with a \"record\" and a \"signature\".");
       return;
@@ -211,11 +220,8 @@ export function VerifyForm() {
           onDrop={async (e) => {
             e.preventDefault();
             setDragging(false);
-            const file = e.dataTransfer.files?.[0];
-            if (file) {
-              setOutcome(null);
-              setText(await file.text());
-            }
+            const dropped = e.dataTransfer.files?.[0];
+            if (dropped) await openFile(dropped);
           }}
           className={`relative rounded-sm ${dragging ? "outline-2 outline-offset-2 outline-accent outline-dashed" : ""}`}
         >
@@ -224,6 +230,7 @@ export function VerifyForm() {
             value={text}
             onChange={(e) => {
               setText(e.target.value);
+              setFile(null);
               setOutcome(null);
             }}
             rows={10}
@@ -234,10 +241,18 @@ export function VerifyForm() {
           />
         </div>
         <p id="record-help" className="text-13 text-ink-3">
-          Paste it, open the file, or drop the file on the box.
+          {file ? (
+            <>
+              <FileText className="mr-1.5 inline size-4 align-[-3px]" aria-hidden />
+              Opened <span className="font-mono text-12 text-ink-2">{file.name}</span> · {file.size < 1024 ? `${file.size} bytes` : `${(file.size / 1024).toFixed(1)} KB`}, checked
+              as soon as it opened.
+            </>
+          ) : (
+            "Paste it, open the file, or drop the file on the box."
+          )}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" size="lg" onClick={check} disabled={busy || !text.trim()}>
+          <Button type="button" size="lg" onClick={() => check()} disabled={busy || !text.trim()}>
             {busy ? "Checking…" : "Check the signature"}
           </Button>
           <label className="inline-flex h-10 cursor-pointer items-center rounded-sm border border-edge px-4 text-14 font-medium focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus hover:bg-raised">
@@ -247,11 +262,9 @@ export function VerifyForm() {
               accept="application/json,.json"
               className="sr-only"
               onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  setOutcome(null);
-                  setText(await file.text());
-                }
+                const picked = e.target.files?.[0];
+                e.target.value = "";
+                if (picked) await openFile(picked);
               }}
             />
           </label>
@@ -439,7 +452,9 @@ export function VerifyForm() {
             <span className="min-w-0 flex-1 text-14">
               <span className="font-medium">The portal checks it too.</span>{" "}
               <span className="text-ink-2">The same bytes, the same key, on the server.</span>
-              {outcome && !outcome.portal.valid ? <span className="mt-1 block text-13 text-ink-2">It says: {outcome.portal.reason}.</span> : null}
+              {outcome && !outcome.portal.valid ? <span className="mt-1 block text-13 text-ink-2">
+                  It says: <span className="font-mono text-12">{outcome.portal.reason}</span>
+                </span> : null}
             </span>
             <StepMark mark={portalMark} />
           </li>
