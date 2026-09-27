@@ -3,11 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DitherDigits } from "@/components/dither-digits";
 import { Face } from "@/components/face";
-import { SignatureBits } from "@/components/signature-bits";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
 import { actorNav, currentActor, getRecord, NotFoundError, type RecordView } from "@/server/dal";
-import { BrowserCheck, CheckedSheet, ForgeTry, LiveSeal, RecordActions, RecordCheck } from "./check";
+import { BrowserCheck, CheckedSheet, ForgeTry, LiveBits, LiveSeal, RecordActions, RecordCheck } from "./check";
 
 export const dynamic = "force-dynamic";
 
@@ -239,8 +238,8 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
             <Step n={2} title="The signature" why="Ed25519 over those bytes, in base64url: 64 bytes. The seal on the record draws them, one square per bit.">
               <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_128px] sm:items-start">
                 <pre className={bytesBox}>{view.envelope.signature}</pre>
-                <div className="max-sm:hidden overflow-hidden rounded-xs border border-rule">
-                  <SignatureBits signature={view.envelope.signature} />
+                <div className="max-sm:hidden">
+                  <LiveBits signature={view.envelope.signature} />
                 </div>
               </div>
             </Step>

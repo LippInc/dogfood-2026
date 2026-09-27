@@ -146,6 +146,18 @@ export function LiveSeal({ signature }: { signature: string }) {
   );
 }
 
+/** The same bits as the seal, drawn beside the signature's base64 in step 2; lit once this browser has checked them, like the seal. */
+export function LiveBits({ signature }: { signature: string }) {
+  const state = useContext(CheckState);
+  return (
+    <div
+      className={`overflow-hidden rounded-xs border transition-colors duration-500 motion-reduce:transition-none ${state.at === "valid" ? "border-accent" : "border-rule"}`}
+    >
+      <SignatureBits signature={signature} lit={state.at === "valid"} />
+    </div>
+  );
+}
+
 export function BrowserCheck({ serverSays }: { serverSays: boolean }) {
   const state = useContext(CheckState);
   const tone =
