@@ -151,6 +151,38 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
               </h2>
               <p className="mt-1 mb-4 text-14 text-ink-2">The link makes whoever opens it, signed in, a judge for the tracks you tick.</p>
               <InviteForm eventSlug={event.slug} tracks={tracks} />
+              {invites.length ? (
+                <div className="mt-5 border-t border-rule pt-4">
+                  <h3 id="invites-title" className="text-14 font-semibold">
+                    Invitations <span className="font-normal text-ink-2">· {openInvites.length} open</span>
+                  </h3>
+                  <ul className="mt-2 flex flex-col divide-y divide-rule">
+                    {invites.map((i) => (
+                      <li key={i.id} className="flex items-start justify-between gap-3 py-2.5 text-13">
+                        <span className="min-w-0 wrap-anywhere">
+                          <span className={`block text-14 font-medium ${i.state === "revoked" ? "text-ink-3 line-through" : ""}`}>{i.name || i.email || "Open link"}</span>
+                          <span className="block text-ink-2">
+                            {i.name && i.email ? `${i.email} · ` : ""}
+                            {i.tracks.join(", ")}
+                          </span>
+                          <span className="block text-ink-3">
+                            {i.state === "open" ? `made ${formatUtc(i.createdAt)}` : i.state === "used" ? `accepted by ${i.acceptedBy ?? "a judge"}` : "revoked"}
+                          </span>
+                        </span>
+                        {i.state === "open" ? (
+                          <form action={revokeInviteAction} className="shrink-0">
+                            <input type="hidden" name="event" value={event.slug} />
+                            <input type="hidden" name="invite" value={i.id} />
+                            <Button size="sm" variant="ghost">
+                              Revoke
+                            </Button>
+                          </form>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </section>
             <section aria-labelledby="assign-title" className="rounded-sm border border-rule bg-surface p-5">
               <h2 id="assign-title" className="text-17 font-semibold">
@@ -223,37 +255,6 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
           </section>
         ) : null}
 
-        {invites.length ? (
-          <section aria-labelledby="invites-title">
-            <h2 id="invites-title" className="text-17 font-semibold">
-              Invitations <span className="text-14 font-normal text-ink-2">· {openInvites.length} open</span>
-            </h2>
-            <ul className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
-              {invites.map((i) => (
-                <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-14">
-                  <span className="min-w-0 wrap-anywhere">
-                    <span className="font-medium">{i.name || i.email || "Open link"}</span>
-                    <span className="text-ink-2">
-                      {" "}
-                      · {i.tracks.join(", ")} · made {formatUtc(i.createdAt)}
-                    </span>
-                  </span>
-                  {i.state === "open" ? (
-                    <form action={revokeInviteAction}>
-                      <input type="hidden" name="event" value={event.slug} />
-                      <input type="hidden" name="invite" value={i.id} />
-                      <Button size="sm" variant="ghost">
-                        Revoke
-                      </Button>
-                    </form>
-                  ) : (
-                    <span className="text-13 text-ink-2">{i.state === "used" ? `Accepted by ${i.acceptedBy ?? "a judge"}` : "Revoked"}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
       </div>
     </WorkShell>
   );
