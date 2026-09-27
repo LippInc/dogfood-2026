@@ -160,3 +160,4 @@ export {
   type PairwiseTrackState,
   type ReceiptLine,
 } from "./pairwise";
+export type { Yardstick } from "../judging/yardstick";

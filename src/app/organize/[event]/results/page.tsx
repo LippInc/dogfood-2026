@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { YardstickLine } from "@/components/yardstick-line";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { LeniencyStrip } from "@/components/figures/leniency-strip";
@@ -167,6 +168,11 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                   <circle cx={10 + n.signal.share * 300} cy={14} r={5} className="fill-ink" />
                   <text x={10 + 0.05 * 300 + 4} y={28} className="fill-ink-3 text-[9px]">0.05</text>
                 </svg>
+              </div>
+            ) : null}
+            {n.yardstick ? (
+              <div className="mt-6 border-t border-rule pt-4">
+                <YardstickLine y={n.yardstick} figure />
               </div>
             ) : null}
             {copies.length >= 2 && dup?.kind === "duplicate" ? null : (

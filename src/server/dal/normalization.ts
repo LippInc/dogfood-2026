@@ -9,6 +9,7 @@ import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import type { FlatFlag } from "../judging/flat";
 import { averageRanks, normalize, permutationShare, type Obs, type SignalCheck } from "../judging/normalize";
+import { judgeSpread, type Yardstick } from "../judging/yardstick";
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -98,6 +99,8 @@ export type Normalized = {
   excluded: string[];
   /** the permutation signal check, when asked for (it costs 2,000 shuffles) */
   signal: SignalCheck | null;
+  /** the organizers' yardstick, the spread of the counted judges' averages, raw and after, with the fair-judge baseline; null until noise is measured */
+  yardstick: Yardstick | null;
 };
 
 /** One observation per judge and project; a judge who scored both copies of a merged duplicate counts once. */
@@ -322,6 +325,7 @@ export function computeNormalization(
     biggestMove: biggest,
     excluded: [...excluded].sort(),
     signal: opts.signal && keptObs.length > 1 ? permutationShare(keptObs) : null,
+    yardstick: fit.measured ? judgeSpread(keptObs, fit.leniency, fit.sigma2) : null,
   };
 }
 
@@ -810,6 +814,7 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
         ranked: n.ranked,
         moved: n.moved,
         signal: n.signal,
+        yardstick: n.yardstick,
       },
       computedAt: at,
       computedBy: actor.userId,
@@ -914,6 +919,8 @@ export type PublishedResults =
       /** how the stored run was made: the score engine's method, or PAIRWISE_METHOD */
       method: string;
       k: number | null;
+      /** the organizers' yardstick as the published run measured it; null for pairwise runs and runs stored before it existed */
+      yardstick: Yardstick | null;
       tracks: {
         id: string;
         name: string;
@@ -981,6 +988,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     anchor,
     method: run.method,
     k: (run.params as { k?: number | null }).k ?? null,
+    yardstick: (run.params as { yardstick?: Yardstick | null }).yardstick ?? null,
     tracks: [...byTrack.values()].map((t) => {
       const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
       return {

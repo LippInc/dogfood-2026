@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { YardstickLine } from "@/components/yardstick-line";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
@@ -54,6 +55,11 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                 : ""}
             </p>
           )}
+          {results.yardstick ? (
+            <div className="mt-4 max-w-[760px] text-ink-2">
+              <YardstickLine y={results.yardstick} />
+            </div>
+          ) : null}
           {results.anchor ? (
             <p className="mt-3 max-w-[760px] text-13 text-ink-2">
               Published as entry #{results.anchor.entry} of the portal&rsquo;s audit log (hash{" "}
