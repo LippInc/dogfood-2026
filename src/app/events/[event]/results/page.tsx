@@ -63,32 +63,44 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
           <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-end lg:gap-16">
             <div>
               <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
+              {/* Plain words on top; the method, word for word, one click away (his call, 2026-09-27 21:09 NL). */}
               {pairwise ? (
                 <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-                  Published {formatUtc(results.publishedAt)}. Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores
-                  given before the event switched to that way of judging count as the order they imply), and each project&rsquo;s win % is its chance to
-                  beat an average project of its track, with the pull of the side a project was shown on and of the project a judge had just opened
-                  measured and taken out. Places compare within a track. The ± is one standard error: win % closer than about two of them are not told
-                  apart, so read small gaps as ties.
+                  Published {formatUtc(results.publishedAt)}. Places compare within a track. Judges compared their own projects two at a time; each
+                  project&rsquo;s win % is its chance to beat an average project of its track. Read gaps smaller than the ± as ties.
                   {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
                     ? " A project marked under-compared was compared by fewer than two judges; the organizers chose to publish it as it is."
                     : ""}
                 </p>
               ) : (
                 <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-                  Published {formatUtc(results.publishedAt)}. Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient
-                  each judge proved to be across the event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. Places compare within a track. The ±
-                  under each score is one standard error: scores closer than about two of them are not told apart, so read small gaps as ties.
+                  Published {formatUtc(results.publishedAt)}. Places compare within a track. Each score is the judges&rsquo; weighted rubric average, evened
+                  out for judges who score higher or lower than the rest; read gaps smaller than the ± as ties.
                   {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
                     ? " A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is."
                     : ""}
                 </p>
               )}
-              {results.yardstick ? (
-                <div className="mt-4 max-w-[760px] text-ink-2">
-                  <YardstickLine y={results.yardstick} />
+              <details className="mt-4 max-w-[760px] text-ink-2">
+                <summary className="label-mono cursor-pointer text-ink">How these {pairwise ? "win %" : "scores"} were made</summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  {pairwise ? (
+                    <p>
+                      Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores given before the event switched to that
+                      way of judging count as the order they imply), and each project&rsquo;s win % is its chance to beat an average project of its track,
+                      with the pull of the side a project was shown on and of the project a judge had just opened measured and taken out. The ± is one
+                      standard error: win % closer than about two of them are not told apart.
+                    </p>
+                  ) : (
+                    <p>
+                      Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge proved to be across the
+                      event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. The ± under each score is one standard error: scores closer than
+                      about two of them are not told apart.
+                    </p>
+                  )}
+                  {results.yardstick ? <YardstickLine y={results.yardstick} /> : null}
                 </div>
-              ) : null}
+              </details>
             </div>
             {results.anchor ? (
               <LogSeal
