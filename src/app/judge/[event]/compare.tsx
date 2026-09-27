@@ -100,7 +100,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
           at <= 0
             ? ""
             : outcome === "tie"
-              ? `Too close to call: ${placing.title} goes right below ${other.title}, number ${at} of ${t.list.length}.`
+              ? `Too close: ${placing.title} goes right below ${other.title}.`
               : `${placing.title} is number ${at} of ${t.list.length} in your list.`;
         return t.current ? `Saved. ${where}` : `Saved. ${where} All ${t.total} placed.`;
       }).finally(() => setPicked(null));
@@ -250,17 +250,16 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                 <span className="w-12 shrink-0">{faces[p.id]?.small}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-14 font-medium">{p.title}</span>
-                  <span className="block truncate text-12 text-ink-2">{p.teamName}</span>
+                  {tied ? (
+                    <span className="block truncate text-12 text-accent-ink">
+                      <span aria-hidden>= </span>too close to {String(n).padStart(2, "0")}
+                    </span>
+                  ) : (
+                    <span className="block truncate text-12 text-ink-2">{p.teamName}</span>
+                  )}
                 </span>
                 {here ? (
                   <span className="text-12 font-medium text-accent-ink">comparing</span>
-                ) : tied ? (
-                  <span className="text-right text-12 leading-4 font-medium text-accent-ink">
-                    just placed
-                    <span className="block font-normal text-ink-2">
-                      <span aria-hidden>= </span>too close to {String(n).padStart(2, "0")}
-                    </span>
-                  </span>
                 ) : fresh ? (
                   <span className="text-12 font-medium text-accent-ink">just placed</span>
                 ) : null}
