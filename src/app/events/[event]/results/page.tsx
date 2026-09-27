@@ -36,6 +36,9 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             Published {formatUtc(results.publishedAt)}. Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge
             proved to be across the event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. Places compare within a track. The ± under each score
             is one standard error: scores closer than about two of them are not told apart, so read small gaps as ties.
+            {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
+              ? " A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is."
+              : ""}
           </p>
           <div className="mt-10 flex flex-col gap-12">
             {results.tracks.map((t) => {
@@ -71,6 +74,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                             <span className="block text-12 text-ink-2 tnum">
                               {r.se !== null ? `± ${r.se.toFixed(2)} · ` : ""}
                               {r.n} {r.n === 1 ? "review" : "reviews"}
+                              {r.n < 2 ? <span className="text-flag"> · under-reviewed</span> : null}
                             </span>
                           </span>
                         </li>

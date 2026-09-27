@@ -2,7 +2,7 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { getDb } from "../db/client";
-import { teams } from "../db/schema";
+import { signedRecords, teams } from "../db/schema";
 import { guardRead } from "../mutate";
 import { latestAudit, type AuditLine } from "./audit-log";
 import { eventFacts, getGallery, requireEvent, type EventRow } from "./events";
@@ -63,6 +63,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
   const openAt = (no: string) => open.filter((d) => STAGE_OF[d.kind] === no).length;
   const closeDay = new Date(event.submissionsCloseAt).toUTCString().slice(5, 11).replace(/^0/, "");
 
+  const issued = db.select({ n: sql<number>`count(*)` }).from(signedRecords).where(eq(signedRecords.eventId, event.id)).get()!.n;
   const stages: Omit<Stage, "current">[] = [
     { no: "01", name: "Registration", state: closed ? "done" : "open", open: 0, done: closed },
     { no: "02", name: "Teams", state: `${teamCount} ${teamCount === 1 ? "team" : "teams"}`, open: 0, done: closed },
@@ -102,7 +103,13 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       open: 0,
       done: Boolean(event.resultsPublishedAt),
     },
-    { no: "09", name: "Certificates", state: "not in this build", open: 0, done: false },
+    {
+      no: "09",
+      name: "Certificates",
+      state: !event.resultsPublishedAt ? "after publishing" : issued ? `${issued} issued` : "ready to issue",
+      open: 0,
+      done: issued > 0,
+    },
     { no: "10", name: "Archive", state: "export any time", open: 0, done: false },
   ];
   const firstUndone = stages.findIndex((s) => s.open > 0 || (!s.done && s.no <= "08"));
