@@ -24,6 +24,8 @@ import {
   type Client,
 } from "@/server/dal/voting";
 import { auditCsv, getAuditLog } from "@/server/dal/audit-log";
+import { mergeDuplicate, unmergeDuplicate } from "@/server/dal/normalization";
+import { createTeam, joinTeam } from "@/server/dal/teams";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -574,5 +576,84 @@ describe("cross-event tokens", () => {
     const before = auditRows().length;
     expectHttpError(() => castBallot(null, "evt_x", token, { projectIds: ["prj_01"] }, CLIENT), 401, "unauthenticated");
     expect(auditRows().length).toBe(before);
+  });
+});
+
+describe("the count follows merges and team changes", () => {
+  const close = () => h.sqlite.prepare("UPDATE events SET voting_close_at = '2026-01-02T00:00:00.000Z' WHERE id = 'evt_01'").run();
+  const votesFor = (id: string) => getCommunityResults("evt_01").tally!.find((t) => t.projectId === id)?.votes;
+  const newVoter = (id: string) => {
+    h.sqlite.prepare("INSERT INTO users (id, email, name, password_hash, is_admin, created_at) VALUES (?, ?, ?, NULL, 0, ?)").run(id, `${id}@example.org`, id, NOW);
+    return actorById(id);
+  };
+
+  it("known-bad: a vote on a merged copy counts for the copy it was merged into, once per voter; undoing the merge gives it back", () => {
+    openVoting();
+    const x = newVoter("usr_vx");
+    const y = newVoter("usr_vy");
+    const z = newVoter("usr_vz");
+    castBallot(x, "evt_01", null, { projectIds: ["prj_41"] }, CLIENT);
+    castBallot(y, "evt_01", null, { projectIds: ["prj_07"] }, CLIENT);
+    castBallot(z, "evt_01", null, { projectIds: ["prj_07", "prj_41"] }, CLIENT);
+
+    mergeDuplicate(org(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    // the merged voter's ballot shows the kept copy, and re-saving the old pick is no error
+    expect(getBallot(x, "evt_01", null).picks).toEqual(["prj_07"]);
+    expect(getBallot(z, "evt_01", null).picks).toEqual(["prj_07"]);
+
+    close();
+    expect(votesFor("prj_07")).toBe(3); // x (through the merge), y, z once
+    expect(votesFor("prj_41")).toBeUndefined(); // the merged copy has no row of its own
+
+    // undoing the merge (still allowed: results are not published) gives each copy its own votes back
+    unmergeDuplicate(org(), "evt_01", { duplicateId: "prj_41" });
+    expect(votesFor("prj_41")).toBe(2); // x, z
+    expect(votesFor("prj_07")).toBe(2); // y, z
+  });
+
+  it("known-bad: refused entries after the close are bounded by the entry limit, so the public link cannot grow the log without end", () => {
+    openVoting();
+    const { code } = makeVotingLink(org(), "evt_01");
+    close();
+    const refusals = () => auditRows().filter((r) => r.action === "authz.refused" && (r.after as { attempted?: string } | null)?.attempted === "voting.enter").length;
+    const before = refusals();
+    let limited = 0;
+    for (let i = 0; i < 12; i++) {
+      try {
+        enterVoting(code, { ip: "10.77.0.1", agent: "Spammer" });
+      } catch (err) {
+        if (err instanceof RateLimitedError) limited++;
+      }
+    }
+    expect(limited).toBeGreaterThan(0);
+    expect(refusals() - before).toBeLessThanOrEqual(8);
+    expect(refusals() - before).toBeGreaterThan(0); // positive control: the refusals are still logged
+  });
+
+  it("positive control: without the merge each copy keeps its own votes", () => {
+    openVoting();
+    castBallot(newVoter("usr_vx"), "evt_01", null, { projectIds: ["prj_41"] }, CLIENT);
+    castBallot(newVoter("usr_vz"), "evt_01", null, { projectIds: ["prj_07", "prj_41"] }, CLIENT);
+    close();
+    expect(votesFor("prj_41")).toBe(2);
+    expect(votesFor("prj_07")).toBe(1);
+  });
+
+  it("known-bad: a vote for a project whose team the voter joins afterwards does not count; another voter's does", () => {
+    h.sqlite.prepare("UPDATE events SET submissions_close_at = '2999-01-01T00:00:00Z' WHERE id = 'evt_01'").run();
+    openVoting();
+    const captain = newVoter("usr_cap");
+    const team = createTeam(captain, "evt_01", { name: "Late Joiners" });
+    h.sqlite
+      .prepare("INSERT INTO projects (id, event_id, team_id, track_id, title, summary, status, submitted_at, created_at, updated_at) VALUES ('prj_late', 'evt_01', ?, 'trk_01', 'Late Kite', 'one line', 'submitted', ?, ?, ?)")
+      .run(team.id, NOW, NOW, NOW);
+    const joiner = newVoter("usr_joiner2");
+    const outsider = newVoter("usr_outsider2");
+    castBallot(joiner, "evt_01", null, { projectIds: ["prj_late"] }, CLIENT);
+    castBallot(outsider, "evt_01", null, { projectIds: ["prj_late"] }, CLIENT);
+    const code = (h.sqlite.prepare("SELECT invite_code AS c FROM teams WHERE id = ?").get(team.id) as { c: string }).c;
+    joinTeam(actorById("usr_joiner2"), code);
+    close();
+    expect(votesFor("prj_late")).toBe(1); // the outsider's
   });
 });

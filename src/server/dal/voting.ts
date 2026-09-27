@@ -97,6 +97,27 @@ function ownProjectIds(db: DbOrTx, eventId: string, userId: string): Set<string>
 }
 
 /**
+ * Every submitted project of the event, mapped to the copy it counts under: itself, or
+ * (after an organizer's merge) the copy it was merged into. Votes follow the merge at
+ * count time, so undoing a merge gives each copy its votes back.
+ */
+function keptCopies(db: DbOrTx, eventId: string): Map<string, string> {
+  const rows = db
+    .select({ id: projects.id, duplicateOf: projects.duplicateOf })
+    .from(projects)
+    .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted")))
+    .all();
+  const next = new Map(rows.map((r) => [r.id, r.duplicateOf]));
+  const kept = new Map<string, string>();
+  for (const r of rows) {
+    let id = r.id;
+    for (let hops = 0; next.get(id) && hops < rows.length; hops++) id = next.get(id)!;
+    kept.set(r.id, id);
+  }
+  return kept;
+}
+
+/**
  * The person behind a ballot, for the own-project rule: whoever is signed in, else
  * the account with a listed voter's address. An open-link voter signed out is nobody known.
  */
@@ -161,8 +182,13 @@ export function getBallot(actor: Actor | null, eventIdOrSlug: string, token: str
     voter: usable ? { id: usable.row?.id ?? null, kind: usable.kind, voided: Boolean(usable.row?.voidedAt) } : null,
     signedIn: Boolean(actor),
     projects: seed === null ? list : shuffle(list, seededRng(seed)),
-    picks: usable?.row ? picksOf(db, usable.row.id) : [],
+    picks: usable?.row ? foldPicks(keptCopies(db, event.id), picksOf(db, usable.row.id)) : [],
   };
+}
+
+/** Picks as the voter sees them now: a merged copy shows as the copy it counts under, once. */
+function foldPicks(kept: Map<string, string>, ids: string[]): string[] {
+  return [...new Set(ids.map((id) => kept.get(id) ?? id))].sort();
 }
 
 function limitOrThrow(key: string, limit: Limit, audit: { eventId: string; label: string; userId: string | null; what: string }) {
@@ -207,7 +233,7 @@ export function castBallot(actor: Actor | null, eventIdOrSlug: string, token: st
       voter: who ? { id: who.row?.id ?? "new", kind: who.kind, voided: Boolean(who.row?.voidedAt) } : null,
     }),
     run: (tx) => {
-      const ids = [...new Set(parse(BallotInput, body).projectIds)].sort();
+      const ids = foldPicks(keptCopies(tx, event.id), parse(BallotInput, body).projectIds);
       if (ids.length > settings.votesPerVoter) {
         throw new ValidationError(`Pick at most ${settings.votesPerVoter} projects.`, { projectIds: [`at most ${settings.votesPerVoter}`] });
       }
@@ -281,6 +307,10 @@ export function enterVoting(code: string, client: Client): { eventSlug: string; 
     .all()
     .find((e) => e.settings.voting?.linkHash === hash);
   if (!event || !votingSettings(event).modes.includes("link")) throw new NotFoundError("Voting link");
+  // The entry limit comes first, so refused entries after the close cannot grow the log
+  // without bound either (the link is public).
+  const ipHash = clientHash(client.ip, event.id);
+  limitOrThrow(`linkvoter:${event.id}:${ipHash ?? "none"}`, LIMITS.linkVoter, { eventId: event.id, label: "anonymous", userId: null, what: "open-link entry" });
   // after the close nobody new comes in: the same refusal a late ballot gets, logged like every 403
   if (votingState(event) === "closed") {
     db.transaction((tx) => {
@@ -300,8 +330,6 @@ export function enterVoting(code: string, client: Client): { eventSlug: string; 
     });
     throw new AuthzError({ ok: false, status: 403, code: "voting_closed", message: `Voting closed at ${formatUtc(event.votingCloseAt)}.` });
   }
-  const ipHash = clientHash(client.ip, event.id);
-  limitOrThrow(`linkvoter:${event.id}:${ipHash ?? "none"}`, LIMITS.linkVoter, { eventId: event.id, label: "anonymous", userId: null, what: "open-link entry" });
   const token = newSecret(24);
   const id = newId("vtr");
   db.transaction((tx) => {
@@ -479,20 +507,51 @@ export function restoreVoter(actor: Actor | null, eventIdOrSlug: string, body: u
 
 export type Tally = { projectId: string; title: string; teamName: string; votes: number; place: number };
 
-/** Counted votes per project: voided voters left out. DAL-internal; callers decide who may see it. */
+/**
+ * Counted votes per project. Voided voters are left out; a vote on a merged copy counts
+ * for the copy it was merged into, once per voter; and a vote a known person gave a
+ * project whose team they are on (they joined it after voting) does not count.
+ * DAL-internal; callers decide who may see it.
+ */
 function tally(db: DbOrTx, eventId: string): Tally[] {
+  const kept = keptCopies(db, eventId);
   const rows = db
-    // The "not set aside" test sits in the join, not the WHERE: a project whose only votes were set aside keeps its row, with 0.
-    .select({ projectId: projects.id, title: projects.title, teamName: teams.name, n: sql<number>`count(${voters.id})` })
+    .select({ id: projects.id, title: projects.title, teamId: projects.teamId, teamName: teams.name })
     .from(projects)
     .innerJoin(teams, eq(teams.id, projects.teamId))
-    .leftJoin(votes, eq(votes.projectId, projects.id))
-    .leftJoin(voters, and(eq(voters.id, votes.voterId), isNull(voters.voidedAt)))
     .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted"), isNull(projects.duplicateOf)))
-    .groupBy(projects.id)
-    .all()
+    .all();
+  const teamOf = new Map(rows.map((r) => [r.id, r.teamId]));
+  const teamsOf = new Map<string, Set<string>>();
+  for (const m of db.select({ userId: teamMembers.userId, teamId: teamMembers.teamId }).from(teamMembers).where(eq(teamMembers.eventId, eventId)).all()) {
+    teamsOf.set(m.userId, (teamsOf.get(m.userId) ?? new Set()).add(m.teamId));
+  }
+  const byEmail = new Map(
+    db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .innerJoin(voters, eq(voters.email, users.email))
+      .where(eq(voters.eventId, eventId))
+      .all()
+      .map((u) => [u.email, u.id]),
+  );
+  const counted = new Map<string, Set<string>>(); // kept project -> voters
+  for (const v of db
+    .select({ voterId: votes.voterId, projectId: votes.projectId, userId: voters.userId, email: voters.email })
+    .from(votes)
+    .innerJoin(voters, eq(voters.id, votes.voterId))
+    .where(and(eq(voters.eventId, eventId), isNull(voters.voidedAt)))
+    .all()) {
+    const project = kept.get(v.projectId);
+    if (!project || !teamOf.has(project)) continue;
+    const person = v.userId ?? (v.email ? byEmail.get(v.email) : undefined);
+    if (person && teamsOf.get(person)?.has(teamOf.get(project)!)) continue;
+    counted.set(project, (counted.get(project) ?? new Set()).add(v.voterId));
+  }
+  const list = rows
+    .map((r) => ({ projectId: r.id, title: r.title, teamName: r.teamName, n: counted.get(r.id)?.size ?? 0 }))
     .sort((a, b) => b.n - a.n || a.title.localeCompare(b.title));
-  return rows.map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, votes: r.n, place: rows.findIndex((x) => x.n === r.n) + 1 }));
+  return list.map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, votes: r.n, place: list.findIndex((x) => x.n === r.n) + 1 }));
 }
 
 export type DuplicateGroup = { key: string; voters: { id: string; kind: VoterKind; picks: number; createdAt: string; voided: boolean }[] };
