@@ -114,8 +114,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 - **Community vote and comments.** The organizer opens a voting window and chooses
   who may vote: signed-in accounts, a voter list with personal links, and/or an
   open link. Each ballot lists the projects in the voter's own shuffled order; the
-  count stays hidden from everyone until the window closes. Suspected duplicate
-  ballots are flagged for an audited set-aside; ballots, link entries, comments
+  count stays hidden from everyone until the window closes, and is final from
+  then on. Suspected duplicate ballots are flagged while voting is open, for an
+  audited set-aside; ballots, link entries, comments
   and sign-in are rate limited. Signed-in visitors can comment on projects, and an
   organizer can hide a comment with a reason that stays in its place.
 - **Signed certificates and judging records.** Once results are published, each
