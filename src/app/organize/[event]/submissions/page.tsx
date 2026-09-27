@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { Face } from "@/components/face";
+import { Arrivals } from "@/components/figures/arrivals";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, isPast } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
@@ -15,6 +16,9 @@ export default async function SubmissionsPage({ params }: PageProps<"/organize/[
   const actor = await currentActor();
   if (!actor) unauthorized();
   const { event, rows, submitted, drafts } = guardPage(() => getSubmissions(actor, key));
+  const arrivals = rows
+    .filter((r) => r.status === "submitted" && r.submittedAt)
+    .map((r) => ({ id: r.id, title: r.title, at: r.submittedAt!, flagged: Boolean(r.suspectedDuplicate && !r.duplicateOf && !r.mergedIn.length) }));
   return (
     <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Submissions")} person={actor.name} role="Organizer">
       <div className="flex flex-col gap-6">
@@ -33,6 +37,23 @@ export default async function SubmissionsPage({ params }: PageProps<"/organize/[
             Download projects.csv
           </a>
         </header>
+        {arrivals.length ? (
+          <figure className="flex flex-col gap-3 border-t-2 border-ink pt-3">
+            <figcaption className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <span className="label-mono text-ink">Fig. 01 — When they came in</span>
+              <span className="text-12 text-ink-2">
+                One cell per submitted project, in three-hour bins, UTC{arrivals.some((a) => a.flagged) ? "; orange: a suspected duplicate" : ""}. Point at a cell for its
+                project.
+              </span>
+            </figcaption>
+            {/* on a phone the figure scrolls sideways and opens at its right end, where the close is */}
+            <div className="overflow-x-auto [direction:rtl]">
+              <div className="min-w-[880px] [direction:ltr]">
+                <Arrivals arrivals={arrivals} closeAt={event.submissionsCloseAt} />
+              </div>
+            </div>
+          </figure>
+        ) : null}
         {rows.length === 0 ? (
           <p className="rounded-sm border border-rule bg-surface p-6 text-15 text-ink-2">
             No projects yet. Teams appear here from their first saved draft; the public gallery shows only submitted ones.
