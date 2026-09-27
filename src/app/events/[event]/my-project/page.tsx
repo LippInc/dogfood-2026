@@ -85,7 +85,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
 
   return (
     <PublicShell event={event} active="none" signedInAs={actor.name} links={actorNav(actor, event.id)}>
-      <div className="grid gap-8 pt-10 pb-8 md:grid-cols-[minmax(0,1fr)_280px] md:items-end">
+      <div className="grid gap-8 pt-10 pb-8 md:grid-cols-[minmax(0,1fr)_280px] md:items-end lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0 wrap-anywhere">
           <p className="label-mono text-ink-3">{team ? `Team ${team.name}` : open ? "No team yet" : "No team"}</p>
           <h1 className="mt-2 font-display text-[40px] leading-[46px] md:text-[52px] md:leading-[58px]">Your project</h1>
