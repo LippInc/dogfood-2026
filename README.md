@@ -165,8 +165,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   database; back the database up (below) to keep it.
 - **API and webhooks.** Everything the interface does is also a JSON route,
   documented at `/api-docs` and as OpenAPI 3.1 at `/api/openapi.json`.
-  The document is built from the server's own validators, and a test fails if a
-  route and the document disagree. Scripts use named API tokens that act with
+  Its request bodies come from the server's own validators, and a test fails if
+  a route is missing from it or it lists a method and path no route answers.
+  Scripts use named API tokens that act with
   their owner's permissions and cannot make more tokens. Webhooks send any
   audited action to your URL (ballot picks, scores and pairwise answers left
   out: who acted and when, never the values), signed with
