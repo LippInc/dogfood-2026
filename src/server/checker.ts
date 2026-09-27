@@ -229,7 +229,9 @@ export function seedDemoVote(db: Db, eventId: string, now: string): { opened: bo
     }
     const openAt = `${now.slice(0, 16)}:00.000Z`;
     const closesAt = new Date(Date.parse(openAt) + DEMO_VOTE_DAYS * 86_400_000).toISOString();
-    const voting = { modes: ["account", "link"] as ("account" | "link")[], votesPerVoter: 3, linkHash: sha256(code) };
+    // The open link's ballots are counted apart and do not add to the result, as on a real event
+    // whose organizer has not chosen otherwise.
+    const voting = { modes: ["account", "link"] as ("account" | "link")[], votesPerVoter: 3, linkHash: sha256(code), countLink: false };
     tx.update(events)
       .set({ votingOpenAt: openAt, votingCloseAt: closesAt, settings: { ...event.settings, voting } })
       .where(eq(events.id, eventId))
@@ -243,7 +245,7 @@ export function seedDemoVote(db: Db, eventId: string, now: string): { opened: bo
         eventId,
         targetType: "event",
         targetId: eventId,
-        after: { votingOpenAt: openAt, votingCloseAt: closesAt, modes: voting.modes, votesPerVoter: voting.votesPerVoter },
+        after: { votingOpenAt: openAt, votingCloseAt: closesAt, modes: voting.modes, votesPerVoter: voting.votesPerVoter, countLink: voting.countLink },
       },
       now,
     );

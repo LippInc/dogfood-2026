@@ -38,7 +38,7 @@ describe("the demo community vote", () => {
     expect(first.opened).toBe(true);
     const e = event();
     expect(Date.parse(e.votingCloseAt!) - Date.parse(e.votingOpenAt!)).toBe(DEMO_VOTE_DAYS * 86_400_000);
-    expect(e.settings.voting).toEqual({ modes: ["account", "link"], votesPerVoter: 3, linkHash: sha256(demoVoteCode()) });
+    expect(e.settings.voting).toEqual({ modes: ["account", "link"], votesPerVoter: 3, linkHash: sha256(demoVoteCode()), countLink: false });
     expect(opened()).toBe(1);
     expect(enterVoting(first.code, client).eventId).toBe("evt_01");
 

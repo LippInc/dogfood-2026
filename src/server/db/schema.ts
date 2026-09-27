@@ -108,8 +108,11 @@ export type EventSettings = {
   notDuplicates?: string[];
   /** Under-reviewed projects the organizer chose to publish as they are. */
   acceptedUnderReviewed?: string[];
-  /** Community voting (T3): who may vote, how many favourites each, the open link's hash. */
-  voting?: { modes: ("account" | "listed" | "link")[]; votesPerVoter: number; linkHash?: string | null };
+  /**
+   * Community voting (T3): who may vote, how many favourites each, the open link's hash, and
+   * whether open-link ballots add to the result (absent = false; they are always counted apart).
+   */
+  voting?: { modes: ("account" | "listed" | "link")[]; votesPerVoter: number; linkHash?: string | null; countLink?: boolean };
   /** How judges judge (decision 18): a rubric per project (the default) or the better of two. */
   judgingMode?: "scores" | "pairwise";
 };

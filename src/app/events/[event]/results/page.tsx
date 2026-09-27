@@ -26,6 +26,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
   const actor = await currentActor();
   const results = getPublishedResults(event.id);
   const community = getCommunityResults(event.id);
+  // the open link's column shows only when some of its ballots are in the count's rows
+  const linkVotes = Boolean(community.tally?.some((t) => t.openLink > 0));
   const pairwise = results.published && results.method === PAIRWISE_METHOD;
   return (
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
@@ -133,22 +135,37 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             {community.tally ? "The community's favourites" : "Hidden until voting closes"}
           </h2>
           {community.tally ? (
-            <ol className="mt-4 divide-y divide-rule border-y border-rule">
-              {community.tally.map((t) => (
-                <li key={t.projectId} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-baseline gap-3 py-2.5">
-                  <span className="font-display text-20 tnum">{t.place ?? "–"}</span>
-                  <span className="min-w-0 truncate">
-                    <Link href={`/events/${event.slug}/projects/${t.projectId}`} className="font-semibold hover:underline">
-                      {t.title}
-                    </Link>{" "}
-                    <span className="text-14 text-ink-2">· {t.teamName}</span>
-                  </span>
-                  <span className="text-15 font-semibold tnum">
-                    {t.votes} {t.votes === 1 ? "vote" : "votes"}
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <>
+              {linkVotes ? (
+                <p className="mt-3 text-15 text-ink-2">
+                  Ballots from the open link, which anyone could use, are counted apart and shown on the right:{" "}
+                  {community.countLink ? "the organizers chose to include them in the count." : "they change no place."}
+                </p>
+              ) : null}
+              <ol className="mt-4 divide-y divide-rule border-y border-rule">
+                {community.tally.map((t) => (
+                  <li key={t.projectId} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-baseline gap-3 py-2.5">
+                    <span className="font-display text-20 tnum">{t.place ?? "–"}</span>
+                    <span className="min-w-0 truncate">
+                      <Link href={`/events/${event.slug}/projects/${t.projectId}`} className="font-semibold hover:underline">
+                        {t.title}
+                      </Link>{" "}
+                      <span className="text-14 text-ink-2">· {t.teamName}</span>
+                    </span>
+                    <span className="flex items-baseline gap-3">
+                      <span className="text-15 font-semibold tnum">
+                        {t.votes} {t.votes === 1 ? "vote" : "votes"}
+                      </span>
+                      {linkVotes ? (
+                        <span className="w-28 text-right font-mono text-12 text-ink-2 tnum">
+                          {t.openLink > 0 ? `${community.countLink ? "incl. " : "+"}${t.openLink} open link` : null}
+                        </span>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </>
           ) : (
             <p className="mt-3 text-17 text-ink-2">
               Voting {community.state === "upcoming" ? "has not opened yet" : "is open"}; only the organizers see the count until it closes

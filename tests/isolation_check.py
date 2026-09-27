@@ -368,8 +368,9 @@ def run_checks(cfg):
         expect(c, s == 200, link_b, "PUT", ballot_url, s, "200 for one pick")
     checks.append(c)
 
-    # B5 -- the organizer sees the two link browsers as one suspected group, and the live count
-    c = Check("B", "duplicate voters flagged, and the count live, for the organizer only")
+    # B5 -- the organizer sees the two link browsers as one suspected group, and the live count,
+    # with the open link's ballots in their own column; whether they count is fixed by now
+    c = Check("B", "duplicate voters flagged, and the count live, for the organizer only; the open link counted apart")
     s, body, _ = organizer.request("GET", settings_url)
     found = False
     if expect(c, s == 200, organizer, "GET", settings_url, s, "200"):
@@ -382,10 +383,20 @@ def run_checks(cfg):
         expect(c, found, organizer, "GET", settings_url,
                f"no suspected group holds both link voters ({link_a_id!r}, {link_b_id!r})",
                "one group with both link voters in it")
-        # the organizer's count is live: the three ballots so far are in it
-        live = {t.get("projectId"): t.get("votes") for t in as_json(body).get("tally") or []}
-        expect(c, (live.get("prj_02"), live.get("prj_03"), live.get("prj_04")) == (1, 1, 1), organizer, "GET", settings_url,
-               f"live count prj_02/03/04 = {(live.get('prj_02'), live.get('prj_03'), live.get('prj_04'))!r}", "(1, 1, 1)")
+        # the organizer's count is live: the account ballot counts, and the two open-link
+        # ballots show in their own column without adding to it (the default)
+        live = {t.get("projectId"): (t.get("votes"), t.get("openLink")) for t in as_json(body).get("tally") or []}
+        got = (live.get("prj_02"), live.get("prj_03"), live.get("prj_04"))
+        expect(c, got == ((1, 0), (0, 1), (0, 1)), organizer, "GET", settings_url,
+               f"live (votes, openLink) for prj_02/03/04 = {got!r}", "((1, 0), (0, 1), (0, 1))")
+    # with ballots in, whether open-link ballots count can no longer change ...
+    s, body, _ = organizer.request("PUT", settings_url, dict(settings, countLink=True))
+    if expect(c, s == 409, organizer, "PUT", settings_url, s, "409 once ballots are in"):
+        expect(c, error_code(body) == "count_rule_fixed", organizer, "PUT", settings_url,
+               f"code {error_code(body)!r}", "code 'count_rule_fixed'")
+    # ... while a save that leaves it as it is still goes through (positive control)
+    s, _, _ = organizer.request("PUT", settings_url, settings)
+    expect(c, s == 200, organizer, "PUT", settings_url, s, "200 for the same settings")
     s, body, _ = visitor.request("GET", community_url)
     if expect(c, s == 200, visitor, "GET", community_url, s, "200"):
         expect(c, as_json(body).get("tally") is None, visitor, "GET", community_url,
@@ -490,8 +501,9 @@ def run_checks(cfg):
                "a 429 within 12 attempts")
     checks.append(c)
 
-    # B10 -- close the window: the tally appears, the voided pick does not count
-    c = Check("B", "closed tally counts every ballot but the voided one")
+    # B10 -- close the window: the tally appears, the voided pick does not count, and the
+    # open link's ballot shows apart without adding to the count
+    c = Check("B", "closed tally counts every ballot but the voided one, the open link's apart")
     closing = {"votingOpenAt": open_past, "votingCloseAt": close_past,
                "modes": ["account", "listed", "link"], "votesPerVoter": 3}
     s, _, _ = organizer.request("PUT", settings_url, closing)
@@ -511,6 +523,12 @@ def run_checks(cfg):
             expect(c, votes.get("prj_02") == 1, visitor, "GET", community_url,
                    f"prj_02 has {votes.get('prj_02')} votes (the participant picked it)",
                    "prj_02 with 1 vote, as a positive control")
+            link = {t.get("projectId"): t.get("openLink") for t in tally}
+            expect(c, (votes.get("prj_04"), link.get("prj_04"), link.get("prj_03")) == (0, 1, 0), visitor, "GET", community_url,
+                   f"prj_04 votes {votes.get('prj_04')}, open link {link.get('prj_04')}; prj_03 open link {link.get('prj_03')}",
+                   "prj_04: 0 votes and 1 from the open link; prj_03: 0 from the open link (voided)")
+            expect(c, data.get("countLink") is False, visitor, "GET", community_url,
+                   f"countLink {data.get('countLink')!r}", "countLink false, as the event left it")
     checks.append(c)
 
     # B11 -- results stay hidden until the organizers publish them

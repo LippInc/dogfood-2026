@@ -193,7 +193,7 @@ export const OPERATIONS: Operation[] = [
 
   // Community vote
   { method: "GET", path: "/api/events/{event}/voting", tag: "Community vote", summary: "Voting settings, turnout, suspected duplicates and the count, live while the window is open", access: "organizer" },
-  { method: "PUT", path: "/api/events/{event}/voting", tag: "Community vote", summary: "Set the voting window, the ways in and the votes per voter", access: "organizer", body: In.SettingsInput, also: [409], note: "Once the window has closed the count is final: 409 voting_closed." },
+  { method: "PUT", path: "/api/events/{event}/voting", tag: "Community vote", summary: "Set the voting window, the ways in, the votes per voter and whether open-link ballots add to the result", access: "organizer", body: In.SettingsInput, also: [409], note: "Once the window has closed the count is final: 409 voting_closed. Whether open-link ballots add to the result (countLink; left out, it stays as it is) is fixed from the first ballot on: 409 count_rule_fixed." },
   { method: "POST", path: "/api/events/{event}/voting/link", tag: "Community vote", summary: "Make a new open voting link (the old one stops working)", access: "organizer", ok: 201, also: [409] },
   { method: "POST", path: "/api/events/{event}/voting/voters", tag: "Community vote", summary: "Add people to the voter list: one personal link each, returned once", access: "organizer", body: In.VoterList, ok: 201, also: [409] },
   {

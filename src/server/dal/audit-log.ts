@@ -83,6 +83,13 @@ function ballotsSealed(db: DbOrTx, eventId: string): boolean {
 }
 
 const MODE_WORDS: Record<string, string> = { account: "signed-in accounts", listed: "the voter list", link: "the open link" };
+/** How the open link's ballots were set to count; rows written before the rule existed carry no countLink and say nothing. */
+const linkRule = (after: Record<string, unknown>) =>
+  typeof after.countLink !== "boolean" || !((after.modes as string[] | undefined) ?? []).includes("link")
+    ? ""
+    : after.countLink
+      ? "; open-link ballots add to the result"
+      : "; open-link ballots are counted apart";
 const LIMIT_WORDS: Record<string, string> = { ballot: "ballot saves", comment: "comments", "open-link entry": "open-link entries", "sign-in": "sign-in attempts" };
 const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
@@ -223,7 +230,7 @@ function sentence(r: Row, n: Names): Part[] {
             actor,
             t(
               ` set community voting from ${formatUtc(String(after.votingOpenAt))} to ${formatUtc(String(after.votingCloseAt))}, ` +
-                `${after.votesPerVoter} votes each, for ${andList(((after.modes as string[] | undefined) ?? []).map((m) => MODE_WORDS[m] ?? m))}`,
+                `${after.votesPerVoter} votes each, for ${andList(((after.modes as string[] | undefined) ?? []).map((m) => MODE_WORDS[m] ?? m))}${linkRule(after)}`,
             ),
           ]
         : [actor, t(" cleared the community voting window")];
@@ -233,7 +240,7 @@ function sentence(r: Row, n: Names): Part[] {
             actor,
             t(
               ` opened the demo community vote until ${formatUtc(String(after.votingCloseAt))}, ${after.votesPerVoter} votes each, ` +
-                `for ${andList(((after.modes as string[] | undefined) ?? []).map((m) => MODE_WORDS[m] ?? m))}`,
+                `for ${andList(((after.modes as string[] | undefined) ?? []).map((m) => MODE_WORDS[m] ?? m))}${linkRule(after)}`,
             ),
           ]
         : [actor, t(" opened the demo community vote")];

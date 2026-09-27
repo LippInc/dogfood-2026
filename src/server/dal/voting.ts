@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { appendAudit } from "../audit";
 import type { Actor, Resource, VoterKind } from "../authz";
@@ -24,15 +24,29 @@ import { parse, utcTimeOrEmpty } from "./parse";
 // rule: "Results hidden from everyone but organizers"). Link voters are counted per browser,
 // so voters sharing a network address and browser are flagged for the organizer,
 // who can set a ballot aside with a reason. Every ballot change is audited.
+// Nobody can tell who holds the open link, so its ballots are counted apart: they add to
+// the result only if the organizer said so before the first ballot came in (countLink),
+// and every count shows them in their own column either way.
 
 export const DEFAULT_VOTES_PER_VOTER = 3;
 
-export type VotingSettings = { modes: VoterKind[]; votesPerVoter: number; linkHash: string | null };
+export type VotingSettings = { modes: VoterKind[]; votesPerVoter: number; linkHash: string | null; countLink: boolean };
 export type Client = { ip: string | null; agent: string | null };
 
 export function votingSettings(event: EventRow): VotingSettings {
   const v = event.settings.voting;
-  return { modes: v?.modes ?? [], votesPerVoter: v?.votesPerVoter ?? DEFAULT_VOTES_PER_VOTER, linkHash: v?.linkHash ?? null };
+  return { modes: v?.modes ?? [], votesPerVoter: v?.votesPerVoter ?? DEFAULT_VOTES_PER_VOTER, linkHash: v?.linkHash ?? null, countLink: v?.countLink ?? false };
+}
+
+/** Whether anyone has saved picks in this event yet: from the first ballot on, the counting rule is fixed. */
+function anyBallotCast(db: DbOrTx, eventId: string): boolean {
+  return Boolean(
+    db
+      .select({ id: voters.id })
+      .from(voters)
+      .where(and(eq(voters.eventId, eventId), isNotNull(voters.lastVotedAt)))
+      .get(),
+  );
 }
 
 export type VotingState = "not_set" | "upcoming" | "open" | "closed";
@@ -173,6 +187,8 @@ export type BallotView = {
   state: VotingState;
   modes: VoterKind[];
   votesPerVoter: number;
+  /** whether open-link ballots add to the result (they are always counted apart) */
+  countLink: boolean;
   /** null: this request proves no voter yet */
   voter: { id: string | null; kind: VoterKind; voided: boolean } | null;
   signedIn: boolean;
@@ -197,6 +213,7 @@ export function getBallot(actor: Actor | null, eventIdOrSlug: string, token: str
     state: votingState(event),
     modes: settings.modes,
     votesPerVoter: settings.votesPerVoter,
+    countLink: settings.countLink,
     voter: usable ? { id: usable.row?.id ?? null, kind: usable.kind, voided: Boolean(usable.row?.voidedAt) } : null,
     signedIn: Boolean(actor),
     projects: seed === null ? list : shuffle(list, seededRng(seed)),
@@ -390,6 +407,8 @@ export const SettingsInput = z
     votingCloseAt: utcTimeOrEmpty,
     modes: z.array(z.enum(["account", "listed", "link"])).default([]),
     votesPerVoter: z.coerce.number().int().min(1).max(20),
+    /** whether open-link ballots add to the result; left out, it stays as it is */
+    countLink: z.boolean().optional(),
   })
   .refine((v) => (v.votingOpenAt === "") === (v.votingCloseAt === ""), { message: "set both times or neither", path: ["votingCloseAt"] })
   .refine((v) => !v.votingOpenAt || Date.parse(v.votingOpenAt) < Date.parse(v.votingCloseAt), { message: "must be after voting opens", path: ["votingCloseAt"] });
@@ -472,8 +491,18 @@ export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, b
     if (input.votesPerVoter < largest) {
       throw new ConflictError("ballots_too_large", `A ballot already holds ${largest} picks, so the limit can go up but not below ${largest}.`);
     }
-    const before = { votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt, ...votingSettings(event), linkHash: undefined };
-    const voting = { ...votingSettings(event), modes: [...new Set(input.modes)].sort() as VoterKind[], votesPerVoter: input.votesPerVoter };
+    // Deciding whether open-link ballots count after seeing them would let an organizer pick
+    // the outcome, so the rule is fixed from the first ballot on.
+    const current = votingSettings(event);
+    const countLink = input.countLink ?? current.countLink;
+    if (countLink !== current.countLink && anyBallotCast(tx, event.id)) {
+      throw new ConflictError(
+        "count_rule_fixed",
+        `Ballots are already in, so whether open-link ballots count is fixed: they ${current.countLink ? "count" : "are counted apart and do not add to the result"}.`,
+      );
+    }
+    const before = { votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt, ...current, linkHash: undefined };
+    const voting = { ...current, modes: [...new Set(input.modes)].sort() as VoterKind[], votesPerVoter: input.votesPerVoter, countLink };
     tx.update(events)
       .set({ votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, settings: { ...event.settings, voting } })
       .where(eq(events.id, event.id))
@@ -486,7 +515,7 @@ export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, b
         targetType: "event",
         targetId: event.id,
         before,
-        after: { votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, modes: voting.modes, votesPerVoter: voting.votesPerVoter },
+        after: { votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, modes: voting.modes, votesPerVoter: voting.votesPerVoter, countLink },
       },
     };
   });
@@ -577,16 +606,23 @@ export function restoreVoter(actor: Actor | null, eventIdOrSlug: string, body: u
   });
 }
 
-/** place: shared by equal counts (1, 1, 3); null for a project nobody voted for, which has no place */
-export type Tally = { projectId: string; title: string; teamName: string; votes: number; place: number | null };
+/**
+ * votes: what counts toward the result; openLink: the open link's votes for the project,
+ * counted or not; place: from `votes`, shared by equal counts (1, 1, 3), and null for a
+ * project with no counted vote, which has no place.
+ */
+export type Tally = { projectId: string; title: string; teamName: string; votes: number; openLink: number; place: number | null };
 
 /**
  * Counted votes per project. Voided voters are left out; a vote on a merged copy counts
  * for the copy it was merged into, once per voter; and a vote a known person gave a
- * project whose team they are on (they joined it after voting) does not count.
+ * project whose team they are on (they joined it after voting) does not count. Open-link
+ * votes are kept in their own column and add to `votes` only when the organizer counts them.
  * DAL-internal; callers decide who may see it.
  */
-function tally(db: DbOrTx, eventId: string): Tally[] {
+function tally(db: DbOrTx, event: EventRow): Tally[] {
+  const eventId = event.id;
+  const { countLink } = votingSettings(event);
   const kept = keptCopies(db, eventId);
   const rows = db
     .select({ id: projects.id, title: projects.title, teamId: projects.teamId, teamName: teams.name })
@@ -609,8 +645,9 @@ function tally(db: DbOrTx, eventId: string): Tally[] {
       .map((u) => [u.email, u.id]),
   );
   const counted = new Map<string, Set<string>>(); // kept project -> voters
+  const fromLink = new Map<string, Set<string>>(); // the same, for open-link voters
   for (const v of db
-    .select({ voterId: votes.voterId, projectId: votes.projectId, userId: voters.userId, email: voters.email })
+    .select({ voterId: votes.voterId, projectId: votes.projectId, kind: voters.kind, userId: voters.userId, email: voters.email })
     .from(votes)
     .innerJoin(voters, eq(voters.id, votes.voterId))
     .where(and(eq(voters.eventId, eventId), isNull(voters.voidedAt)))
@@ -619,12 +656,23 @@ function tally(db: DbOrTx, eventId: string): Tally[] {
     if (!project || !teamOf.has(project)) continue;
     const person = v.userId ?? (v.email ? byEmail.get(v.email) : undefined);
     if (person && teamsOf.get(person)?.has(teamOf.get(project)!)) continue;
-    counted.set(project, (counted.get(project) ?? new Set()).add(v.voterId));
+    const into = v.kind === "link" ? fromLink : counted;
+    into.set(project, (into.get(project) ?? new Set()).add(v.voterId));
   }
   const list = rows
-    .map((r) => ({ projectId: r.id, title: r.title, teamName: r.teamName, n: counted.get(r.id)?.size ?? 0 }))
+    .map((r) => {
+      const link = fromLink.get(r.id)?.size ?? 0;
+      return { projectId: r.id, title: r.title, teamName: r.teamName, n: (counted.get(r.id)?.size ?? 0) + (countLink ? link : 0), link };
+    })
     .sort((a, b) => b.n - a.n || a.title.localeCompare(b.title));
-  return list.map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, votes: r.n, place: r.n > 0 ? list.findIndex((x) => x.n === r.n) + 1 : null }));
+  return list.map((r) => ({
+    projectId: r.projectId,
+    title: r.title,
+    teamName: r.teamName,
+    votes: r.n,
+    openLink: r.link,
+    place: r.n > 0 ? list.findIndex((x) => x.n === r.n) + 1 : null,
+  }));
 }
 
 export type DuplicateGroup = { key: string; voters: { id: string; kind: VoterKind; picks: number; createdAt: string; voided: boolean }[] };
@@ -661,7 +709,14 @@ export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
   const state = votingState(event);
   return {
     event,
-    settings: { modes: settings.modes, votesPerVoter: settings.votesPerVoter, linkActive: Boolean(settings.linkHash) },
+    settings: {
+      modes: settings.modes,
+      votesPerVoter: settings.votesPerVoter,
+      linkActive: Boolean(settings.linkHash),
+      countLink: settings.countLink,
+      /** the counting rule is fixed from the first ballot on */
+      countRuleFixed: anyBallotCast(db, event.id),
+    },
     state,
     turnout: {
       voters: all.length,
@@ -675,18 +730,19 @@ export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
       .sort((a, b) => a.email.localeCompare(b.email)),
     suspected,
     // Live for organizers while the window is open; everyone else waits for the close.
-    tally: state === "open" || state === "closed" ? tally(db, event.id) : null,
+    tally: state === "open" || state === "closed" ? tally(db, event) : null,
   };
 }
 
-export type CommunityResults = { state: VotingState; closesAt: string | null; tally: Tally[] | null };
+/** countLink: whether the open link's votes add to `votes` (each row shows them apart either way) */
+export type CommunityResults = { state: VotingState; closesAt: string | null; countLink: boolean; tally: Tally[] | null };
 
 /** The public community vote: only after the window closes (organizers see it live in getVotingAdmin). */
 export function getCommunityResults(eventIdOrSlug: string): CommunityResults {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
   const state = votingState(event);
-  return { state, closesAt: event.votingCloseAt, tally: state === "closed" ? tally(db, event.id) : null };
+  return { state, closesAt: event.votingCloseAt, countLink: votingSettings(event).countLink, tally: state === "closed" ? tally(db, event) : null };
 }
 
 /** What a voting link is, without using it: link previews and bots fetch URLs, so entering takes a click. */

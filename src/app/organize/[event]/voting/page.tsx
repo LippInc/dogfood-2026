@@ -21,6 +21,8 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
   const closed = v.state === "closed";
   // Publishing ends the vote: after it nothing here can change, even with no window set.
   const over = !closed && Boolean(event.resultsPublishedAt);
+  // the open link's column shows while it is a way in, or once any of its ballots exist
+  const withLink = v.settings.modes.includes("link") || Boolean(v.tally?.some((t) => t.openLink > 0));
   return (
     <WorkShell
       eventName={event.name}
@@ -109,6 +111,12 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
               {v.state === "open" ? "The count so far" : "The count"}
             </h2>
             {v.state === "open" ? <p className="mt-1 text-14 text-ink-2">Live, and hidden from everyone but organizers until the window closes.</p> : null}
+            {withLink ? (
+              <p className="mt-1 text-14 text-ink-2">
+                Open-link ballots are counted apart, on the right of each row:{" "}
+                {v.settings.countLink ? "they are included in the count." : "they change no place."}
+              </p>
+            ) : null}
             <ol className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
               {v.tally.map((t) => (
                 <li key={t.projectId} className="flex items-baseline justify-between gap-3 px-4 py-2 text-14">
@@ -116,7 +124,14 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                     <span className="inline-block w-8 text-ink-2 tnum">{t.place ?? "–"}</span>
                     <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
                   </span>
-                  <span className="shrink-0 font-semibold tnum">{t.votes}</span>
+                  <span className="flex shrink-0 items-baseline gap-3">
+                    <span className="font-semibold tnum">{t.votes}</span>
+                    {withLink ? (
+                      <span className="w-28 text-right font-mono text-12 text-ink-2 tnum">
+                        {t.openLink > 0 ? `${v.settings.countLink ? "incl. " : "+"}${t.openLink} open link` : null}
+                      </span>
+                    ) : null}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -138,6 +153,12 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                 <dd>{v.settings.modes.map((m) => KIND[m]).join(", ") || "nobody"}</dd>
                 <dt className="text-ink-2">Favourites per voter</dt>
                 <dd className="tnum">{v.settings.votesPerVoter}</dd>
+                {withLink ? (
+                  <>
+                    <dt className="text-ink-2">Open-link ballots</dt>
+                    <dd>{v.settings.countLink ? "Added to the result" : "Counted apart, changing no place"}</dd>
+                  </>
+                ) : null}
               </dl>
             ) : over ? (
               <p className="text-14 text-ink-2">The results are published, so no window can be set.</p>
@@ -148,6 +169,8 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                 closeAt={utcInput(event.votingCloseAt)}
                 modes={v.settings.modes}
                 votesPerVoter={v.settings.votesPerVoter}
+                countLink={v.settings.countLink}
+                countRuleFixed={v.settings.countRuleFixed}
               />
             )}
           </section>

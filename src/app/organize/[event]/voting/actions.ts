@@ -29,6 +29,8 @@ export async function votingSettingsAction(_prev: ActionResult, form: FormData):
       votingCloseAt: form.get("votingCloseAt") ?? "",
       modes: form.getAll("modes").map(String),
       votesPerVoter: form.get("votesPerVoter"),
+      // sent only while the choice is still open; left out, it stays as it is
+      countLink: form.get("countLinkField") ? form.get("countLink") === "on" : undefined,
     });
   } catch (err) {
     return actionError(err);

@@ -34,19 +34,31 @@ export function VotingSettingsForm({
   closeAt,
   modes,
   votesPerVoter,
+  countLink,
+  countRuleFixed,
 }: {
   eventSlug: string;
   openAt: string;
   closeAt: string;
   modes: string[];
   votesPerVoter: number;
+  countLink: boolean;
+  countRuleFixed: boolean;
 }) {
   const [state, form, pending] = useFormAction(votingSettingsAction, idle);
   // a close time already passed ends the vote the moment it is saved, and the count is then final
   const [pastClose, setPastClose] = useState(false);
+  const [linkOn, setLinkOn] = useState(modes.includes("link"));
   const e = state.fieldErrors ?? {};
   return (
-    <form {...form} onReset={() => setPastClose(false)} className="flex flex-col gap-4">
+    <form
+      {...form}
+      onReset={() => {
+        setPastClose(false);
+        setLinkOn(modes.includes("link"));
+      }}
+      className="flex flex-col gap-4"
+    >
       <input type="hidden" name="event" value={eventSlug} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="votingOpenAt" label="Voting opens (UTC)" error={e.votingOpenAt}>
@@ -74,12 +86,41 @@ export function VotingSettingsForm({
         <legend className="text-14 font-medium">Who may vote</legend>
         {MODES.map((m) => (
           <label key={m.value} className="flex items-start gap-2 text-14">
-            <input type="checkbox" name="modes" value={m.value} defaultChecked={modes.includes(m.value)} className="mt-0.5 size-4 accent-[var(--primary)]" />
+            <input
+              type="checkbox"
+              name="modes"
+              value={m.value}
+              defaultChecked={modes.includes(m.value)}
+              onChange={m.value === "link" ? (ev) => setLinkOn(ev.currentTarget.checked) : undefined}
+              className="mt-0.5 size-4 accent-[var(--primary)]"
+            />
             <span>
               <span className="font-medium">{m.label}</span> <span className="text-ink-2">· {m.help}</span>
             </span>
           </label>
         ))}
+        {linkOn ? (
+          <div className="ml-6 flex flex-col gap-2 border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14">
+            <p className="text-ink">
+              Nobody can tell who holds the open link: one person can vote again from another browser, and a team can vote for itself. So its
+              ballots are counted apart, in their own column.
+            </p>
+            {countRuleFixed ? (
+              <p className="text-ink-2">
+                Open-link ballots {countLink ? "add to the result" : "are shown apart and change no place"}. This was fixed when the first ballot came in.
+              </p>
+            ) : (
+              <label className="flex items-start gap-2">
+                <input type="hidden" name="countLinkField" value="1" />
+                <input type="checkbox" name="countLink" defaultChecked={countLink} className="mt-0.5 size-4 accent-[var(--primary)]" />
+                <span>
+                  <span className="font-medium">Add open-link ballots to the result</span>{" "}
+                  <span className="text-ink-2">· Left off, they are shown but change no place. Decide before voting starts: from the first ballot on, this is fixed.</span>
+                </span>
+              </label>
+            )}
+          </div>
+        ) : null}
       </fieldset>
       <Field id="votesPerVoter" label="Favourites per voter" error={e.votesPerVoter}>
         {(a) => <Input {...a} name="votesPerVoter" type="number" min={1} max={20} defaultValue={votesPerVoter} className="w-28" />}

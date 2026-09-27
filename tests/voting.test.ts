@@ -85,13 +85,18 @@ const participant = () => actorById(userIdByEmail("member1_1@example.org"));
 
 const CLIENT: Client = { ip: "10.0.0.5", agent: "VoterBrowser" };
 
-/** The standard open window: all three ways to vote, three picks each. */
+/**
+ * The standard open window: all three ways to vote, three picks each. Open-link ballots
+ * count here, so these tests can use link voters as plain anonymous voters; the rule that
+ * they are counted apart by default is tested in voting-open-link.test.ts.
+ */
 const openVoting = () =>
   saveVotingSettings(org(), "evt_01", {
     votingOpenAt: "2026-01-01T00:00",
     votingCloseAt: "2999-01-01T00:00",
     modes: ["account", "listed", "link"],
     votesPerVoter: "3",
+    countLink: true,
   });
 
 let ipSeq = 0;

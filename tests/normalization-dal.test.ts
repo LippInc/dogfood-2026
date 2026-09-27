@@ -517,8 +517,10 @@ describe("publishing ends the community vote", () => {
     mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
     acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
   };
+  // Open-link ballots count here, so a link voter stands in for any voter; that they are
+  // counted apart by default is tested in voting-open-link.test.ts.
   const setWindow = (votingOpenAt: string, votingCloseAt: string) =>
-    saveVotingSettings(organizer(), "evt_01", { votingOpenAt, votingCloseAt, modes: ["link"], votesPerVoter: "3" });
+    saveVotingSettings(organizer(), "evt_01", { votingOpenAt, votingCloseAt, modes: ["link"], votesPerVoter: "3", countLink: true });
   const lastPublish = () => auditOf("results.publish").at(-1)!.after as { voteEnded?: string };
 
   it("an open vote closes at the publishing moment: no ballot after it, the count public and final, the log says so", () => {
