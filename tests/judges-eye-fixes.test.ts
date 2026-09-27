@@ -6,11 +6,13 @@ import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { runMigrations } from "@/server/db/migrate";
 import { events } from "@/server/db/schema";
+import { updateEventDetails } from "@/server/dal/organize";
 import { getMyWork } from "@/server/dal/projects";
 import { actorForToken } from "@/server/session";
 
-// A hole a judge's-eye review found (2026-09-27): a participant's own view carried
-// the event's organizer settings.
+// Two holes a judge's-eye review found (2026-09-27): a participant's own view carried
+// the event's organizer settings, and an organizer could reopen submissions after
+// judges had scored. Each refusal has its positive control.
 
 const NOW = "2026-09-27T08:00:00.000Z";
 let h: Handle;
@@ -67,5 +69,24 @@ describe("a participant's own view carries no organizer settings", () => {
       expect(mine).not.toContain(secret);
     }
     expect(mine).toContain(row.submissionsCloseAt);
+  });
+});
+
+describe("the submission deadline holds once judges have scored", () => {
+  const body = (close: string) => ({ name: "Sample Hack 2026", description: "", submissionsCloseAt: close, maxTeamSize: 4 });
+
+  it("refuses moving it later (reopening submissions) with 409 judging_started, and allows moving it earlier", () => {
+    const org = checker("organizer");
+    const close = h.db.select().from(events).where(eq(events.id, "evt_01")).get()!.submissionsCloseAt;
+    expect(outcome(() => updateEventDetails(org, "evt_01", body("2099-01-01T18:00:00Z")))).toEqual({ status: 409, code: "judging_started" });
+    expect(h.db.select().from(events).where(eq(events.id, "evt_01")).get()!.submissionsCloseAt).toBe(close);
+    const earlier = new Date(Date.parse(close) - 3_600_000).toISOString();
+    expect(outcome(() => updateEventDetails(org, "evt_01", body(earlier))).status).toBe(200);
+  });
+
+  it("positive control: with no review saved yet, the organizer can still move it later", () => {
+    const org = checker("organizer");
+    h.sqlite.exec("DELETE FROM score_items; DELETE FROM score_comments; DELETE FROM scores;");
+    expect(outcome(() => updateEventDetails(org, "evt_01", body("2099-01-01T18:00:00Z"))).status).toBe(200);
   });
 });

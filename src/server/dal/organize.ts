@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Actor, Resource } from "../authz";
 import { getDb, type Tx } from "../db/client";
 import {
+  assignments,
   customAnswers,
   customQuestions,
   events,
@@ -12,6 +13,7 @@ import {
   projects,
   rubricCriteria,
   scoreItems,
+  scores,
   tracks,
   userRoles,
 } from "../db/schema";
@@ -177,6 +179,24 @@ function resultsFinal(e: EventRow, what: string) {
   if (e.resultsPublishedAt) throw new ConflictError("results_published", `Results are published, so ${what} final.`);
 }
 
+/**
+ * Deadline gaming: once any judge has saved a review, the submission deadline cannot
+ * move later (nor reopen), or teams could change projects judges have already scored.
+ * Moving it earlier stays possible.
+ */
+function deadlineHolds(tx: Tx, e: EventRow, nextClose: unknown) {
+  if (typeof nextClose !== "string" || Date.parse(nextClose) <= Date.parse(e.submissionsCloseAt)) return;
+  const scored = tx
+    .select({ id: scores.id })
+    .from(scores)
+    .innerJoin(assignments, eq(assignments.id, scores.assignmentId))
+    .where(eq(assignments.eventId, e.id))
+    .get();
+  if (scored) {
+    throw new ConflictError("judging_started", "Judges have started scoring, so the submission deadline can no longer move later: teams could change projects judges have already scored.");
+  }
+}
+
 export function updateEventDetails(actor: Actor | null, idOrSlug: string, body: unknown) {
   const ref: { event?: EventRow } = {};
   return mutate({
@@ -204,6 +224,7 @@ export function updateEventDetails(actor: Actor | null, idOrSlug: string, body: 
         }
       }
       if (DATE_KEYS.some((k) => k in after)) resultsFinal(e, "the event's dates are");
+      if ("submissionsCloseAt" in after) deadlineHolds(tx, e, after.submissionsCloseAt);
       if ((e.settings.maxTeamSize ?? 4) !== d.maxTeamSize) {
         before.maxTeamSize = e.settings.maxTeamSize ?? 4;
         after.maxTeamSize = d.maxTeamSize;
