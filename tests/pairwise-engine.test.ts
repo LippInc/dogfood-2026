@@ -118,6 +118,12 @@ describe("the Bradley-Terry fit", () => {
     expect(got.get("a")!.group).toBe(got.get("b")!.group);
     expect(got.get("a")!.group).not.toBe(got.get("c")!.group);
     expect(got.get("e")!).toMatchObject({ comparisons: 0, group: -1, place: 5, beatsNext: null });
+    // Places next to each other but in groups never compared: no chance is claimed.
+    const ordered = fit.projects.filter((p) => p.comparisons > 0);
+    for (let k = 0; k + 1 < ordered.length; k++) {
+      const same = ordered[k]!.group === ordered[k + 1]!.group;
+      expect(ordered[k]!.beatsNext === null).toBe(!same);
+    }
     const strong = fitPairwise(one(["a", "b"]), Array.from({ length: 40 }, () => pick("a", "b", 1)));
     expect(byId(strong).get("a")!.beatsNext!).toBeGreaterThan(0.95);
     const even = fitPairwise(one(["a", "b"]), [pick("a", "b", 1), pick("a", "b", 0)]);
@@ -126,7 +132,7 @@ describe("the Bradley-Terry fit", () => {
 });
 
 describe("scores as a judge's order", () => {
-  it("turns one judge's k reviews in a track into C(k,2) pairs weighing k - 1 together; equal totals tie; replaced judges drop out", () => {
+  it("turns one judge's k reviews in a track into C(k,2) pairs weighing k - 1 together; equal totals tie; pairs the judge's picks cover drop out", () => {
     const reviews = [
       { judgeId: "j1", trackId: "t", projectId: "a", total: 4 },
       { judgeId: "j1", trackId: "t", projectId: "b", total: 3 },
@@ -139,7 +145,10 @@ describe("scores as a judge's order", () => {
     expect(pairs.reduce((a, c) => a + c.weight, 0)).toBeCloseTo(3, 12);
     expect(pairs.find((c) => c.a === "b" && c.b === "c")!.y).toBe(0.5);
     expect(pairs.find((c) => c.a === "a" && c.b === "d")!.y).toBe(1);
-    expect(impliedFromScores(reviews, new Set(["j1|t"]))).toHaveLength(0);
+    expect(impliedFromScores(reviews, new Map([["j1|t", new Set(["a", "b", "c", "d"])]]))).toHaveLength(0);
+    const partly = impliedFromScores(reviews, new Map([["j1|t", new Set(["a", "b"])]]));
+    expect(partly).toHaveLength(5);
+    expect(partly.some((c) => c.a === "a" && c.b === "b")).toBe(false);
   });
 });
 
@@ -191,6 +200,23 @@ describe("binary insertion", () => {
     expect(replayInsertion("j1", ["a", "b", "c"], [answered].slice(0, 0)).current).toEqual(q);
   });
 
+  it("does not stay stuck on a project whose pick no longer fits: the judge's later answers still count", () => {
+    const queue = ["a", "b", "c", "d"];
+    const q1 = replayInsertion("j1", queue, []).current!;
+    const p1: PickRecord = { left: q1.left, right: q1.right, newId: q1.newId, outcome: q1.left === q1.newId ? "left" : "right" };
+    const s1 = replayInsertion("j1", queue, [p1]);
+    expect(s1.list).toEqual(["b", "a"]);
+    // c was asked about against x, which has since left the list; then d was asked about and answered as it is asked today.
+    const stale: PickRecord = { left: "c", right: "x", newId: "c", outcome: "left" };
+    const against = s1.list[1]!;
+    const dLeft = newOnLeft("j1", "d", against);
+    const p3: PickRecord = { left: dLeft ? "d" : against, right: dLeft ? against : "d", newId: "d", outcome: dLeft ? "right" : "left" };
+    const s = replayInsertion("j1", queue, [p1, stale, p3]);
+    expect(s.ignored).toBe(1);
+    expect(s.list).toEqual(["b", "a", "d"]);
+    expect(s.current!.newId).toBe("c");
+  });
+
   it("gives each question stable sides, about half of them with the new project on the left", () => {
     expect(newOnLeft("j1", "a", "b")).toBe(newOnLeft("j1", "a", "b"));
     let left = 0;
@@ -206,7 +232,7 @@ describe("a judge's agreement with the rest of the panel", () => {
   const panel = simulate(truth, 20, 0, 0, 9).map((c) => ({ ...c, judgeId: "panel" }));
   const pairs = ids.flatMap((a, i) => ids.slice(i + 1).map((b) => [a, b] as const));
 
-  it("is high for a judge who follows the panel, low for one who answers the opposite, 0 for all ties, and not given under 6 picks", () => {
+  it("is high for a judge who follows the panel, low for one who answers the opposite, not given for all ties or under 6 picks", () => {
     const honest = pairs.map(([a, b]) => pick(a, b, 1, "honest"));
     const contrary = pairs.map(([a, b]) => pick(a, b, 0, "contrary"));
     const tier = pairs.map(([a, b]) => pick(a, b, 0.5, "tier"));
@@ -214,7 +240,8 @@ describe("a judge's agreement with the rest of the panel", () => {
     const tr = one(ids);
     expect(judgeAgreement(tr, all, "honest").z!).toBeGreaterThan(1.5);
     expect(judgeAgreement(tr, all, "contrary").z!).toBeLessThan(-1.5);
-    expect(judgeAgreement(tr, all, "tier")).toMatchObject({ ties: 10, z: 0 });
+    // All ties: no answer that could agree or disagree, so no z; the tie rule (ties over half) flags such a judge instead.
+    expect(judgeAgreement(tr, all, "tier")).toMatchObject({ ties: 10, z: null });
     expect(judgeAgreement(tr, [...panel, ...honest.slice(0, 5)], "honest").z).toBeNull();
   });
 });

@@ -5,6 +5,7 @@ import {
   COIN_FLIP_Z,
   fitPairwise,
   judgeAgreement,
+  MIN_PICKS_FOR_FLAG,
   replayInsertion,
   sigmoid,
   TIE_RATE_FLAG,
@@ -229,12 +230,13 @@ describe("pairwise Monte Carlo on the fixture's judges and assignments", () => {
       const { comps, flipper, strategic, q } = simulate(20000 + k, { h: 0.3, nu: 0.2, tau: heterogeneous, coinFlipper: true, strategic: true });
       for (const j of ASSIGNED.keys()) {
         const a = judgeAgreement(TRACKS, comps, j);
-        if (a.z === null) continue;
-        const flagged = a.z < COIN_FLIP_Z || a.ties / a.picks > TIE_RATE_FLAG;
+        // the same rule the data layer applies (computePairwise)
+        if (a.picks < MIN_PICKS_FOR_FLAG) continue;
+        const flagged = (a.z !== null && a.z < COIN_FLIP_Z) || a.ties / a.picks > TIE_RATE_FLAG;
         if (j === flipper) {
           flipperN++;
           flipperFlags += Number(flagged);
-        } else if (j === strategic?.judge) strategicTieFlags += Number(a.ties / a.picks > TIE_RATE_FLAG || a.z < COIN_FLIP_Z);
+        } else if (j === strategic?.judge) strategicTieFlags += Number(flagged);
         else {
           honestN++;
           honestFlags += Number(flagged);

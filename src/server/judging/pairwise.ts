@@ -16,7 +16,8 @@ import "server-only";
 // A judge's finished rubric reviews in one track say "this is my order of these k
 // projects" and enter the same fit as comparisons weighted 2/k each, so one judge's order
 // counts as k - 1 comparisons (a weighting choice: one judge's say does not grow with the
-// square of their load); a judge's picks in a track replace their score order there.
+// square of their load). A judge's picks replace their score order for the pairs they
+// cover: a pair from scores drops out once the judge has placed both projects by picks.
 // Solved by Newton-Raphson on the concave log-posterior; uncertainties come from the
 // inverse Hessian (Laplace). Strengths compare within a track only. Pure: no database.
 
@@ -52,7 +53,7 @@ export type ProjectFit = {
   group: number;
   /** 1 = best in its track; projects never compared come last */
   place: number;
-  /** the chance this project really is ahead of the next one in its track */
+  /** the chance this project really is ahead of the next one in its track; null when the two were never linked by comparisons */
   beatsNext: number | null;
 };
 
@@ -131,17 +132,16 @@ function inverse(L: number[][]): number[][] {
 /**
  * The pairs one judge's finished reviews imply, per track: every two projects the judge
  * scored in the same track, the higher total winning (equal totals: too close to call),
- * each weighted 2/k. `replaced` holds "judgeId|trackId" for judges whose picks in that
- * track replace their score order.
+ * each weighted 2/k. `covered` maps "judgeId|trackId" to the projects that judge has
+ * already placed by picks there; a pair of two such projects is left to the picks.
  */
 export function impliedFromScores(
   reviews: { judgeId: string; trackId: string; projectId: string; total: number }[],
-  replaced: ReadonlySet<string> = new Set(),
+  covered: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
 ): Comparison[] {
   const groups = new Map<string, { judgeId: string; trackId: string; rows: { projectId: string; total: number }[] }>();
   for (const r of reviews) {
     const key = `${r.judgeId}|${r.trackId}`;
-    if (replaced.has(key)) continue;
     const g = groups.get(key) ?? { judgeId: r.judgeId, trackId: r.trackId, rows: [] };
     g.rows.push({ projectId: r.projectId, total: r.total });
     groups.set(key, g);
@@ -150,10 +150,12 @@ export function impliedFromScores(
   for (const g of groups.values()) {
     const rows = [...g.rows].sort((x, y) => x.projectId.localeCompare(y.projectId));
     const k = rows.length;
+    const cov = covered.get(`${g.judgeId}|${g.trackId}`);
     for (let i = 0; i < k; i++) {
       for (let j = i + 1; j < k; j++) {
         const a = rows[i]!;
         const b = rows[j]!;
+        if (cov?.has(a.projectId) && cov.has(b.projectId)) continue;
         const y: Outcome = Math.abs(a.total - b.total) < 1e-9 ? 0.5 : a.total > b.total ? 1 : 0;
         out.push({ judgeId: g.judgeId, trackId: g.trackId, a: a.projectId, b: b.projectId, y, weight: 2 / k, kind: "scores", newIs: null });
       }
@@ -305,7 +307,8 @@ export function fitPairwise(
     rowsFit.forEach((r, k) => {
       r.place = k + 1;
       const next = rowsFit[k + 1];
-      if (next && r.comparisons > 0 && next.comparisons > 0) {
+      // Only within a group: across groups never compared, the difference is the prior's, not evidence.
+      if (next && r.comparisons > 0 && next.comparisons > 0 && find(r._i) === find(next._i)) {
         const sd = Math.sqrt(Math.max(1e-18, cov[r._i]![r._i]! + cov[next._i]![next._i]! - 2 * cov[r._i]![next._i]!));
         r.beatsNext = normalCdf((r.s - next.s) / sd);
       }
@@ -362,7 +365,8 @@ export function judgeAgreement(tracks: { trackId: string; projectIds: string[] }
     const agree = c.y === 0.5 ? 0.5 : (c.y === 1) === p > 0.5 ? 1 : 0;
     W += w;
     A += w * agree;
-    V += 0.25 * w * w;
+    // Under coin flips a pick agrees with probability 1/2 (variance w^2/4); a tie always earns w/2, so it adds no variance.
+    if (c.y !== 0.5) V += 0.25 * w * w;
   }
   if (V <= 1e-12) return { judgeId, picks: mine.length, ties, weight: W, share: null, z: null };
   return { judgeId, picks: mine.length, ties, weight: W, share: A / W, z: (A - 0.5 * W) / Math.sqrt(V) };
@@ -406,6 +410,8 @@ export function replayInsertion(judgeId: string, queue: string[], picks: PickRec
   let ignored = 0;
   let inserting: { id: string; lo: number; hi: number } | null = null;
   const opened = new Set<string>();
+  // projects with at least one pick that fitted the replay
+  const picksFor = new Set<string>();
 
   const expected = (): Question | null => {
     if (!inserting) return null;
@@ -445,8 +451,15 @@ export function replayInsertion(judgeId: string, queue: string[], picks: PickRec
     const q = expected()!;
     if (p.newId !== q.newId || p.left !== q.left || p.right !== q.right) {
       ignored++;
+      // A pick that opened its project and does not fit (the list it was asked against has changed) must not
+      // pin the replay to that project, or the judge's later answers on other projects would all be dropped.
+      if (inserting!.id === p.newId && !picksFor.has(p.newId)) {
+        opened.delete(p.newId);
+        inserting = null;
+      }
       continue;
     }
+    picksFor.add(p.newId);
     const cur: { id: string; lo: number; hi: number } = inserting!;
     const mid = Math.floor((cur.lo + cur.hi) / 2);
     const newWon = p.outcome === "tie" ? null : (p.outcome === "left") === (q.left === cur.id);
