@@ -360,4 +360,26 @@
   .hash-glyph .hash-glyph-zeros {
     fill: var(--rule);
   }
+
+  /* the overview's decisions wired into the lock: ink when made, dashed orange while open */
+  .wiring .wire {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 2;
+  }
+  .wiring .wire-open {
+    stroke: var(--flag-bar);
+    stroke-dasharray: 6 4;
+    animation: wire-flow 1.6s linear infinite;
+  }
+  @keyframes wire-flow {
+    to {
+      stroke-dashoffset: -20;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wiring .wire-open {
+      animation: none;
+    }
+  }
 }

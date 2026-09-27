@@ -4,6 +4,7 @@ import { unauthorized } from "next/navigation";
 import { Face } from "@/components/face";
 import { HashGlyph } from "@/components/figures/hash-glyph";
 import { LeniencyStrip } from "@/components/figures/leniency-strip";
+import { Wiring } from "@/components/figures/wiring";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, plural } from "@/lib/format";
@@ -207,23 +208,25 @@ export default async function OverviewPage({
       <h1 className="sr-only">{event.name}: overview</h1>
       <Pipeline stages={o.pipeline} />
       <div className="mx-auto flex max-w-[1440px] flex-col gap-10 px-4 py-6 lg:px-8">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
-          <Decisions
-            eventSlug={event.slug}
-            decisions={o.decisions}
-            faces={faces}
-            published={Boolean(event.resultsPublishedAt)}
-          />
-          <PublishPanel
-            eventSlug={event.slug}
-            open={o.open}
-            total={o.decisions.length}
-            publishedAt={event.resultsPublishedAt}
-            submissionsCloseAt={o.submissionsOpenUntil}
-            pairwise={o.pairwise !== null}
-            vote={o.vote}
-          />
-        </div>
+        <Wiring>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
+            <Decisions
+              eventSlug={event.slug}
+              decisions={o.decisions}
+              faces={faces}
+              published={Boolean(event.resultsPublishedAt)}
+            />
+            <PublishPanel
+              eventSlug={event.slug}
+              open={o.open}
+              total={o.decisions.length}
+              publishedAt={event.resultsPublishedAt}
+              submissionsCloseAt={o.submissionsOpenUntil}
+              pairwise={o.pairwise !== null}
+              vote={o.vote}
+            />
+          </div>
+        </Wiring>
 
         <div className="grid grid-cols-[minmax(0,1fr)] gap-x-8 gap-y-10 lg:grid-cols-3">
           <Figure

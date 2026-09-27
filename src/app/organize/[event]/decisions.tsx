@@ -417,6 +417,7 @@ export function Decisions({
   return (
     <section
       aria-labelledby="decisions-title"
+      data-wire-from=""
       className="min-w-0 rounded-sm border border-rule bg-surface p-6 wrap-anywhere lg:col-span-2"
     >
       <div className="flex items-start gap-5">
@@ -473,6 +474,8 @@ export function Decisions({
                     else rowButtons.current.delete(d.key);
                   }}
                   type="button"
+                  data-wire-source=""
+                  data-open={d.resolved ? "false" : "true"}
                   aria-expanded={expanded}
                   onClick={() => setOpen(expanded ? null : d.key)}
                   className="grid w-full grid-cols-[28px_120px_minmax(0,1fr)_auto] items-center gap-3 py-3 text-left max-md:grid-cols-[28px_minmax(0,1fr)_auto]"
@@ -553,6 +556,7 @@ export function PublishPanel({
   return (
     <section
       aria-labelledby="publish-title"
+      data-wire-panel=""
       className="flex flex-col gap-4 self-start rounded-sm border border-rule bg-surface p-6"
     >
       <p className="label-mono text-ink-2">Results</p>
@@ -562,9 +566,12 @@ export function PublishPanel({
             ref={publishedHeading}
             tabIndex={-1}
             id="publish-title"
-            className="flex items-center gap-2 text-24 font-semibold"
+            className="flex items-center gap-3 text-24 font-semibold"
           >
-            <LockOpen className="size-5" aria-hidden /> Published
+            <span data-wire-target="" aria-hidden className="inline-flex size-9 items-center justify-center border-2 border-ink">
+              <LockOpen className="size-5" />
+            </span>{" "}
+            Published
           </h2>
           <p className="text-14 text-ink-2">
             Since {formatUtc(publishedAt)}. The results page is public, each
@@ -581,15 +588,16 @@ export function PublishPanel({
         <>
           <h2
             id="publish-title"
-            className="flex items-center gap-2 text-24 font-semibold"
+            className="flex items-center gap-3 text-24 font-semibold"
           >
-            {submissionsCloseAt ? (
-              <Clock className="size-5" aria-hidden />
-            ) : open ? (
-              <Lock className="size-5" aria-hidden />
-            ) : (
-              <LockOpen className="size-5" aria-hidden />
-            )}
+            {/* the terminal the overview's decision wires run into: orange while any is open */}
+            <span
+              data-wire-target=""
+              aria-hidden
+              className={`inline-flex size-9 items-center justify-center border-2 ${open || submissionsCloseAt ? "border-flag-bar" : "border-ink"}`}
+            >
+              {submissionsCloseAt ? <Clock className="size-5" /> : open ? <Lock className="size-5" /> : <LockOpen className="size-5" />}
+            </span>
             {submissionsCloseAt ? "After the close" : open ? "Locked" : "Ready"}
           </h2>
           <form {...form} className="flex flex-col gap-3">
