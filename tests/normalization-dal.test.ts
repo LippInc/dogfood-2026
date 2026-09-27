@@ -528,3 +528,18 @@ describe("normalized.csv before anything is measured", () => {
     expect(after.every((r) => variance(r).beta2 === "" && variance(r).sigma2 === "")).toBe(true);
   });
 });
+
+describe("decisions name only this event's projects", () => {
+  it("known-bad: 'different projects' and 'publish as it is' refuse an id from nowhere (422) and store nothing; real ids still work", () => {
+    const settingsNow = () => (h.sqlite.prepare("SELECT settings FROM events WHERE id = 'evt_01'").get() as { settings: string }).settings;
+    const before = settingsNow();
+    expectHttpError(() => dismissDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_nowhere"], reason: "Checked by hand" }), 422, "invalid");
+    expectHttpError(() => acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_nowhere", reason: "Checked by hand" }), 422, "invalid");
+    expect(settingsNow()).toBe(before);
+
+    // positive controls: the event's own projects are accepted
+    dismissDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_41"], reason: "Checked by hand" });
+    acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    expect(settingsNow()).not.toBe(before);
+  });
+});

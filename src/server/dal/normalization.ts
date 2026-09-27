@@ -1,11 +1,11 @@
 import "server-only";
-import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignments, events, judgeOverrides, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, userRoles, users } from "../db/schema";
 import { formatUtc } from "@/lib/format";
-import { ConflictError, NotFoundError } from "../errors";
+import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import type { FlatFlag } from "../judging/flat";
 import { averageRanks, normalize, permutationShare, type Obs, type SignalCheck } from "../judging/normalize";
 import { guardRead, mutate } from "../mutate";
@@ -666,12 +666,27 @@ export function unmergeDuplicate(actor: Actor | null, eventIdOrSlug: string, bod
 
 export const PairInput = z.object({ ids: z.array(z.string().min(1)).min(2), reason: Reason });
 
+/** A decision names only this event's projects: any other id is a 422, never a stored string. */
+function requireOwnProjects(tx: DbOrTx, event: EventRow, ids: string[]) {
+  const found = new Set(
+    tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.eventId, event.id), inArray(projects.id, ids)))
+      .all()
+      .map((p) => p.id),
+  );
+  const missing = ids.filter((id) => !found.has(id));
+  if (missing.length) throw new ValidationError("Check the projects.", { ids: [`not a project of this event: ${missing.slice(0, 3).join(", ")}`] });
+}
+
 /** The organizer rules that same-titled projects of one team are different projects. */
 export function dismissDuplicate(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     notPublished(event);
     const { ids, reason } = parse(PairInput, body);
     const sorted = [...new Set(ids)].sort();
+    requireOwnProjects(tx, event, sorted);
     const pairs = sorted.flatMap((a, i) => sorted.slice(i + 1).map((b) => pairKey(a, b)));
     const notDuplicates = [...new Set([...(event.settings.notDuplicates ?? []), ...pairs])].sort();
     tx.update(events).set({ settings: { ...event.settings, notDuplicates } }).where(eq(events.id, event.id)).run();
@@ -709,6 +724,7 @@ export function acceptUnderReviewed(actor: Actor | null, eventIdOrSlug: string, 
   return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     notPublished(event);
     const { projectId, reason } = parse(AcceptInput, body);
+    requireOwnProjects(tx, event, [projectId]);
     const accepted = [...new Set([...(event.settings.acceptedUnderReviewed ?? []), projectId])].sort();
     tx.update(events).set({ settings: { ...event.settings, acceptedUnderReviewed: accepted } }).where(eq(events.id, event.id)).run();
     return {
