@@ -35,12 +35,34 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
       role="Organizer"
     >
       <div className="flex flex-col gap-8">
-        <header>
-          <h1 className="text-24 font-semibold">Judges</h1>
-          <p className="mt-2 text-15 text-ink-2 tnum">
-            {plural(judges.length, "judge")} · {finished} of {plural(assigned, "assigned review")} finished
-            {a.underReviewed.length ? ` · ${a.underReviewed.length} under-reviewed ${a.underReviewed.length === 1 ? "project" : "projects"}` : ""}
-          </p>
+        <header className="flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
+          <div>
+            <h1 className="text-24 font-semibold">Judges</h1>
+            <p className="mt-2 text-15 text-ink-2 tnum">
+              {plural(judges.length, "judge")} · {finished} of {plural(assigned, "assigned review")} finished
+              {a.underReviewed.length ? ` · ${a.underReviewed.length} under-reviewed ${a.underReviewed.length === 1 ? "project" : "projects"}` : ""}
+            </p>
+          </div>
+          {assigned ? (
+            // FIG. 01: every assigned review as one cell, one column per judge in the table's order:
+            // the height is the judge's load, the filled cells the reviews they have finished.
+            <figure className="flex min-w-0 flex-col gap-2">
+              <div className="flex max-w-full items-end gap-[3px] overflow-x-auto" aria-hidden>
+                {judges.map((j) => (
+                  <div key={j.id} title={`${j.name}: ${j.done} of ${j.assigned}`} className="flex w-3 shrink-0 flex-col-reverse gap-[2px]">
+                    {Array.from({ length: j.assigned }, (_, i) => (
+                      <span key={i} className={`h-[5px] ${j.excluded ? (i < j.done ? "bg-flag-bar" : "border border-flag-bar") : i < j.done ? "bg-ink" : "border border-edge"}`} />
+                    ))}
+                    <span className={`h-[2px] ${j.excluded ? "bg-flag-bar" : "bg-ink-3"}`} />
+                  </div>
+                ))}
+              </div>
+              <figcaption className="text-12 text-ink-2">
+                <span className="label-mono mr-2 text-ink">Fig. 01 — The load</span>
+                one column per judge, one cell per assigned review, filled when finished{judges.some((j) => j.excluded) ? "; orange: left out of the ranking" : ""}
+              </figcaption>
+            </figure>
+          ) : null}
         </header>
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -83,9 +105,13 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                             <p>
                               {j.done} / {j.assigned}
                             </p>
-                            <div className="mt-1 ml-auto h-1 w-20 rounded-full bg-sunken" aria-hidden>
-                              <div className="h-1 rounded-full bg-ink" style={{ width: `${j.assigned ? (j.done / j.assigned) * 100 : 0}%` }} />
-                            </div>
+                            {j.assigned ? (
+                              <div className="mt-1.5 ml-auto flex w-fit gap-[2px]" aria-hidden>
+                                {Array.from({ length: j.assigned }, (_, i) => (
+                                  <span key={i} className={`h-2.5 w-[7px] ${i < j.done ? "bg-ink" : "border border-edge"}`} />
+                                ))}
+                              </div>
+                            ) : null}
                             {j.recused ? <p className="mt-1 text-12 text-ink-2">{j.recused} recused</p> : null}
                           </TableCell>
                           <TableCell className="text-13 text-ink-2">{j.lastScoredAt ? formatUtc(j.lastScoredAt) : "–"}</TableCell>
