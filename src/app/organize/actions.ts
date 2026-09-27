@@ -49,7 +49,7 @@ export async function importEventAction(_prev: ImportResult, form: FormData): Pr
     const n = r.inserted;
     const added = n.events + n.tracks + n.users + n.teams + n.projects + n.scores;
     const message = added
-      ? `Imported: ${n.tracks} tracks, ${n.teams} teams, ${n.projects} projects, ${n.scores} scores and ${n.users} people${r.skipped.length ? `; ${r.skipped.length} rows skipped` : ""}.`
+      ? `Imported: ${n.tracks} tracks, ${n.teams} teams, ${n.projects} projects, ${n.scores} scores and ${n.users} people${r.skipped.length ? `; ${r.skipped.length} rows skipped` : ""}${r.renamed.length ? `; ${r.renamed.length} ids renamed because another event here already uses them` : ""}.`
       : "Everything in this file is here already; nothing changed.";
     return { ok: true, message, slug: r.eventSlug };
   } catch (err) {

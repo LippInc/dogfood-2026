@@ -221,7 +221,8 @@ describe("bulk import, export and account claims", () => {
     const importRows = () => nOf(hb!, "SELECT count(*) AS n FROM audit_log WHERE action = 'fixtures.import'");
     expect(importRows()).toBe(1);
 
-    const again = importEventFile(adminB, parsed);
+    // a second request, so the actor is read again: it carries the organizer role the first import gave it
+    const again = importEventFile(actorIn(hb, ADMIN_B.id), parsed);
     for (const [table, n] of Object.entries(again.inserted)) expect(n, `inserted.${table}`).toBe(0);
     expect(countsOf(hb)).toEqual(before);
     expect(importRows()).toBe(1);
@@ -357,5 +358,95 @@ describe("bulk import, export and account claims", () => {
     const links = makeClaimLinks(organizer(), EVENT).links;
     await claimAccount(tokenOf(links[0]!), { password: "a long enough password" });
     expect(verifyAuditChain(ha.db).ok).toBe(true);
+  });
+});
+
+describe("importing onto what this portal already holds", () => {
+  const TWO = "evt_02";
+  /** The fixture event's own export, as a second event: every track, team, project and judge id reused, other people. */
+  function secondEvent(): FixtureFile {
+    const one = JSON.parse(exportFile(organizer(), EVENT, "fixtures.json").body) as FixtureFile;
+    return {
+      ...one,
+      event: { ...one.event, id: TWO, name: "Second Hack 2026" },
+      judges: one.judges.map((j) => ({ ...j, email: `two.${j.email}` })),
+      teams: one.teams.map((t) => ({ ...t, members: t.members.map((m) => `two.${m}`) })),
+    };
+  }
+  const rowsOf = (event: string) =>
+    ha.sqlite
+      .prepare(
+        "SELECT p.id, p.team_id, p.track_id, p.title, a.judge_user_id, si.value FROM projects p " +
+          "LEFT JOIN assignments a ON a.project_id = p.id LEFT JOIN scores s ON s.assignment_id = a.id " +
+          "LEFT JOIN score_items si ON si.score_id = s.id WHERE p.event_id = ? ORDER BY p.id, a.id, si.criterion_id",
+      )
+      .all(event);
+
+  it("a second event whose file reuses the first one's ids gets rows of its own, the first stays exactly as it was, and importing it again finds the same rows", () => {
+    const file = secondEvent();
+    const first = rowsOf(EVENT);
+    const report = importEventFile(organizer(), file);
+
+    expect(report.eventId).toBe(TWO);
+    const renamed = (kind: string) => report.renamed.filter((r) => r.kind === kind);
+    expect(renamed("track")).toHaveLength(file.projects.length ? new Set(file.projects.map((p) => p.track)).size : 0);
+    expect(renamed("team")).toHaveLength(file.teams.length);
+    expect(renamed("project")).toHaveLength(file.projects.length);
+    expect(renamed("judge")).toHaveLength(file.judges.length);
+    expect(renamed("project")[0]!.to).toBe(`${renamed("project")[0]!.from}.${TWO}`);
+
+    expect(rowsOf(EVENT)).toEqual(first);
+    // nothing of the second event points at a row of the first
+    const crossing = (sql: string) => nOf(ha, sql, TWO);
+    expect(crossing("SELECT count(*) AS n FROM projects p JOIN teams t ON t.id = p.team_id WHERE p.event_id = ? AND t.event_id <> p.event_id")).toBe(0);
+    expect(crossing("SELECT count(*) AS n FROM projects p JOIN tracks t ON t.id = p.track_id WHERE p.event_id = ? AND t.event_id <> p.event_id")).toBe(0);
+    expect(crossing("SELECT count(*) AS n FROM assignments a JOIN projects p ON p.id = a.project_id WHERE a.event_id = ? AND p.event_id <> a.event_id")).toBe(0);
+    expect(crossing("SELECT count(*) AS n FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.event_id = ? AND t.event_id <> m.event_id")).toBe(0);
+    // each judge of the second event is the person the file names, not the first event's judge with the same id
+    expect(crossing("SELECT count(*) AS n FROM assignments a JOIN users u ON u.id = a.judge_user_id WHERE a.event_id = ? AND u.email NOT LIKE 'two.%'")).toBe(0);
+    expect(nOf(ha, "SELECT count(*) AS n FROM assignments WHERE event_id = ?", TWO)).toBe(nOf(ha, "SELECT count(*) AS n FROM assignments WHERE event_id = ?", EVENT));
+
+    const again = importEventFile(organizer(), file);
+    for (const [table, n] of Object.entries(again.inserted)) expect(n, `inserted.${table}`).toBe(0);
+    expect(again.renamed).toEqual(report.renamed);
+    expect(rowsOf(EVENT)).toEqual(first);
+  });
+
+  it("an administrator who is not the event's organizer cannot import onto it: 403 audited, nothing added, no organizer role gained", () => {
+    ha.sqlite
+      .prepare("INSERT INTO users (id, email, name, password_hash, is_admin, created_at) VALUES (?, ?, ?, NULL, 1, ?)")
+      .run("usr_admin_two", "admin-two@example.org", "Another Admin", NOW);
+    const file = JSON.parse(exportFile(organizer(), EVENT, "fixtures.json").body) as FixtureFile;
+    file.teams.push({ id: "tm_99", name: "Late Team", members: ["late@example.org"] });
+    file.projects.push({ id: "prj_99", team: "tm_99", track: file.projects[0]!.track, title: "Late Entry", submitted_at: NOW } as FixtureFile["projects"][number]);
+    const before = countsOf(ha);
+
+    expectHttpError(() => importEventFile(actorIn(ha, "usr_admin_two"), file), 403, "not_an_organizer");
+    expect(countsOf(ha)).toEqual(before);
+    expect(nOf(ha, "SELECT count(*) AS n FROM user_roles WHERE user_id = 'usr_admin_two'")).toBe(0);
+    const refusal = auditIn(ha).at(-1)!;
+    expect(refusal.action).toBe("authz.refused");
+    expect(refusal.actorUserId).toBe("usr_admin_two");
+    expect(refusal.after).toMatchObject({ attempted: "event.manage", code: "not_an_organizer" });
+  });
+
+  it("once results are published, an import that would add to the event answers 409 and changes nothing; a file with nothing new still passes", () => {
+    const file = JSON.parse(exportFile(organizer(), EVENT, "fixtures.json").body) as FixtureFile;
+    importEventFile(organizer(), file); // whatever the export adds over the boot's import, before publishing
+    ha.sqlite.prepare("UPDATE events SET results_published_at = ? WHERE id = ?").run(NOW, EVENT);
+    const before = countsOf(ha);
+    const imports = () => nOf(ha, "SELECT count(*) AS n FROM fixture_imports");
+    const importsBefore = imports();
+
+    const same = importEventFile(organizer(), file);
+    for (const [table, n] of Object.entries(same.inserted)) expect(n, `inserted.${table}`).toBe(0);
+
+    const late = structuredClone(file);
+    late.teams.push({ id: "tm_99", name: "Late Team", members: ["late@example.org"] });
+    late.projects.push({ id: "prj_99", team: "tm_99", track: file.projects[0]!.track, title: "Late Entry", submitted_at: NOW } as FixtureFile["projects"][number]);
+    expectHttpError(() => importEventFile(organizer(), late), 409, "results_published");
+    expect(countsOf(ha)).toEqual(before);
+    expect(nOf(ha, "SELECT count(*) AS n FROM projects WHERE id = 'prj_99'")).toBe(0);
+    expect(imports()).toBe(importsBefore + 1); // the passing re-import's row only: the refused one rolled back
   });
 });

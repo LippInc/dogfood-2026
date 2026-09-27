@@ -144,6 +144,8 @@ export type ImportReport = {
   skipped: Skipped[];
   /** score ids whose judge is a member of the scored project's team */
   conflicts: string[];
+  /** file ids another event already used, and the ids this event's rows got instead */
+  renamed: { kind: "track" | "team" | "project" | "judge"; from: string; to: string }[];
 };
 
 // ---------------------------------------------------------------------------
@@ -194,6 +196,7 @@ export function importFixtures(
     existing: emptyCounts(),
     skipped: [],
     conflicts: [],
+    renamed: [],
   };
   const bump = (table: TableKey, changes: number) => {
     if (changes > 0) report.inserted[table] += 1;
@@ -203,6 +206,32 @@ export function importFixtures(
   // One synchronous transaction: Drizzle on better-sqlite3 throws on async callbacks.
   return db.transaction((tx) => {
     opts.gate?.(tx);
+
+    // The file's ids are its own. Here a track, team or project belongs to one event,
+    // so a file id another event already holds gets this event's id as a suffix: the
+    // second event gets rows of its own instead of linking to the first event's, and
+    // the same file imported again finds the same renamed rows.
+    const holderOf = {
+      track: (id: string) => tx.select({ e: tracks.eventId }).from(tracks).where(eq(tracks.id, id)).get()?.e,
+      team: (id: string) => tx.select({ e: teams.eventId }).from(teams).where(eq(teams.id, id)).get()?.e,
+      project: (id: string) => tx.select({ e: projects.eventId }).from(projects).where(eq(projects.id, id)).get()?.e,
+    };
+    const own = (kind: keyof typeof holderOf, id: string): string => {
+      const holder = holderOf[kind](id);
+      if (holder === undefined || holder === eventId) return id;
+      const renamed = `${id}.${eventId}`;
+      const again = holderOf[kind](renamed);
+      if (again !== undefined && again !== eventId) {
+        throw new Error(`The ${kind} ids ${id} and ${renamed} both belong to other events; give this file's ids a prefix of their own.`);
+      }
+      report.renamed.push({ kind, from: id, to: renamed });
+      return renamed;
+    };
+    const ownIds = (kind: keyof typeof holderOf, ids: string[]) => new Map([...new Set(ids)].map((id) => [id, own(kind, id)]));
+    const trackOf = ownIds("track", fixture.tracks.map((t) => t.id));
+    const teamOf = ownIds("team", fixture.teams.map((t) => t.id));
+    const projectOf = ownIds("project", fixture.projects.map((p) => p.id));
+
     // Event
     bump(
       "events",
@@ -230,7 +259,7 @@ export function importFixtures(
         insertOnce(
           tx
             .insert(tracks)
-            .values({ id: t.id, eventId, name: t.name, position })
+            .values({ id: trackOf.get(t.id)!, eventId, name: t.name, position })
             .onConflictDoNothing(),
         ),
       );
@@ -272,11 +301,16 @@ export function importFixtures(
     const judgeEmailById = new Map<string, string>(); // judges whose user row is present
     const accountOf = new Map<string, string>(); // the file's judge id -> the account's user id
     for (const j of fixture.judges) {
+      // A file id that is another person's account is never linked to this judge: the
+      // judge gets an account of their own, named from the email as team members' are.
+      const holder = tx.select({ email: users.email }).from(users).where(eq(users.id, j.id)).get();
+      const idTaken = holder !== undefined && holder.email.toLowerCase() !== j.email.toLowerCase();
+      const wanted = idTaken ? participantUserId(j.email) : j.id;
       const changes = insertOnce(
         tx
           .insert(users)
           .values({
-            id: j.id,
+            id: wanted,
             email: j.email,
             name: j.name,
             passwordHash: null,
@@ -286,8 +320,8 @@ export function importFixtures(
           .onConflictDoNothing(),
       );
       bump("users", changes);
-      let userId = j.id;
-      if (changes === 0 && !tx.select({ id: users.id }).from(users).where(eq(users.id, j.id)).get()) {
+      let userId = wanted;
+      if (changes === 0 && !tx.select({ id: users.id }).from(users).where(eq(users.id, wanted)).get()) {
         // The email has an account under another id (the same person in another
         // event, or someone who signed up): never invent a second account, use that one.
         const present = tx.select({ id: users.id }).from(users).where(eq(users.email, j.email)).get();
@@ -297,6 +331,7 @@ export function importFixtures(
         }
         userId = present.id;
       }
+      if (idTaken) report.renamed.push({ kind: "judge", from: j.id, to: userId });
       accountOf.set(j.id, userId);
       judgeByEmail.set(j.email, userId);
       judgeEmailById.set(j.id, j.email);
@@ -323,7 +358,7 @@ export function importFixtures(
           insertOnce(
             tx
               .insert(judgeTracks)
-              .values({ judgeUserId: userId, eventId, trackId })
+              .values({ judgeUserId: userId, eventId, trackId: trackOf.get(trackId)! })
               .onConflictDoNothing(),
           ),
         );
@@ -341,7 +376,7 @@ export function importFixtures(
         insertOnce(
           tx
             .insert(teams)
-            .values({ id: t.id, eventId, name: t.name, inviteCode: newSecret(12), createdAt: now })
+            .values({ id: teamOf.get(t.id)!, eventId, name: t.name, inviteCode: newSecret(12), createdAt: now })
             .onConflictDoNothing(),
         ),
       );
@@ -388,7 +423,7 @@ export function importFixtures(
           .from(teamMembers)
           .where(and(eq(teamMembers.eventId, eventId), eq(teamMembers.userId, userId)))
           .get();
-        if (membership && membership.teamId !== t.id) {
+        if (membership && membership.teamId !== teamOf.get(t.id)) {
           report.skipped.push({
             kind: "teamMember",
             id: `${t.id}:${email}`,
@@ -403,7 +438,7 @@ export function importFixtures(
               .insert(teamMembers)
               .values({
                 eventId,
-                teamId: t.id,
+                teamId: teamOf.get(t.id)!,
                 userId,
                 role: index === 0 ? "captain" : "member",
                 joinedAt: now,
@@ -432,10 +467,10 @@ export function importFixtures(
           tx
             .insert(projects)
             .values({
-              id: p.id,
+              id: projectOf.get(p.id)!,
               eventId,
-              teamId: p.team,
-              trackId: p.track,
+              teamId: teamOf.get(p.team)!,
+              trackId: trackOf.get(p.track)!,
               title: p.title,
               summary: p.summary,
               repoUrl: p.repo_url === "" ? null : p.repo_url,
@@ -518,8 +553,9 @@ export function importFixtures(
       }
 
       const complete = criteriaKeys.every((k) => typeof s.criteria[k] === "number");
-      const assignmentId = `asg_${s.judge}_${s.project}`;
-      const scoreId = `scr_${s.judge}_${s.project}`;
+      const projectId = projectOf.get(s.project)!;
+      const assignmentId = `asg_${s.judge}_${projectId}`;
+      const scoreId = `scr_${s.judge}_${projectId}`;
       bump(
         "assignments",
         insertOnce(
@@ -529,7 +565,7 @@ export function importFixtures(
               id: assignmentId,
               eventId,
               judgeUserId: accountOf.get(s.judge)!,
-              projectId: s.project,
+              projectId,
               runId,
               batchNo: 1,
               position,

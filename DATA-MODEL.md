@@ -123,7 +123,7 @@ The import (`src/server/db/import-fixtures.ts`) is idempotent — every insert i
 | `scores` | one `assignment_runs` row (`run_fixture_<event>`, mode `fixture`), then `assignments` (done when complete), `scores` (with `conflicted` where the judge is on the scored team), `score_items` (missing or null keys are not scored, never zeros), `score_comments` |
 | (the call itself) | `fixture_imports`, plus one `fixtures.import` audit row when anything was inserted |
 
-Imported rows keep the fixture's ids; assignments and scores get deterministic ids derived from them (`asg_<judge>_<project>`, `scr_<judge>_<project>`).
+Imported rows keep the fixture's ids, with two exceptions listed in the report's `renamed`: a track, team or project id that another event already holds gets `.<event id>` appended, so a second event never links to the first one's rows, and a judge id that is another person's account gets an account of its own (`usr_` and a hash of the email). Assignments and scores get deterministic ids derived from the ids used (`asg_<judge>_<project>`, `scr_<judge>_<project>`). Through the API, a file for an event that already exists adds to it only for that event's organizers, and never once its results are published.
 
 ## Privacy
 
