@@ -267,5 +267,8 @@ describe("pairwise Monte Carlo on the fixture's judges and assignments", () => {
     );
     expect(honestN).toBeGreaterThan(100);
     expect(honestFlags / honestN).toBeLessThanOrEqual(0.15);
+    // its power, declared with its margin in JUDGING.md: a random judge at least 3 times as often as an honest one (6.2 measured)
+    expect(flipperN).toBeGreaterThan(100);
+    expect(flipperFlags / flipperN).toBeGreaterThan(3 * (honestFlags / honestN));
   }, 300_000);
 });
