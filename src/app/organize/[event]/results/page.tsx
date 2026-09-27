@@ -166,20 +166,29 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                   <RankLine total={n.ranked} marks={copies.map((c) => ({ rank: c.rankRaw!, text: rk(c.rankRaw) }))} label={`Raw ranks of the two copies of ${dup.title}`} />
                 </div>
               </>
-            ) : null}
+            ) : (
+              <>
+                <p className="text-38 leading-none font-semibold tnum">{n.ranked}</p>
+                <p className="mt-2 text-14 text-ink-2">projects ranked. Read neighbouring ranks as ties; the results page shows scores next to places.</p>
+              </>
+            )}
             {n.signal ? (
-              <div className={copies.length >= 2 ? "mt-6 border-t border-rule pt-4" : ""}>
+              <div className="mt-6 border-t border-rule pt-4">
                 <p className="text-14">
                   <strong>Signal check: permutation share {n.signal.share.toFixed(3)}.</strong>{" "}
                   {n.signal.share > 0.05
                     ? `Shuffling the review totals spreads the projects at least as far apart as the real scores in ${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles, so these scores cannot tell the projects apart better than chance.`
                     : `Shuffling the review totals almost never spreads the projects as far apart as the real scores (${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles): the projects really differ.`}
                 </p>
-                <svg viewBox="0 0 320 30" className="mt-3 w-full max-w-[360px]" role="img" aria-label={`Permutation share ${n.signal.share.toFixed(3)} on a scale from 0 to 1, with the 0.05 line`}>
-                  <rect x={10} y={12} width={300} height={4} className="fill-sunken" />
+                <svg viewBox="0 0 320 32" className="mt-3 w-full max-w-[360px]" role="img" aria-label={`Permutation share ${n.signal.share.toFixed(3)} on a scale from 0 to 1, with the 0.05 line`}>
+                  <line x1={10} x2={310} y1={14} y2={14} className="stroke-edge" strokeWidth={1} />
+                  <line x1={10} x2={10} y1={10} y2={18} className="stroke-edge" strokeWidth={1} />
+                  <line x1={310} x2={310} y1={10} y2={18} className="stroke-edge" strokeWidth={1} />
                   <line x1={10 + 0.05 * 300} x2={10 + 0.05 * 300} y1={6} y2={22} className="stroke-flag-bar" strokeWidth={1.5} />
                   <circle cx={10 + n.signal.share * 300} cy={14} r={5} className="fill-ink" />
-                  <text x={10 + 0.05 * 300 + 4} y={28} className="fill-ink-3 text-[9px]">0.05</text>
+                  <text x={10} y={30} textAnchor="middle" className="fill-ink-3 text-[9px]">0</text>
+                  <text x={10 + 0.05 * 300 + 4} y={30} className="fill-ink-3 text-[9px]">0.05</text>
+                  <text x={310} y={30} textAnchor="middle" className="fill-ink-3 text-[9px]">1</text>
                 </svg>
               </div>
             ) : null}
@@ -188,12 +197,6 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                 <YardstickLine y={n.yardstick} figure />
               </div>
             ) : null}
-            {copies.length >= 2 && dup?.kind === "duplicate" ? null : (
-              <>
-                <p className="text-38 leading-none font-semibold tnum">{n.ranked}</p>
-                <p className="mt-2 text-14 text-ink-2">projects ranked. Read neighbouring ranks as ties; the results page shows scores next to places.</p>
-              </>
-            )}
           </div>
         </section>
 
