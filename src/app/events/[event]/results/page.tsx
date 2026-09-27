@@ -35,8 +35,9 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
         <>
           {pairwise ? (
             <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-              Published {formatUtc(results.publishedAt)}. Judges answered &ldquo;which of these two is better?&rdquo; about their own projects, and each
-              project&rsquo;s win % is its chance to beat an average project of its track, with the pull of the side a project was shown on and of the
+              Published {formatUtc(results.publishedAt)}. Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores
+              given before the event switched to that way of judging count as the order they imply), and each project&rsquo;s win % is its chance to beat
+              an average project of its track, with the pull of the side a project was shown on and of the
               project a judge had just opened measured and taken out. Places compare within a track. The ± is one standard error: win % closer than about two
               of them are not told apart, so read small gaps as ties.
               {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
