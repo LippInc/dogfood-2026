@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DitherDigits } from "@/components/dither-digits";
 import { Face } from "@/components/face";
+import { SignatureBits } from "@/components/signature-bits";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
 import { actorNav, currentActor, getRecord, NotFoundError, type RecordView } from "@/server/dal";
@@ -41,6 +42,22 @@ function placeOf(award: string): { place: number; ordinal: string; joint: boolea
 
 const recordLink = "rounded-xs font-medium underline decoration-edge underline-offset-4 hover:decoration-ink";
 
+const bytesBox = "whitespace-pre-wrap break-all rounded-sm border border-rule bg-sunken px-4 py-3 font-mono text-12 leading-5";
+
+/** One step of the check, drawn as a ledger row: its number and why on the left, the evidence on the right. */
+function Step({ n, title, why, children }: { n: number; title: string; why: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <li className="grid gap-3 border-t border-rule py-6 md:grid-cols-[240px_minmax(0,1fr)] md:gap-10">
+      <div className="flex flex-col gap-1.5">
+        <span className="label-mono text-accent-ink">Step {String(n).padStart(2, "0")}</span>
+        <h3 className="text-17 font-semibold">{title}</h3>
+        <p className="text-14 text-ink-2">{why}</p>
+      </div>
+      <div className="min-w-0 md:pt-6">{children}</div>
+    </li>
+  );
+}
+
 const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 export default async function RecordPage({ params }: PageProps<"/records/[record]">) {
@@ -50,6 +67,17 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
   const rec = view.envelope.record as unknown as Common & Partial<JudgeRecord & ParticipantRecord>;
   const key = view.keys.find((k) => k.kid === rec.keyId);
   const awards = rec.project?.awards ?? [];
+  // the name inside the signed bytes, so step 1 can mark the letters step 5 changes
+  const nameJson = `"person":{"name":${JSON.stringify(rec.person.name)}`;
+  const at = view.signedText.indexOf(nameJson);
+  const signedParts =
+    at < 0
+      ? null
+      : ([
+          view.signedText.slice(0, at + nameJson.length - JSON.stringify(rec.person.name).length),
+          JSON.stringify(rec.person.name),
+          view.signedText.slice(at + nameJson.length),
+        ] as const);
   const heading = rec.kind === "judge" ? "Judging record" : awards.length ? "Certificate of achievement" : "Certificate of participation";
 
   return (
@@ -192,43 +220,65 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
 
           <BrowserCheck serverSays={view.verification.valid} />
 
-          <ol className="flex flex-col gap-6">
-            <li className="flex flex-col gap-2">
-              <h3 className="text-15 font-semibold">1. What was signed</h3>
-              <p className="text-14 text-ink-2">The record as JSON with its keys sorted at every depth and no spaces, as UTF-8 bytes.</p>
-              <pre className="whitespace-pre-wrap break-all rounded-sm border border-rule bg-sunken px-4 py-3 font-mono text-12 leading-5">{view.signedText}</pre>
-            </li>
-            <li className="flex flex-col gap-2">
-              <h3 className="text-15 font-semibold">2. The signature</h3>
-              <p className="text-14 text-ink-2">Ed25519 over those bytes, in base64url.</p>
-              <pre className="whitespace-pre-wrap break-all rounded-sm border border-rule bg-sunken px-4 py-3 font-mono text-12 leading-5">
-                {view.envelope.signature}
+          <ol className="flex flex-col">
+            <Step n={1} title="What was signed" why="The record as JSON with its keys sorted at every depth and no spaces, as UTF-8 bytes. The name is marked: step 5 changes one letter of it.">
+              <pre className={bytesBox}>
+                {signedParts ? (
+                  <>
+                    {signedParts[0]}
+                    <mark className="rounded-xs bg-accent-tint px-0.5 text-ink">{signedParts[1]}</mark>
+                    {signedParts[2]}
+                  </>
+                ) : (
+                  view.signedText
+                )}
               </pre>
-            </li>
-            <li className="flex flex-col gap-2">
-              <h3 className="text-15 font-semibold">3. The public key</h3>
-              <p className="text-14 text-ink-2">
-                Published at{" "}
-                <a href="/.well-known/dogfood-keys.json" className="underline underline-offset-4">
-                  /.well-known/dogfood-keys.json
-                </a>{" "}
-                as a JWK; the private half never leaves the portal&rsquo;s database. Save the key once, and later checks need no network.
-              </p>
-              <pre className="whitespace-pre-wrap break-all rounded-sm border border-rule bg-sunken px-4 py-3 font-mono text-12 leading-5">
+            </Step>
+            <Step n={2} title="The signature" why="Ed25519 over those bytes, in base64url: 64 bytes. The seal on the record draws them, one square per bit.">
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_128px] sm:items-start">
+                <pre className={bytesBox}>{view.envelope.signature}</pre>
+                <div className="max-sm:hidden overflow-hidden rounded-xs border border-rule">
+                  <SignatureBits signature={view.envelope.signature} />
+                </div>
+              </div>
+            </Step>
+            <Step
+              n={3}
+              title="The public key"
+              why={
+                <>
+                  Published at{" "}
+                  <a href="/.well-known/dogfood-keys.json" className="rounded-xs underline underline-offset-4">
+                    /.well-known/dogfood-keys.json
+                  </a>{" "}
+                  as a JWK; the private half never leaves the portal&rsquo;s database. Save the key once, and later checks need no network.
+                </>
+              }
+            >
+              <pre className={bytesBox}>
                 {key ? JSON.stringify({ kid: key.kid, kty: key.kty, crv: key.crv, x: key.x }) : "This record's key is not published by this portal."}
               </pre>
-            </li>
-            <li className="flex flex-col gap-2">
-              <h3 className="text-15 font-semibold">4. Check it without this page</h3>
-              <p className="text-14 text-ink-2">
-                With Node 22 or newer and the portal&rsquo;s repository: <code className="font-mono text-13 break-all">node scripts/verify-record.mjs {rec.issuer}/records/{rec.id}</code>,
-                or paste the downloaded record into <a href="/verify" className="underline underline-offset-4">the verify page</a>.
-              </p>
-            </li>
-            <li className="flex flex-col gap-2">
-              <h3 className="text-15 font-semibold">5. Try to forge it</h3>
+            </Step>
+            <Step
+              n={4}
+              title="Check it without this page"
+              why={
+                <>
+                  With Node 22 or newer and the portal&rsquo;s repository, or paste the downloaded record into{" "}
+                  <a href="/verify" className="rounded-xs underline underline-offset-4">
+                    the verify page
+                  </a>
+                  .
+                </>
+              }
+            >
+              <pre className={bytesBox}>
+                <span className="select-none text-ink-3">$ </span>node scripts/verify-record.mjs {rec.issuer}/records/{rec.id}
+              </pre>
+            </Step>
+            <Step n={5} title="Try to forge it" why="Change one letter of the name in a copy of the record and run the same check on the copy. The copy never leaves this page.">
               <ForgeTry envelope={view.envelope} />
-            </li>
+            </Step>
           </ol>
         </section>
       </div>
