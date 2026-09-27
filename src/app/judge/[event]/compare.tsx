@@ -5,8 +5,10 @@ import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode 
 import { ProjectImage } from "@/components/project-cover";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useFlip } from "@/components/use-flip";
 import type { PairwiseProject, PairwiseState, PairwiseTrackState } from "@/server/dal";
 import { Kbd, letters, paragraphs, ProjectLink, RecuseDialog } from "./judge-bits";
+import "./judge.css";
 
 // The Compare screen: the judge console in pairwise mode (JUDGING.md "Pairwise mode").
 // Two of the judge's own projects and one question, which is better. Each project is
@@ -36,6 +38,10 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [keysOpen, setKeysOpen] = useState(false);
   const [recuseFor, setRecuseFor] = useState<PairwiseProject | null>(null);
+  // The answer being saved (its card or the tie stays marked until the next question
+  // arrives), and the project the last answer placed, lit for a moment in the list.
+  const [picked, setPicked] = useState<Outcome | null>(null);
+  const [justPlaced, setJustPlaced] = useState<string | null>(null);
   const lettersOn = useSyncExternalStore(letters.subscribe, letters.get, () => true);
   const track = data.tracks.find((t) => t.trackId === trackId) ?? data.tracks[0] ?? null;
   const slug = data.event.slug;
@@ -80,20 +86,24 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
       const q = track?.current;
       if (!track || !q || busy || readOnly) return;
       const placing = q.left.id === q.newId ? q.left : q.right;
+      setPicked(outcome);
+      setJustPlaced(null);
       void send("pick", { trackId: track.trackId, left: q.left.id, right: q.right.id, outcome }, (next) => {
         const t = next.tracks.find((x) => x.trackId === track.trackId);
         if (!t) return "Saved.";
         if (t.current?.newId === placing.id) return `Saved. One more question about ${placing.title}.`;
         const at = t.list.findIndex((p) => p.id === placing.id) + 1;
+        if (at > 0) setJustPlaced(placing.id);
         const where = at > 0 ? `${placing.title} is number ${at} of ${t.list.length} in your list.` : "";
         return t.current ? `Saved. ${where}` : `Saved. ${where} All ${t.total} placed.`;
-      });
+      }).finally(() => setPicked(null));
     },
     [busy, readOnly, send, track],
   );
 
   const undo = useCallback(() => {
     if (!track || busy || readOnly || track.answered === 0) return;
+    setJustPlaced(null);
     void send("undo", { trackId: track.trackId }, () => "Your last answer was taken back; its question is here again.");
   }, [busy, readOnly, send, track]);
 
@@ -131,6 +141,8 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
     return () => window.removeEventListener("keydown", onKey);
   }, [answer, keysOpen, lettersOn, recuseFor, undo]);
 
+  const listRef = useFlip<HTMLOListElement>(track ? `${track.trackId}:${track.list.map((p) => p.id).join()}:${track.current?.newId ?? ""}` : "");
+
   if (!track) {
     return (
       <div className="mx-auto max-w-[680px] px-6 py-16">
@@ -151,6 +163,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
   const pickTrack = (id: string) => {
     setTrackId(id);
     setStatus({ kind: "idle" });
+    setJustPlaced(null);
   };
 
   return (
@@ -208,14 +221,18 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                 : "All placed. You can take back your last answer until judging closes."}
           </p>
         </div>
-        <ol aria-label={`Your list in ${track.trackName}, best first`} className="flex-1 overflow-y-auto max-lg:max-h-56">
+        <ol ref={listRef} aria-label={`Your list in ${track.trackName}, best first`} className="flex-1 overflow-y-auto max-lg:max-h-56">
           {track.list.map((p, n) => {
             const here = p.id === against?.id;
+            const fresh = p.id === justPlaced;
             return (
               <li
                 key={p.id}
+                data-flip={p.id}
                 aria-current={here ? "true" : undefined}
-                className={`flex items-center gap-3 border-b border-rule px-5 py-3 ${here ? "lit border-l-[3px] border-l-accent bg-accent-tint pl-[17px]" : ""}`}
+                className={`flex items-center gap-3 border-b border-rule px-5 py-3 ${
+                  here ? "lit border-l-[3px] border-l-accent bg-accent-tint pl-[17px]" : fresh ? "judge-flash" : ""
+                }`}
               >
                 <span className="w-5 font-mono text-12 text-ink-3 tnum">{String(n + 1).padStart(2, "0")}</span>
                 <span className="w-12 shrink-0">{faces[p.id]?.small}</span>
@@ -223,12 +240,16 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                   <span className="block truncate text-14 font-medium">{p.title}</span>
                   <span className="block truncate text-12 text-ink-2">{p.teamName}</span>
                 </span>
-                {here ? <span className="text-12 font-medium text-accent-ink">comparing</span> : null}
+                {here ? (
+                  <span className="text-12 font-medium text-accent-ink">comparing</span>
+                ) : fresh ? (
+                  <span className="text-12 font-medium text-accent-ink">just placed</span>
+                ) : null}
               </li>
             );
           })}
           {placing ? (
-            <li className="flex items-center gap-3 border-b border-dashed border-edge px-5 py-3">
+            <li key={`placing-${placing.id}`} data-flip={`placing-${placing.id}`} className="flex items-center gap-3 border-b border-dashed border-edge px-5 py-3">
               <span className="w-5 font-mono text-12 text-ink-3">··</span>
               <span className="w-12 shrink-0 opacity-60">{faces[placing.id]?.small}</span>
               <span className="min-w-0 flex-1">
@@ -280,25 +301,49 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                 Weigh them as a whole, the way you would score them. When you truly cannot choose, call it too close; the new project then
                 goes right below the other one.
               </p>
-              <div className="mt-8 grid gap-6 md:grid-cols-2">
-                {([q.left, q.right] as const).map((p, n) => (
-                  <ProjectCard
-                    key={p.id}
-                    project={p}
-                    face={faces[p.id]?.large}
-                    note={p.id === placing.id ? "Being placed" : `Number ${track.list.findIndex((x) => x.id === p.id) + 1} in your list`}
-                    side={n === 0 ? "left" : "right"}
+              {/* The duel: the two projects face each other across one spine that holds the third answer. */}
+              <div
+                key={`${q.left.id}:${q.right.id}:${q.question}`}
+                className="duel-in mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_76px_minmax(0,1fr)] lg:gap-0"
+              >
+                {([q.left, q.right] as const).map((p, n) => {
+                  const side = n === 0 ? "left" : "right";
+                  return (
+                    <div key={p.id} className={n === 0 ? "min-w-0 lg:col-start-1" : "min-w-0 lg:col-start-3"}>
+                      <ProjectCard
+                        project={p}
+                        face={faces[p.id]?.large}
+                        note={p.id === placing.id ? "Being placed" : `Number ${track.list.findIndex((x) => x.id === p.id) + 1} in your list`}
+                        side={side}
+                        picked={picked === null ? null : picked === side}
+                        disabled={!canAnswer}
+                        onPick={() => answer(side)}
+                        onRecuse={readOnly ? null : () => setRecuseFor(p)}
+                      />
+                    </div>
+                  );
+                })}
+                <div className="row-start-1 hidden flex-col items-center lg:col-start-2 lg:flex">
+                  <span aria-hidden className="w-px flex-1 bg-rule" />
+                  <button
+                    type="button"
+                    onClick={() => answer("tie")}
                     disabled={!canAnswer}
-                    onPick={() => answer(n === 0 ? "left" : "right")}
-                    onRecuse={readOnly ? null : () => setRecuseFor(p)}
-                  />
-                ))}
-              </div>
-              <div className="mt-6 flex justify-center max-lg:hidden">
-                <Button size="lg" variant="outline" onClick={() => answer("tie")} disabled={!canAnswer}>
-                  Too close to call
-                  <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12">T</kbd>
-                </Button>
+                    aria-pressed={picked === "tie" ? true : undefined}
+                    className="group my-3 flex w-[60px] flex-col items-center gap-1.5 rounded-sm border border-edge bg-surface px-1 pt-2.5 pb-2 text-center hover:bg-raised disabled:cursor-not-allowed disabled:text-ink-3 aria-pressed:border-accent aria-pressed:bg-accent-tint"
+                  >
+                    <span aria-hidden className="font-mono text-20 leading-none">=</span>
+                    <span className="text-12 leading-[14px] font-medium">
+                      Too close
+                      <br />
+                      to call
+                    </span>
+                    <span aria-hidden className={lettersOn ? "" : "opacity-50"}>
+                      <Kbd>T</Kbd>
+                    </span>
+                  </button>
+                  <span aria-hidden className="w-px flex-1 bg-rule" />
+                </div>
               </div>
             </>
           ) : (
@@ -369,6 +414,7 @@ function ProjectCard({
   face,
   note,
   side,
+  picked,
   disabled,
   onPick,
   onRecuse,
@@ -377,6 +423,8 @@ function ProjectCard({
   face: ReactNode;
   note: string;
   side: "left" | "right";
+  /** while an answer saves: true for the chosen card, false for the other, null otherwise */
+  picked: boolean | null;
   disabled: boolean;
   onPick: () => void;
   /** null once answers are final */
@@ -384,12 +432,28 @@ function ProjectCard({
 }) {
   const body = paragraphs(p.description);
   return (
-    <article aria-labelledby={`title-${p.id}`} className="flex min-w-0 flex-col rounded-sm border border-rule bg-surface">
-      <div className="overflow-hidden rounded-t-sm border-b border-rule">
+    <article
+      aria-labelledby={`title-${p.id}`}
+      className={`flex h-full min-w-0 flex-col rounded-sm border bg-surface transition-[border-color,box-shadow] duration-150 motion-reduce:transition-none ${
+        picked ? "lit border-accent shadow-[0_0_0_1px_var(--accent)]" : "border-rule"
+      }`}
+    >
+      <div className="relative overflow-hidden rounded-t-sm border-b border-rule">
         {p.thumbnailUrl ? <ProjectImage src={p.thumbnailUrl} alt="" fallback={face} /> : face}
+        <span className={`absolute top-2.5 rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 ${side === "left" ? "right-2.5" : "left-2.5"}`}>
+          {p.id}
+        </span>
+        <span
+          aria-hidden
+          className={`absolute top-2.5 hidden h-8 min-w-8 items-center justify-center rounded-sm border px-1.5 font-mono text-15 lg:inline-flex ${
+            side === "left" ? "left-2.5" : "right-2.5"
+          } ${picked ? "border-accent bg-accent text-on-accent" : "border-edge bg-surface text-ink"}`}
+        >
+          {side === "left" ? "←" : "→"}
+        </span>
       </div>
       <div className="flex flex-1 flex-col px-5 pt-4 pb-5 wrap-anywhere">
-        <p className="text-13 text-ink-2">{note}</p>
+        <p className="label-mono text-ink-2">{note}</p>
         <h2 id={`title-${p.id}`} className="mt-1 font-serif text-24 font-semibold">
           {p.title}
         </h2>
@@ -430,9 +494,16 @@ function ProjectCard({
           </p>
         ) : null}
         <div className="mt-auto pt-5 max-lg:hidden">
-          <Button size="xl" className="w-full" onClick={onPick} disabled={disabled} aria-label={`This one: ${p.title}`}>
+          <Button
+            size="xl"
+            variant={picked ? "accent" : "primary"}
+            className={`w-full ${picked ? "disabled:opacity-100" : ""}`}
+            onClick={onPick}
+            disabled={disabled}
+            aria-label={`This one: ${p.title}`}
+          >
             {side === "left" ? <ArrowLeft aria-hidden /> : null}
-            This one
+            {picked ? "Saving…" : "This one"}
             {side === "right" ? <ArrowRight aria-hidden /> : null}
           </Button>
         </div>
