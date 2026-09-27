@@ -71,7 +71,14 @@ export function AddWebhookForm({ eventSlug }: { eventSlug: string }) {
       <div>
         <Button disabled={pending}>Add webhook</Button>
       </div>
-      <Secret state={state} />
+      {/* a refusal the field already shows in red is announced, not drawn a second time under the button */}
+      {state.fieldErrors ? (
+        <p role="status" className="sr-only">
+          {state.message}
+        </p>
+      ) : (
+        <Secret state={state} />
+      )}
     </form>
   );
 }
