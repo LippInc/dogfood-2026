@@ -135,13 +135,13 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
                 <Delivery delays={RETRY_DELAYS_S} />
               </div>
             </div>
-            <dl className="mt-1 grid border-t border-rule text-13 sm:grid-cols-[9.5rem_1fr] sm:gap-x-4">
-              <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5">Signature</dt>
+            <dl className="mt-1 grid border-t border-rule text-13 sm:grid-cols-[9.5rem_1fr]">
+              <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5 sm:pr-4">Signature</dt>
               <dd className="border-b border-rule pb-2.5 text-ink-2 sm:py-2.5">
                 <code className="font-mono text-12 text-ink">Dogfood-Signature: t=&lt;time&gt;,v1=&lt;HMAC-SHA256&gt;</code> over{" "}
                 <code className="font-mono text-12 text-ink">&lt;time&gt;.&lt;body&gt;</code>, keyed with the webhook&rsquo;s secret
               </dd>
-              <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5">Left out</dt>
+              <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5 sm:pr-4">Left out</dt>
               <dd className="border-b border-rule pb-2.5 text-ink-2 sm:py-2.5">
                 a ballot&rsquo;s picks, a judge&rsquo;s scores and a judge&rsquo;s pairwise answers: the delivery says who acted and when, and the
                 values stay here
