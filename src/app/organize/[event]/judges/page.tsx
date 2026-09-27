@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import { unauthorized } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
@@ -8,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
-import { currentActor, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeStanding } from "@/server/dal";
+import { currentActor, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeRow, type JudgeStanding } from "@/server/dal";
 import { revokeInviteAction } from "./actions";
 import { ByHandForm, CopyButton, InviteForm, RunForm, TracksForm } from "./forms";
 
@@ -46,11 +47,18 @@ function Leniency({ s, k, span }: { s: JudgeStanding | undefined; k: number | nu
 }
 export const metadata: Metadata = { title: "Judges" };
 
+/** Where a judge sits in the table: what needs the organizer first, then open work, then done. */
+const groupOf = (j: JudgeRow) => (j.excluded || (j.flat && !j.override) ? 0 : j.pending > 0 ? 1 : j.assigned > 0 ? 2 : 3);
+const GROUPS = ["Flagged", "Open reviews", "All finished", "Nothing assigned"];
+
 export default async function JudgesPage({ params }: PageProps<"/organize/[event]/judges">) {
   const { event: key } = await params;
   const actor = await currentActor();
   if (!actor) unauthorized();
-  const { event, tracks, judges, invites } = guardPage(() => getJudges(actor, key));
+  const { event, tracks, judges: byName, invites } = guardPage(() => getJudges(actor, key));
+  // Flagged first, then the most open reviews, then finished; by name inside each group (the sort is stable).
+  const judges = [...byName].sort((x, y) => groupOf(x) - groupOf(y) || (groupOf(x) === 1 ? y.pending - x.pending : 0));
+  const grouped = new Set(judges.map(groupOf)).size > 1;
   const a = getAssignments(actor, event.id);
   const published = Boolean(event.resultsPublishedAt);
   const origin = process.env.PUBLIC_URL ?? "http://localhost:8080";
@@ -148,12 +156,23 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                     </TableRow>
                   </TableHeader>
                   <TableBody className="max-md:block">
-                    {judges.map((j) => {
+                    {judges.map((j, n) => {
+                      const g = groupOf(j);
+                      const first = grouped && (n === 0 || groupOf(judges[n - 1]) !== g);
                       const reminder = `Hi ${j.name}, ${j.pending} of your ${plural(j.assigned, "review")} for ${event.name} ${j.pending === 1 ? "is" : "are"} still open. Your console: ${origin}/judge/${event.slug}`;
                       return (
-                        // On phones each row stacks: name and reviews side by side, then tracks, leniency and standing.
+                        <Fragment key={j.id}>
+                        {first ? (
+                          <TableRow className="h-auto bg-sunken hover:bg-sunken max-md:block">
+                            <TableCell colSpan={norm ? 5 : 4} className="py-1.5 max-md:block max-md:px-4">
+                              <span className={`label-mono ${g === 0 ? "text-flag" : "text-ink-2"}`}>
+                                {GROUPS[g]} · {judges.filter((x) => groupOf(x) === g).length}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                        {/* On phones each row stacks: name and reviews side by side, then tracks, leniency and standing. */}
                         <TableRow
-                          key={j.id}
                           className={`align-top max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-4 max-md:gap-y-2.5 max-md:px-4 max-md:py-3.5 ${j.excluded ? "max-md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}
                         >
                           <TableCell className={`max-md:col-start-1 max-md:row-start-1 max-md:block max-md:p-0 ${j.excluded ? "md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}>
@@ -214,6 +233,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                             {j.override ? <p className="mt-1 text-12 text-ink-2">Reason: {j.override.reason}</p> : null}
                           </TableCell>
                         </TableRow>
+                        </Fragment>
                       );
                     })}
                   </TableBody>
