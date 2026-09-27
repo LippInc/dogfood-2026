@@ -284,8 +284,8 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             </section>
             {trackmates.length > 1 ? (
               <section aria-labelledby="track-title">
-                <h2 id="track-title" className="flex items-baseline justify-between gap-4 border-t-2 border-ink pt-2">
-                  <span className="label-mono text-ink">Fig. 02 — Its track</span>
+                <h2 id="track-title" className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t-2 border-ink pt-2">
+                  <span className="label-mono whitespace-nowrap text-ink">Fig. 02 — Its track</span>
                   <span className="text-13 text-ink-3">
                     {p.track.name} · <span className="tnum">{trackmates.length}</span> projects{standing ? ", as published" : ""}
                   </span>
@@ -301,9 +301,9 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                           className="tile grid grid-cols-[3rem_4rem_minmax(0,1fr)] items-center gap-3 rounded-xs px-2 py-1.5 hover:bg-surface aria-[current=page]:bg-accent-tint"
                         >
                           {m.place !== null ? (
-                            <span className={`font-display text-20 leading-none tnum ${m.place === 1 ? "text-accent-ink" : ""}`}>
+                            <span className={`flex flex-col font-display text-20 leading-none tnum ${m.place === 1 ? "text-accent-ink" : ""}`}>
                               {m.place}
-                              {m.joint ? <span className="sr-only"> (joint)</span> : null}
+                              {m.joint ? <span className="mt-1 font-mono text-12 leading-4 text-ink-3 uppercase"> joint</span> : null}
                             </span>
                           ) : (
                             <span className="font-mono text-12 text-ink-3">{m.id}</span>
