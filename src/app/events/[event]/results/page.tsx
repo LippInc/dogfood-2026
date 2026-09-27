@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { YardstickLine } from "@/components/yardstick-line";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
+import { LogSeal } from "@/components/results/log-seal";
+import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { PublicShell } from "@/components/shell/public-shell";
+import { YardstickLine } from "@/components/yardstick-line";
 import { formatUtc, plural } from "@/lib/format";
 import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, type Gallery } from "@/server/dal";
 import { competitionPlaces, ordinal } from "@/lib/places";
@@ -20,116 +23,248 @@ function load(key: string): Gallery {
   }
 }
 
+const two = (n: number) => String(n).padStart(2, "0");
+
+// The row grid, shared by the axis above a track and every row in it, so the figure column lines up.
+const ROW =
+  "grid grid-cols-[56px_minmax(0,1fr)_auto] gap-x-4 md:grid-cols-[72px_64px_minmax(0,1fr)_minmax(160px,280px)_112px] lg:grid-cols-[72px_64px_minmax(0,1fr)_minmax(200px,340px)_120px]";
+
 export default async function ResultsPage({ params }: PageProps<"/events/[event]/results">) {
   const { event: key } = await params;
-  const { event, counts } = load(key);
+  const { event, counts, tracks: galleryTracks } = load(key);
   const actor = await currentActor();
   const results = getPublishedResults(event.id);
   const community = getCommunityResults(event.id);
   // the open link's column shows only when some of its ballots are in the count's rows
   const linkVotes = Boolean(community.tally?.some((t) => t.openLink > 0));
   const pairwise = results.published && results.method === PAIRWISE_METHOD;
+
+  const fmtScore = (v: number | null) => (v === null ? "–" : pairwise ? `${Math.round(v * 100)} %` : v.toFixed(2));
+  const fmtSe = (v: number | null) => (v === null ? "" : pairwise ? `± ${Math.max(1, Math.round(v * 100))}` : `± ${v.toFixed(2)}`);
+  const fmtN = (n: number) => `${n} ${pairwise ? (n === 1 ? "judge" : "judges") : n === 1 ? "review" : "reviews"}`;
+
+  const placed = results.published ? results.tracks.map((t) => ({ ...t, places: competitionPlaces(t.rows) })) : [];
+  const scale = scaleFor(
+    placed.flatMap((t) =>
+      t.rows.flatMap((r) => (r.score === null ? [] : [r.score - (r.se ?? 0), r.score + (r.se ?? 0), ...(!pairwise && r.raw !== null ? [r.raw] : [])])),
+    ),
+    Boolean(pairwise),
+  );
+  const winners = placed.flatMap((t, ti) => {
+    const firsts = t.rows.filter((_, i) => t.places[i]?.place === 1);
+    return firsts.length ? [{ track: t, index: ti, first: firsts[0], joint: firsts.slice(1) }] : [];
+  });
+  const topVotes = community.tally?.reduce((m, t) => Math.max(m, t.votes), 0) ?? 0;
+
   return (
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
-      <div className="pt-10">
-        <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
-      </div>
       {results.published ? (
         <>
-          {pairwise ? (
-            <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-              Published {formatUtc(results.publishedAt)}. Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores
-              given before the event switched to that way of judging count as the order they imply), and each project&rsquo;s win % is its chance to beat
-              an average project of its track, with the pull of the side a project was shown on and of the
-              project a judge had just opened measured and taken out. Places compare within a track. The ± is one standard error: win % closer than about two
-              of them are not told apart, so read small gaps as ties.
-              {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
-                ? " A project marked under-compared was compared by fewer than two judges; the organizers chose to publish it as it is."
-                : ""}
-            </p>
-          ) : (
-            <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-              Published {formatUtc(results.publishedAt)}. Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge
-              proved to be across the event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. Places compare within a track. The ± under each score
-              is one standard error: scores closer than about two of them are not told apart, so read small gaps as ties.
-              {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
-                ? " A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is."
-                : ""}
-            </p>
-          )}
-          {results.yardstick ? (
-            <div className="mt-4 max-w-[760px] text-ink-2">
-              <YardstickLine y={results.yardstick} />
+          <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-end lg:gap-16">
+            <div>
+              <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
+              {pairwise ? (
+                <p className="mt-6 max-w-[760px] text-17 text-ink-2">
+                  Published {formatUtc(results.publishedAt)}. Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores
+                  given before the event switched to that way of judging count as the order they imply), and each project&rsquo;s win % is its chance to
+                  beat an average project of its track, with the pull of the side a project was shown on and of the project a judge had just opened
+                  measured and taken out. Places compare within a track. The ± is one standard error: win % closer than about two of them are not told
+                  apart, so read small gaps as ties.
+                  {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
+                    ? " A project marked under-compared was compared by fewer than two judges; the organizers chose to publish it as it is."
+                    : ""}
+                </p>
+              ) : (
+                <p className="mt-6 max-w-[760px] text-17 text-ink-2">
+                  Published {formatUtc(results.publishedAt)}. Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient
+                  each judge proved to be across the event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. Places compare within a track. The ±
+                  under each score is one standard error: scores closer than about two of them are not told apart, so read small gaps as ties.
+                  {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
+                    ? " A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is."
+                    : ""}
+                </p>
+              )}
+              {results.yardstick ? (
+                <div className="mt-4 max-w-[760px] text-ink-2">
+                  <YardstickLine y={results.yardstick} />
+                </div>
+              ) : null}
             </div>
+            {results.anchor ? (
+              <LogSeal
+                entry={results.anchor.entry}
+                hash={results.anchor.hash}
+                what="These results were published as this entry of the portal’s audit log. A later change to the log up to it would change the hash, and the picture drawn from it."
+              />
+            ) : null}
+          </div>
+
+          {winners.length ? (
+            <section aria-labelledby="firsts-title" className="mt-14 border-t border-rule pt-6">
+              <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                <h2 id="firsts-title" className="label-mono text-ink">
+                  Fig. 02 — First places
+                </h2>
+                <p className="text-13 text-ink-3">One per track. Each opens its track below.</p>
+              </div>
+              <ol className="mt-6 grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+                {winners.map((w) => (
+                  <li key={w.track.id} className="reveal" style={{ "--i": w.index } as CSSProperties}>
+                    <a href={`#track-${w.track.id}`} className="tile lit group block border-t-2 border-accent pt-2">
+                      <span className="flex items-baseline gap-2 text-13 text-ink-2">
+                        <span className="font-mono text-12 tnum text-ink-3">{two(w.index + 1)}</span>
+                        <span className="truncate">{w.track.name}</span>
+                      </span>
+                      <span className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3">
+                        <span className="block overflow-hidden rounded-xs border border-rule">
+                          <Face id={w.first.projectId} cols={32} rows={18} />
+                        </span>
+                        <span className="min-w-0 wrap-anywhere">
+                          <span className="block font-display text-17 leading-tight group-hover:underline">{w.first.title}</span>
+                          <span className="mt-0.5 block text-13 text-ink-2">{w.first.teamName}</span>
+                          <span className="mt-1.5 block text-13 tnum">
+                            <span className="text-15 font-semibold">{fmtScore(w.first.score)}</span> <span className="text-ink-2">{fmtSe(w.first.se)}</span>
+                          </span>
+                        </span>
+                      </span>
+                      {w.joint.length ? <span className="mt-2 block text-13 text-ink-2">Joint first with {w.joint.map((j) => j.title).join(", ")}</span> : null}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </section>
           ) : null}
-          {results.anchor ? (
-            <p className="mt-3 max-w-[760px] text-13 text-ink-2">
-              Published as entry #{results.anchor.entry} of the portal&rsquo;s audit log (hash{" "}
-              <span className="font-mono">{results.anchor.hash.slice(0, 16)}</span>&hellip;): a later change to the log up to that entry would change this hash.
-            </p>
-          ) : null}
-          <div className="mt-10 flex flex-col gap-12">
-            {results.tracks.map((t) => {
-              const shown = competitionPlaces(t.rows);
-              return (
-                <section key={t.id} aria-labelledby={`track-${t.id}`}>
-                  <h2 id={`track-${t.id}`} className="border-b border-rule pb-2 text-24 font-semibold wrap-anywhere">
+
+          <section aria-labelledby="scale-title" className="mt-16 border-t border-rule pt-6">
+            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
+              <h2 id="scale-title" className="label-mono text-ink">
+                Fig. 03 — Every place, on one scale
+              </h2>
+              <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-13 text-ink-2">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block size-2.5 rounded-full bg-ink" aria-hidden /> {pairwise ? "win %" : "the published score"}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="relative inline-block h-2 w-5 border-x border-ink-3" aria-hidden>
+                    <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-ink-3" />
+                  </span>
+                  ± one standard error
+                </span>
+                {pairwise ? null : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block size-3.5 rounded-full border-[1.5px] border-ink-2" aria-hidden /> the plain average of every review, before leniency
+                  </span>
+                )}
+                <span>Where two bars overlap, read the places as a tie.</span>
+              </p>
+            </div>
+          </section>
+
+          <div className="mt-8 flex flex-col gap-14">
+            {placed.map((t, ti) => (
+              <section key={t.id} id={`track-${t.id}`} aria-labelledby={`track-title-${t.id}`} className="scroll-mt-6">
+                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b-2 border-ink pb-2">
+                  <span className="label-mono tnum text-ink-3">
+                    Track {two(ti + 1)} / {two(placed.length)}
+                  </span>
+                  <h2 id={`track-title-${t.id}`} className="text-24 font-semibold wrap-anywhere">
                     {t.name}
                   </h2>
-                  <ol className="divide-y divide-rule">
-                    {t.rows.map((r, i) => {
-                      const p = shown[i]!;
-                      return (
-                        <li key={r.projectId} className="tile grid grid-cols-[72px_64px_minmax(0,1fr)_auto] items-center gap-4 py-3 max-sm:grid-cols-[56px_minmax(0,1fr)_auto]">
-                          <span className={`font-display tnum ${p.place === 1 ? "text-38 text-accent-ink" : "text-24"}`}>
-                            {p.place === null ? "–" : p.place}
-                            {p.joint ? <span className="ml-1 align-top font-sans text-12 text-ink-2">joint</span> : null}
+                  <span className="label-mono ml-auto text-ink-3">{plural(t.rows.length, "project")}</span>
+                </div>
+                <div className={`${ROW} pt-3`} aria-hidden="true">
+                  <span className="col-start-2 col-span-2 md:col-start-4 md:col-span-1">
+                    <ScaleAxis scale={scale} />
+                  </span>
+                </div>
+                <ol className="divide-y divide-rule">
+                  {t.rows.map((r, i) => {
+                    const p = t.places[i]!;
+                    const first = p.place === 1;
+                    return (
+                      <li
+                        key={r.projectId}
+                        className={`reveal tile ${ROW} items-center gap-y-2 py-3 ${first ? "lit" : ""}`}
+                        style={{ "--i": ti + i } as CSSProperties}
+                      >
+                        <span className={`font-display tnum ${first ? "text-38 text-accent-ink" : "text-24"}`}>
+                          {p.place === null ? "–" : p.place}
+                          {p.joint ? <span className="ml-1 align-top font-sans text-12 text-ink-2">joint</span> : null}
+                        </span>
+                        <span className="max-md:hidden">
+                          <Face id={r.projectId} cols={32} rows={18} className="block h-9 w-16" />
+                        </span>
+                        <span className="min-w-0">
+                          <Link href={`/events/${event.slug}/projects/${r.projectId}`} className="block truncate text-17 font-semibold hover:underline">
+                            {r.title}
+                          </Link>
+                          <span className="block truncate text-14 text-ink-2">
+                            {r.teamName}
+                            {p.place !== null ? ` · ${ordinal(p.place)} in ${t.name}` : ""}
                           </span>
-                          <span className="max-sm:hidden">
-                            <Face id={r.projectId} cols={32} rows={18} className="block h-9 w-16" />
+                        </span>
+                        <span className="col-start-2 col-span-2 row-start-2 md:col-start-4 md:col-span-1 md:row-start-1">
+                          <ScoreLine scale={scale} score={r.score} se={r.se} raw={pairwise ? null : r.raw} first={first} index={ti + i} />
+                        </span>
+                        <span className="col-start-3 row-start-1 text-right md:col-start-5">
+                          <span className="block text-20 font-semibold tnum">{fmtScore(r.score)}</span>
+                          <span className="block text-12 text-ink-2 tnum">
+                            {r.se !== null ? `${fmtSe(r.se)} · ` : ""}
+                            {fmtN(r.n)}
                           </span>
-                          <span className="min-w-0">
-                            <Link href={`/events/${event.slug}/projects/${r.projectId}`} className="block truncate text-17 font-semibold hover:underline">
-                              {r.title}
-                            </Link>
-                            <span className="block truncate text-14 text-ink-2">
-                              {r.teamName}
-                              {p.place !== null ? ` · ${ordinal(p.place)} in ${t.name}` : ""}
-                            </span>
-                          </span>
-                          <span className="text-right">
-                            <span className="block text-20 font-semibold tnum">
-                              {r.score === null ? "–" : pairwise ? `${Math.round(r.score * 100)} %` : r.score.toFixed(2)}
-                            </span>
-                            <span className="block text-12 text-ink-2 tnum">
-                              {r.se !== null ? (pairwise ? `± ${Math.max(1, Math.round(r.se * 100))} · ` : `± ${r.se.toFixed(2)} · `) : ""}
-                              {r.n} {pairwise ? (r.n === 1 ? "judge" : "judges") : r.n === 1 ? "review" : "reviews"}
-                            </span>
-                            {r.n < 2 ? <span className="block text-12 text-flag">{pairwise ? "under-compared" : "under-reviewed"}</span> : null}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </section>
-              );
-            })}
+                          {r.n < 2 ? <span className="block text-12 text-flag">{pairwise ? "under-compared" : "under-reviewed"}</span> : null}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </section>
+            ))}
           </div>
         </>
       ) : (
-        <section className="mt-10 max-w-[680px] border-t border-rule pt-8" aria-labelledby="hidden-title">
-          <p className="label-mono text-accent-ink">Not yet published</p>
-          <h2 id="hidden-title" className="mt-3 text-24 font-semibold">
-            The results are hidden until the organizers publish them
-          </h2>
-          <p className="mt-3 text-17 text-ink-2">
-            Judging covers {plural(counts.projects, "project")} in {plural(counts.tracks, "track")}. Until the organizers publish, no score, average or rank leaves the judges&apos; and
-            organizers&apos; screens, and the API refuses to hand them out. When they publish, this page shows each place with its score.
-          </p>
-        </section>
+        <>
+          <div className="pt-10">
+            <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
+          </div>
+          <section className="mt-10 grid gap-10 border-t border-rule pt-8 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] lg:gap-16" aria-labelledby="hidden-title">
+            <div>
+              <p className="label-mono text-accent-ink">Not yet published</p>
+              <h2 id="hidden-title" className="mt-3 text-24 font-semibold">
+                The results are hidden until the organizers publish them
+              </h2>
+              <p className="mt-3 text-17 text-ink-2">
+                Judging covers {plural(counts.projects, "project")} in {plural(counts.tracks, "track")}. Until the organizers publish, no score, average or rank
+                leaves the judges&apos; and organizers&apos; screens, and the API refuses to hand them out. When they publish, this page shows each place with
+                its score.
+              </p>
+            </div>
+            {galleryTracks.length ? (
+              <figure aria-labelledby="sealed-caption">
+                <figcaption id="sealed-caption" className="label-mono text-ink">
+                  Fig. 02 — {plural(counts.projects, "place")}, sealed
+                </figcaption>
+                <div className="mt-4 grid grid-cols-4 gap-x-3 gap-y-6 xl:grid-cols-8" aria-hidden="true">
+                  {galleryTracks.map((t) => (
+                    <div key={t.id}>
+                      <p className="truncate border-t-2 border-ink pt-2 text-13 text-ink-2">{t.name}</p>
+                      <div className="mt-2 grid gap-1">
+                        {Array.from({ length: t.count }, (_, i) => (
+                          <span key={i} className="sealed flex h-5 items-center rounded-xs border border-rule px-1.5 font-mono text-12 leading-none text-ink-3">
+                            {i + 1}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </figure>
+            ) : null}
+          </section>
+        </>
       )}
       {community.state === "not_set" ? null : (
-        <section aria-labelledby="community-title" className="mt-16 max-w-[760px] border-t border-rule pt-8 pb-16">
+        <section aria-labelledby="community-title" className="mt-20 max-w-[860px] border-t border-rule pt-8 pb-16">
           <p className="label-mono text-accent-ink">Community vote</p>
           <h2 id="community-title" className="mt-2 text-24 font-semibold">
             {community.tally ? "The community's favourites" : "Hidden until voting closes"}
@@ -144,20 +279,29 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
               ) : null}
               <ol className="mt-4 divide-y divide-rule border-y border-rule">
                 {community.tally.map((t) => (
-                  <li key={t.projectId} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-baseline gap-3 py-2.5">
-                    <span className="font-display text-20 tnum">{t.place ?? "–"}</span>
+                  <li key={t.projectId} className={`tile grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 py-2.5 sm:grid-cols-[48px_48px_minmax(0,1fr)_minmax(120px,220px)_auto] ${t.place === 1 ? "lit" : ""}`}>
+                    <span className={`font-display tnum ${t.place === 1 ? "text-24 text-accent-ink" : "text-20"}`}>{t.place ?? "–"}</span>
+                    <span className="max-sm:hidden">
+                      <Face id={t.projectId} cols={32} rows={18} className="block h-[27px] w-12" />
+                    </span>
                     <span className="min-w-0 truncate">
                       <Link href={`/events/${event.slug}/projects/${t.projectId}`} className="font-semibold hover:underline">
                         {t.title}
                       </Link>{" "}
                       <span className="text-14 text-ink-2">· {t.teamName}</span>
                     </span>
-                    <span className="flex items-baseline gap-3">
+                    <span className="col-span-3 col-start-1 row-start-2 block h-2 bg-sunken sm:col-span-1 sm:col-start-4 sm:row-start-1" aria-hidden="true">
+                      <span
+                        className={`grow-bar block h-full ${t.place === 1 ? "bg-accent" : "bg-face-dot"}`}
+                        style={{ width: `${topVotes ? (t.votes / topVotes) * 100 : 0}%` }}
+                      />
+                    </span>
+                    <span className="col-start-3 row-start-1 flex items-baseline justify-end gap-3 sm:col-start-5">
                       <span className="text-15 font-semibold tnum">
                         {t.votes} {t.votes === 1 ? "vote" : "votes"}
                       </span>
                       {linkVotes ? (
-                        <span className="w-28 text-right font-mono text-12 text-ink-2 tnum">
+                        <span className="w-24 text-right font-mono text-12 text-ink-2 tnum sm:w-28">
                           {t.openLink > 0 ? `${community.countLink ? "incl. " : "+"}${t.openLink} open link` : null}
                         </span>
                       ) : null}

@@ -205,4 +205,57 @@
       transition: none;
     }
   }
+
+  /* a sealed slot: hatched like a section cut on a drawing */
+  .sealed {
+    background-image: repeating-linear-gradient(135deg, var(--rule) 0 1px, transparent 1px 5px);
+  }
+
+  /*
+   * Motion, only for people who have not asked for less. Only opacity, transforms and
+   * absolutely placed marks move, so nothing around them reflows. --i staggers a list.
+   *   reveal: a row rises into place
+   *   settle: a score dot travels from the raw average to the published score
+   *   draw: an error bar opens out from its centre
+   *   grow-bar: a count bar grows from its left edge
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      animation-delay: calc(min(var(--i, 0), 12) * 45ms);
+    }
+    .settle {
+      animation: settle 1100ms cubic-bezier(0.3, 0.6, 0.1, 1) both;
+      animation-delay: calc(min(var(--i, 0), 12) * 45ms + 350ms);
+    }
+    .draw {
+      animation: draw 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      animation-delay: calc(min(var(--i, 0), 12) * 45ms + 250ms);
+    }
+    .grow-bar {
+      transform-origin: left;
+      animation: grow-bar 800ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
+  }
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  @keyframes settle {
+    from {
+      left: var(--from);
+    }
+  }
+  @keyframes draw {
+    from {
+      transform: scaleX(0);
+    }
+  }
+  @keyframes grow-bar {
+    from {
+      transform: scaleX(0);
+    }
+  }
 }
