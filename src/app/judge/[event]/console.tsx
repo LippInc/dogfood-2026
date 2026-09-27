@@ -721,12 +721,14 @@ export function JudgeConsoleView({
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule px-6 py-3">
           <Button size="lg" onClick={saveAndNext}>
-            Save and open next
+            {readOnly ? "Open next" : "Save and open next"}
             <kbd className="ml-2 rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">Ctrl ↵</kbd>
           </Button>
-          <Button size="lg" variant="ghost" onClick={() => go(index + 1)}>
-            Skip for now
-          </Button>
+          {readOnly ? null : (
+            <Button size="lg" variant="ghost" onClick={() => go(index + 1)}>
+              Skip for now
+            </Button>
+          )}
         </div>
       </section>
 
