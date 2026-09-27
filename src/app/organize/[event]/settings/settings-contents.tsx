@@ -6,17 +6,25 @@ export type ContentsEntry = { id: string; num: string; title: string; holds: str
 
 /**
  * The settings sheet's contents: one numbered line per section with what it holds now (from the
- * data layer, server-rendered). Once the page runs, the wide rail also marks the section being read.
+ * data layer, server-rendered). Once the page runs, the wide rail also marks the section being read,
+ * and both the rail and the phone index say which sections hold changes not saved yet, read from the
+ * `data-unsaved` mark SectionForm puts on its section. Seven sections each have their own Save, so an
+ * edit left behind in one of them is otherwise easy to lose.
  */
 export function SettingsContents({ entries, variant }: { entries: ContentsEntry[]; variant: "rail" | "index" }) {
   const [current, setCurrent] = useState<string | null>(null);
+  const [unsaved, setUnsaved] = useState<ReadonlySet<string>>(new Set());
   useEffect(() => {
     const pairs = entries.flatMap((e) => {
       const s = document.getElementById(`${e.id}-title`)?.closest("section");
       return s ? [[e.id, s] as const] : [];
     });
     if (!pairs.length) return;
-    if (variant !== "rail") return;
+    const read = () => setUnsaved(new Set(pairs.filter(([, s]) => s.hasAttribute("data-unsaved")).map(([id]) => id)));
+    const watch = new MutationObserver(read);
+    for (const [, s] of pairs) watch.observe(s, { attributes: true, attributeFilter: ["data-unsaved"] });
+    read();
+    if (variant !== "rail") return () => watch.disconnect();
     // the section being read: the last one whose top has passed a third of the window; the last one at the page's end
     let frame = 0;
     const pick = () => {
@@ -34,6 +42,7 @@ export function SettingsContents({ entries, variant }: { entries: ContentsEntry[
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => {
+      watch.disconnect();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
       if (frame) cancelAnimationFrame(frame);
@@ -41,7 +50,7 @@ export function SettingsContents({ entries, variant }: { entries: ContentsEntry[
   }, [entries, variant]);
 
   const state = (id: string, holds: string) =>
-    <span className="text-12 text-ink-3 tnum">{holds}</span>;
+    unsaved.has(id) ? <span className="text-12 font-medium text-flag">not saved</span> : <span className="text-12 text-ink-3 tnum">{holds}</span>;
 
   if (variant === "index") {
     return (

@@ -84,6 +84,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="details"
+            markUnsaved
             number={num(0)}
             title="Event"
             description={event.resultsPublishedAt ? "Results are published, so the dates are final; the name, description and team size can still change." : undefined}
@@ -164,6 +165,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="tracks"
+            markUnsaved
             number={num(2)}
             title="Tracks"
             description="Projects enter one track; judges are assigned by track. A track that has projects or judges can be renamed, not removed."
@@ -182,7 +184,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             />
           </SectionForm>
 
-          <SectionForm id="prizes" number={num(3)} title="Prizes" description="A name and a line on what wins it. Shown on the About page." action={savePrizesAction} hidden={hidden} fieldLabels={{ prizes: "Prizes" }} rowLabel="Prize">
+          <SectionForm id="prizes" markUnsaved number={num(3)} title="Prizes" description="A name and a line on what wins it. Shown on the About page." action={savePrizesAction} hidden={hidden} fieldLabels={{ prizes: "Prizes" }} rowLabel="Prize">
             <RowsEditor
               name="prizes"
               initial={o.prizes.map((p) => ({ id: p.id, name: p.name, description: p.description }))}
@@ -198,6 +200,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="questions"
+            markUnsaved
             number={num(4)}
             title="Questions for teams"
             description="Asked on every team's project form; judges read the answers next to the project. A required question must be answered before a team can submit."
@@ -233,6 +236,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="judging-mode"
+            markUnsaved
             number={num(5)}
             title="How judges judge"
             description={
@@ -270,6 +274,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="rubric"
+            markUnsaved
             number={num(6)}
             title="Scoring rubric"
             description={

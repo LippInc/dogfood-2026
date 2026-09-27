@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useEffect } from "react";
+import { createContext, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useFormAction } from "@/components/use-form-action";
 import type { ActionResult } from "@/server/dal";
@@ -18,6 +18,10 @@ import type { ActionResult } from "@/server/dal";
  * marked aria-invalid and the first one takes focus, and a rows editor inside marks its
  * refused rows (a key that is a number is a row, named `rowLabel` and its place). Without
  * it the section behaves as before.
+ *
+ * Optional `markUnsaved`: while what the form would send differs from what was last saved
+ * (or loaded), the Save line says "Changed, not saved yet" and the section carries
+ * `data-unsaved`, which a page's contents can read. Without it nothing is tracked.
  */
 export const SectionErrors = createContext<Record<string, string[] | undefined> | null>(null);
 export function SectionForm({
@@ -32,6 +36,7 @@ export function SectionForm({
   fieldLabels,
   rowLabel = "Row",
   number,
+  markUnsaved = false,
   children,
 }: {
   id: string;
@@ -46,6 +51,7 @@ export function SectionForm({
   rowLabel?: string;
   /** Optional: the section's place on a long page ("01"), shown before the title and hidden from screen readers. */
   number?: string;
+  markUnsaved?: boolean;
   children: React.ReactNode;
 }) {
   const [state, form, pending] = useFormAction<ActionResult>(action, { ok: false, message: null }, { resetOnSuccess });
@@ -68,8 +74,31 @@ export function SectionForm({
     }
     first?.focus();
   }, [state, fieldLabels, formEl]);
+  // with markUnsaved: compare what the form would send now with what it held after the last load or save
+  const [unsaved, setUnsaved] = useState(false);
+  const saved = useRef<string | null>(null);
+  const sends = (f: HTMLFormElement) => JSON.stringify([...new FormData(f).entries()].map(([k, v]) => [k, typeof v === "string" ? v : v.name]));
+  useEffect(() => {
+    const el = formEl.current;
+    if (!markUnsaved || !el) return;
+    if (saved.current === null || state.ok) {
+      saved.current = sends(el);
+      setUnsaved(false);
+    }
+  }, [state, markUnsaved, formEl]);
+  const frame = useRef(0);
+  const recheck = markUnsaved
+    ? () => {
+        // after React has drawn the change (a row moved or added updates the hidden JSON on the next render)
+        cancelAnimationFrame(frame.current);
+        frame.current = requestAnimationFrame(() => {
+          const el = formEl.current;
+          if (el && saved.current !== null) setUnsaved(sends(el) !== saved.current);
+        });
+      }
+    : undefined;
   return (
-    <section aria-labelledby={`${id}-title`} className="flex flex-col gap-5 rounded-sm border border-rule bg-surface p-5 lg:p-6">
+    <section aria-labelledby={`${id}-title`} data-unsaved={unsaved ? "" : undefined} className="flex flex-col gap-5 rounded-sm border border-rule bg-surface p-5 lg:p-6">
       <div>
         <h2 id={`${id}-title`} className="text-17 font-semibold">
           {number ? (
@@ -82,7 +111,7 @@ export function SectionForm({
         {description ? <div className="mt-1 max-w-[720px] text-14 text-ink-2">{description}</div> : null}
       </div>
       {before ? <div>{before}</div> : null}
-      <form {...form} className="flex flex-col gap-5" noValidate>
+      <form {...form} onInput={recheck} onChange={recheck} onClick={recheck} className="flex flex-col gap-5" noValidate>
         {hidden ? Object.entries(hidden).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />) : null}
         {fieldLabels ? <SectionErrors.Provider value={state.fieldErrors ?? null}>{children}</SectionErrors.Provider> : children}
         {errors.length ? (
@@ -94,6 +123,7 @@ export function SectionForm({
         ) : null}
         <div className="flex items-center gap-3 border-t border-rule pt-4">
           <Button disabled={pending}>{pending ? "Saving…" : submitLabel}</Button>
+          {unsaved && !pending && !errors.length ? <span className="text-13 font-medium text-flag">Changed, not saved yet</span> : null}
           <p role="status" aria-live="polite" className={state.ok ? "text-13 text-ok" : "text-13 text-flag"}>
             {state.message ?? ""}
           </p>
