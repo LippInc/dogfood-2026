@@ -367,24 +367,31 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                 <thead>
                   <tr className="border-b border-rule text-left text-13 text-ink-2">
                     <th className="px-3 py-2 font-medium">Track</th>
-                    <th className="px-3 py-2 text-right font-medium">Projects</th>
+                    <th className="px-3 py-2 text-right font-medium max-md:hidden">Projects</th>
                     <th className="px-3 py-2 text-right font-medium">Agreement (Kendall τ)</th>
-                    <th className="px-3 py-2 font-medium">Largest differences, normalized place → pairwise place</th>
+                    <th className="px-3 py-2 font-medium max-md:hidden">Largest differences, normalized place → pairwise place</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {crossCheck.tracks.map((t) => (
+                  {crossCheck.tracks.map((t) => {
+                    const movers = t.movers.length ? t.movers.map((m) => `${m.title} ${rk(m.normalized)} → ${m.pairwise}`).join(" · ") : "no project moves a full place";
+                    return (
                     <tr key={t.trackId} className="border-b border-rule align-top last:border-b-0">
-                      <td className="px-3 py-2">{t.name}</td>
-                      <td className="px-3 py-2 text-right tnum">{t.projects}</td>
+                      <td className="px-3 py-2">
+                        {t.name}
+                        <span className="mt-0.5 block text-12 text-ink-2 md:hidden">
+                          {plural(t.projects, "project")} ·{" "}
+                          {movers}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right tnum max-md:hidden">{t.projects}</td>
                       <td className="px-3 py-2 text-right tnum">{t.tau === null ? "–" : t.tau.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-13 wrap-anywhere">
-                        {t.movers.length
-                          ? t.movers.map((m) => `${m.title} ${rk(m.normalized)} → ${m.pairwise}`).join(" · ")
-                          : "no project moves a full place"}
+                      <td className="px-3 py-2 text-13 wrap-anywhere max-md:hidden">
+                        {movers}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
