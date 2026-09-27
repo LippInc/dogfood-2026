@@ -231,7 +231,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                   : "All placed. You can take back your last answer until judging closes."}
           </p>
         </div>
-        <ol ref={listRef} aria-label={`Your list in ${track.trackName}, best first`} className="flex-1 overflow-y-auto max-lg:max-h-56">
+        <ol ref={listRef} aria-label={`Your list in ${track.trackName}, best first`} className="flex-1 overflow-y-auto max-lg:hidden">
           {track.list.map((p, n) => {
             const here = p.id === against?.id;
             const fresh = p.id === justPlaced?.id;
@@ -344,6 +344,27 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                   );
                 })}
               </div>
+              {/* Phones: the list comes after the question, so the two projects are the first thing a judge sees. */}
+              <section aria-label={`Your list in ${track.trackName}, best first`} className="mt-10 lg:hidden">
+                <h2 className="label-mono text-ink-2">Your list so far, best first</h2>
+                <ol className="mt-2 border-t border-rule">
+                  {track.list.map((p, n) => (
+                    <li
+                      key={p.id}
+                      aria-current={p.id === against.id ? "true" : undefined}
+                      className={`flex items-center gap-3 border-b border-rule py-2.5 ${p.id === against.id ? "bg-accent-tint px-2" : ""}`}
+                    >
+                      <span className="w-5 font-mono text-12 text-ink-3 tnum">{String(n + 1).padStart(2, "0")}</span>
+                      <span className="min-w-0 flex-1 truncate text-14 font-medium">{p.title}</span>
+                      {p.id === against.id ? (
+                        <span className="text-12 font-medium text-accent-ink">comparing</span>
+                      ) : p.id === justPlaced?.id ? (
+                        <span className="text-12 font-medium text-accent-ink">just placed</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              </section>
               <div className="mt-6 flex justify-center max-lg:hidden">
                 <Button
                   size="lg"
