@@ -98,13 +98,14 @@ export function GalleryBrowser({
   const peeked = peek ? items.find((i) => i.id === peek) : undefined;
   const ours = mine ? items.find((i) => i.id === mine) : undefined;
 
-  // Phones: a track chosen by its link (?track=) may sit far along the chip row; bring it into view once.
+  // Phones: the chosen track's chip may sit far along the chip row (chosen by its link, ?track=, or by a
+  // tap on the Field's picture); bring it into view whenever the track changes.
   const chipRow = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const row = chipRow.current;
     const chosen = row?.querySelector<HTMLElement>('[data-track][aria-pressed="true"]');
     if (row && chosen) row.scrollLeft = chosen.offsetLeft - row.offsetLeft - (row.clientWidth - chosen.offsetWidth) / 2;
-  }, []);
+  }, [track]);
 
   const syncUrl = (nextTrack: string | null, nextQuery: string) => {
     const url = new URL(window.location.href);
@@ -283,17 +284,22 @@ export function GalleryBrowser({
         </div>
       </section>
 
-      {/* Phones: the Field shrinks to a picture (one column per track, no labels), and the chips below are its controls. */}
+      {/* Phones: the Field shrinks to a picture (one column per track, no labels); a tap on a column chooses its
+          track, a pointer shortcut like the faces above, while the chips below stay the controls for keyboards and screen readers. */}
       <div className="border-t border-rule pt-4 md:hidden" aria-hidden="true">
         <p className="label-mono flex justify-between text-ink">
           <span>Fig. 01 — The field</span>
           <span className="tnum text-ink-3">
-            {visible.length === items.length ? items.length : `${visible.length} / ${items.length}`}
+            {visible.length === items.length ? items.length : `${visible.length} of ${items.length}`}
           </span>
         </p>
         <div className="mt-3 grid grid-cols-8 gap-1">
           {tracks.map((t) => (
-            <div key={t.id} className={`flex flex-col gap-1 border-t-2 pt-1 ${track === t.id ? "lit border-accent" : "border-ink"}`}>
+            <div
+              key={t.id}
+              onClick={() => setTrack(track === t.id ? null : t.id)}
+              className={`flex cursor-pointer flex-col gap-1 border-t-2 pt-1 ${track === t.id ? "lit border-accent" : "border-ink"}`}
+            >
               {items
                 .filter((i) => i.trackId === t.id)
                 .map((i) => (
