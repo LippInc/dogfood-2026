@@ -151,6 +151,111 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
       </div>
     </div>
   );
+  const count = v.tally ? (
+    <section aria-labelledby="tally-title">
+      <h2 id="tally-title" className="text-17 font-semibold">
+        {v.state === "open" ? "The count so far" : "The count"}
+      </h2>
+      {v.state === "open" ? <p className="mt-1 text-14 text-ink-2">Live, and hidden from everyone but organizers until the window closes.</p> : null}
+      {withLink ? (
+        <p className="mt-1 text-14 text-ink-2">
+          Open-link ballots are hatched and counted apart, on the right of each row:{" "}
+          {v.settings.countLink ? "they are included in the count." : "they change no place."}
+        </p>
+      ) : null}
+      {!anyVotes ? (
+        // Nothing counted yet: the ballot's field of faces, not a column of zeros.
+        <div className="mt-3 flex flex-col gap-4 rounded-sm border border-rule bg-surface p-5">
+          <p className="text-14">
+            {closed ? (
+              <>
+                <strong className="font-semibold">No votes were cast.</strong>{" "}
+                <span className="text-ink-2">The vote closed with all {v.tally.length} projects at 0.</span>
+              </>
+            ) : (
+              <>
+                <strong className="font-semibold">No votes yet.</strong>{" "}
+                <span className="text-ink-2">All {v.tally.length} projects stand at 0; each gets a row and a bar here as ballots come in.</span>
+              </>
+            )}
+          </p>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(32px,1fr))] gap-1.5" aria-hidden>
+            {v.tally.map((t) => (
+              <span key={t.projectId} title={t.title}>
+                <Face id={t.projectId} cols={32} rows={18} className="h-auto w-full" />
+              </span>
+            ))}
+          </div>
+          <details className="text-14">
+            <summary className="cursor-pointer text-13 text-ink-2">Every project on the ballot</summary>
+            <ol className="mt-2 gap-8 text-13 sm:columns-2 lg:columns-3">
+              {v.tally.map((t) => (
+                <li key={t.projectId} className="break-inside-avoid py-0.5">
+                  <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
+                </li>
+              ))}
+            </ol>
+          </details>
+        </div>
+      ) : (
+        <ol className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
+          {v.tally.filter((t) => t.votes > 0 || t.openLink > 0).map((t) => (
+            <li key={t.projectId} className={`grid items-center gap-x-3 px-4 py-2 text-14 ${withLink ? COUNT_ROW_LINK : COUNT_ROW}`}>
+              <span className="text-ink-2 tnum">{t.place ?? "–"}</span>
+              <Face id={t.projectId} cols={32} rows={18} className="h-[18px] w-8" />
+              <span className="min-w-0 truncate">
+                <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
+              </span>
+              {/* the bar: votes against the leader's, so the gaps between places are seen, not read; the open
+                  link's ballots hatched, as in the turnout bar: inside the bar when they count, a tail when they do not */}
+              <span aria-hidden className="flex h-2.5 gap-[2px] max-md:hidden">
+                {t.votes - (v.settings.countLink ? t.openLink : 0) > 0 ? (
+                  <span className="bg-ink" style={{ width: `${((t.votes - (v.settings.countLink ? t.openLink : 0)) / top) * 100}%` }} />
+                ) : null}
+                {t.openLink > 0 ? <span className={CHANNEL.link} style={{ width: `${(t.openLink / top) * 100}%` }} /> : null}
+              </span>
+              <span className="text-right font-semibold tnum">{t.votes}</span>
+              {withLink ? (
+                <span className="inline-flex items-center justify-end gap-1.5 font-mono text-12 whitespace-nowrap text-ink-2 tnum">
+                  {t.openLink > 0 ? (
+                    <>
+                      <span aria-hidden className={`inline-block size-2.5 shrink-0 ${CHANNEL.link}`} />
+                      {`${v.settings.countLink ? "incl. " : "+"}${t.openLink}`}
+                      <span className="max-md:sr-only"> open link</span>
+                    </>
+                  ) : null}
+                </span>
+              ) : null}
+            </li>
+          ))}
+          {/* the projects nobody picked share one place: one row with their faces, the names on request */}
+          {zeros.length ? (
+            <li className="grid grid-cols-[28px_minmax(0,1fr)_40px] items-start gap-x-3 px-4 py-3 text-14">
+              <span className="text-ink-2 tnum">–</span>
+              <details>
+                <summary className="cursor-pointer text-ink-2">
+                  {zeros.length === 1 ? `${zeros[0]!.title}, not picked yet` : `${zeros.length} projects not picked${closed ? "" : " yet"}`}
+                </summary>
+                <ol className="mt-2 gap-8 text-13 sm:columns-2 lg:columns-3">
+                  {zeros.map((t) => (
+                    <li key={t.projectId} className="break-inside-avoid py-0.5">
+                      <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+              <span className="text-right font-semibold tnum">0</span>
+              <span aria-hidden className="col-start-2 mt-2 flex flex-wrap gap-1">
+                {zeros.map((t) => (
+                  <Face key={t.projectId} id={t.projectId} cols={32} rows={18} className="h-[18px] w-8" />
+                ))}
+              </span>
+            </li>
+          ) : null}
+        </ol>
+      )}
+    </section>
+  ) : null;
   return (
     <WorkShell
       eventName={event.name}
@@ -176,8 +281,10 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
           </p>
         </header>
 
-        {/* Before the window opens nothing can be counted or flagged: the setup comes first, alone. */}
+        {/* Before the window opens nothing can be counted or flagged: the setup comes first, alone. Once it has
+            closed the count is the result, final and public, so it leads and turnout follows as its context. */}
         {early ? setup : null}
+        {closed ? count : null}
 
         {early ? null : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
@@ -278,111 +385,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
         </div>
         )}
 
-        {v.tally ? (
-          <section aria-labelledby="tally-title">
-            <h2 id="tally-title" className="text-17 font-semibold">
-              {v.state === "open" ? "The count so far" : "The count"}
-            </h2>
-            {v.state === "open" ? <p className="mt-1 text-14 text-ink-2">Live, and hidden from everyone but organizers until the window closes.</p> : null}
-            {withLink ? (
-              <p className="mt-1 text-14 text-ink-2">
-                Open-link ballots are hatched and counted apart, on the right of each row:{" "}
-                {v.settings.countLink ? "they are included in the count." : "they change no place."}
-              </p>
-            ) : null}
-            {!anyVotes ? (
-              // Nothing counted yet: the ballot's field of faces, not a column of zeros.
-              <div className="mt-3 flex flex-col gap-4 rounded-sm border border-rule bg-surface p-5">
-                <p className="text-14">
-                  {closed ? (
-                    <>
-                      <strong className="font-semibold">No votes were cast.</strong>{" "}
-                      <span className="text-ink-2">The vote closed with all {v.tally.length} projects at 0.</span>
-                    </>
-                  ) : (
-                    <>
-                      <strong className="font-semibold">No votes yet.</strong>{" "}
-                      <span className="text-ink-2">All {v.tally.length} projects stand at 0; each gets a row and a bar here as ballots come in.</span>
-                    </>
-                  )}
-                </p>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(32px,1fr))] gap-1.5" aria-hidden>
-                  {v.tally.map((t) => (
-                    <span key={t.projectId} title={t.title}>
-                      <Face id={t.projectId} cols={32} rows={18} className="h-auto w-full" />
-                    </span>
-                  ))}
-                </div>
-                <details className="text-14">
-                  <summary className="cursor-pointer text-13 text-ink-2">Every project on the ballot</summary>
-                  <ol className="mt-2 gap-8 text-13 sm:columns-2 lg:columns-3">
-                    {v.tally.map((t) => (
-                      <li key={t.projectId} className="break-inside-avoid py-0.5">
-                        <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </details>
-              </div>
-            ) : (
-              <ol className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
-                {v.tally.filter((t) => t.votes > 0 || t.openLink > 0).map((t) => (
-                  <li key={t.projectId} className={`grid items-center gap-x-3 px-4 py-2 text-14 ${withLink ? COUNT_ROW_LINK : COUNT_ROW}`}>
-                    <span className="text-ink-2 tnum">{t.place ?? "–"}</span>
-                    <Face id={t.projectId} cols={32} rows={18} className="h-[18px] w-8" />
-                    <span className="min-w-0 truncate">
-                      <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
-                    </span>
-                    {/* the bar: votes against the leader's, so the gaps between places are seen, not read; the open
-                        link's ballots hatched, as in the turnout bar: inside the bar when they count, a tail when they do not */}
-                    <span aria-hidden className="flex h-2.5 gap-[2px] max-md:hidden">
-                      {t.votes - (v.settings.countLink ? t.openLink : 0) > 0 ? (
-                        <span className="bg-ink" style={{ width: `${((t.votes - (v.settings.countLink ? t.openLink : 0)) / top) * 100}%` }} />
-                      ) : null}
-                      {t.openLink > 0 ? <span className={CHANNEL.link} style={{ width: `${(t.openLink / top) * 100}%` }} /> : null}
-                    </span>
-                    <span className="text-right font-semibold tnum">{t.votes}</span>
-                    {withLink ? (
-                      <span className="inline-flex items-center justify-end gap-1.5 font-mono text-12 whitespace-nowrap text-ink-2 tnum">
-                        {t.openLink > 0 ? (
-                          <>
-                            <span aria-hidden className={`inline-block size-2.5 shrink-0 ${CHANNEL.link}`} />
-                            {`${v.settings.countLink ? "incl. " : "+"}${t.openLink}`}
-                            <span className="max-md:sr-only"> open link</span>
-                          </>
-                        ) : null}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-                {/* the projects nobody picked share one place: one row with their faces, the names on request */}
-                {zeros.length ? (
-                  <li className="grid grid-cols-[28px_minmax(0,1fr)_40px] items-start gap-x-3 px-4 py-3 text-14">
-                    <span className="text-ink-2 tnum">–</span>
-                    <details>
-                      <summary className="cursor-pointer text-ink-2">
-                        {zeros.length === 1 ? `${zeros[0]!.title}, not picked yet` : `${zeros.length} projects not picked${closed ? "" : " yet"}`}
-                      </summary>
-                      <ol className="mt-2 gap-8 text-13 sm:columns-2 lg:columns-3">
-                        {zeros.map((t) => (
-                          <li key={t.projectId} className="break-inside-avoid py-0.5">
-                            <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </details>
-                    <span className="text-right font-semibold tnum">0</span>
-                    <span aria-hidden className="col-start-2 mt-2 flex flex-wrap gap-1">
-                      {zeros.map((t) => (
-                        <Face key={t.projectId} id={t.projectId} cols={32} rows={18} className="h-[18px] w-8" />
-                      ))}
-                    </span>
-                  </li>
-                ) : null}
-              </ol>
-            )}
-          </section>
-        ) : null}
+        {closed ? null : count}
 
         {early ? null : setup}
       </div>
