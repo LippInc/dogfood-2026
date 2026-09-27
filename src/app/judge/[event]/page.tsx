@@ -53,7 +53,11 @@ export default async function JudgePage({ params, searchParams }: PageProps<"/ju
             </Link>
           ) : data.event.resultsPublishedAt && finished ? (
             <form action={openOwnRecord.bind(null, data.event.slug, "judge")}>
-              <button className={recordButton}>Get your signed judging record</button>
+              {/* on phones the long label pushed Sign out onto a line of its own */}
+              <button className={recordButton} aria-label="Get your signed judging record">
+                <span className="sm:hidden">Get your record</span>
+                <span className="max-sm:hidden">Get your signed judging record</span>
+              </button>
             </form>
           ) : null}
           <KeysButton />
@@ -103,7 +107,11 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
             </Link>
           ) : state.event.resultsPublishedAt && answered ? (
             <form action={openOwnRecord.bind(null, state.event.slug, "judge")}>
-              <button className={recordButton}>Get your signed judging record</button>
+              {/* on phones the long label pushed Sign out onto a line of its own */}
+              <button className={recordButton} aria-label="Get your signed judging record">
+                <span className="sm:hidden">Get your record</span>
+                <span className="max-sm:hidden">Get your signed judging record</span>
+              </button>
             </form>
           ) : null}
           <KeysButton />
