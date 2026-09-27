@@ -17,11 +17,12 @@ import { myTeam, type MyTeam } from "./teams";
 // saved as a draft or submitted. The deadline holds in the backend: after
 // submissions close every create and edit is a 403, whatever the page shows.
 
-const optionalUrl = z
-  .string()
-  .trim()
-  .max(500)
-  .url("must be a full URL, starting with https://")
+// Links are http(s) only: a javascript: or data: URL would reach API clients, webhook
+// receivers and exports as it was typed.
+const WEB_URL = { protocol: /^https?$/, message: "must be a full URL, starting with https://" };
+const webUrl = z.string().trim().max(500).url(WEB_URL);
+
+const optionalUrl = webUrl
   .or(z.literal(""))
   .optional()
   .transform((v) => (v ? v : null));
@@ -79,14 +80,16 @@ function requireTrack(tx: Tx, trackId: string, eventId: string) {
 function writeAnswers(tx: Tx, projectId: string, eventId: string, answers: Record<string, string>) {
   const ids = Object.keys(answers);
   if (ids.length === 0) return;
-  const known = new Set(
+  const known = new Map(
     tx
-      .select({ id: customQuestions.id })
+      .select({ id: customQuestions.id, type: customQuestions.type })
       .from(customQuestions)
       .where(and(eq(customQuestions.eventId, eventId), inArray(customQuestions.id, ids)))
       .all()
-      .map((q) => q.id),
+      .map((q) => [q.id, q.type]),
   );
+  const notLinks = Object.entries(answers).filter(([id, value]) => known.get(id) === "url" && value && !webUrl.safeParse(value).success);
+  if (notLinks.length) throw new ValidationError("Check the fields.", Object.fromEntries(notLinks.map(([id]) => [`answers.${id}`, [WEB_URL.message]])));
   for (const [questionId, value] of Object.entries(answers)) {
     if (!known.has(questionId)) continue;
     tx.insert(customAnswers)

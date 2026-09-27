@@ -26,7 +26,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 **`team_members`** — one person's membership. `team_id`, `user_id` (pk); `event_id`; `role` (`captain` | `member`); `joined_at`. A composite foreign key (`team_id`, `event_id`) → `teams` pins the row to its own event, and a unique index on (`event_id`, `user_id`) enforces one team per person per event in the database, not only the app.
 
-**`projects`** — one project. `id`; `event_id`; `team_id`; `track_id` (both composite-pinned to the event); `title` (non-empty); `summary`; `description`; `repo_url`, `video_url`, `live_url`, `thumbnail_url`; `gallery_urls` json array; `tags` json array; `status` (`draft` | `submitted`; CHECK: a submitted project has a `submitted_at`); `duplicate_of` — set by the organizer's audited duplicate merge, must differ from `id`, and points to a project in the same event; the row itself is never deleted; `created_at`; `updated_at`.
+**`projects`** — one project. `id`; `event_id`; `team_id`; `track_id` (both composite-pinned to the event); `title` (non-empty); `summary`; `description`; `repo_url`, `video_url`, `live_url`, `thumbnail_url` (web addresses only: the data access layer and the import refuse anything but http and https); `gallery_urls` json array; `tags` json array; `status` (`draft` | `submitted`; CHECK: a submitted project has a `submitted_at`); `duplicate_of` — set by the organizer's audited duplicate merge, must differ from `id`, and points to a project in the same event; the row itself is never deleted; `created_at`; `updated_at`.
 
 **`custom_answers`** — one answer to one custom question. `project_id`, `question_id` (pk); `value`.
 

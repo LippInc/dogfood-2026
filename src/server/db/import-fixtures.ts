@@ -62,7 +62,11 @@ export const FixtureSchema = z.looseObject({
       track: id,
       title: z.string().min(1),
       summary: z.string().optional().default(""),
-      repo_url: z.string().optional().default(""),
+      repo_url: z
+        .literal("")
+        .or(z.string().url({ protocol: /^https?$/, message: "must be a full URL, starting with https://" }))
+        .optional()
+        .default(""),
       submitted_at: z.string().min(1),
     }),
   ),

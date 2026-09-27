@@ -179,6 +179,10 @@ describe("bulk import, export and account claims", () => {
     expect(messageOf(undefined)).toMatch(/not a JSON object with an event in it/);
     expect(messageOf(undefined)).not.toMatch(/✖/);
     expect(messageOf({ event: { name: "No id" }, tracks: [], judges: [], teams: [], projects: [], scores: [] })).toMatch(/event\.id: /);
+    // a project link is a web address on the way in, as in the project form
+    const withScriptLink = loadFixtureFile(path.join(process.cwd(), "fixtures.json")).fixture;
+    withScriptLink.projects[0]!.repo_url = "javascript:alert(1)";
+    expect(messageOf(withScriptLink)).toMatch(/projects\.0\.repo_url: must be a full URL, starting with https:\/\//);
   });
 
   it("round trip: an export from portal A imports into a fresh portal B with the same tables, the same normalized CSV, and the importer as organizer", () => {

@@ -259,4 +259,66 @@ describe("updateProject with the event open", () => {
     ).toBe(0);
     expect(answerCount(draft.id)).toBe(0);
   });
+
+  describe("links are web addresses", () => {
+    beforeEach(() => {
+      h.sqlite
+        .prepare(
+          "INSERT INTO custom_questions (id, event_id, label, help, type, required, position) VALUES ('q_link', 'evt_01', 'Slides', '', 'url', 0, 0), ('q_text', 'evt_01', 'Stack', '', 'text', 0, 1)",
+        )
+        .run();
+    });
+
+    function linkDraft() {
+      const u = addUser("usr_linker", "linker@example.org", "Linker");
+      createTeam(u, "evt_01", { name: "Link Crew" });
+      return { u, draft: createProject(u, "evt_01", { title: "Links", trackId: "trk_01", status: "draft" }) };
+    }
+
+    it.each(["javascript:alert(document.cookie)", "data:text/html,<script>alert(1)</script>", "ftp://example.org/file"])(
+      "known-bad: the project link %s is a 422 that names the field, and nothing is stored",
+      (bad) => {
+        const { u, draft } = linkDraft();
+        const err = expectHttpError(
+          () => updateProject(u, draft.id, { title: "Links", trackId: "trk_01", status: "draft", repoUrl: bad }),
+          422,
+          "invalid",
+        );
+        expect(Object.keys(err.details as Record<string, unknown>)).toContain("repoUrl");
+        expect(h.sqlite.prepare("SELECT repo_url AS u FROM projects WHERE id = ?").get(draft.id)).toEqual({ u: null });
+      },
+    );
+
+    it("known-bad: a Link question answered with something else is a 422 that names it, and the whole save rolls back", () => {
+      const { u, draft } = linkDraft();
+      const err = expectHttpError(
+        () =>
+          updateProject(u, draft.id, {
+            title: "Renamed",
+            trackId: "trk_01",
+            status: "draft",
+            answers: { q_link: "javascript:alert(1)", q_text: "fine" },
+          }),
+        422,
+        "invalid",
+      );
+      expect(Object.keys(err.details as Record<string, unknown>)).toEqual(["answers.q_link"]);
+      expect(answerCount(draft.id)).toBe(0);
+      expect(h.sqlite.prepare("SELECT title AS t FROM projects WHERE id = ?").get(draft.id)).toEqual({ t: "Links" });
+    });
+
+    it("positive controls: web links and a Link answer are stored; a text question takes any text", () => {
+      const { u, draft } = linkDraft();
+      updateProject(u, draft.id, {
+        title: "Links",
+        trackId: "trk_01",
+        status: "draft",
+        repoUrl: "https://example.org/repo",
+        liveUrl: "http://localhost:3000/demo",
+        answers: { q_link: "https://example.org/slides", q_text: "not a link at all" },
+      });
+      expect(answerOf(draft.id, "q_link")).toBe("https://example.org/slides");
+      expect(answerOf(draft.id, "q_text")).toBe("not a link at all");
+    });
+  });
 });
