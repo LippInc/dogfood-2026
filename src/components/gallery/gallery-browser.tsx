@@ -144,7 +144,7 @@ export function GalleryBrowser({
             onClick={() => setTrack(null)}
             className="ml-auto h-7 rounded-xs border border-edge px-3 text-13 font-medium aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
           >
-            All {items.length}
+            All <span className="tnum">{q ? `${elsewhere} of ${items.length}` : items.length}</span>
           </button>
         </div>
         <div className="mt-6 grid grid-cols-4 gap-x-4 gap-y-8 xl:grid-cols-8">
@@ -219,7 +219,7 @@ export function GalleryBrowser({
       {/* Phones: the mosaic's filter becomes scrolling track chips (44px targets). */}
       <div ref={chipRow} className="-mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden" role="group" aria-label="Filter by track">
         <button type="button" aria-pressed={track === null} onClick={() => setTrack(null)} className={`${chip} border-edge`}>
-          All <span className="tnum">{items.length}</span>
+          All <span className="tnum">{q ? `${elsewhere} of ${items.length}` : items.length}</span>
         </button>
         {tracks.map((t) => (
           <button
