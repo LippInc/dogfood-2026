@@ -6,8 +6,16 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { UtcNow } from "@/components/utc-now";
 import { guardPage, utcInput } from "@/lib/page-guard";
 import { formatUtc } from "@/lib/format";
-import { currentActor, getOrganizerEvent, listOrganizers } from "@/server/dal";
-import { addOrganizerAction, savePrizesAction, saveQuestionsAction, saveRubricAction, saveDetailsAction, saveTracksAction } from "./actions";
+import { currentActor, getOrganizerEvent, judgingModeOf, listOrganizers } from "@/server/dal";
+import {
+  addOrganizerAction,
+  saveDetailsAction,
+  saveJudgingModeAction,
+  savePrizesAction,
+  saveQuestionsAction,
+  saveRubricAction,
+  saveTracksAction,
+} from "./actions";
 import { RemoveOrganizer } from "./remove-organizer";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +32,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
   const organizers = listOrganizers(actor, event.id);
   const hidden = { event: event.slug };
   const totalWeight = o.rubric.reduce((s, c) => s + c.weight, 0);
+  const mode = judgingModeOf(event);
   return (
     <WorkShell
       eventName={event.name}
@@ -167,6 +176,41 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               { key: "required", label: "Required", type: "checkbox" },
             ]}
           />
+        </SectionForm>
+
+        <SectionForm
+          id="judging-mode"
+          title="How judges judge"
+          description={
+            event.resultsPublishedAt
+              ? "Results are published, so the way this event was judged is final."
+              : "Either way every judge sees only their own projects, and the scores or answers already given stay. Scores given before a switch to pairwise still count, as the order they imply. The switch is written to the audit log with your reason."
+          }
+          action={saveJudgingModeAction}
+          hidden={hidden}
+          submitLabel="Save the judging mode"
+        >
+          <fieldset className="flex flex-col gap-2" disabled={Boolean(event.resultsPublishedAt)}>
+            <legend className="sr-only">Judging mode</legend>
+            {(
+              [
+                ["scores", "Scores", "Each judge scores every project of theirs on the rubric below; the portal evens out harsh and lenient judges."],
+                ["pairwise", "Pairwise", "Each judge answers “which is better?” for two of their projects at a time; the portal ranks projects from every answer."],
+              ] as const
+            ).map(([value, label, help]) => (
+              <label key={value} className="flex items-start gap-3 rounded-sm border border-edge px-3 py-2.5 has-[:checked]:border-accent has-[:checked]:bg-accent-tint">
+                <input type="radio" name="mode" value={value} defaultChecked={mode === value} className="mt-1 size-4 accent-[var(--primary)]" />
+                <span>
+                  <span className="block text-14 font-medium">{label}</span>
+                  <span className="block text-13 text-ink-2">{help}</span>
+                </span>
+              </label>
+            ))}
+            <label className="mt-2 flex flex-col gap-1 text-13 text-ink-2">
+              Why (kept in the audit log)
+              <input name="reason" required maxLength={500} className={input} />
+            </label>
+          </fieldset>
         </SectionForm>
 
         <SectionForm

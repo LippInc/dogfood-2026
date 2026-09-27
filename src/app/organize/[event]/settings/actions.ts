@@ -10,6 +10,7 @@ import {
   saveQuestions,
   saveRubric,
   saveTracks,
+  setJudgingMode,
   updateEventDetails,
   type ActionResult,
 } from "@/server/dal";
@@ -81,4 +82,14 @@ export async function addOrganizerAction(_prev: ActionResult, form: FormData): P
 export async function removeOrganizerAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const actor = await currentActor();
   return run(form, (slug) => removeOrganizer(actor, slug, String(form.get("user") ?? "")), "Removed.");
+}
+
+export async function saveJudgingModeAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  const mode = String(form.get("mode") ?? "");
+  return run(
+    form,
+    (slug) => setJudgingMode(actor, slug, { mode, reason: form.get("reason") }),
+    mode === "pairwise" ? "Pairwise from now on: judges see two projects at a time." : "Scores from now on: judges score each project on the rubric.",
+  );
 }
