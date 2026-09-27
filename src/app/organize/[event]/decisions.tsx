@@ -476,7 +476,7 @@ export function Decisions({
                 >
                   <span className="text-14 text-ink-2 tnum">{i + 1}.</span>
                   <span className="font-mono text-12 text-ink-2 max-md:hidden">
-                    {STAGE[d.kind]}
+                    {d.kind === "under_reviewed" && d.mode === "pairwise" ? "06 Comparing" : STAGE[d.kind]}
                   </span>
                   <span className="flex min-w-0 items-center gap-3">
                     <span
@@ -519,11 +519,14 @@ export function PublishPanel({
   total,
   publishedAt,
   submissionsCloseAt,
+  pairwise = false,
 }: {
   eventSlug: string;
   open: number;
   total: number;
   publishedAt: string | null;
+  /** the event is judged pairwise: publishing stores a pairwise run */
+  pairwise?: boolean;
   /** set while submissions are still open: publishing waits for the close */
   submissionsCloseAt: string | null;
 }) {
@@ -616,8 +619,8 @@ export function PublishPanel({
           ) : null}
           <p className="text-13 text-ink-2">
             Publishing makes the results page public, shows each team its
-            written feedback, and freezes scoring. It is logged, with the
-            normalization run it publishes.
+            written feedback, and freezes {pairwise ? "judging" : "scoring"}. It is logged, with the
+            {pairwise ? " pairwise" : " normalization"} run it publishes.
           </p>
           <Link
             href={`/organize/${eventSlug}/results`}

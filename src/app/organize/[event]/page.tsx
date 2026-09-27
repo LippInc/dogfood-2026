@@ -166,6 +166,7 @@ export default async function OverviewPage({
             total={o.decisions.length}
             publishedAt={event.resultsPublishedAt}
             submissionsCloseAt={o.submissionsOpenUntil}
+            pairwise={o.pairwise !== null}
           />
         </div>
 
@@ -235,6 +236,34 @@ export default async function OverviewPage({
             )}
           </section>
 
+          {o.pairwise ? (
+            <section aria-labelledby="norm-card" className="flex flex-col gap-3 rounded-sm border border-rule bg-surface p-5">
+              <div className="flex items-baseline justify-between">
+                <h2 id="norm-card" className="text-15 font-semibold">
+                  Ranking
+                </h2>
+                <span className="text-13 text-ink-2">{event.resultsPublishedAt ? "published run" : "preview"}</span>
+              </div>
+              <p className="text-24 font-semibold">
+                {o.pairwise.placed} of {o.pairwise.total} placed
+              </p>
+              <p className="text-13 leading-5 text-ink-2">
+                Judged pairwise: each judge places their own projects ({o.pairwise.total} in all; the first in each track needs no question).{" "}
+                {plural(o.pairwise.answers, "answer")} so far, plus the order of every judge&rsquo;s earlier scores.{" "}
+                {o.pairwise.left !== null && o.pairwise.fresh !== null
+                  ? `Between two equal projects the one on the left wins ${Math.round(o.pairwise.left * 100)} % and the one a judge has just opened ${Math.round(o.pairwise.fresh * 100)} %; the ranking takes both pulls out.`
+                  : "The pull of the left side and of the project just opened are measured once judges answer."}
+              </p>
+              <div>
+                <Link
+                  href={`/organize/${event.slug}/results`}
+                  className="inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium hover:bg-raised"
+                >
+                  Show the working
+                </Link>
+              </div>
+            </section>
+          ) : (
           <section
             aria-labelledby="norm-card"
             className="flex flex-col gap-3 rounded-sm border border-rule bg-surface p-5"
@@ -281,6 +310,7 @@ export default async function OverviewPage({
               </p>
             )}
           </section>
+          )}
 
           <section
             aria-labelledby="audit-card"

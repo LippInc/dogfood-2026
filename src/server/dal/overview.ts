@@ -9,7 +9,7 @@ import { latestAudit, type AuditLine } from "./audit-log";
 import { eventFacts, getGallery, requireEvent, type EventRow } from "./events";
 import { judgeRows } from "./judges";
 import { computeNormalization, decisions, eventDecisions, type Decision } from "./normalization";
-import { judgingModeOf, pairwiseProgress } from "./pairwise";
+import { computePairwise, judgingModeOf, pairwiseProgress } from "./pairwise";
 
 // The organizer's overview (DESIGN.md: one focal point, three levels, details on
 // request): the decisions that stand between the scores and the results, the
@@ -45,6 +45,8 @@ export type Overview = {
     moved: number;
     ranked: number;
   };
+  /** in pairwise mode: the answers so far and the two pulls the fit measured, as "wins X %" shares; null in scores mode */
+  pairwise: { answers: number; placed: number; total: number; left: number | null; fresh: number | null } | null;
   audit: AuditLine[];
 };
 
@@ -174,6 +176,13 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       moved: n.moved,
       ranked: n.ranked,
     },
+    pairwise: progress
+      ? (() => {
+          const fit = computePairwise(db, event).fit;
+          const share = (b: { est: number } | null) => (b ? 1 / (1 + Math.exp(-b.est)) : null);
+          return { ...progress, left: share(fit.left), fresh: share(fit.fresh) };
+        })()
+      : null,
     audit: latestAudit(db, event.id, 4, [
       "review.submit",
       "review.amend",
