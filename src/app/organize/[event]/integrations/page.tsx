@@ -19,6 +19,7 @@ export const metadata: Metadata = { title: "Integrations" };
 const small = "inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium hover:bg-raised";
 /** The retry schedule, in seconds: the same as RETRY_DELAYS_S in src/server/webhooks.ts, which pages cannot import (only the DAL). */
 const RETRY_DELAYS_S = [10, 60, 300, 1800, 7200] as const;
+const MAX_ATTEMPTS = RETRY_DELAYS_S.length + 1;
 
 export default async function IntegrationsPage({ params }: PageProps<"/organize/[event]/integrations">) {
   const { event: key } = await params;
@@ -120,78 +121,11 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
           {webhooks.length ? (
             <ul className="flex flex-col gap-4">
               {webhooks.map((w) => (
-                <li key={w.id} className="flex flex-col gap-3 rounded-sm border border-rule bg-surface p-5">
-                  <div className="flex flex-wrap items-baseline justify-between gap-3">
-                    <code className="min-w-0 break-all font-mono text-14">{w.url}</code>
-                    {w.enabled ? <Badge variant="ok">On</Badge> : <Badge>Off</Badge>}
-                  </div>
-                  <p className="text-14 text-ink-2">
-                    {w.actions.includes("*") ? "Every audited action" : w.actions.join(", ")} · added {formatUtc(w.createdAt)} · {w.counts.delivered} delivered,{" "}
-                    {w.counts.pending} waiting, {w.counts.failed} failed
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {w.enabled ? (
-                      <form action={sendTest.bind(null, event.slug, w.id)}>
-                        <button className={small}>Send a test</button>
-                      </form>
-                    ) : null}
-                    <form action={toggleWebhook.bind(null, event.slug, w.id, !w.enabled)}>
-                      <button className={small}>{w.enabled ? "Turn off" : "Turn on"}</button>
-                    </form>
-                    <RotateSecretForm eventSlug={event.slug} webhookId={w.id} />
-                  </div>
-                  {deliveries[w.id]!.length ? (
-                    <details>
-                      <summary className="cursor-pointer text-13 text-ink-2 hover:text-ink">Last deliveries</summary>
-                      <div className="mt-2 overflow-x-auto">
-                        <table className="w-full min-w-[640px] text-13">
-                          <thead className="text-left text-ink-2">
-                            <tr>
-                              <th className="py-1.5 pr-3 font-medium">When (UTC)</th>
-                              <th className="py-1.5 pr-3 font-medium">Action</th>
-                              <th className="py-1.5 pr-3 font-medium">Result</th>
-                              <th className="py-1.5 font-medium" />
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-rule">
-                            {deliveries[w.id]!.map((d) => (
-                              <tr key={d.id}>
-                                <td className="py-1.5 pr-3 font-mono text-12 whitespace-nowrap">{formatUtc(d.createdAt)}</td>
-                                <td className="py-1.5 pr-3 font-mono text-12">{d.action}</td>
-                                <td className="py-1.5 pr-3">
-                                  {d.status === "delivered" ? (
-                                    <span className="text-ok">Delivered ({d.responseStatus})</span>
-                                  ) : d.status === "failed" ? (
-                                    <span className="text-flag">Failed after {d.attempts}: {d.error}</span>
-                                  ) : d.attempts ? (
-                                    <span>
-                                      Retrying at {formatUtc(d.nextAttemptAt)}: {d.error}
-                                    </span>
-                                  ) : (
-                                    <span className="text-ink-2">Waiting to send</span>
-                                  )}
-                                </td>
-                                <td className="py-1.5 text-right">
-                                  {d.status !== "delivered" ? (
-                                    <form action={retry.bind(null, event.slug, w.id, d.id)}>
-                                      <button className="text-13 underline underline-offset-4">Send again</button>
-                                    </form>
-                                  ) : null}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </details>
-                  ) : (
-                    <p className="text-13 text-ink-3">Nothing sent yet.</p>
-                  )}
-                </li>
+                <HookCard key={w.id} slug={event.slug} hook={w} deliveries={deliveries[w.id]!} />
               ))}
             </ul>
           ) : (
-            <p className="text-14 text-ink-2">No webhooks yet.</p>
+            <p className="text-14 text-ink-2">No webhooks yet. One added below receives every audited action from then on; nothing earlier is sent.</p>
           )}
 
           <div className="rounded-sm border border-rule p-5">
@@ -294,5 +228,163 @@ function Contents({ entries }: { entries: ContentsEntry[] }) {
         ))}
       </ol>
     </nav>
+  );
+}
+
+type Hook = ReturnType<typeof listWebhooks>["webhooks"][number];
+type Sent = ReturnType<typeof listDeliveries>[number];
+type Standing = "delivered" | "failed" | "retrying" | "waiting";
+
+/** How one delivery stands: arrived, failed for good, being retried, or not tried yet. */
+function standing(d: Sent): Standing {
+  return d.status === "delivered" ? "delivered" : d.status === "failed" ? "failed" : d.attempts ? "retrying" : "waiting";
+}
+
+/**
+ * One webhook: its address and switch, then its last deliveries as a row of cells
+ * (ink when it arrived, orange when it failed for good, dashed orange while it is
+ * retried, open while it waits), in the overview's decided-meter language. A
+ * webhook with a failed delivery carries the orange "needs you" bar, and its
+ * delivery log opens by itself while anything in it has failed a try.
+ */
+function HookCard({ slug, hook: w, deliveries }: { slug: string; hook: Hook; deliveries: Sent[] }) {
+  const failed = w.counts.failed > 0;
+  const troubled = deliveries.some((d) => standing(d) === "failed" || standing(d) === "retrying");
+  return (
+    <li className={`flex flex-col gap-4 rounded-sm border border-rule bg-surface p-5 ${failed ? "border-l-4 border-l-flag-bar" : ""}`}>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <code className="min-w-0 break-all font-mono text-15 text-ink">{w.url}</code>
+          <p className="text-13 text-ink-2">
+            {w.actions.includes("*") ? "Every audited action" : w.actions.join(", ")} · added {formatUtc(w.createdAt)}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {failed ? <Badge variant="flag">{w.counts.failed} failed</Badge> : null}
+          {w.enabled ? <Badge variant="ok">On</Badge> : <Badge>Off</Badge>}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {deliveries.length ? <DeliveryCells deliveries={deliveries} /> : null}
+        <p className="text-13 text-ink-2 tnum">
+          <span className="text-ink">{w.counts.delivered}</span> delivered · <span className="text-ink">{w.counts.pending}</span> waiting ·{" "}
+          <span className={failed ? "font-medium text-flag" : "text-ink"}>{w.counts.failed}</span> failed
+          {deliveries.length ? null : <span className="text-ink-3"> · nothing sent yet</span>}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {w.enabled ? (
+          <form action={sendTest.bind(null, slug, w.id)}>
+            <button className={small}>Send a test</button>
+          </form>
+        ) : null}
+        <form action={toggleWebhook.bind(null, slug, w.id, !w.enabled)}>
+          <button className={small}>{w.enabled ? "Turn off" : "Turn on"}</button>
+        </form>
+        <RotateSecretForm eventSlug={slug} webhookId={w.id} />
+      </div>
+
+      {deliveries.length ? (
+        <details open={troubled || undefined} className="border-t border-rule pt-3">
+          <summary className="cursor-pointer text-13 font-medium text-ink-2 hover:text-ink">Last deliveries, newest first</summary>
+          <table className="mt-2 w-full text-13 max-sm:block">
+            <thead className="text-left text-12 text-ink-2 max-sm:hidden">
+              <tr>
+                <th className="py-1.5 pr-4 font-medium">When (UTC)</th>
+                <th className="py-1.5 pr-4 font-medium">Action</th>
+                <th className="py-1.5 pr-4 font-medium">Tries</th>
+                <th className="py-1.5 pr-4 font-medium">Result</th>
+                <th className="py-1.5 font-medium">
+                  <span className="sr-only">Send again</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-rule max-sm:block">
+              {deliveries.map((d) => (
+                <DeliveryRow key={d.id} slug={slug} hookId={w.id} d={d} />
+              ))}
+            </tbody>
+          </table>
+        </details>
+      ) : null}
+    </li>
+  );
+}
+
+const CELL: Record<Standing, string> = {
+  delivered: "bg-ink",
+  failed: "bg-flag-bar",
+  retrying: "border-[1.5px] border-dashed border-flag-bar",
+  waiting: "border-[1.5px] border-edge",
+};
+
+function DeliveryCells({ deliveries }: { deliveries: Sent[] }) {
+  const n: Record<Standing, number> = { delivered: 0, failed: 0, retrying: 0, waiting: 0 };
+  for (const d of deliveries) n[standing(d)]++;
+  const said = (Object.keys(n) as Standing[])
+    .filter((k) => n[k])
+    .map((k) => `${n[k]} ${k}`)
+    .join(", ");
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <span role="img" aria-label={`The last ${deliveries.length} deliveries: ${said}`} className="flex gap-[3px]">
+        {deliveries.map((d) => (
+          <span key={d.id} title={`${d.action}: ${standing(d)}`} className={`size-[14px] ${CELL[standing(d)]}`} />
+        ))}
+      </span>
+      <span className="text-12 text-ink-3">the last {deliveries.length}, newest first</span>
+    </div>
+  );
+}
+
+/** The tries a delivery has used, out of the schedule's six, as small cells: orange once it has failed for good. */
+function Tries({ d }: { d: Sent }) {
+  const s = standing(d);
+  return (
+    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+      <span aria-hidden className="flex gap-[2px]">
+        {Array.from({ length: MAX_ATTEMPTS }, (_, i) => (
+          <span key={i} className={`size-[8px] ${i < d.attempts ? (s === "failed" ? "bg-flag-bar" : "bg-ink") : "border border-edge"}`} />
+        ))}
+      </span>
+      <span className="font-mono text-12 text-ink-2 tnum">
+        {d.attempts} of {MAX_ATTEMPTS}
+      </span>
+    </span>
+  );
+}
+
+function DeliveryRow({ slug, hookId, d }: { slug: string; hookId: string; d: Sent }) {
+  const s = standing(d);
+  const td = "py-2 pr-4 align-top max-sm:p-0";
+  return (
+    <tr className="max-sm:grid max-sm:grid-cols-[1fr_auto] max-sm:gap-x-3 max-sm:gap-y-1 max-sm:py-3">
+      <td className={`${td} font-mono text-12 whitespace-nowrap text-ink-2`}>{formatUtc(d.createdAt).replace(" UTC", "")}</td>
+      <td className={`${td} font-mono text-12 max-sm:col-start-1 max-sm:row-start-2`}>{d.action}</td>
+      <td className={`${td} max-sm:col-start-2 max-sm:row-start-1 max-sm:justify-self-end`}>
+        <Tries d={d} />
+      </td>
+      <td className={`${td} max-sm:col-span-2`}>
+        {s === "delivered" ? (
+          <span className="text-ok">Delivered{d.responseStatus ? `, answered ${d.responseStatus}` : ""}</span>
+        ) : s === "failed" ? (
+          <span className="font-medium text-flag">Failed for good</span>
+        ) : s === "retrying" ? (
+          <span>Next try at {formatUtc(d.nextAttemptAt).split(", ")[1]}</span>
+        ) : (
+          <span className="text-ink-2">Waiting to send</span>
+        )}
+        {s !== "delivered" && d.error ? <span className="mt-0.5 block text-12 text-ink-2">{d.error}</span> : null}
+      </td>
+      <td className="py-2 text-right align-top max-sm:col-start-2 max-sm:row-start-2 max-sm:p-0">
+        {s !== "delivered" ? (
+          <form action={retry.bind(null, slug, hookId, d.id)}>
+            <button className="text-13 whitespace-nowrap underline underline-offset-4">Send again</button>
+          </form>
+        ) : null}
+      </td>
+    </tr>
   );
 }
