@@ -165,7 +165,7 @@ export function ByHandForm({
         {judges.map((j) => (
           <option key={j.id} value={j.id}>
             {j.name}
-            {j.inTrack ? "" : " (another track)"}
+            {j.inTrack ? "" : " (another track: adds this track to theirs)"}
           </option>
         ))}
       </select>

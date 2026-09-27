@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import {
@@ -14,6 +14,7 @@ import {
   users,
 } from "../db/schema";
 import { guardRead } from "../mutate";
+import { inJudgeTracks } from "./judging";
 
 export type ReviewItem = { key: string; label: string; value: number; weight: number };
 
@@ -50,12 +51,16 @@ export function getJudgeScores(actor: Actor | null, requestedJudgeId: string | n
       : guardRead(actor, "scores.read_judge", { kind: "judge_scores", judgeUserId: requestedJudgeId });
   return {
     judge: { id: allowed.userId, name: allowed.name },
-    reviews: reviewsOf(getDb(), allowed.userId),
+    reviews: reviewsOf(getDb(), allowed.userId, { ownTracksOnly: true }),
   };
 }
 
-/** Every review assigned to one judge, in the judge's own order. DAL-internal. */
-export function reviewsOf(db: DbOrTx, judgeUserId: string): JudgeReview[] {
+/**
+ * Every review assigned to one judge, in the judge's own order. DAL-internal.
+ * ownTracksOnly: what the judge may see (projects in their tracks now); exports pass
+ * nothing and get every review.
+ */
+export function reviewsOf(db: DbOrTx, judgeUserId: string, opts: { ownTracksOnly?: boolean } = {}): JudgeReview[] {
   const rows = db
     .select({
       assignmentId: assignments.id,
@@ -78,7 +83,7 @@ export function reviewsOf(db: DbOrTx, judgeUserId: string): JudgeReview[] {
     .innerJoin(tracks, eq(tracks.id, projects.trackId))
     .leftJoin(scores, eq(scores.assignmentId, assignments.id))
     .leftJoin(scoreComments, eq(scoreComments.scoreId, scores.id))
-    .where(eq(assignments.judgeUserId, judgeUserId))
+    .where(and(eq(assignments.judgeUserId, judgeUserId), opts.ownTracksOnly ? inJudgeTracks : undefined))
     .orderBy(asc(assignments.eventId), asc(assignments.batchNo), asc(assignments.position), asc(assignments.id))
     .all();
 

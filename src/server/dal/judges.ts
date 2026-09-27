@@ -161,7 +161,11 @@ export function acceptJudgeInvite(actor: Actor | null, code: string) {
   });
 }
 
-/** The organizer changes a judge's tracks. Existing assignments stay as they are. */
+/**
+ * The organizer changes a judge's tracks. Existing assignments stay in the data, but one
+ * whose project is in a track the judge no longer has leaves their console and cannot be
+ * saved (inJudgeTracks); a top-up run gives that project a judge from its track.
+ */
 export function setJudgeTracks(actor: Actor | null, eventIdOrSlug: string, judgeUserId: string, body: unknown) {
   let event: EventRow;
   return mutate({

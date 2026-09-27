@@ -165,7 +165,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
               Under-reviewed projects
             </h2>
             <p className="mt-1 text-14 text-ink-2">
-              Fewer than two judges can review these in their own track. The engine never crosses tracks by itself: give each one a judge by hand, with a reason.
+              Fewer than two judges can review these in their own track. The engine never crosses tracks by itself: give each one a judge by hand, with a reason. A judge from another track gets this track added to theirs, so no judge sees a project outside their own tracks.
             </p>
             <ul className="mt-4 flex flex-col gap-3">
               {a.underReviewed.map((u) => (

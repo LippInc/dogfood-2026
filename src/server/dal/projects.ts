@@ -1,10 +1,10 @@
 import "server-only";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { submissionsOpen } from "../authz";
 import { getDb, type DbOrTx, type Tx } from "../db/client";
-import { customAnswers, customQuestions, projects, scoreComments, teamMembers, teams, tracks } from "../db/schema";
+import { assignments, customAnswers, customQuestions, projects, scoreComments, teamMembers, teams, tracks } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { mutate } from "../mutate";
 import { newId } from "../util";
@@ -189,6 +189,17 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
     run: (tx) => {
       const input = parse(body);
       requireTrack(tx, input.trackId, project.eventId);
+      if (input.trackId !== project.trackId) {
+        // Judges assigned in the old track would lose it (a track judge never sees another track).
+        const assigned = tx
+          .select({ id: assignments.id })
+          .from(assignments)
+          .where(and(eq(assignments.projectId, project.id), ne(assignments.status, "recused")))
+          .get();
+        if (assigned) {
+          throw new ConflictError("track_locked", "Judges are already assigned to this project in its track, so the track is fixed now. Ask the organizer if it is wrong.");
+        }
+      }
       const status = project.status === "submitted" ? "submitted" : input.status;
       if (status === "submitted") assertSubmittable(tx, project.eventId, input);
       const now = new Date().toISOString();

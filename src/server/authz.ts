@@ -66,8 +66,8 @@ export type Resource =
   | { kind: "judge_scores"; judgeUserId: string }
   /** email: the address the invitation was made for, or null for an open link */
   | { kind: "judge_invite"; event: EventFacts; email: string | null }
-  /** one judge's assignment of one project */
-  | { kind: "assignment"; id: string; event: EventFacts; judgeUserId: string; status: "pending" | "done" | "recused" }
+  /** one judge's assignment of one project; inJudgeTracks: the project is in one of that judge's tracks now */
+  | { kind: "assignment"; id: string; event: EventFacts; judgeUserId: string; status: "pending" | "done" | "recused"; inJudgeTracks: boolean }
   /** a community ballot; voter: who the voting link or account proves, or null */
   | { kind: "ballot"; event: EventFacts; modes: VoterKind[]; voter: { id: string; kind: VoterKind; voided: boolean } | null }
   /** comments on one project */
@@ -237,6 +237,10 @@ export function authorize(
       }
       if (!hasRole(actor, resource.event.id, "judge")) {
         return refuse("not_a_judge_here", "You are no longer a judge in this event.");
+      }
+      // A track judge never sees another track, whatever the assignment row says.
+      if (!resource.inJudgeTracks) {
+        return refuse("outside_your_tracks", "This project is not in one of your tracks any more, so it is not yours to see or score.");
       }
       if (resource.status === "recused") {
         return refuse("recused", "You declared a conflict on this project, so it is no longer yours to score.");

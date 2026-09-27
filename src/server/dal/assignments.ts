@@ -183,7 +183,8 @@ function insertOrdered(tx: DbOrTx, eventId: string, runId: string, order: Record
 
 /**
  * The organizer gives an under-reviewed project one more judge by hand, with a
- * reason. The only way a judge reviews outside their tracks, and always audited.
+ * reason. Choosing a judge from another track also adds this track to that judge,
+ * in the same audited action, so no judge ever sees a project outside their tracks.
  */
 export function assignByHand(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   let event: EventRow;
@@ -223,6 +224,10 @@ export function assignByHand(actor: Actor | null, eventIdOrSlug: string, body: u
           .where(and(eq(judgeTracks.judgeUserId, input.judgeUserId), eq(judgeTracks.trackId, project.trackId)))
           .get(),
       );
+      if (!inTrack) {
+        tx.insert(judgeTracks).values({ judgeUserId: input.judgeUserId, eventId: event.id, trackId: project.trackId }).onConflictDoNothing().run();
+      }
+      const addedTrack = inTrack ? null : project.trackId;
       const now = new Date().toISOString();
       const runId = newId("run");
       tx.insert(assignmentRuns)
@@ -231,7 +236,7 @@ export function assignByHand(actor: Actor | null, eventIdOrSlug: string, body: u
           eventId: event.id,
           mode: "topup",
           seed: 0,
-          params: { byHand: true, projectId: project.id, judgeUserId: input.judgeUserId, inTrack, reason: input.reason },
+          params: { byHand: true, projectId: project.id, judgeUserId: input.judgeUserId, inTrack, addedTrack, reason: input.reason },
           createdAt: now,
           createdBy: actor!.userId,
         })
@@ -244,7 +249,7 @@ export function assignByHand(actor: Actor | null, eventIdOrSlug: string, body: u
           eventId: event.id,
           targetType: "project",
           targetId: project.id,
-          after: { judgeUserId: input.judgeUserId, inTrack, reason: input.reason },
+          after: { judgeUserId: input.judgeUserId, inTrack, addedTrack, reason: input.reason },
         },
       };
     },

@@ -1,12 +1,21 @@
 import "server-only";
-import { and, asc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import type { DbOrTx } from "../db/client";
-import { assignments, judgeOverrides, rubricCriteria, scoreItems, scores } from "../db/schema";
+import { assignments, judgeOverrides, judgeTracks, projects, rubricCriteria, scoreItems, scores } from "../db/schema";
 import { excludedJudges, flatJudges, type FinishedReview, type FlatFlag, type Override } from "../judging/flat";
 
 // Shared loaders for the judging side: the rubric, the finished reviews (every
 // criterion scored), the flat-judge flags and the organizer's overrides. The
 // assignment run, the dashboard and the normalization run all read through here.
+
+/**
+ * SQL condition for a query that joins `assignments` to `projects`: the project is
+ * in one of the assigned judge's tracks now. A track judge never sees another
+ * track, so every judge-facing read and write checks it, not only the assignment
+ * run: a project a team moved, or a track the organizer took from a judge, leaves
+ * that judge's view. Finished reviews stay in the data for the organizer.
+ */
+export const inJudgeTracks = sql<number>`exists (select 1 from ${judgeTracks} jt where jt.judge_user_id = ${assignments.judgeUserId} and jt.event_id = ${assignments.eventId} and jt.track_id = ${projects.trackId})`;
 
 export type Criterion = {
   id: string;

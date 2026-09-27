@@ -37,7 +37,8 @@ const assignment = (
   facts: Partial<EventFacts> = {},
   judgeUserId = "jdg_1",
   status: "pending" | "done" | "recused" = "pending",
-) => ({ kind: "assignment" as const, id: "asg_1", event: event(facts), judgeUserId, status });
+  inJudgeTracks = true,
+) => ({ kind: "assignment" as const, id: "asg_1", event: event(facts), judgeUserId, status, inJudgeTracks });
 
 function expectRefusal(decision: Decision, status: 401 | 403, code: string) {
   expect(decision.ok).toBe(false);
@@ -153,6 +154,10 @@ describe("authorize: judging (pure)", () => {
           run: () => authorize(judgeX, action, assignment({}, "jdg_1", "recused"), NOW),
         },
         {
+          name: `${action}: project outside the judge's tracks`,
+          run: () => authorize(judgeX, action, assignment({}, "jdg_1", "pending", false), NOW),
+        },
+        {
           name: `${action}: before submissions close`,
           run: () => authorize(judgeX, action, assignment(), new Date("2026-02-20T12:00:00Z")),
         },
@@ -179,5 +184,14 @@ describe("authorize: judging (pure)", () => {
       expect(allows.filter((c) => c.run().ok !== true).map((c) => c.name)).toEqual([]);
       expect(refusals.length).toBeGreaterThanOrEqual(18);
     });
+  });
+});
+
+describe("a track judge never sees another track", () => {
+  it("refuses a project outside the judge's tracks with outside_your_tracks, and allows the same assignment in-track", () => {
+    for (const action of ["review.save", "review.recuse"] as const) {
+      expectRefusal(authorize(judgeX, action, assignment({}, "jdg_1", "pending", false), NOW), 403, "outside_your_tracks");
+      expect(authorize(judgeX, action, assignment({}, "jdg_1", "pending", true), NOW).ok).toBe(true);
+    }
   });
 });

@@ -19,7 +19,7 @@ import { NotFoundError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { rubricOf, weightedTotal, type Criterion } from "./judging";
+import { inJudgeTracks, rubricOf, weightedTotal, type Criterion } from "./judging";
 import { parse } from "./parse";
 
 // The judge's side: the console reads only the session judge's own assignments,
@@ -70,8 +70,8 @@ export type JudgeConsole = {
   showRanking: boolean;
 };
 
-function assignmentResource(event: EventRow, a: { id: string; judgeUserId: string; status: AssignmentStatus }): Resource {
-  return { kind: "assignment", id: a.id, event: eventFacts(event), judgeUserId: a.judgeUserId, status: a.status };
+function assignmentResource(event: EventRow, a: { id: string; judgeUserId: string; status: AssignmentStatus; inJudgeTracks: boolean }): Resource {
+  return { kind: "assignment", id: a.id, event: eventFacts(event), judgeUserId: a.judgeUserId, status: a.status, inJudgeTracks: a.inJudgeTracks };
 }
 
 /** Every assignment of the session's judge in one event, in their seeded order, with the review so far. */
@@ -110,8 +110,9 @@ export function getJudgeConsole(actor: Actor | null, eventIdOrSlug: string): Jud
     .innerJoin(tracks, eq(tracks.id, projects.trackId))
     .leftJoin(scores, eq(scores.assignmentId, assignments.id))
     .leftJoin(scoreComments, eq(scoreComments.scoreId, scores.id))
-    // The judge id is the session's, never a request parameter.
-    .where(and(eq(assignments.eventId, event.id), eq(assignments.judgeUserId, judge.userId)))
+    // The judge id is the session's, never a request parameter; a project outside the
+    // judge's tracks is not shown at all.
+    .where(and(eq(assignments.eventId, event.id), eq(assignments.judgeUserId, judge.userId), inJudgeTracks))
     .orderBy(asc(assignments.batchNo), asc(assignments.position), asc(assignments.id))
     .all();
 
@@ -135,7 +136,7 @@ export function getJudgeConsole(actor: Actor | null, eventIdOrSlug: string): Jud
   const consoleItems: ConsoleItem[] = rows.map((r) => {
     const values: Record<string, number | null> = Object.fromEntries(criteria.map((c) => [c.key, null]));
     for (const it of items) if (it.scoreId === r.scoreId && keyOf.has(it.criterionId)) values[keyOf.get(it.criterionId)!] = it.value;
-    const decision = authorize(judge, "review.save", assignmentResource(event, { id: r.assignmentId, judgeUserId: r.judgeUserId, status: r.status }), now);
+    const decision = authorize(judge, "review.save", assignmentResource(event, { id: r.assignmentId, judgeUserId: r.judgeUserId, status: r.status, inJudgeTracks: true }), now);
     return {
       assignmentId: r.assignmentId,
       batchNo: r.batchNo,
@@ -209,16 +210,25 @@ export type SavedReview = {
   total: number | null;
 };
 
-type AssignmentRow = { id: string; judgeUserId: string; projectId: string; eventId: string; status: AssignmentStatus };
+type AssignmentRow = { id: string; judgeUserId: string; projectId: string; eventId: string; status: AssignmentStatus; inJudgeTracks: boolean };
 
 function loadAssignment(tx: DbOrTx, assignmentId: string): { a: AssignmentRow; event: EventRow } {
-  const a = tx
-    .select({ id: assignments.id, judgeUserId: assignments.judgeUserId, projectId: assignments.projectId, eventId: assignments.eventId, status: assignments.status })
+  const row = tx
+    .select({
+      id: assignments.id,
+      judgeUserId: assignments.judgeUserId,
+      projectId: assignments.projectId,
+      eventId: assignments.eventId,
+      status: assignments.status,
+      inTracks: inJudgeTracks,
+    })
     .from(assignments)
+    .innerJoin(projects, eq(projects.id, assignments.projectId))
     .where(eq(assignments.id, assignmentId))
     .get();
-  if (!a) throw new NotFoundError("Assignment");
-  return { a, event: requireEvent(tx, a.eventId) };
+  if (!row) throw new NotFoundError("Assignment");
+  const { inTracks, ...rest } = row;
+  return { a: { ...rest, inJudgeTracks: Boolean(inTracks) }, event: requireEvent(tx, row.eventId) };
 }
 
 /**
