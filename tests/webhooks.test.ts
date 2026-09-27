@@ -31,7 +31,7 @@ let h: Handle;
 
 // --- the receiver: a local HTTP server the deliveries are POSTed to ---
 
-type Received = { method: string; headers: http.IncomingHttpHeaders; body: string };
+type Received = { method: string; url: string; headers: http.IncomingHttpHeaders; body: string };
 const received: Received[] = [];
 const statuses: number[] = []; // each request is answered with the next status; 200 when empty
 
@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
   const chunks: Buffer[] = [];
   req.on("data", (c: Buffer) => chunks.push(c));
   req.on("end", () => {
-    received.push({ method: req.method ?? "", headers: req.headers, body: Buffer.concat(chunks).toString("utf8") });
+    received.push({ method: req.method ?? "", url: req.url ?? "", headers: req.headers, body: Buffer.concat(chunks).toString("utf8") });
     res.statusCode = statuses.shift() ?? 200;
     res.end("ok");
   });
@@ -54,6 +54,23 @@ afterAll(async () => {
 });
 
 const receiverUrl = () => `http://127.0.0.1:${(server.address() as net.AddressInfo).port}/hook`;
+
+// --- the stub: an in-process fetch, so no test but the end-to-end one waits on the network ---
+// It records what deliverDue sends into the same `received` array the real receiver fills
+// (headers with lowercased names, as req.headers would give them) and answers from the same
+// `statuses` queue, so every existing read and push keeps working unchanged.
+
+const stubFetch: typeof fetch = async (input, init) => {
+  const headers: Record<string, string> = {};
+  const given = init?.headers;
+  if (given instanceof Headers) given.forEach((value, name) => (headers[name.toLowerCase()] = value));
+  else if (Array.isArray(given)) for (const [name, value] of given) headers[name.toLowerCase()] = String(value);
+  else if (given) for (const [name, value] of Object.entries(given)) headers[name.toLowerCase()] = String(value);
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const body = typeof init?.body === "string" ? init.body : "";
+  received.push({ method: init?.method ?? "GET", url, headers, body });
+  return new Response(null, { status: statuses.shift() ?? 200 });
+};
 
 // --- the database, fresh per test, and the private-target flag clean per test ---
 
@@ -184,7 +201,7 @@ async function failFrom(firstAttempt: number, from: Date): Promise<Date> {
   for (let attempt = firstAttempt; attempt <= MAX_ATTEMPTS; attempt++) {
     t = new Date(t.getTime() + (RETRY_DELAYS_S[attempt - 2]! + 1) * 1000);
     statuses.push(500);
-    const out = await deliverDue({ now: t });
+    const out = await deliverDue({ now: t, fetchImpl: stubFetch });
     expect(out.attempted, `attempt ${attempt}`).toBe(1);
   }
   return t;
@@ -252,7 +269,7 @@ describe("webhooks", () => {
     expect(nOf("SELECT count(*) AS n FROM webhook_deliveries")).toBe(1); // ...but the hook does not subscribe to it
   });
 
-  it("deliverDue sends the delivery: right method, headers and body, signed verifiably", async () => {
+  it("deliverDue sends the delivery: right method, headers and body, signed verifiably", { timeout: 30_000 }, async () => {
     process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
     const hook = await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["comment.post"] });
     postComment(participant(), "prj_01", { body: "Deliver me" });
@@ -293,7 +310,7 @@ describe("webhooks", () => {
 
     const t0 = soon();
     statuses.push(500);
-    let out = await deliverDue({ now: t0 });
+    let out = await deliverDue({ now: t0, fetchImpl: stubFetch });
     expect(out).toEqual({ attempted: 1, delivered: 0, retrying: 1, failed: 0 });
     let row = theDelivery();
     expect(row.status).toBe("pending");
@@ -304,7 +321,7 @@ describe("webhooks", () => {
     expect(received).toHaveLength(1);
 
     // not due yet: a pass at the same moment attempts nothing
-    out = await deliverDue({ now: t0 });
+    out = await deliverDue({ now: t0, fetchImpl: stubFetch });
     expect(out.attempted).toBe(0);
     expect(received).toHaveLength(1);
 
@@ -313,7 +330,7 @@ describe("webhooks", () => {
     for (let attempt = 2; attempt <= MAX_ATTEMPTS; attempt++) {
       t = new Date(t.getTime() + (RETRY_DELAYS_S[attempt - 2]! + 1) * 1000);
       statuses.push(500);
-      const pass = await deliverDue({ now: t });
+      const pass = await deliverDue({ now: t, fetchImpl: stubFetch });
       expect(pass.attempted, `attempt ${attempt}`).toBe(1);
       row = theDelivery();
       expect(row.attempts).toBe(attempt);
@@ -324,7 +341,7 @@ describe("webhooks", () => {
 
     // final means final: one more pass attempts nothing
     statuses.push(500); // would be consumed if a seventh attempt were made
-    const idle = await deliverDue({ now: new Date(t.getTime() + 3_600_000) });
+    const idle = await deliverDue({ now: new Date(t.getTime() + 3_600_000), fetchImpl: stubFetch });
     expect(idle.attempted).toBe(0);
     expect(received).toHaveLength(MAX_ATTEMPTS);
   });
@@ -336,7 +353,7 @@ describe("webhooks", () => {
 
     const t0 = soon();
     statuses.push(500);
-    await deliverDue({ now: t0 });
+    await deliverDue({ now: t0, fetchImpl: stubFetch });
     await failFrom(2, t0);
     let row = theDelivery();
     expect(row.status).toBe("failed");
@@ -346,7 +363,7 @@ describe("webhooks", () => {
     expect(row.status).toBe("pending");
     expect(row.nextAttemptAt).toBeTruthy();
 
-    const out = await deliverDue({ now: soon() }); // the receiver answers 200 again
+    const out = await deliverDue({ now: soon(), fetchImpl: stubFetch }); // statuses is empty: the stub answers 200 again
     expect(out).toEqual({ attempted: 1, delivered: 1, retrying: 0, failed: 0 });
     row = theDelivery();
     expect(row.status).toBe("delivered");
@@ -410,7 +427,7 @@ describe("webhooks", () => {
     expect(rotated.secret).not.toBe(hook.secret);
 
     const now = soon();
-    await deliverDue({ now });
+    await deliverDue({ now, fetchImpl: stubFetch });
     const req = received[0]!;
     const sig = req.headers["dogfood-signature"] as string;
     expect(verifySignature(rotated.secret, req.body, sig, now.getTime())).toBe(true);
@@ -424,7 +441,7 @@ describe("webhooks", () => {
 
     process.env.WEBHOOKS_ALLOW_PRIVATE = "false";
     const now = soon();
-    const out = await deliverDue({ now });
+    const out = await deliverDue({ now, fetchImpl: stubFetch });
     expect(out).toEqual({ attempted: 1, delivered: 0, retrying: 1, failed: 0 });
     expect(received).toHaveLength(0);
 
@@ -452,7 +469,7 @@ describe("webhooks", () => {
 
     const t1 = new Date(base + 10_000);
     statuses.push(200, 500, 500); // oldest arrives, the other two fail and stay pending
-    await deliverDue({ now: t1 });
+    await deliverDue({ now: t1, fetchImpl: stubFetch });
     expect(rowById(ids[0]!).status).toBe("delivered");
     expect(rowById(ids[1]!).status).toBe("pending");
     expect(rowById(ids[2]!).status).toBe("pending");
