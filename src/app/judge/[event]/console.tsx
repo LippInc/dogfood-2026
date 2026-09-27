@@ -388,6 +388,8 @@ export function JudgeConsoleView({
   const openLabels = openList.length > 1 ? `${openList.slice(0, -1).join(", ")} and ${openList.at(-1)}` : (openList[0] ?? "");
   const p = current.project;
   const body = paragraphs(p.description);
+  // A declared conflict takes the review out of the batch: its old scores stay visible, faded, but no longer count.
+  const recused = review.status === "recused";
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-3rem)] lg:grid-cols-[288px_minmax(0,1fr)_416px]">
@@ -584,8 +586,8 @@ export function JudgeConsoleView({
             </p>
           ) : null}
           {readOnly ? (
-            <p className="mt-3 flex items-start gap-2 border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-13 text-flag">
-              <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <p className="mt-3 flex items-start gap-2 border-l-[3px] border-edge bg-sunken px-3 py-2 text-13 text-ink">
+              <Lock className="mt-0.5 size-3.5 shrink-0 text-ink-2" aria-hidden />
               {readOnly}
             </p>
           ) : null}
@@ -611,7 +613,7 @@ export function JudgeConsoleView({
                     </p>
                     <span className="shrink-0 text-13 text-ink-2">weight {shares[ci]}</span>
                   </div>
-                  <div className="mt-3 flex">
+                  <div className={`mt-3 flex ${recused ? "opacity-50" : ""}`}>
                     {levels.map((level, li) => {
                       const used = data.showRanking && !readOnly ? (usage[c.key]?.[li] ?? 0) : 0;
                       const anchor = c.anchors[String(level)];
@@ -660,7 +662,13 @@ export function JudgeConsoleView({
           </div>
           <div className="flex min-h-[76px] items-center justify-between gap-4 py-4">
             <p className="text-15 font-semibold">Your total</p>
-            {total !== null ? (
+            {recused ? (
+              <p className="text-right text-13 text-ink-2">
+                <span className="label-mono text-ink">Not counted</span>
+                <br />
+                you declared a conflict of interest
+              </p>
+            ) : total !== null ? (
               <p className="flex items-baseline gap-3">
                 <span className="font-mono text-12 text-ink-2">{formula(criteria, review.values)} =</span>
                 <span key={total.toFixed(2)} className="judge-tick text-38 leading-none font-semibold tnum">
