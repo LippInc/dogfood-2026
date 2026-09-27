@@ -31,11 +31,31 @@ export type AuditRowForHook = {
   hash: string;
 };
 
-/** The body a webhook receives: the audited change as the log recorded it, with its hash. */
+// What a delivery keeps of a sealed row's before and after. A ballot's picks, a judge's
+// scores and a judge's pairwise answers stay in the portal (the log holds them in full):
+// the receiver learns who acted, on what and when, never the values. A ballot changes
+// only while voting is open; scores and answers come before the results are published.
+const SEALED = new Map<string, readonly string[]>([
+  ["vote.cast", []],
+  ["review.save", ["project"]],
+  ["review.submit", ["project"]],
+  ["review.amend", ["project"]],
+  ["pairwise.pick", ["trackId"]],
+  ["pairwise.undo", ["trackId"]],
+]);
+// A pairwise answer also hides its project: binary insertion asks next about the half the
+// last answer chose, and a tie ends a placement early, so the projects give the answers away.
+const TARGET_SEALED = new Set(["pairwise.pick", "pairwise.undo"]);
+
+function keep(value: unknown, keys: readonly string[]): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") return null;
+  const kept = Object.fromEntries(keys.filter((k) => k in value).map((k) => [k, (value as Record<string, unknown>)[k]]));
+  return Object.keys(kept).length ? kept : null;
+}
+
+/** The body a webhook receives: the audited change as the log recorded it (values sealed as above), with its hash. */
 export function payloadFor(deliveryId: string, row: AuditRowForHook, eventSlug: string | null): Record<string, unknown> {
-  // Ballots change only while voting is open, and what they hold stays hidden until
-  // it closes (the same rule as the audit log's own views), so no picks go out.
-  const sealed = row.action === "vote.cast";
+  const sealed = SEALED.get(row.action);
   return {
     id: deliveryId,
     type: row.action,
@@ -45,9 +65,9 @@ export function payloadFor(deliveryId: string, row: AuditRowForHook, eventSlug: 
       auditId: row.id,
       at: row.at,
       actor: { userId: row.actorUserId, label: row.actorLabel },
-      target: { type: row.targetType, id: row.targetId },
-      before: sealed ? null : (row.before ?? null),
-      after: sealed ? null : (row.after ?? null),
+      target: { type: row.targetType, id: TARGET_SEALED.has(row.action) ? null : row.targetId },
+      before: sealed ? keep(row.before, sealed) : (row.before ?? null),
+      after: sealed ? keep(row.after, sealed) : (row.after ?? null),
       hash: row.hash,
     },
   };

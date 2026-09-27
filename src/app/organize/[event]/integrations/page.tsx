@@ -78,7 +78,8 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
               Each audited action (a submission, a review, a vote, a published result) is POSTed to your URL as JSON, with the audit row&rsquo;s hash.
               The <code className="font-mono text-13">Dogfood-Signature</code> header is <code className="font-mono text-13">t=&lt;time&gt;,v1=&lt;HMAC-SHA256&gt;</code>{" "}
               over <code className="font-mono text-13">&lt;time&gt;.&lt;body&gt;</code> with the webhook&rsquo;s secret. Failed deliveries are retried
-              after 10 s, 1 min, 5 min, 30 min and 2 h. While voting is open a ballot&rsquo;s picks are left out, as everywhere else.
+              after 10 s, 1 min, 5 min, 30 min and 2 h. A ballot&rsquo;s picks, a judge&rsquo;s scores and a judge&rsquo;s pairwise answers are left
+              out: the delivery says who acted and when, and the values stay here.
             </p>
           </div>
 

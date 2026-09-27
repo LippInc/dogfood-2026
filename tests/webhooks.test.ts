@@ -13,6 +13,8 @@ import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
 import { hideComment, postComment } from "@/server/dal/comments";
 import { castBallot, enterVoting, makeVotingLink, saveVotingSettings, type Client } from "@/server/dal/voting";
+import { getPairwiseState, pickPairwise, setJudgingMode, undoPairwise } from "@/server/dal/pairwise";
+import { saveReview } from "@/server/dal/reviews";
 import {
   createWebhook,
   listDeliveries,
@@ -389,6 +391,69 @@ describe("webhooks", () => {
     expect(payload.data.before).toBeNull();
     expect(payload.data.after).toBeNull();
     expect(JSON.stringify(payload)).not.toContain("prj_07");
+  });
+
+  it("a judge's scores go out without the values: who scored which project, and when", async () => {
+    process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
+    await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["review.save", "review.submit", "review.amend"] });
+    // every fixture review is finished: clear one score (a draft), give it back (finished), change it
+    const a = one<{ id: string; judge: string; project: string }>(
+      "SELECT id, judge_user_id AS judge, project_id AS project FROM assignments WHERE event_id = 'evt_01' AND status = 'done' ORDER BY id LIMIT 1",
+    );
+    const c = one<{ key: string; min: number; max: number }>(
+      "SELECT key, scale_min AS min, scale_max AS max FROM rubric_criteria WHERE event_id = 'evt_01' ORDER BY key LIMIT 1",
+    );
+    const judge = actorById(a.judge);
+    saveReview(judge, a.id, { values: { [c.key]: null } });
+    saveReview(judge, a.id, { values: { [c.key]: c.max } });
+    saveReview(judge, a.id, { values: { [c.key]: c.min } });
+
+    const rows = allDeliveries();
+    expect(rows.map((d) => d.action)).toEqual(["review.save", "review.submit", "review.amend"]);
+    const logged = rows.map((d) => auditRows().find((r) => r.id === d.auditId)!);
+    // positive control: the log itself holds every value
+    expect(typeof (logged[0]!.before as Record<string, unknown>)[c.key]).toBe("number");
+    expect(logged[1]!.after).toMatchObject({ [c.key]: c.max, total: expect.any(Number) });
+    expect(logged[2]!.before).toMatchObject({ [c.key]: c.max });
+    expect(logged[2]!.after).toMatchObject({ [c.key]: c.min });
+    for (const d of rows) {
+      const data = (d.payload as { data: { target: { id: unknown }; before: unknown; after: unknown } }).data;
+      expect(data.target.id).toBe(a.id);
+      expect(data.before).toBeNull();
+      expect(data.after).toEqual({ project: a.project });
+    }
+  });
+
+  it("a judge's pairwise answers go out with the track only: not the answer, not the projects", async () => {
+    process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
+    await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["pairwise.pick", "pairwise.undo"] });
+    setJudgingMode(organizer(), "evt_01", { mode: "pairwise", reason: "try the better-of-two mode" });
+    const judges = h.sqlite.prepare("SELECT user_id AS id FROM user_roles WHERE event_id = 'evt_01' AND role = 'judge' ORDER BY user_id").all() as {
+      id: string;
+    }[];
+    const judge = judges.map((j) => actorById(j.id)).find((j) => getPairwiseState(j, "evt_01").tracks.some((t) => t.current))!;
+    const t = getPairwiseState(judge, "evt_01").tracks.find((x) => x.current)!;
+    const q = { trackId: t.trackId, left: t.current!.left.id, right: t.current!.right.id };
+    pickPairwise(judge, "evt_01", { ...q, outcome: "left" });
+    undoPairwise(judge, "evt_01", { trackId: q.trackId });
+
+    const rows = allDeliveries();
+    expect(rows.map((d) => d.action)).toEqual(["pairwise.pick", "pairwise.undo"]);
+    const [pick, undo] = rows.map((d) => ({ d, logged: auditRows().find((r) => r.id === d.auditId)! }));
+    // positive control: the log itself holds the answer and the projects
+    expect(pick!.logged.after).toMatchObject({ ...q, outcome: "left" });
+    expect(undo!.logged.before).toMatchObject({ ...q, outcome: "left" });
+    type Data = { target: { id: unknown }; before: unknown; after: unknown };
+    const [p, u] = [pick!, undo!].map(({ d }) => (d.payload as { data: Data }).data);
+    expect(p!.after).toEqual({ trackId: q.trackId });
+    expect(p!.before).toBeNull();
+    expect(u!.before).toEqual({ trackId: q.trackId });
+    expect(u!.after).toBeNull();
+    for (const data of [p!, u!]) {
+      expect(data.target.id).toBeNull();
+      expect(JSON.stringify(data)).not.toContain(q.left);
+      expect(JSON.stringify(data)).not.toContain(q.right);
+    }
   });
 
   it("a test goes only to the webhook it names; a disabled hook hears nothing", async () => {

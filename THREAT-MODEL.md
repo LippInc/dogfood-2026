@@ -22,11 +22,11 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 ## Judge collusion
 
-**What is built:** judges cannot read each other's scores (backend-enforced, tested, and checked by the organizers' suite); every score change is audited with before and after; the leniency model limits what one generous or harsh judge can do; the flat-judge rule catches a judge who scores everything the same; the judge ledger shows, for every judge, what leaving them out would move.
+**What is built:** judges cannot read each other's scores (backend-enforced, tested, and checked by the organizers' suite); every score change is audited with before and after, and a webhook for one says who scored which project and when, never the values; the leniency model limits what one generous or harsh judge can do; the flat-judge rule catches a judge who scores everything the same; the judge ledger shows, for every judge, what leaving them out would move.
 
 **What is not:** detection of coordinated collusion. Two judges trading favourable scores look like ordinary disagreement to the model; nothing flags that. The audit log keeps the evidence for an organizer to read.
 
-**What is built, in pairwise mode:** answers are as private as scores: one judge's answers never appear in another judge's console, and only an organizer reads the ranking (both tested); every answer and every undo is audited; each project's receipt lists every comparison that entered the fit with the judge's name on it, so two judges answering alike can be read, not only suspected; and a flagged judge is kept or left out only by an audited organizer decision with a written reason.
+**What is built, in pairwise mode:** answers are as private as scores: one judge's answers never appear in another judge's console, and only an organizer reads the ranking (both tested); every answer and every undo is audited, and a webhook for one carries only the judge and the track (the projects asked about would give the answer away, since binary insertion's next question follows the last answer); each project's receipt lists every comparison that entered the fit with the judge's name on it, so two judges answering alike can be read, not only suspected; and a flagged judge is kept or left out only by an audited organizer decision with a written reason.
 
 **What is not, in pairwise mode:** collusion detection, again. The coin-flip flag rewards agreeing with the panel, so two judges who trade identical answers read as two judges who agree well; only their receipts side by side show it.
 
