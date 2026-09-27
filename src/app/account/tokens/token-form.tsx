@@ -29,18 +29,31 @@ export function TokenForm() {
             <option value="never">never</option>
           </select>
         </div>
-        <Button disabled={pending}>Make a token</Button>
+        <Button size="lg" disabled={pending}>
+          {pending ? "Making…" : "Make a token"}
+        </Button>
       </div>
       {state.message ? (
-        <div role="status" className={`flex flex-col gap-2 rounded-sm border-y border-r border-l-4 px-4 py-3 text-14 ${state.ok ? "border-ok" : "border-flag-bar bg-flag-bg"}`}>
-          <p>{state.message}</p>
-          {state.token ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <code className="min-w-0 break-all rounded-sm bg-sunken px-2 py-1 font-mono text-13">{state.token}</code>
-              <CopyButton text={state.token} label="Copy token" />
+        state.ok && state.token ? (
+          // The one time the token exists outside its hash: a plate that says so.
+          <div role="status" className="rounded-sm border border-ink bg-bg">
+            <p className="flex items-center justify-between gap-3 border-b border-rule px-4 py-2">
+              <span className="label-mono text-accent-ink">Shown once</span>
+              <span className="text-12 text-ink-3">the portal keeps only its hash</span>
+            </p>
+            <div className="flex flex-col gap-3 px-4 py-4">
+              <p className="text-14">{state.message}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <code className="min-w-0 flex-1 break-all rounded-sm border border-rule bg-surface px-3 py-2 font-mono text-15 tracking-wide">{state.token}</code>
+                <CopyButton text={state.token} label="Copy token" />
+              </div>
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <div role="status" className={`flex flex-col gap-2 rounded-sm border-y border-r border-l-4 px-4 py-3 text-14 ${state.ok ? "border-ok" : "border-flag-bar bg-flag-bg"}`}>
+            <p>{state.message}</p>
+          </div>
+        )
       ) : null}
     </form>
   );
