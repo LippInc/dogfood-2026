@@ -70,7 +70,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
     <PublicShell event={event} active="none" signedInAs={actor.name} links={actorNav(actor, event.id)}>
       <div className="grid gap-8 pt-10 pb-8 md:grid-cols-[minmax(0,1fr)_280px] md:items-end">
         <div className="min-w-0 wrap-anywhere">
-          <p className="label-mono text-ink-3">{team ? `Team ${team.name}` : "No team yet"}</p>
+          <p className="label-mono text-ink-3">{team ? `Team ${team.name}` : open ? "No team yet" : "No team"}</p>
           <h1 className="mt-2 font-display text-[40px] leading-[46px] md:text-[52px] md:leading-[58px]">Your project</h1>
           {project?.title ? (
             <p className="mt-3 font-serif text-24 leading-8">
@@ -141,7 +141,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
         </section>
       ) : null}
       {!team ? (
-        <StartTeam eventSlug={event.slug} open={open} />
+        <StartTeam eventSlug={event.slug} open={open} closedLabel={formatUtc(event.submissionsCloseAt)} published={Boolean(event.resultsPublishedAt)} />
       ) : open ? (
         <ProjectForm eventSlug={event.slug} open={open} tracks={work.tracks} questions={work.questions} project={formProject} side={side} />
       ) : (

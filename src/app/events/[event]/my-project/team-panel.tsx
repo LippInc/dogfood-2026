@@ -1,6 +1,7 @@
 "use client";
 
 import { Copy, RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { useFormAction } from "@/components/use-form-action";
 import { Button } from "@/components/ui/button";
@@ -109,9 +110,44 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
   );
 }
 
-/** For someone signed in with no team yet: start one (or open a captain's link). */
-export function StartTeam({ eventSlug, open }: { eventSlug: string; open: boolean }) {
+/** For someone signed in with no team yet: start one (or open a captain's link); after the close, say so and point on. */
+export function StartTeam({
+  eventSlug,
+  open,
+  closedLabel,
+  published = false,
+}: {
+  eventSlug: string;
+  open: boolean;
+  closedLabel?: string;
+  published?: boolean;
+}) {
   const [state, form, pending] = useFormAction<ActionResult>(createTeamAction, { ok: false, message: null });
+  if (!open) {
+    const link = "inline-flex h-10 items-center rounded-sm border border-edge px-4 text-14 font-medium hover:bg-sunken";
+    return (
+      <section aria-labelledby="closed-title" className="corner-marks max-w-[760px] rounded-sm border border-rule px-6 py-8 sm:px-10 sm:py-10">
+        <p className="label-mono text-ink-3">Submissions closed{closedLabel ? ` · ${closedLabel}` : ""}</p>
+        <h2 id="closed-title" className="mt-3 text-24 leading-8 font-semibold">
+          Teams could form until submissions closed.
+        </h2>
+        <p className="mt-2 max-w-[600px] text-15 text-ink-2">
+          You are not on a team in this event, so there is no project of yours here. You can still read every project that was handed in
+          {published ? " and see the results." : "."}
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href={`/events/${eventSlug}`} className={link}>
+            See the projects
+          </Link>
+          {published ? (
+            <Link href={`/events/${eventSlug}/results`} className={link}>
+              See the results
+            </Link>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
   return (
     <div className="grid gap-8 md:grid-cols-2">
       <section aria-labelledby="start-title" className="rounded-sm border border-rule bg-surface p-6">
