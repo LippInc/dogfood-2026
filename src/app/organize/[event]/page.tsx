@@ -305,7 +305,8 @@ export default async function OverviewPage({
                         .replace(" UTC", "")}
                     </span>
                     <span>
-                      <AuditSentence line={line} />.
+                      <AuditSentence line={line} />
+                      {/[.!?]”?$/.test(line.parts.at(-1)?.text ?? "") ? "" : "."}
                     </span>
                   </li>
                 ))}
