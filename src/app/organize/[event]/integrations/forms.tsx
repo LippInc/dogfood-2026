@@ -135,18 +135,22 @@ export function ClaimLinksForm({ eventSlug, waiting, elsewhere }: { eventSlug: s
             : null}
         </span>
       </form>
+      {/* the batch is shown only this once, like a webhook's secret, so it is framed the same way, with the download as the next step */}
       {state.message ? (
-        <p role="status" className={`text-14 ${state.ok ? "" : "text-flag"}`}>
-          {state.message}
-        </p>
+        <div
+          role="status"
+          className={`flex flex-col items-start gap-3 rounded-sm border-y border-r border-l-4 px-4 py-3 text-14 ${state.ok ? "border-ok" : "border-flag-bar bg-flag-bg"}`}
+        >
+          <p>{state.message}</p>
+          {links.length ? (
+            <Button type="button" size="sm" onClick={download}>
+              Download as CSV (for a mail merge)
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       {links.length ? (
         <div className="flex flex-col gap-2">
-          <div>
-            <Button type="button" size="sm" variant="outline" onClick={download}>
-              Download as CSV (for a mail merge)
-            </Button>
-          </div>
           <div className="max-h-[360px] overflow-y-auto rounded-sm border border-rule">
             <table className="w-full text-13">
               <tbody className="divide-y divide-rule">
