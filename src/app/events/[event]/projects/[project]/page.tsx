@@ -117,6 +117,64 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               {p.liveUrl ? <LinkButton href={p.liveUrl} icon={<ExternalLink className="size-4" aria-hidden />} label="Live demo" /> : null}
               {!p.repoUrl && !p.videoUrl && !p.liveUrl ? <p className="text-14 text-ink-3">No links submitted.</p> : null}
             </div>
+            {/* Its result, where a visitor looks first: the published place, or a sealed slot until then. */}
+            <section aria-labelledby="standing-title" className="mt-10 flex max-w-[560px] items-start gap-5 border-t-2 border-ink pt-4">
+              {standing && standing.place.place !== null ? (
+                <span
+                  className={`w-16 shrink-0 text-center font-display text-64 leading-none tnum ${standing.place.place === 1 ? "text-accent-ink" : ""}`}
+                  aria-hidden="true"
+                >
+                  {standing.place.place}
+                </span>
+              ) : (
+                <span className="sealed h-16 w-16 shrink-0 rounded-xs border border-rule" aria-hidden="true" />
+              )}
+              <div className="min-w-0">
+                <h2 id="standing-title" className="label-mono text-ink">
+                  Published result
+                </h2>
+                {standing && standing.place.place !== null ? (
+                  <>
+                    <p className="mt-1.5 text-17 font-semibold">
+                      {standing.place.joint ? "Joint " : ""}
+                      {ordinal(standing.place.place)} in {standing.track.name}
+                    </p>
+                    <p className="text-14 text-ink-2 tnum">
+                      {standing.row.score === null
+                        ? ""
+                        : standing.pairwise
+                          ? `${Math.round(standing.row.score * 100)} % to win`
+                          : `${standing.row.score.toFixed(2)}`}
+                      {standing.row.se !== null
+                        ? standing.pairwise
+                          ? ` ± ${Math.max(1, Math.round(standing.row.se * 100))}`
+                          : ` ± ${standing.row.se.toFixed(2)}`
+                        : ""}
+                      {` · ${standing.row.n} ${standing.pairwise ? (standing.row.n === 1 ? "judge" : "judges") : standing.row.n === 1 ? "review" : "reviews"}`}
+                    </p>
+                    <Link
+                      href={`/events/${event.slug}/results#track-${standing.track.id}`}
+                      className="mt-2 inline-block text-14 underline decoration-edge underline-offset-4 hover:decoration-ink"
+                    >
+                      See it among its track, with the working
+                    </Link>
+                  </>
+                ) : event.resultsPublishedAt ? (
+                  <p className="mt-1.5 text-14 text-ink-2">
+                    Results are published, without a place for this project.{" "}
+                    <Link href={`/events/${event.slug}/results`} className="underline decoration-edge underline-offset-4 hover:decoration-ink">
+                      See the results page
+                    </Link>
+                    .
+                  </p>
+                ) : (
+                  <>
+                    <p className="mt-1.5 text-17 font-semibold">Sealed until the results are published</p>
+                    <p className="text-14 text-ink-2">Scores stay with the judges and organizers until then.</p>
+                  </>
+                )}
+              </div>
+            </section>
           </header>
           <figure className="flex flex-col gap-2">
             <div className={`tile relative ${standing?.place.place === 1 ? "lit" : ""}`}>
@@ -185,44 +243,6 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               <dt className="text-ink-3">Team</dt>
               <dd>{p.team.name}</dd>
             </dl>
-            {standing && standing.place.place !== null ? (
-              <section aria-labelledby="standing-title" className="border-t-2 border-ink pt-3">
-                <h2 id="standing-title" className="label-mono text-ink">
-                  Published result
-                </h2>
-                <div className="mt-3 flex items-end gap-4">
-                  <span className={`font-display text-64 leading-none tnum ${standing.place.place === 1 ? "text-accent-ink" : ""}`}>{standing.place.place}</span>
-                  <span className="pb-1">
-                    <span className="block text-15 font-semibold">
-                      {standing.place.joint ? "Joint " : ""}
-                      {ordinal(standing.place.place)} in {standing.track.name}
-                    </span>
-                    <span className="block text-14 text-ink-2 tnum">
-                      {standing.row.score === null
-                        ? ""
-                        : standing.pairwise
-                          ? `${Math.round(standing.row.score * 100)} % to win`
-                          : `${standing.row.score.toFixed(2)}`}
-                      {standing.row.se !== null
-                        ? standing.pairwise
-                          ? ` ± ${Math.max(1, Math.round(standing.row.se * 100))}`
-                          : ` ± ${standing.row.se.toFixed(2)}`
-                        : ""}
-                      {` · ${standing.row.n} ${standing.pairwise ? (standing.row.n === 1 ? "judge" : "judges") : standing.row.n === 1 ? "review" : "reviews"}`}
-                    </span>
-                  </span>
-                </div>
-                <Link href={`/events/${event.slug}/results#track-${standing.track.id}`} className="mt-3 inline-block text-14 underline decoration-edge underline-offset-4 hover:decoration-ink">
-                  See it among its track, with the working
-                </Link>
-              </section>
-            ) : (
-              <p className="border-t border-rule pt-5 text-13 text-ink-3">
-                {event.resultsPublishedAt
-                  ? "Results are published: see the results page for this project's place."
-                  : "Scores stay with the judges and organizers until the results are published."}
-              </p>
-            )}
             {trackmates.length > 1 ? (
               <section aria-labelledby="track-title">
                 <h2 id="track-title" className="flex items-baseline justify-between gap-4 border-t-2 border-ink pt-2">
