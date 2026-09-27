@@ -213,6 +213,12 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                               <p className={j.excluded ? "text-flag" : "text-ink-2"}>
                                 Flat: {j.flat.vector.join(" / ")} on all {j.flat.reviews} projects.{" "}
                                 {j.excluded ? "Left out of the ranking." : "Reinstated by an organizer."}
+                                {/* The keep-out-or-reinstate decision lives on the overview: point there while it is open. */}
+                                {!j.override && !published ? (
+                                  <a href={`/organize/${event.slug}#decisions-title`} className="mt-1 block font-medium text-ink underline underline-offset-2">
+                                    Decide on the overview
+                                  </a>
+                                ) : null}
                               </p>
                             ) : j.excluded ? (
                               <p className="text-flag">Excluded by an organizer.</p>
