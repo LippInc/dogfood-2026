@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
+import { Delivery } from "@/components/figures/delivery";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,8 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Integrations" };
 
 const small = "inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium hover:bg-raised";
+/** The retry schedule, in seconds: the same as RETRY_DELAYS_S in src/server/webhooks.ts, which pages cannot import (only the DAL). */
+const RETRY_DELAYS_S = [10, 60, 300, 1800, 7200] as const;
 
 export default async function IntegrationsPage({ params }: PageProps<"/organize/[event]/integrations">) {
   const { event: key } = await params;
@@ -78,6 +81,15 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
               after 10 s, 1 min, 5 min, 30 min and 2 h. While voting is open a ballot&rsquo;s picks are left out, as everywhere else.
             </p>
           </div>
+
+          <figure className="flex flex-col gap-3 border-t-2 border-ink pt-3">
+            <figcaption className="label-mono text-ink">Fig. 01 — One delivery</figcaption>
+            <div className="overflow-x-auto">
+              <div className="min-w-[680px]">
+                <Delivery delays={RETRY_DELAYS_S} />
+              </div>
+            </div>
+          </figure>
 
           {webhooks.length ? (
             <ul className="flex flex-col gap-4">
