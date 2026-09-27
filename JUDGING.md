@@ -92,24 +92,28 @@ Duplicates: the organizer can merge two copies. The kept copy inherits the other
 
 ## Validation
 
-The Monte Carlo (`tests/normalization-mc.test.ts`): 1,000 fixed-seed runs per scenario on the fixture's own 126 judge–project pairs. Each run draws true project qualities, judge offsets and scales and review noise, rounds and clips to 1–5, and keeps the flat judge's real 4 / 4 / 4. Methods: the raw mean; the engine at k = 3 (the earlier default, kept as the comparison row); the engine with k estimated (what ships). Score: Kendall tau-b against the truth, over pairs in the same track and over all pairs. 1,000 runs per scenario, seed 20260923:
+The Monte Carlo (`tests/normalization-mc.test.ts`): 1,000 fixed-seed runs per scenario on the fixture's own 126 judge–project pairs. Each run draws true project qualities, judge offsets and scales and review noise, rounds and clips to 1–5, and keeps the flat judge's real 4 / 4 / 4. Methods: the raw mean; the raw mean with the flat judge left out, as the engine leaves it out, so that the engine's gain over it is the leniency correction alone; the engine at k = 3 (the earlier default, kept as the comparison row); the engine with k estimated (what ships). Score: Kendall tau-b against the truth, over pairs in the same track and over all pairs. 1,000 runs per scenario, seed 20260923:
 
 | scenario | method | within-track tau | pooled tau |
 |---|---|---|---|
 | no-bias control | raw | 0.917 (sd 0.042) | 0.892 (sd 0.026) |
+| no-bias control | raw, flat judge out | 0.918 (sd 0.041) | 0.917 (sd 0.020) |
 | no-bias control | k = 3 | 0.909 (sd 0.045) | 0.905 (sd 0.022) |
 | no-bias control | engine | 0.914 (sd 0.044) | 0.911 (sd 0.022) |
 | moderate bias | raw | 0.880 (sd 0.050) | 0.817 (sd 0.042) |
+| moderate bias | raw, flat judge out | 0.881 (sd 0.050) | 0.832 (sd 0.040) |
 | moderate bias | k = 3 | 0.895 (sd 0.047) | 0.849 (sd 0.035) |
 | moderate bias | engine | 0.899 (sd 0.045) | 0.858 (sd 0.033) |
 | moderate bias, noisy judges | raw | 0.754 (sd 0.078) | 0.722 (sd 0.053) |
+| moderate bias, noisy judges | raw, flat judge out | 0.754 (sd 0.078) | 0.730 (sd 0.052) |
 | moderate bias, noisy judges | k = 3 | 0.756 (sd 0.077) | 0.733 (sd 0.050) |
 | moderate bias, noisy judges | engine | 0.756 (sd 0.077) | 0.732 (sd 0.050) |
 | batch confound (known-bad for leniency) | raw | 0.800 (sd 0.070) | 0.794 (sd 0.053) |
+| batch confound (known-bad for leniency) | raw, flat judge out | 0.801 (sd 0.071) | 0.811 (sd 0.051) |
 | batch confound (known-bad for leniency) | k = 3 | 0.833 (sd 0.062) | 0.843 (sd 0.040) |
 | batch confound (known-bad for leniency) | engine | 0.842 (sd 0.060) | 0.856 (sd 0.037) |
 
-The test enforces three assertions, with margins declared before the run: (1) with no bias, the engine loses to the raw mean by no more than the run-to-run spread of the difference, within-track and pooled; (2) in the batch-confound case — a harsh judge given a genuinely stronger batch, a lenient judge a weaker one, the case a leniency model can get wrong — the engine's pooled tau is not below the raw mean's; (3) with moderate bias, with and without noisy judges, it trails k = 3 by no more than 0.010 within-track and 0.020 pooled. Its known-bad: an engine fed shifted project ids fails assertion (1) (mean within-track difference −0.961). The engine's own self-test: planted leniency is recovered (`tests/normalize-oracle.test.ts`), and with none planted β̂² comes out at 0.0000.
+The test enforces three assertions, with margins declared before the run: (1) with no bias, the engine loses to the raw mean by no more than the run-to-run spread of the difference, within-track and pooled; (2) in the batch-confound case — a harsh judge given a genuinely stronger batch, a lenient judge a weaker one, the case a leniency model can get wrong — the engine's pooled tau is not below the raw mean's; (3) with moderate bias, with and without noisy judges, it trails k = 3 by no more than 0.010 within-track and 0.020 pooled. The raw mean in (1) and (2) keeps the flat judge, whom the engine leaves out, so part of the engine's edge there is that exclusion. Two more assertions, (1b) and (2b), repeat (1) and (2) against the raw mean with the flat judge left out too; they were declared before their first run, and both hold. With no bias the engine gives up 0.004 within-track and 0.006 pooled to it, inside the margin. In the batch confound it is 0.045 pooled ahead of it: of the engine's 0.062 pooled gain over the raw mean there, 0.017 is the flat judge's exclusion and 0.045 the leniency correction (with moderate bias, 0.015 and 0.026). Its known-bad: an engine fed shifted project ids fails assertion (1) (mean within-track difference −0.961). The engine's own self-test: planted leniency is recovered (`tests/normalize-oracle.test.ts`), and with none planted β̂² comes out at 0.0000.
 
 The ± (`tests/normalize-errors.test.ts`) is checked on simulated events of 40 projects and 12 judges, with three reviews per project and 1,500 events per setting. With the variances known, 95 % intervals built from it cover the true project levels between 94 % and 96 % of the time (asserted), and the true leniencies between 93 % and 97 %. That holds for strong leniency (k = 1.6) and for the fixture's size of leniency (k = 43). With the variances estimated from each event's own scores, as the portal runs, the intervals cover projects 94.5 % (strong) and 94.4 % (fixture-like) of the time. They cover judges 93.0 % and 93.2 % of the time in the events where leniency is fitted: slightly short, because the two variances are themselves estimated from the same event's scores and that extra wobble is not in the ±. Its known-bad: a halved or a doubled ± fails the same check.
 

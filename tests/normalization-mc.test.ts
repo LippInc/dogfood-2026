@@ -7,11 +7,15 @@ import { normalize, type Obs } from "@/server/judging/normalize";
 // Decision 11's validation: a Monte Carlo on the fixture's own 126 judge-project
 // pairs. Each run draws true project qualities, judge offsets and scales, review
 // noise, rounds and clips to the 1–5 rubric, and keeps the fixture's flat judge
-// scoring its real 4/4/4. Methods: the raw mean (every judge), the engine at k = 3
-// (the 09-23 comparison row) and the engine with k estimated (what ships). Score:
+// scoring its real 4/4/4. Methods: the raw mean (every judge), the raw mean with the
+// flat judge left out as the engine leaves it out (so the engine's gain over it is the
+// leniency correction alone), the engine at k = 3 (the 09-23 comparison row) and the
+// engine with k estimated (what ships). Score:
 // Kendall tau-b against the truth over project pairs in the same track ("within")
 // and over all pairs ("pooled"). Three assertions, margins declared before the run
-// (BUILD-PLAN decision 11); a red one is a stop-and-tell, never a change of engine.
+// (BUILD-PLAN decision 11), and (1b) and (2b), the same two against the raw mean with the
+// flat judge out, declared 2026-09-27 before their first run; a red one is a
+// stop-and-tell, never a change of engine.
 
 const RUNS = 1000;
 const SEED = 20260923;
@@ -170,6 +174,11 @@ const rawMean: Method = (reviews) => {
   }
   return sum.map((s, p) => (cnt[p] ? s / cnt[p]! : 0));
 };
+/** The raw mean without the judges the flat-judge rule flags, the same rule the engine applies. */
+const rawMeanFlatOut: Method = (reviews) => {
+  const flat = new Set(flatJudges(reviews.map((r) => ({ judgeId: String(r.j), projectId: String(r.p), values: r.v }))).map((f) => f.judgeId));
+  return rawMean(reviews.filter((r) => !flat.has(String(r.j))));
+};
 const engine =
   (fixedK?: number, shift = 0): Method =>
   (reviews) => {
@@ -201,7 +210,7 @@ function run(sc: Scenario, methods: Record<string, Method>, runs = RUNS): Record
   return out;
 }
 
-const METHODS = { raw: rawMean, "k = 3": engine(3), engine: engine() };
+const METHODS = { raw: rawMean, "raw, flat judge out": rawMeanFlatOut, "k = 3": engine(3), engine: engine() };
 const results = new Map<string, Record<string, Taus>>();
 function resultsFor(key: string) {
   if (!results.has(key)) results.set(key, run(SCENARIOS.find((s) => s.key === key)!, METHODS));
@@ -227,7 +236,7 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { tim
       }
     }
     console.log(`${RUNS} runs per scenario, seed ${SEED}\n${lines.join("\n")}`);
-    expect(lines.length).toBe(2 + SCENARIOS.length * 3);
+    expect(lines.length).toBe(2 + SCENARIOS.length * Object.keys(METHODS).length);
     // JUDGING.md carries this very table: every row must appear there as printed
     const doc = fs.readFileSync(path.join(process.cwd(), "JUDGING.md"), "utf8");
     const missing = lines.slice(2).filter((line) => !doc.includes(line));
@@ -245,6 +254,22 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { tim
   it("(2) batch confound: the engine's pooled tau is not below the raw mean's", () => {
     const r = resultsFor("batch confound (known-bad for leniency)");
     expect(mean(r.engine!.pooled)).toBeGreaterThanOrEqual(mean(r.raw!.pooled));
+  });
+
+  // (1b) and (2b): the raw mean in (1) and (2) keeps the flat judge, whom the engine leaves
+  // out, so part of the engine's edge there is the exclusion. Against the raw mean with the
+  // flat judge out too, what is left is the leniency correction alone.
+  it("(1b) no-bias control, flat judge out of the raw mean too: the engine loses to it by no more than the sd of the per-run difference", () => {
+    const r = resultsFor("no-bias control");
+    for (const key of ["within", "pooled"] as const) {
+      const diff = r.engine![key].map((x, i) => x - r["raw, flat judge out"]![key][i]!);
+      expect(mean(diff), `${key}: mean ${mean(diff).toFixed(4)} sd ${sd(diff).toFixed(4)}`).toBeGreaterThanOrEqual(-sd(diff));
+    }
+  });
+
+  it("(2b) batch confound, flat judge out of the raw mean too: the engine's pooled tau is still not below it", () => {
+    const r = resultsFor("batch confound (known-bad for leniency)");
+    expect(mean(r.engine!.pooled)).toBeGreaterThanOrEqual(mean(r["raw, flat judge out"]!.pooled));
   });
 
   it("(3) moderate bias, with and without noisy judges: trails k = 3 by at most 0.010 within-track and 0.020 pooled", () => {
