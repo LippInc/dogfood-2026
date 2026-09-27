@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Clock, Lock, LockOpen } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Clock, Lock, LockOpen } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useFormAction } from "@/components/use-form-action";
@@ -421,7 +421,7 @@ export function Decisions({
     >
       <div className="flex items-start gap-5">
         <span
-          className={`font-display text-[96px] leading-[80px] ${!published && count ? "text-flag-bar" : "text-ok"}`}
+          className={`font-display text-[64px] leading-[56px] sm:text-[96px] sm:leading-[80px] ${!published && count ? "text-flag-bar" : "text-ok"}`}
           aria-hidden
         >
           {count}
@@ -429,7 +429,7 @@ export function Decisions({
         <div>
           <h2
             id="decisions-title"
-            className="text-[32px] leading-[38px] font-semibold"
+            className="text-24 font-semibold sm:text-[32px] sm:leading-[38px]"
           >
             <span className="sr-only">{count} </span>
             {published
@@ -463,7 +463,10 @@ export function Decisions({
                     ? []
                     : [d.projectId];
             return (
-              <li key={d.key} className="border-b border-rule">
+              <li
+                key={d.key}
+                className={`relative border-b border-rule ${d.resolved ? "" : "before:absolute before:top-3 before:bottom-3 before:-left-6 before:w-[3px] before:bg-flag-bar"}`}
+              >
                 <button
                   ref={(el) => {
                     if (el) rowButtons.current.set(d.key, el);
@@ -474,13 +477,22 @@ export function Decisions({
                   onClick={() => setOpen(expanded ? null : d.key)}
                   className="grid w-full grid-cols-[28px_120px_minmax(0,1fr)_auto] items-center gap-3 py-3 text-left max-md:grid-cols-[28px_minmax(0,1fr)_auto]"
                 >
-                  <span className="text-14 text-ink-2 tnum">{i + 1}.</span>
+                  <span className="text-14 text-ink-2 tnum">
+                    {d.resolved ? (
+                      <>
+                        <Check className="size-4 text-ok" aria-hidden />
+                        <span className="sr-only">{i + 1}, settled</span>
+                      </>
+                    ) : (
+                      `${i + 1}.`
+                    )}
+                  </span>
                   <span className="font-mono text-12 text-ink-2 max-md:hidden">
                     {d.kind === "under_reviewed" && d.mode === "pairwise" ? "06 Comparing" : STAGE[d.kind]}
                   </span>
                   <span className="flex min-w-0 items-center gap-3">
                     <span
-                      className={`truncate text-15 font-semibold ${d.resolved ? "text-ink-2 line-through decoration-ink-3" : ""}`}
+                      className={`text-15 sm:truncate ${d.resolved ? "font-medium text-ink-2" : "font-semibold"}`}
                     >
                       {sentence(d)}
                     </span>
@@ -491,7 +503,7 @@ export function Decisions({
                     </span>
                   </span>
                   <span className="flex items-center gap-2 text-13 text-ink-2">
-                    <span className="max-sm:hidden">{stateLine(d)}</span>
+                    <span className={`max-sm:hidden ${d.resolved ? "font-medium text-ok" : ""}`}>{stateLine(d)}</span>
                     {expanded ? (
                       <ChevronDown className="size-4" aria-hidden />
                     ) : (
