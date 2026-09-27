@@ -13,18 +13,18 @@ export function ResetForm({ token }: { token: string }) {
   const [state, form, pending] = useFormAction(resetAction.bind(null, token), idle);
   const e = state.fieldErrors ?? {};
   return (
-    <form {...form} className="flex max-w-[420px] flex-col gap-4">
+    <form {...form} className="flex flex-col gap-4">
       <Field id="reset-password" label="New password" help="At least 10 characters." error={e.password}>
-        {(a) => <Input {...a} name="password" type="password" required minLength={10} autoComplete="new-password" />}
+        {(a) => <Input {...a} name="password" type="password" required minLength={10} autoComplete="new-password" className="max-sm:h-11" />}
       </Field>
-      <div>
-        <Button disabled={pending}>{pending ? "Saving…" : "Set the new password and sign in"}</Button>
-      </div>
       {state.message && !state.ok ? (
-        <p role="status" className="text-14 text-flag">
+        <p role="alert" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-flag">
           {state.message}
         </p>
       ) : null}
+      <Button size="xl" disabled={pending}>
+        {pending ? "Saving…" : "Set the new password and sign in"}
+      </Button>
     </form>
   );
 }
