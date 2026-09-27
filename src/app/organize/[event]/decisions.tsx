@@ -177,7 +177,17 @@ function stateLine(d: Decision): string {
 }
 
 /** One decision's working; once the results are published it is final, so no Undo. */
-function Body({ d, eventSlug, published }: { d: Decision; eventSlug: string; published: boolean }) {
+function Body({
+  d,
+  eventSlug,
+  published,
+  faces,
+}: {
+  d: Decision;
+  eventSlug: string;
+  published: boolean;
+  faces: Record<string, React.ReactNode>;
+}) {
   if (d.kind === "flat_judge") {
     const first = d.name.split(" ")[0];
     return (
@@ -187,8 +197,14 @@ function Body({ d, eventSlug, published }: { d: Decision; eventSlug: string; pub
             <tbody>
               {d.evidence.map((e) => (
                 <tr key={e.projectId}>
-                  <td className="py-1.5 pr-4 pl-3">{e.title}</td>
-                  <td className="py-1.5 pr-3 font-mono tnum">
+                  <td className="py-1.5 pr-4 pl-3">
+                    <span className="flex items-center gap-2">
+                      {faces[e.projectId]}
+                      {e.title}
+                    </span>
+                  </td>
+                  {/* the same values on every row (that is the finding): phones keep only the move */}
+                  <td className="py-1.5 pr-3 font-mono tnum max-sm:hidden">
                     {e.values.join(" / ")}
                   </td>
                   <td className="py-1.5 pr-3 text-ink-2 tnum">
@@ -256,12 +272,15 @@ function Body({ d, eventSlug, published }: { d: Decision; eventSlug: string; pub
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
         <ul className="flex flex-col gap-2 self-start rounded-sm bg-sunken p-3 text-13">
           {d.copies.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+              <span className="pt-0.5">{faces[c.id]}</span>
+              <span className="min-w-0">
               <span className="font-mono">{c.id}</span> · submitted{" "}
               {c.submittedAt ? formatUtc(c.submittedAt) : "–"}
               {c.repoUrl ? (
                 <span className="block truncate text-ink-2">{c.repoUrl}</span>
               ) : null}
+              </span>
             </li>
           ))}
         </ul>
@@ -516,7 +535,7 @@ export function Decisions({
                 </button>
                 {expanded ? (
                   <div className="pb-5 pl-[40px]">
-                    <Body d={d} eventSlug={eventSlug} published={published} />
+                    <Body d={d} eventSlug={eventSlug} published={published} faces={faces} />
                   </div>
                 ) : null}
               </li>
