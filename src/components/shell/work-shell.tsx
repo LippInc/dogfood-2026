@@ -38,19 +38,21 @@ export function WorkShell({
         Skip to content
       </a>
       <header className="border-b border-rule bg-surface">
-        <div className="flex h-12 items-stretch gap-6 overflow-x-auto px-4 lg:px-8">
-          <Link href={eventHref} className="flex shrink-0 items-center gap-3 self-center">
+        {/* On a phone the header wraps: brand and controls on the first row, the tabs on a
+            scrolling row of their own, so Sign out and the mode toggle never sit off-screen. */}
+        <div className="flex flex-wrap items-stretch gap-x-6 px-4 sm:h-12 sm:flex-nowrap sm:overflow-x-auto lg:px-8">
+          <Link href={eventHref} className="flex shrink-0 items-center gap-3 self-center py-3 sm:py-0">
             <span className="size-3 bg-accent" aria-hidden />
             <span className="text-15 font-semibold whitespace-nowrap">{eventName}</span>
             {crumb ? (
-              <span className="text-15 whitespace-nowrap text-ink-3">
+              <span className="text-15 whitespace-nowrap text-ink-3 max-sm:hidden">
                 <span aria-hidden>/ </span>
                 {crumb}
               </span>
             ) : null}
           </Link>
           {tabs.length ? (
-            <nav aria-label="Sections" className="flex items-stretch gap-6">
+            <nav aria-label="Sections" className="flex items-stretch gap-6 max-sm:order-last max-sm:-mx-4 max-sm:h-11 max-sm:w-[calc(100%+2rem)] max-sm:overflow-x-auto max-sm:border-t max-sm:border-rule max-sm:px-4">
               {tabs.map((t) => (
                 <Link
                   key={t.href}
@@ -63,10 +65,11 @@ export function WorkShell({
               ))}
             </nav>
           ) : null}
-          <div className="ml-auto flex shrink-0 items-center gap-3">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-3 py-2 sm:shrink-0 sm:flex-nowrap sm:py-0">
             {tools}
-            <span className="text-14 font-medium whitespace-nowrap">{person}</span>
-            <span className="text-14 whitespace-nowrap text-ink-3">{role}</span>
+            {/* on a phone the name and role give way, so the mode toggle and Sign out stay on screen */}
+            <span className="text-14 font-medium whitespace-nowrap max-sm:hidden">{person}</span>
+            <span className="text-14 whitespace-nowrap text-ink-3 max-sm:hidden">{role}</span>
             <ModeToggle />
             <form action="/api/auth/sign-out" method="post">
               <button className="h-8 rounded-sm px-2 text-13 text-ink-2 hover:bg-raised hover:text-ink">Sign out</button>
