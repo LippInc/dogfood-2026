@@ -74,8 +74,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                             <span className="block text-12 text-ink-2 tnum">
                               {r.se !== null ? `± ${r.se.toFixed(2)} · ` : ""}
                               {r.n} {r.n === 1 ? "review" : "reviews"}
-                              {r.n < 2 ? <span className="text-flag"> · under-reviewed</span> : null}
                             </span>
+                            {r.n < 2 ? <span className="block text-12 text-flag">under-reviewed</span> : null}
                           </span>
                         </li>
                       );
