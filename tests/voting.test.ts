@@ -520,15 +520,19 @@ describe("tallies", () => {
     openVoting();
   });
 
-  it("stay hidden from everyone while the window is open; after closing they are sorted and skip voided voters' picks", () => {
+  it("are live for organizers only while the window is open; after closing they are public, sorted, and skip voided voters' picks", () => {
     const t1 = linkToken();
     const t2 = linkToken();
     castBallot(null, "evt_01", t1, { projectIds: ["prj_07"] }, CLIENT);
     const second = castBallot(null, "evt_01", t2, { projectIds: ["prj_07"] }, CLIENT);
     const only = castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_08"] }, CLIENT);
 
-    expect(getVotingAdmin(org(), "evt_01").tally).toBeNull();
+    const live = getVotingAdmin(org(), "evt_01").tally!;
+    expect(live.find((x) => x.projectId === "prj_07")?.votes).toBe(2);
+    expect(live.find((x) => x.projectId === "prj_08")?.votes).toBe(1);
+    expect(live[0].projectId).toBe("prj_07");
     expect(getCommunityResults("evt_01").tally).toBeNull();
+    expectHttpError(() => getVotingAdmin(participant(), "evt_01"), 403, "not_an_organizer");
 
     voidVoter(org(), "evt_01", { voterId: second.voterId, reason: "Same browser as another ballot" });
     voidVoter(org(), "evt_01", { voterId: only.voterId, reason: "Same browser as another ballot" });

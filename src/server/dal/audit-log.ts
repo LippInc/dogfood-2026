@@ -14,8 +14,9 @@ import { votingState } from "./voting";
 // from 4 to 5"), for the organizer's overview card and the full log page. The
 // sentence is built from the row's own before/after, with ids turned into names.
 // What a ballot holds stays out of every view of the log until voting closes, the
-// same moment the count appears: otherwise an organizer could add up the running
-// total from the log. The rows are still stored and hashed in full.
+// same moment the count goes public: organizers see the running count on the Voting
+// tab, but the log never shows who picked what while picks can still change. The
+// rows are still stored and hashed in full.
 
 export type Part = { text: string; strong?: boolean; mono?: boolean };
 

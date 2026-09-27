@@ -19,8 +19,9 @@ import { parse, utcTimeOrEmpty } from "./parse";
 // signed-in accounts, people on a voter list (each gets a personal link), and/or
 // anyone holding the event's open voting link. Each voter picks up to N favourite
 // projects and may change the picks while the window is open. Each ballot lists the
-// projects in the voter's own seeded order. Tallies stay hidden from everyone,
-// organizers included, until the window closes. Link voters are counted per browser,
+// projects in the voter's own seeded order. While the window is open only organizers
+// see the count, live; everyone else sees it once the window closes (the organizers'
+// rule: "Results hidden from everyone but organizers"). Link voters are counted per browser,
 // so voters sharing a network address and browser are flagged for the organizer,
 // who can set a ballot aside with a reason. Every ballot change is audited.
 
@@ -637,14 +638,14 @@ export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
       .map((v) => ({ id: v.id, email: v.email!, voted: (counts.get(v.id) ?? 0) > 0, voided: Boolean(v.voidedAt) }))
       .sort((a, b) => a.email.localeCompare(b.email)),
     suspected,
-    // Hidden from everyone, organizers included, while the window is open.
-    tally: state === "closed" ? tally(db, event.id) : null,
+    // Live for organizers while the window is open; everyone else waits for the close.
+    tally: state === "open" || state === "closed" ? tally(db, event.id) : null,
   };
 }
 
 export type CommunityResults = { state: VotingState; closesAt: string | null; tally: Tally[] | null };
 
-/** The public community vote: only after the window closes. */
+/** The public community vote: only after the window closes (organizers see it live in getVotingAdmin). */
 export function getCommunityResults(eventIdOrSlug: string): CommunityResults {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);

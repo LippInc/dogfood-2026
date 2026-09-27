@@ -139,7 +139,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             </ol>
           ) : (
             <p className="mt-3 text-17 text-ink-2">
-              Voting {community.state === "upcoming" ? "has not opened yet" : "is open"}; nobody, organizers included, sees a count until it closes
+              Voting {community.state === "upcoming" ? "has not opened yet" : "is open"}; only the organizers see the count until it closes
               {community.closesAt ? ` on ${formatUtc(community.closesAt, { weekday: true })}` : ""}.
             </p>
           )}

@@ -286,18 +286,23 @@ def run_checks(cfg):
     expect(c, s == 403, participant, "PUT", settings_url, s, "403")
     checks.append(c)
 
-    # B2 -- no tally for anyone while the window is open
-    c = Check("B", "tally hidden from everyone while voting is open")
+    # B2 -- while the window is open the count is for organizers only
+    c = Check("B", "tally hidden from everyone but organizers while voting is open")
     community_url = u(f"/api/events/{EVENT_ID}/community")
     for person in (visitor, participant, organizer):
         s, body, _ = person.request("GET", community_url)
         if expect(c, s == 200, person, "GET", community_url, s, "200"):
             expect(c, as_json(body).get("tally") is None, person, "GET", community_url,
                    f"tally {as_json(body).get('tally')!r}", "tally null while open")
+    s, _, _ = participant.request("GET", settings_url)
+    expect(c, s == 403, participant, "GET", settings_url, s, "403")
+    s, _, _ = visitor.request("GET", settings_url)
+    expect(c, s == 401, visitor, "GET", settings_url, s, "401")
     s, body, _ = organizer.request("GET", settings_url)
     if expect(c, s == 200, organizer, "GET", settings_url, s, "200"):
-        expect(c, as_json(body).get("tally") is None, organizer, "GET", settings_url,
-               f"tally {as_json(body).get('tally')!r}", "tally null while open")
+        live = as_json(body).get("tally")
+        expect(c, isinstance(live, list) and len(live) > 0 and all(t.get("votes") == 0 for t in live),
+               organizer, "GET", settings_url, f"tally {str(live)[:80]}", "the live count, all 0 before any ballot")
     checks.append(c)
 
     # B3 -- the account ballot
@@ -361,8 +366,8 @@ def run_checks(cfg):
         expect(c, s == 200, link_b, "PUT", ballot_url, s, "200 for one pick")
     checks.append(c)
 
-    # B5 -- the organizer sees the two link browsers as one suspected group
-    c = Check("B", "duplicate voters flagged for the organizer")
+    # B5 -- the organizer sees the two link browsers as one suspected group, and the live count
+    c = Check("B", "duplicate voters flagged, and the count live, for the organizer only")
     s, body, _ = organizer.request("GET", settings_url)
     found = False
     if expect(c, s == 200, organizer, "GET", settings_url, s, "200"):
@@ -375,6 +380,14 @@ def run_checks(cfg):
         expect(c, found, organizer, "GET", settings_url,
                f"no suspected group holds both link voters ({link_a_id!r}, {link_b_id!r})",
                "one group with both link voters in it")
+        # the organizer's count is live: the three ballots so far are in it
+        live = {t.get("projectId"): t.get("votes") for t in as_json(body).get("tally") or []}
+        expect(c, (live.get("prj_02"), live.get("prj_03"), live.get("prj_04")) == (1, 1, 1), organizer, "GET", settings_url,
+               f"live count prj_02/03/04 = {(live.get('prj_02'), live.get('prj_03'), live.get('prj_04'))!r}", "(1, 1, 1)")
+    s, body, _ = visitor.request("GET", community_url)
+    if expect(c, s == 200, visitor, "GET", community_url, s, "200"):
+        expect(c, as_json(body).get("tally") is None, visitor, "GET", community_url,
+               f"tally {str(as_json(body).get('tally'))[:80]}", "still null for everyone else, with ballots in")
     checks.append(c)
 
     # B6 -- the voter list: a personal link in, a 'listed' ballot

@@ -2,7 +2,7 @@ import { currentActor, getVotingAdmin, json, route, saveVotingSettings } from "@
 
 export const dynamic = "force-dynamic";
 
-/** GET: the organizer's view (settings, turnout, suspected duplicates; the tally only after closing). */
+/** GET: the organizer's view (settings, turnout, suspected duplicates, and the count: live while the window is open). */
 export async function GET(_req: Request, { params }: RouteContext<"/api/events/[event]/voting">) {
   return route(async () => {
     const v = getVotingAdmin(await currentActor(), (await params).event);

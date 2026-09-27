@@ -37,7 +37,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
               : v.state === "upcoming"
                 ? `Opens ${formatUtc(event.votingOpenAt)}, closes ${formatUtc(event.votingCloseAt)}.`
                 : v.state === "open"
-                  ? `Open until ${formatUtc(event.votingCloseAt)}. The counts stay hidden from everyone, you included, until then; turnout and duplicate flags are live.`
+                  ? `Open until ${formatUtc(event.votingCloseAt)}. The count below is live and only organizers see it; everyone else sees it when the window closes.`
                   : `Closed ${formatUtc(event.votingCloseAt)}. The counts are public on the results page, and final: the window cannot move and no ballot can be set aside or restored.`}
           </p>
         </header>
@@ -102,8 +102,9 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
         {v.tally ? (
           <section aria-labelledby="tally-title">
             <h2 id="tally-title" className="text-17 font-semibold">
-              The count
+              {v.state === "open" ? "The count so far" : "The count"}
             </h2>
+            {v.state === "open" ? <p className="mt-1 text-14 text-ink-2">Live, and hidden from everyone but organizers until the window closes.</p> : null}
             <ol className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
               {v.tally.map((t) => (
                 <li key={t.projectId} className="flex items-baseline justify-between gap-3 px-4 py-2 text-14">
