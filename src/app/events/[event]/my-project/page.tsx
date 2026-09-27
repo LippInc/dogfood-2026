@@ -50,18 +50,35 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
         answers: project.answers,
       }
     : null;
+  const trackName = work.tracks.find((t) => t.id === project?.trackId)?.name ?? null;
   const recordButton = "inline-flex h-10 items-center rounded-sm border border-edge px-4 text-14 font-medium hover:bg-surface";
 
   const side = (
     <>
-      <section aria-labelledby="deadline-title">
-        <h2 id="deadline-title" className="label-mono text-ink-2">
-          {open ? "Submissions close" : "Submissions closed"}
-        </h2>
-        <div className="mt-3">
-          <Deadline iso={event.submissionsCloseAt} utcLabel={closeLabel} />
-        </div>
-      </section>
+      {open ? (
+        <section aria-labelledby="deadline-title">
+          <h2 id="deadline-title" className="label-mono text-ink-2">
+            Submissions close
+          </h2>
+          <div className="mt-3">
+            <Deadline iso={event.submissionsCloseAt} utcLabel={closeLabel} />
+          </div>
+        </section>
+      ) : !work.feedback && project?.status === "submitted" ? (
+        // After the close the date is in the stages strip and the sheet; what the team waits for is the results.
+        <section aria-labelledby="next-title">
+          <h2 id="next-title" className="label-mono text-ink-2">
+            What comes next
+          </h2>
+          <p className="mt-3 text-15 text-ink">
+            {event.judgingCloseAt && !isPast(event.judgingCloseAt) ? `Judges review until ${formatUtc(event.judgingCloseAt)}.` : "The judges are reviewing."}
+          </p>
+          <p className="mt-2 text-14 text-ink-2">
+            When the organizers publish results, your place{trackName ? ` in ${trackName}` : ""} and every review of your project, judges unnamed,
+            appear at the top of this page.
+          </p>
+        </section>
+      ) : null}
       {team ? <TeamPanel team={team} eventSlug={event.slug} open={open} me={actor.userId} /> : null}
     </>
   );
@@ -150,7 +167,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
             eventSlug={event.slug}
             closedAt={event.submissionsCloseAt}
             project={formProject}
-            trackName={work.tracks.find((t) => t.id === project?.trackId)?.name ?? null}
+            trackName={trackName}
             questions={work.questions}
           />
           <aside className="flex flex-col gap-8 lg:sticky lg:top-6 lg:self-start">{side}</aside>
