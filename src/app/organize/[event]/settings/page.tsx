@@ -17,6 +17,7 @@ import {
   saveTracksAction,
 } from "./actions";
 import { RemoveOrganizer } from "./remove-organizer";
+import { DateField } from "./date-field";
 import { RubricEditor } from "./rubric-editor";
 import { type ContentsEntry, SettingsContents } from "./settings-contents";
 
@@ -108,18 +109,9 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
                 Description (shown on the About page)
                 <textarea name="description" defaultValue={event.description} rows={4} className={`w-full rounded-sm border border-edge bg-surface px-2.5 py-2 font-serif text-15 ${invalid}`} />
               </label>
-              <label className="flex flex-col gap-1 text-13 text-ink-2">
-                Submissions open (UTC, empty = from now)
-                <input type="datetime-local" name="submissionsOpenAt" defaultValue={utcInput(event.submissionsOpenAt)} className={input} />
-              </label>
-              <label className="flex flex-col gap-1 text-13 text-ink-2">
-                Submissions close (UTC)
-                <input type="datetime-local" name="submissionsCloseAt" defaultValue={utcInput(event.submissionsCloseAt)} className={input} />
-              </label>
-              <label className="flex flex-col gap-1 text-13 text-ink-2">
-                Judging closes (UTC, optional)
-                <input type="datetime-local" name="judgingCloseAt" defaultValue={utcInput(event.judgingCloseAt)} className={input} />
-              </label>
+              <DateField label="Submissions open (UTC)" name="submissionsOpenAt" value={utcInput(event.submissionsOpenAt)} empty="Empty: no opening time, open until the close" className={input} />
+              <DateField label="Submissions close (UTC)" name="submissionsCloseAt" value={utcInput(event.submissionsCloseAt)} empty="Required" className={input} />
+              <DateField label="Judging closes (UTC)" name="judgingCloseAt" value={utcInput(event.judgingCloseAt)} empty="Empty: judging has no closing time" className={input} />
               <label className="flex flex-col gap-1 text-13 text-ink-2">
                 Most people on one team
                 <input type="number" name="maxTeamSize" min={1} max={20} defaultValue={event.settings.maxTeamSize ?? 4} className={input} />
