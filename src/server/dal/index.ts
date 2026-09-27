@@ -148,6 +148,8 @@ export {
   PAIRWISE_METHOD,
   PAIRWISE_METHOD_LABEL,
   pickPairwise,
+  PULL_SHOWN_WITHIN,
+  pullShare,
   setJudgingMode,
   undoPairwise,
   type CoinFlipFlag,

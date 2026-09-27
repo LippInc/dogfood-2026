@@ -12,7 +12,7 @@ import { acceptUnderReviewed, getNormalization, getPublishedResults, kendallTauB
 import { getOverview } from "@/server/dal/overview";
 import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { authorize, type EventFacts } from "@/server/authz";
-import { getPairwiseRanking, getPairwiseState, pickPairwise, setJudgingMode, undoPairwise, PAIRWISE_METHOD } from "@/server/dal/pairwise";
+import { getPairwiseRanking, getPairwiseState, pickPairwise, pullShare, setJudgingMode, undoPairwise, PAIRWISE_METHOD, PULL_SHOWN_WITHIN } from "@/server/dal/pairwise";
 import { actorForToken } from "@/server/session";
 
 // Pairwise mode's rules (JUDGING.md "Pairwise mode"): only the event's judges answer,
@@ -169,6 +169,21 @@ describe("pairwise mode: who may do what", () => {
     setJudgeTracks(checker("organizer"), "evt_01", judge.userId, { trackIds: keep });
     expect(getPairwiseState(judge, "evt_01").tracks.map((t) => t.trackId)).toEqual(keep);
     expect(h.db.select().from(judgeTracks).where(and(eq(judgeTracks.judgeUserId, judge.userId), eq(judgeTracks.trackId, before[0]!))).all()).toHaveLength(0);
+  });
+});
+
+describe("the two pulls, as people see them", () => {
+  it("are shown only once known within the stated ± (known-bad: a handful of answers is not a finding)", () => {
+    expect(pullShare(null)).toBeNull();
+    expect(pullShare({ est: 0.3, se: 0.1 })).toMatchObject({ pm: 2, measured: true });
+    expect(pullShare({ est: 0.1, se: 0.5 })).toMatchObject({ pm: 12, measured: false });
+    toPairwise();
+    const judge = checker("judge_a");
+    for (let k = 0; k < 2; k++) pickPairwise(judge, "evt_01", { ...firstQuestion(judge), outcome: "left" });
+    const r = getPairwiseRanking(checker("organizer"), "evt_01");
+    expect(r.counts.picks).toBe(2);
+    expect(pullShare(r.left)!.measured).toBe(false);
+    expect(pullShare(r.left)!.pm).toBeGreaterThan(PULL_SHOWN_WITHIN);
   });
 });
 

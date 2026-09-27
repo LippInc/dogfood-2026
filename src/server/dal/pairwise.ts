@@ -32,6 +32,17 @@ export type JudgingMode = "scores" | "pairwise";
 export const judgingModeOf = (e: Pick<EventRow, "settings">): JudgingMode => (e.settings.judgingMode === "pairwise" ? "pairwise" : "scores");
 
 export const PAIRWISE_METHOD = "bradley-terry-v1";
+
+/** A pull is shown to people only once it is known within this many percentage points; before that the number is the prior's, not a finding. */
+export const PULL_SHOWN_WITHIN = 6;
+
+/** A pull on the logit scale as the share of wins between two equal projects, with its ± in points; `measured` once the ± is within PULL_SHOWN_WITHIN. */
+export function pullShare(b: { est: number; se: number } | null): { share: number; pm: number; measured: boolean } | null {
+  if (!b) return null;
+  const p = 1 / (1 + Math.exp(-b.est));
+  const pm = Math.max(1, Math.round(p * (1 - p) * b.se * 100));
+  return { share: p, pm, measured: pm <= PULL_SHOWN_WITHIN };
+}
 export const PAIRWISE_METHOD_LABEL = "Bradley-Terry fit of every judge's either/or answers, with the pull of the left side and of the project just opened estimated and taken out";
 
 function pairwiseOn(event: EventRow) {

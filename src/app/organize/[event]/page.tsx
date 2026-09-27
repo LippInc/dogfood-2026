@@ -12,6 +12,7 @@ import {
   getOverview,
   type AuditLine,
   type Stage,
+  PULL_SHOWN_WITHIN,
 } from "@/server/dal";
 import { CopyButton } from "./judges/forms";
 import { Decisions, PublishPanel } from "./decisions";
@@ -250,9 +251,9 @@ export default async function OverviewPage({
               <p className="text-13 leading-5 text-ink-2">
                 Judged pairwise: each judge places their own projects ({o.pairwise.total} in all; the first in each track needs no question).{" "}
                 {plural(o.pairwise.answers, "answer")} so far, plus the order of every judge&rsquo;s earlier scores.{" "}
-                {o.pairwise.left !== null && o.pairwise.fresh !== null
-                  ? `Between two equal projects the one on the left wins ${Math.round(o.pairwise.left * 100)} % and the one a judge has just opened ${Math.round(o.pairwise.fresh * 100)} %; the ranking takes both pulls out.`
-                  : "The pull of the left side and of the project just opened are measured once judges answer."}
+                {o.pairwise.left?.measured && o.pairwise.fresh?.measured
+                  ? `Between two equal projects the one on the left wins ${Math.round(o.pairwise.left.share * 100)} % and the one a judge has just opened ${Math.round(o.pairwise.fresh.share * 100)} %; the ranking takes both pulls out.`
+                  : `Too few answers yet to measure the pull of the left side and of the project just opened (each is shown once it is known within ${PULL_SHOWN_WITHIN} points); until then the fit assumes almost none.`}
               </p>
               <div>
                 <Link

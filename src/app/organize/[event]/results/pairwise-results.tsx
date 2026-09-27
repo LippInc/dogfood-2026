@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { exportHref } from "@/lib/export-href";
 import { plural } from "@/lib/format";
-import type { PairwiseRanking } from "@/server/dal";
+import { PULL_SHOWN_WITHIN, pullShare, type PairwiseRanking } from "@/server/dal";
 
 // The organizer's Results tab in pairwise mode (JUDGING.md "Pairwise mode"): the
 // Bradley-Terry ranking per track with its uncertainty, the two pulls the fit measured
@@ -11,14 +11,22 @@ import type { PairwiseRanking } from "@/server/dal";
 type Ranking = PairwiseRanking;
 type Row = Ranking["tracks"][number]["rows"][number];
 
-const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 
-/** A pull on the logit scale as "wins X % between two equal projects", with its ± in points. */
-function pull(b: Ranking["left"]): { share: string; pm: string } | null {
-  if (!b) return null;
-  const p = sigmoid(b.est);
-  return { share: pct(p), pm: `± ${Math.max(1, Math.round(p * (1 - p) * b.se * 100))}` };
+/** One pull's card: the share of wins it gives between two equal projects, once it is measured. */
+function PullCard({ pull, answers, what, done }: { pull: ReturnType<typeof pullShare>; answers: number; what: string; done: string }) {
+  return (
+    <div className="rounded-sm border border-rule bg-surface p-5">
+      <p className="text-38 leading-none font-semibold tnum">{pull?.measured ? pct(pull.share) : "–"}</p>
+      <p className="mt-2 text-14 text-ink-2">
+        {!pull
+          ? `No answers yet: ${what} is measured once judges answer.`
+          : pull.measured
+            ? `is how often ${done} (± ${pull.pm} points). The ranking takes this pull out.`
+            : `Not measured yet: after ${plural(answers, "answer")}, ${what} is known only within ± ${pull.pm} points; it is shown once that is ${PULL_SHOWN_WITHIN} or less. Until then the fit assumes almost none.`}
+      </p>
+    </div>
+  );
 }
 
 export function PairwiseResults({
@@ -34,8 +42,8 @@ export function PairwiseResults({
   published: boolean;
   chosen: string | null;
 }) {
-  const left = pull(r.left);
-  const fresh = pull(r.fresh);
+  const left = pullShare(r.left);
+  const fresh = pullShare(r.fresh);
   const split = r.tracks.filter((t) => t.groups > 1);
   const open = r.flags.filter((f) => !f.resolved);
   const shown = r.tracks.filter((t) => !chosen || t.trackId === chosen);
@@ -78,22 +86,13 @@ export function PairwiseResults({
       </header>
 
       <section aria-label="Findings" className="grid gap-6 wrap-anywhere lg:grid-cols-3">
-        <div className="rounded-sm border border-rule bg-surface p-5">
-          <p className="text-38 leading-none font-semibold tnum">{left ? left.share : "–"}</p>
-          <p className="mt-2 text-14 text-ink-2">
-            {left
-              ? `is how often the project shown on the left wins between two equal projects (${left.pm} points). The ranking takes this pull out.`
-              : "No answers yet: the pull of the left side is measured once judges answer."}
-          </p>
-        </div>
-        <div className="rounded-sm border border-rule bg-surface p-5">
-          <p className="text-38 leading-none font-semibold tnum">{fresh ? fresh.share : "–"}</p>
-          <p className="mt-2 text-14 text-ink-2">
-            {fresh
-              ? `is how often the project a judge has just opened wins against an equal one already on their list (${fresh.pm} points). The ranking takes this pull out too.`
-              : "No answers yet: the pull of the project just opened is measured once judges answer."}
-          </p>
-        </div>
+        <PullCard pull={left} answers={r.counts.picks} what="the pull of the left side" done="the project shown on the left wins between two equal projects" />
+        <PullCard
+          pull={fresh}
+          answers={r.counts.picks}
+          what="the pull of the project just opened"
+          done="the project a judge has just opened wins against an equal one already on their list"
+        />
         <div className="rounded-sm border border-rule bg-surface p-5">
           <p className="text-38 leading-none font-semibold tnum">
             {ranked} of {r.tracks.reduce((n, t) => n + t.rows.length, 0)}
