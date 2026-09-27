@@ -1,9 +1,9 @@
 import "server-only";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx, type Tx } from "../db/client";
-import { events, projects, teamMembers, teams, userRoles, users } from "../db/schema";
+import { assignments, events, projects, teamMembers, teams, userRoles, users } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { mutate } from "../mutate";
 import { newId, newSecret } from "../util";
@@ -23,6 +23,18 @@ function onTeamIn(tx: DbOrTx, userId: string, eventId: string): boolean {
       .select({ t: teamMembers.teamId })
       .from(teamMembers)
       .where(and(eq(teamMembers.userId, userId), eq(teamMembers.eventId, eventId)))
+      .get(),
+  );
+}
+
+/** The judge holds a live (not recused) assignment on this team's project. */
+function assignedToTeam(tx: DbOrTx, userId: string, teamId: string): boolean {
+  return Boolean(
+    tx
+      .select({ a: assignments.id })
+      .from(assignments)
+      .innerJoin(projects, eq(projects.id, assignments.projectId))
+      .where(and(eq(projects.teamId, teamId), eq(assignments.judgeUserId, userId), ne(assignments.status, "recused")))
       .get(),
   );
 }
@@ -89,7 +101,12 @@ export function joinTeam(actor: Actor | null, code: string) {
       if (!t) throw new NotFoundError("Invite link");
       team = t;
       event = requireEvent(tx, t.eventId);
-      return { kind: "team_work", event: eventFacts(event), onTeam: actor ? onTeamIn(tx, actor.userId, t.eventId) : false };
+      return {
+        kind: "team_work",
+        event: eventFacts(event),
+        onTeam: actor ? onTeamIn(tx, actor.userId, t.eventId) : false,
+        assignedToTeam: actor ? assignedToTeam(tx, actor.userId, t.id) : false,
+      };
     },
     run: (tx) => {
       const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, team.id)).get()?.n ?? 0;

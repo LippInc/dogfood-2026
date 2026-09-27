@@ -172,6 +172,40 @@ describe("joinTeam", () => {
       return { captain, joiner, teamId: team.id, code: inviteCodeOf(team.id) };
     }
 
+    it("known-bad: a judge assigned to a team's project cannot join that team (403 conflict_of_interest); after declaring the conflict they can", () => {
+      // a fixture team with room for two more, a judge assigned to its project and one who is not
+      const { teamId } = h.sqlite
+        .prepare(
+          "SELECT t.id AS teamId FROM teams t JOIN projects p ON p.team_id = t.id WHERE t.event_id = 'evt_01' AND (SELECT count(*) FROM team_members m WHERE m.team_id = t.id) <= 2 ORDER BY t.id LIMIT 1",
+        )
+        .get() as { teamId: string };
+      const assigned = (
+        h.sqlite
+          .prepare("SELECT a.id AS id, a.judge_user_id AS judge FROM assignments a JOIN projects p ON p.id = a.project_id WHERE p.team_id = ? LIMIT 1")
+          .get(teamId) as { id: string; judge: string }
+      );
+      const other = (
+        h.sqlite
+          .prepare(
+            "SELECT DISTINCT a.judge_user_id AS judge FROM assignments a WHERE a.event_id = 'evt_01' AND a.judge_user_id NOT IN (SELECT a2.judge_user_id FROM assignments a2 JOIN projects p ON p.id = a2.project_id WHERE p.team_id = ?) LIMIT 1",
+          )
+          .get(teamId) as { judge: string }
+      ).judge;
+      const code = inviteCodeOf(teamId);
+      const members = memberCount(teamId);
+      const refusedBefore = auditRows().filter((r) => r.action === "authz.refused").length;
+
+      expectHttpError(() => joinTeam(actorById(assigned.judge), code), 403, "conflict_of_interest");
+      expect(memberCount(teamId)).toBe(members);
+      expect(auditRows().filter((r) => r.action === "authz.refused")).toHaveLength(refusedBefore + 1);
+
+      // positive controls: a judge with no assignment on this team joins; the assigned one after recusing
+      expect(joinTeam(actorById(other), code).teamId).toBe(teamId);
+      h.sqlite.prepare("UPDATE assignments SET status = 'recused' WHERE id = ?").run(assigned.id);
+      expect(joinTeam(actorById(assigned.judge), code).teamId).toBe(teamId);
+      expect(memberCount(teamId)).toBe(members + 2);
+    });
+
     it("refuses an unknown code with 404", () => {
       const u = addUser("usr_lost", "lost@example.org", "Lost");
       expectHttpError(() => joinTeam(u, "nope"), 404, "not_found");

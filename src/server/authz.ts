@@ -55,8 +55,11 @@ export type Action =
 export type Resource =
   | { kind: "platform" }
   | { kind: "event"; event: EventFacts }
-  /** onTeam: the actor is a member of a team in this event (create, join) or of this project's team (edit) */
-  | { kind: "team_work"; event: EventFacts; onTeam: boolean }
+  /**
+   * onTeam: the actor is a member of a team in this event (create, join) or of this project's team (edit);
+   * assignedToTeam (join): the actor is assigned to judge this team's project
+   */
+  | { kind: "team_work"; event: EventFacts; onTeam: boolean; assignedToTeam?: boolean }
   /** one team, from the actor's point of view */
   | { kind: "team"; event: EventFacts; isMember: boolean; isCaptain: boolean }
   /** judgeUserId: whose scores are asked for; the peer route passes the requested id */
@@ -164,6 +167,13 @@ export function authorize(
       if (resource.kind !== "team_work") return refuse("bad_resource", "This action needs an event.");
       if (resource.onTeam) {
         return refuse("already_on_a_team", "You are already on a team in this event; one person, one team.");
+      }
+      // Assignment keeps judges off their own team's project; joining later must not undo that.
+      if (resource.assignedToTeam) {
+        return refuse(
+          "conflict_of_interest",
+          "You are assigned to judge this team's project. Declare the conflict in your judging console first, then join.",
+        );
       }
       if (!submissionsOpen(resource.event, now)) return windowRefusal(resource.event, now, "Teams can no longer be formed");
       return allow;
