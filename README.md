@@ -268,13 +268,18 @@ start, and the fixture import never overwrites what the organizers changed.
 - A team that entered the same project three or more times: the overview merges
   two copies; merge the others over the API (`POST
   /api/events/<event>/duplicates/merge`).
-- The portal imports only `fixtures.json`, so settings and the organizer's
-  decisions (a merge, a reinstated judge, a project published as it is) do not
-  move to another portal; `event.json` keeps them as a record.
+- The portal imports only `fixtures.json`, so settings, pairwise answers and the
+  organizer's decisions (a merge, a reinstated judge, a project published as it
+  is) do not move to another portal; `event.json` keeps them as a record, and
+  `comparisons.csv` lists every pairwise answer, taken-back ones included.
 - Signed records cannot be revoked, and the signing key cannot be rotated from
   the interface; a record keeps what was true when it was issued.
 - No calibrated prize probabilities or rank intervals: normalized ranks compare
-  within a track, and close scores should be read as ties.
+  within a track, and close scores should be read as ties. Pairwise mode gives
+  each place its chance of being ahead of the next one, not a full interval.
+- Pairwise mode flags a judge who answers like a coin flip, but not one who calls
+  "too close to call" whenever a favourite would lose (flagged in 9 of 120
+  simulated panels; JUDGING.md, "Tactical pairwise answers").
 
 ## Licence
 

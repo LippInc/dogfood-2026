@@ -214,6 +214,7 @@ function eventJson(db: DbOrTx, event: EventRow): string {
       scoreComments: scoreIds.length ? db.select().from(scoreComments).where(inArray(scoreComments.scoreId, scoreIds)).all() : [],
       judgeOverrides: db.select().from(judgeOverrides).where(eq(judgeOverrides.eventId, event.id)).all(),
       normalizationRuns: db.select().from(normalizationRuns).where(eq(normalizationRuns.eventId, event.id)).all(),
+      comparisons: db.select().from(comparisons).where(eq(comparisons.eventId, event.id)).all(),
     },
     null,
     2,
