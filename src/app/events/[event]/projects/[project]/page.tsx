@@ -94,8 +94,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             <h1 className="mt-3 font-display text-[40px] leading-[46px] md:text-[56px] md:leading-[60px]">{p.title}</h1>
             {p.summary ? <p className="mt-4 font-serif text-[22px] leading-8 text-ink-2">{p.summary}</p> : null}
             <p className="mt-4 text-15 text-ink-2">
-              by <span className="font-semibold text-ink">{p.team.name}</span> · {p.team.members}{" "}
-              {p.team.members === 1 ? "member" : "members"}
+              by <span className="font-semibold text-ink">{p.team.name}</span>
             </p>
             {p.tags.length ? (
               <ul className="mt-4 flex flex-wrap gap-2" aria-label="Tech tags">
@@ -234,15 +233,37 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               </section>
             ) : null}
           </div>
-          <aside className="flex flex-col gap-6 text-14">
-            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 wrap-anywhere">
-              <dt className="text-ink-3">Track</dt>
-              <dd>{p.track.name}</dd>
-              <dt className="text-ink-3">Submitted</dt>
-              <dd className="tnum">{formatUtc(p.submittedAt)}</dd>
-              <dt className="text-ink-3">Team</dt>
-              <dd>{p.team.name}</dd>
-            </dl>
+          <aside className="flex flex-col gap-10 text-14">
+            {/* The entry's record, in the status strip's mono voice: what it is, where it sits, when it came in. */}
+            <section aria-labelledby="entry-title">
+              <h2 id="entry-title" className="border-t-2 border-ink pt-2 label-mono text-ink">
+                The entry
+              </h2>
+              <dl className="mt-1 divide-y divide-rule wrap-anywhere">
+                <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-4 py-2.5">
+                  <dt className="label-mono text-ink-3">Id</dt>
+                  <dd className="font-mono text-13">{p.id}</dd>
+                </div>
+                <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-4 py-2.5">
+                  <dt className="label-mono text-ink-3">Track</dt>
+                  <dd>
+                    <Link href={`/events/${event.slug}?track=${p.track.id}`} className="underline decoration-edge underline-offset-4 hover:decoration-ink">
+                      {p.track.name}
+                    </Link>
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-4 py-2.5">
+                  <dt className="label-mono text-ink-3">Team</dt>
+                  <dd>
+                    {p.team.name} <span className="text-ink-3">· {p.team.members} {p.team.members === 1 ? "member" : "members"}</span>
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-4 py-2.5">
+                  <dt className="label-mono text-ink-3">Submitted</dt>
+                  <dd className="tnum">{formatUtc(p.submittedAt)}</dd>
+                </div>
+              </dl>
+            </section>
             {trackmates.length > 1 ? (
               <section aria-labelledby="track-title">
                 <h2 id="track-title" className="flex items-baseline justify-between gap-4 border-t-2 border-ink pt-2">
