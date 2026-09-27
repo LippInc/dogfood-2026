@@ -62,7 +62,7 @@ export async function retry(slug: string, webhookId: string, deliveryId: string)
 
 export type ClaimResult = ActionResult & { links?: ClaimLink[] };
 
-/** Personal links for the people in the event without a password whose every event this organizer runs; shown once. */
+/** Personal links for the people in the event without a password who hold no role and no team seat in any event this organizer does not run; shown once. */
 export async function claimLinksAction(_prev: ClaimResult, form: FormData): Promise<ClaimResult> {
   const slug = String(form.get("event") ?? "");
   try {

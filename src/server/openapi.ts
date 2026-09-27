@@ -81,7 +81,7 @@ export const OPERATIONS: Operation[] = [
     ok: 201,
     also: [409, 413],
   },
-  { method: "POST", path: "/api/events/{event}/claims", tag: "Accounts", summary: "Personal links, returned once, for the people in the event without a password whose every event you run; elsewhere lists the others, whom only an administrator's reset link reaches", access: "organizer", ok: 201 },
+  { method: "POST", path: "/api/events/{event}/claims", tag: "Accounts", summary: "Personal links, returned once, for the people in the event without a password who hold no role and no team seat in any event you do not run; elsewhere lists the others, whom only an administrator's reset link reaches", access: "organizer", ok: 201 },
   { method: "GET", path: "/api/claims/{token}", tag: "Accounts", summary: "Whose personal link this is (410 once used or expired)", access: "anyone", also: [410] },
   { method: "POST", path: "/api/claims/{token}", tag: "Accounts", summary: "Set your password with your personal link and sign in", access: "anyone", body: In.ClaimInput, also: [410] },
   { method: "POST", path: "/api/password-resets", tag: "Accounts", summary: "A one-time link for an account to set a new password, returned once (it works once, within a day)", access: "administrator", body: In.ResetLinkInput, ok: 201, also: [404, 409], note: "The four demo identities have no password to reset: 409 demo_account." },
