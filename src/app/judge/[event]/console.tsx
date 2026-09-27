@@ -439,7 +439,9 @@ export function JudgeConsoleView({
             })}
           </ol>
           <p className="mt-3 text-13 text-ink-2">
-            {left === 0
+            {active.length === 0
+              ? "Nothing left to review: you declared a conflict on every project in your batch."
+              : left === 0
               ? "Every project reviewed. You can still change a score until judging closes."
               : data.minutesPerReview
                 ? `About ${Math.max(1, Math.round(data.minutesPerReview * left))} min left at your pace`
