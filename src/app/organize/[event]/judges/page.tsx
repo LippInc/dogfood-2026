@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import { unauthorized } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
@@ -24,6 +25,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
   const assigned = judges.reduce((s, j) => s + j.assigned, 0);
   const finished = judges.reduce((s, j) => s + j.done, 0);
   const openInvites = invites.filter((i) => i.state === "open");
+  const leftOut = judges.filter((j) => j.excluded).length;
 
   return (
     <WorkShell
@@ -40,6 +42,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
             <h1 className="text-24 font-semibold">Judges</h1>
             <p className="mt-2 text-15 text-ink-2 tnum">
               {plural(judges.length, "judge")} · {finished} of {plural(assigned, "assigned review")} finished
+              {leftOut ? ` · ${leftOut} left out of the ranking` : ""}
               {a.underReviewed.length ? ` · ${a.underReviewed.length} under-reviewed ${a.underReviewed.length === 1 ? "project" : "projects"}` : ""}
             </p>
           </div>
@@ -81,8 +84,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                     <TableRow>
                       <TableHead>Judge</TableHead>
                       <TableHead>Tracks</TableHead>
-                      <TableHead className="text-right">Finished</TableHead>
-                      <TableHead>Last review</TableHead>
+                      <TableHead className="text-right">Reviews</TableHead>
                       <TableHead>Standing</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -91,7 +93,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                       const reminder = `Hi ${j.name}, ${j.pending} of your ${plural(j.assigned, "review")} for ${event.name} ${j.pending === 1 ? "is" : "are"} still open. Your console: ${origin}/judge/${event.slug}`;
                       return (
                         <TableRow key={j.id} className="align-top">
-                          <TableCell>
+                          <TableCell className={j.excluded ? "shadow-[inset_3px_0_0_var(--flag-bar)]" : undefined}>
                             <p className="font-medium">{j.name}</p>
                             <p className="text-13 text-ink-2">{j.email}</p>
                           </TableCell>
@@ -103,18 +105,21 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                           </TableCell>
                           <TableCell className="text-right tnum">
                             <p>
-                              {j.done} / {j.assigned}
+                              {j.done} of {j.assigned}
                             </p>
                             {j.assigned ? (
                               <div className="mt-1.5 ml-auto flex w-fit gap-[2px]" aria-hidden>
                                 {Array.from({ length: j.assigned }, (_, i) => (
-                                  <span key={i} className={`h-2.5 w-[7px] ${i < j.done ? "bg-ink" : "border border-edge"}`} />
+                                  <span
+                                    key={i}
+                                    className={`h-2.5 w-[7px] ${j.excluded ? (i < j.done ? "bg-flag-bar" : "border border-flag-bar") : i < j.done ? "bg-ink" : "border border-edge"}`}
+                                  />
                                 ))}
                               </div>
                             ) : null}
                             {j.recused ? <p className="mt-1 text-12 text-ink-2">{j.recused} recused</p> : null}
+                            {j.lastScoredAt ? <p className="mt-1 text-12 whitespace-nowrap text-ink-3">last {formatUtc(j.lastScoredAt)}</p> : null}
                           </TableCell>
-                          <TableCell className="text-13 text-ink-2">{j.lastScoredAt ? formatUtc(j.lastScoredAt) : "–"}</TableCell>
                           <TableCell className="max-w-[260px] text-13">
                             {j.flat ? (
                               <p className={j.excluded ? "text-flag" : "text-ink-2"}>
@@ -129,7 +134,10 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                                 <CopyButton text={reminder} label="Copy reminder" />
                               </div>
                             ) : j.assigned > 0 ? (
-                              <p className="text-ok">All finished</p>
+                              <p className="flex items-center gap-1.5 text-ink-2">
+                                <Check className="size-3.5 shrink-0 text-ok" aria-hidden />
+                                All finished
+                              </p>
                             ) : (
                               <p className="text-ink-2">Nothing assigned yet</p>
                             )}
