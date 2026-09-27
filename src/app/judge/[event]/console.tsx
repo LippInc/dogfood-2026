@@ -518,7 +518,7 @@ export function JudgeConsoleView({
                 </ul>
               ) : null}
             </div>
-            <figure className="corner-marks hidden shrink-0 rounded-sm border border-rule px-5 pt-5 pb-3 sm:block">
+            <figure className="corner-marks hidden shrink-0 rounded-sm border border-rule px-7 pt-7 pb-4 sm:block">
               <div className="w-32">{faces[p.id]?.large}</div>
               <figcaption className="mt-2 flex justify-between font-mono text-12 text-ink-3">
                 <span>FIG. 01</span>
