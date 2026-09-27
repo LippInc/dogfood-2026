@@ -41,7 +41,8 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
   // The answer being saved (its card or the tie stays marked until the next question
   // arrives), and the project the last answer placed, lit for a moment in the list.
   const [picked, setPicked] = useState<Outcome | null>(null);
-  const [justPlaced, setJustPlaced] = useState<string | null>(null);
+  // A tie is kept too, so the list can say the new project sits right below its equal.
+  const [justPlaced, setJustPlaced] = useState<{ id: string; tieWith: string | null } | null>(null);
   const lettersOn = useSyncExternalStore(letters.subscribe, letters.get, () => true);
   const track = data.tracks.find((t) => t.trackId === trackId) ?? data.tracks[0] ?? null;
   const slug = data.event.slug;
@@ -86,6 +87,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
       const q = track?.current;
       if (!track || !q || busy || readOnly) return;
       const placing = q.left.id === q.newId ? q.left : q.right;
+      const other = q.left.id === q.newId ? q.right : q.left;
       setPicked(outcome);
       setJustPlaced(null);
       void send("pick", { trackId: track.trackId, left: q.left.id, right: q.right.id, outcome }, (next) => {
@@ -93,8 +95,13 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
         if (!t) return "Saved.";
         if (t.current?.newId === placing.id) return `Saved. One more question about ${placing.title}.`;
         const at = t.list.findIndex((p) => p.id === placing.id) + 1;
-        if (at > 0) setJustPlaced(placing.id);
-        const where = at > 0 ? `${placing.title} is number ${at} of ${t.list.length} in your list.` : "";
+        if (at > 0) setJustPlaced({ id: placing.id, tieWith: outcome === "tie" ? other.id : null });
+        const where =
+          at <= 0
+            ? ""
+            : outcome === "tie"
+              ? `Too close to call: ${placing.title} goes right below ${other.title}, number ${at} of ${t.list.length}.`
+              : `${placing.title} is number ${at} of ${t.list.length} in your list.`;
         return t.current ? `Saved. ${where}` : `Saved. ${where} All ${t.total} placed.`;
       }).finally(() => setPicked(null));
     },
@@ -224,7 +231,9 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
         <ol ref={listRef} aria-label={`Your list in ${track.trackName}, best first`} className="flex-1 overflow-y-auto max-lg:max-h-56">
           {track.list.map((p, n) => {
             const here = p.id === against?.id;
-            const fresh = p.id === justPlaced;
+            const fresh = p.id === justPlaced?.id;
+            // only when the list really shows it right below its equal
+            const tied = fresh && n > 0 && track.list[n - 1].id === justPlaced?.tieWith;
             return (
               <li
                 key={p.id}
@@ -242,6 +251,13 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                 </span>
                 {here ? (
                   <span className="text-12 font-medium text-accent-ink">comparing</span>
+                ) : tied ? (
+                  <span className="text-right text-12 leading-4 font-medium text-accent-ink">
+                    just placed
+                    <span className="block font-normal text-ink-2">
+                      <span aria-hidden>= </span>too close to {String(n).padStart(2, "0")}
+                    </span>
+                  </span>
                 ) : fresh ? (
                   <span className="text-12 font-medium text-accent-ink">just placed</span>
                 ) : null}
