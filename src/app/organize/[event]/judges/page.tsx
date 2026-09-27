@@ -150,19 +150,21 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                             </details>
                           </TableCell>
                           <TableCell className="text-right tnum">
-                            <p>
-                              {j.done} of {j.assigned}
-                            </p>
-                            {j.assigned ? (
-                              <div className="mt-1.5 ml-auto flex w-fit gap-[2px]" aria-hidden>
-                                {Array.from({ length: j.assigned }, (_, i) => (
-                                  <span
-                                    key={i}
-                                    className={`h-2.5 w-[7px] ${j.excluded ? (i < j.done ? "bg-flag-bar" : "border border-flag-bar") : i < j.done ? "bg-ink" : "border border-edge"}`}
-                                  />
-                                ))}
-                              </div>
-                            ) : null}
+                            <div className="flex items-center justify-end gap-2.5">
+                              {j.assigned ? (
+                                <span className="flex gap-[2px]" aria-hidden>
+                                  {Array.from({ length: j.assigned }, (_, i) => (
+                                    <span
+                                      key={i}
+                                      className={`h-2.5 w-[7px] ${j.excluded ? (i < j.done ? "bg-flag-bar" : "border border-flag-bar") : i < j.done ? "bg-ink" : "border border-edge"}`}
+                                    />
+                                  ))}
+                                </span>
+                              ) : null}
+                              <span className="whitespace-nowrap">
+                                {j.done} of {j.assigned}
+                              </span>
+                            </div>
                             {j.recused ? <p className="mt-1 text-12 text-ink-2">{j.recused} recused</p> : null}
                             {j.lastScoredAt ? <p className="mt-1 text-12 whitespace-nowrap text-ink-3">last {formatUtc(j.lastScoredAt)}</p> : null}
                           </TableCell>
