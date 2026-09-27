@@ -1,0 +1,85 @@
+/*
+ * The judge's side (scores console and the pairwise duel): small motions that say
+ * "that landed". Transform and opacity only, so nothing reflows; everything is off
+ * when the reader asks for reduced motion. Colours come from the work tokens.
+ */
+
+/* A score cell or answer being pressed: a short stamp. */
+@keyframes judge-stamp {
+  0% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+/* A number that just changed: it rises into place. */
+@keyframes judge-tick {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* A row that just arrived or was just placed: the pink tint fades back to the row. */
+@keyframes judge-flash {
+  0% {
+    background-color: var(--accent-tint);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.score-cell {
+  position: relative;
+}
+.score-cell[aria-pressed="true"] {
+  animation: judge-stamp 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.judge-tick {
+  display: inline-block;
+  animation: judge-tick 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.judge-flash {
+  animation: judge-flash 1600ms ease-out;
+}
+
+/* Tally marks under a score level: how often this judge gave it before, in groups of five. */
+.tally {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 2px;
+  height: 7px;
+  pointer-events: none;
+}
+.tally i {
+  display: block;
+  width: 1px;
+  height: 7px;
+  background: currentColor;
+  opacity: 0.75;
+}
+.tally i:nth-child(5n + 6) {
+  margin-left: 3px;
+}
+.tally b {
+  font: 600 9px/7px var(--font-mono);
+  margin-left: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score-cell[aria-pressed="true"],
+  .judge-tick,
+  .judge-flash {
+    animation: none;
+  }
+}

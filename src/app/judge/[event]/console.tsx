@@ -5,9 +5,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { useFlip } from "@/components/use-flip";
 import { formatUtc, weightShares } from "@/lib/format";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
 import { Kbd, letters, paragraphs, ProjectLink, RecuseDialog } from "./judge-bits";
+import "./judge.css";
 
 // The judge console (DESIGN.md: the judge keys with autosave and "your ranking so
 // far"). Three panes that scroll on their own: the batch rail in the judge's seeded
@@ -47,6 +49,27 @@ function totalOf(criteria: Criterion[], values: Record<string, number | null>): 
   return criteria.length ? sum / weights : null;
 }
 
+/** The criterion to start on: the first one without a score, else the first. */
+function firstOpen(criteria: Criterion[], values: Record<string, number | null>): number {
+  const open = criteria.findIndex((c) => values[c.key] == null);
+  return open >= 0 ? open : 0;
+}
+
+/** Where a half-scored project can still land: the lowest and highest total the open criteria allow. */
+function landingRange(criteria: Criterion[], values: Record<string, number | null>): [number, number] | null {
+  if (!criteria.length || criteria.every((c) => values[c.key] == null)) return null;
+  let lo = 0;
+  let hi = 0;
+  let weights = 0;
+  for (const c of criteria) {
+    const v = values[c.key];
+    lo += c.weight * (v ?? c.scaleMin);
+    hi += c.weight * (v ?? c.scaleMax);
+    weights += c.weight;
+  }
+  return [lo / weights, hi / weights];
+}
+
 /** "(5 + 4 + 3) ÷ 3" with equal weights, "(2×5 + 1×4) ÷ 3" otherwise. */
 function formula(criteria: Criterion[], values: Record<string, number | null>): string | null {
   if (criteria.some((c) => values[c.key] == null)) return null;
@@ -81,13 +104,15 @@ export function JudgeConsoleView({
     reviewsRef.current = reviews;
   }, [reviews]);
   const [saveState, setSaveState] = useState<Record<string, SaveState>>({});
-  const [index, setIndex] = useState(() => {
+  const [start] = useState(() => {
     const asked = startProject ? items.findIndex((i) => i.project.id === startProject) : -1;
     if (asked >= 0) return asked;
     const pending = items.findIndex((i) => i.status === "pending");
     return pending >= 0 ? pending : 0;
   });
-  const [focus, setFocus] = useState(0);
+  const [index, setIndex] = useState(start);
+  // Open a half-scored project on the criterion still to do, not always on the first.
+  const [focus, setFocus] = useState(() => (items[start] ? firstOpen(criteria, items[start].values) : 0));
   const lettersOn = useSyncExternalStore(letters.subscribe, letters.get, () => true);
   const [keysOpen, setKeysOpen] = useState(false);
   const [recuseOpen, setRecuseOpen] = useState(false);
@@ -221,11 +246,12 @@ export function JudgeConsoleView({
     (to: number) => {
       if (!items.length) return;
       if (current) void flush(current.assignmentId);
-      setIndex(((to % items.length) + items.length) % items.length);
-      setFocus(0);
+      const next = ((to % items.length) + items.length) % items.length;
+      setIndex(next);
+      setFocus(firstOpen(criteria, reviewsRef.current[items[next]!.assignmentId]!.values));
       setNoteOpen(false);
     },
-    [current, flush, items.length],
+    [criteria, current, flush, items],
   );
 
   const saveAndNext = useCallback(() => {
@@ -318,6 +344,27 @@ export function JudgeConsoleView({
     });
   }, [criteria, items, reviews]);
 
+  // How often the judge gave each level of each criterion in their other finished
+  // reviews: drawn as tally marks under the levels, a check against drift and against
+  // squeezing every project into 3 and 4. Their own scores only, behind the same
+  // organizer switch as the ranking.
+  const usage = useMemo(() => {
+    const out: Record<string, number[]> = {};
+    for (const c of criteria) out[c.key] = Array.from({ length: c.scaleMax - c.scaleMin + 1 }, () => 0);
+    for (const i of items) {
+      if (i.assignmentId === current?.assignmentId) continue;
+      const r = reviews[i.assignmentId]!;
+      if (r.status === "recused" || totalOf(criteria, r.values) === null) continue;
+      for (const c of criteria) {
+        const v = r.values[c.key];
+        if (v != null && out[c.key]![v - c.scaleMin] !== undefined) out[c.key]![v - c.scaleMin]! += 1;
+      }
+    }
+    return out;
+  }, [criteria, current, items, reviews]);
+  const usedBefore = Object.values(usage).some((counts) => counts.some((n) => n > 0));
+  const rankingRef = useFlip<HTMLOListElement>(ranking);
+
   if (!current || !review) {
     return (
       <div className="mx-auto max-w-[680px] px-4 py-16">
@@ -336,6 +383,9 @@ export function JudgeConsoleView({
   const scaleMin = Math.min(...criteria.map((c) => c.scaleMin));
   const scaleMax = Math.max(...criteria.map((c) => c.scaleMax));
   const currentRank = ranking.find((r) => r.id === current.assignmentId);
+  const range = landingRange(criteria, review.values);
+  const openList = criteria.filter((c) => review.values[c.key] == null).map((c) => c.label);
+  const openLabels = openList.length > 1 ? `${openList.slice(0, -1).join(", ")} and ${openList.at(-1)}` : (openList[0] ?? "");
   const p = current.project;
   const body = paragraphs(p.description);
 
@@ -403,7 +453,10 @@ export function JudgeConsoleView({
                     <span className="block truncate text-14 font-medium">{i.project.title}</span>
                     <span className="block truncate text-12 text-ink-2">{i.project.trackName}</span>
                   </span>
-                  <span className={`text-13 tnum ${here ? "font-medium text-accent-ink" : "text-ink-2"}`}>
+                  <span
+                    key={t === null ? "open" : t.toFixed(2)}
+                    className={`text-13 tnum ${t !== null ? "judge-tick" : ""} ${here ? "font-medium text-accent-ink" : "text-ink-2"}`}
+                  >
                     {r.status === "recused" ? "recused" : here && t === null ? "scoring" : t === null ? "–" : t.toFixed(2)}
                   </span>
                 </button>
@@ -514,6 +567,16 @@ export function JudgeConsoleView({
             </h2>
             <SaveStatus state={state} />
           </div>
+          {data.showRanking && usedBefore && !readOnly ? (
+            <p className="mt-1 flex items-center gap-2 text-12 text-ink-3">
+              <span aria-hidden className="inline-flex h-2.5 items-end gap-[2px]">
+                <i className="block h-2.5 w-px bg-current" />
+                <i className="block h-2.5 w-px bg-current" />
+                <i className="block h-2.5 w-px bg-current" />
+              </span>
+              Tick marks count how often you gave each level before.
+            </p>
+          ) : null}
           {readOnly ? (
             <p className="mt-3 flex items-start gap-2 border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-13 text-flag">
               <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
@@ -543,22 +606,34 @@ export function JudgeConsoleView({
                     <span className="shrink-0 text-13 text-ink-2">weight {shares[ci]}</span>
                   </div>
                   <div className="mt-3 flex">
-                    {levels.map((level, li) => (
-                      <button
-                        key={level}
-                        type="button"
-                        aria-pressed={value === level}
-                        aria-label={`${level}${c.anchors[String(level)] ? `: ${c.anchors[String(level)]}` : ""}`}
-                        title={c.anchors[String(level)] ?? undefined}
-                        disabled={Boolean(readOnly)}
-                        onClick={() => score(ci, level)}
-                        className={`h-10 flex-1 border border-edge text-15 font-medium tnum -ml-px first:ml-0 hover:bg-raised focus-visible:z-10 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-on-primary disabled:cursor-not-allowed disabled:text-ink-3 disabled:aria-pressed:text-on-primary ${
-                          li === 0 ? "rounded-l-sm" : ""
-                        } ${li === levels.length - 1 ? "rounded-r-sm" : ""}`}
-                      >
-                        {level}
-                      </button>
-                    ))}
+                    {levels.map((level, li) => {
+                      const used = data.showRanking && !readOnly ? (usage[c.key]?.[li] ?? 0) : 0;
+                      const anchor = c.anchors[String(level)];
+                      return (
+                        <button
+                          key={level}
+                          type="button"
+                          aria-pressed={value === level}
+                          aria-label={`${level}${anchor ? `: ${anchor}` : ""}${used ? `. You gave ${level} ${used === 1 ? "once" : `${used} times`} before` : ""}`}
+                          title={anchor ?? undefined}
+                          disabled={Boolean(readOnly)}
+                          onClick={() => score(ci, level)}
+                          className={`score-cell h-11 flex-1 border border-edge text-15 font-medium tnum -ml-px first:ml-0 hover:bg-raised focus-visible:z-10 aria-pressed:z-[1] aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-on-primary disabled:cursor-not-allowed disabled:text-ink-3 disabled:aria-pressed:text-on-primary ${
+                            used ? "pb-2" : ""
+                          } ${li === 0 ? "rounded-l-sm" : ""} ${li === levels.length - 1 ? "rounded-r-sm" : ""}`}
+                        >
+                          {level}
+                          {used ? (
+                            <span aria-hidden className="tally">
+                              {Array.from({ length: Math.min(used, 10) }, (_, k) => (
+                                <i key={k} />
+                              ))}
+                              {used > 10 ? <b>+</b> : null}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
                   </div>
                   <p className="mt-2 min-h-[18px] text-13 text-ink-2">
                     {value !== null ? (
@@ -577,12 +652,29 @@ export function JudgeConsoleView({
               );
             })}
           </div>
-          <div className="flex items-baseline justify-between py-4">
+          <div className="flex min-h-[76px] items-center justify-between gap-4 py-4">
             <p className="text-15 font-semibold">Your total</p>
-            <p className="flex items-baseline gap-3">
-              <span className="font-mono text-12 text-ink-2">{formula(criteria, review.values) ? `${formula(criteria, review.values)} =` : ""}</span>
-              <span className="text-38 leading-none font-semibold tnum">{total === null ? "–" : total.toFixed(2)}</span>
-            </p>
+            {total !== null ? (
+              <p className="flex items-baseline gap-3">
+                <span className="font-mono text-12 text-ink-2">{formula(criteria, review.values)} =</span>
+                <span key={total.toFixed(2)} className="judge-tick text-38 leading-none font-semibold tnum">
+                  {total.toFixed(2)}
+                </span>
+              </p>
+            ) : range && !readOnly ? (
+              <p className="text-right text-13 text-ink-2">
+                {openLabels} still open
+                <br />
+                lands between{" "}
+                <span className="font-semibold text-ink tnum">
+                  {range[0].toFixed(2)} and {range[1].toFixed(2)}
+                </span>
+              </p>
+            ) : (
+              <p className="text-right text-13 text-ink-3">
+                {readOnly ? "Not finished" : `Appears when ${criteria.length === 1 ? "the criterion has" : "every criterion has"} a score`}
+              </p>
+            )}
           </div>
           {data.showRanking ? (
             <div className="rounded-sm border border-rule">
@@ -593,12 +685,13 @@ export function JudgeConsoleView({
               {ranking.length === 0 ? (
                 <p className="px-3 py-3 text-13 text-ink-2">Finish a review and it lands here, ranked by your own totals.</p>
               ) : (
-                <ol className="py-1">
+                <ol ref={rankingRef} className="py-1">
                   {ranking.map((r) => {
                     const mine = r.id === current.assignmentId;
                     return (
                       <li
                         key={r.id}
+                        data-flip={r.id}
                         className={`grid grid-cols-[22px_12px_minmax(0,1fr)_72px_40px] items-center gap-1 px-3 py-0.5 text-13 ${
                           mine ? "bg-accent-tint shadow-[inset_3px_0_0_var(--accent)]" : ""
                         }`}
@@ -620,11 +713,13 @@ export function JudgeConsoleView({
                         </span>
                         <span className="h-1 rounded-full bg-sunken">
                           <span
-                            className={`block h-1 rounded-full ${mine ? "bg-accent" : "bg-ink-3"}`}
+                            className={`block h-1 rounded-full transition-[width] duration-300 ease-out motion-reduce:transition-none ${mine ? "bg-accent" : "bg-ink-3"}`}
                             style={{ width: `${Math.max(4, ((r.total - scaleMin) / Math.max(1, scaleMax - scaleMin)) * 100)}%` }}
                           />
                         </span>
-                        <span className="text-right tnum">{r.total.toFixed(2)}</span>
+                        <span key={mine ? r.total.toFixed(2) : undefined} className={`text-right tnum ${mine ? "judge-tick font-semibold" : ""}`}>
+                          {r.total.toFixed(2)}
+                        </span>
                       </li>
                     );
                   })}
@@ -674,14 +769,15 @@ export function JudgeConsoleView({
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule px-6 py-3">
-          <Button size="lg" onClick={saveAndNext}>
+        <div className="flex items-center gap-2 border-t border-rule px-6 py-3">
+          <Button size="lg" onClick={saveAndNext} className="flex-1 justify-between">
             {readOnly ? "Open next" : "Save and open next"}
-            <kbd className="ml-2 rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">Ctrl ↵</kbd>
+            <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">Ctrl ↵</kbd>
           </Button>
           {readOnly ? null : (
-            <Button size="lg" variant="ghost" onClick={() => go(index + 1)}>
-              Skip for now
+            <Button size="lg" variant="ghost" onClick={() => go(index + 1)} aria-label="Skip for now" className="px-3">
+              Skip
+              {lettersOn ? <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">J</kbd> : null}
             </Button>
           )}
         </div>
