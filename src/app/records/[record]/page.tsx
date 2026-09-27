@@ -17,7 +17,7 @@ function load(id: string): RecordView {
   }
 }
 
-type JudgeRecord = { judging: { finishedReviews: number; tracks: string[] } };
+type JudgeRecord = { judging: { finishedReviews: number; tracks: string[]; answers?: number } };
 type ParticipantRecord = { project: { id: string; title: string; team: string; track: string | null; awards: string[] } };
 type Common = { id: string; kind: "judge" | "participant"; issuer: string; keyId: string; issuedAt: string; person: { name: string }; event: { name: string } };
 
@@ -63,8 +63,20 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
               <p className="max-w-[640px] font-serif text-20 leading-[1.5] text-ink-2 sm:text-24">
                 {rec.kind === "judge" && rec.judging ? (
                   <>
-                    reviewed <strong className="font-semibold text-ink">{rec.judging.finishedReviews}</strong>{" "}
-                    {rec.judging.finishedReviews === 1 ? "project" : "projects"} as a judge for{" "}
+                    {rec.judging.finishedReviews > 0 ? (
+                      <>
+                        reviewed <strong className="font-semibold text-ink">{rec.judging.finishedReviews}</strong>{" "}
+                        {rec.judging.finishedReviews === 1 ? "project" : "projects"}
+                        {rec.judging.answers ? " and " : " "}
+                      </>
+                    ) : null}
+                    {rec.judging.answers ? (
+                      <>
+                        gave <strong className="font-semibold text-ink">{rec.judging.answers}</strong> pairwise{" "}
+                        {rec.judging.answers === 1 ? "answer" : "answers"}{" "}
+                      </>
+                    ) : null}
+                    as a judge for{" "}
                     <strong className="font-semibold text-ink">{rec.event.name}</strong>
                     {rec.judging.tracks.length ? (
                       <>

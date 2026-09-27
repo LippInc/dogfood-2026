@@ -8,6 +8,8 @@ import { runMigrations } from "@/server/db/migrate";
 import { auditLog, comparisons, judgeTracks } from "@/server/db/schema";
 import { setJudgeTracks } from "@/server/dal/judges";
 import { acceptUnderReviewed, getPublishedResults, mergeDuplicate, publishResults, setJudgeOverride } from "@/server/dal/normalization";
+import { getRecord, issueOwnRecord } from "@/server/dal/records";
+import { authorize, type EventFacts } from "@/server/authz";
 import { getPairwiseRanking, getPairwiseState, pickPairwise, setJudgingMode, undoPairwise, PAIRWISE_METHOD } from "@/server/dal/pairwise";
 import { actorForToken } from "@/server/session";
 
@@ -154,5 +156,18 @@ describe("pairwise mode: publishing", () => {
     expect(rows.every((r) => r.score === null || (r.score > 0 && r.score < 1))).toBe(true);
     expect(outcome(() => pickPairwise(judge, "evt_01", { ...firstQuestion(judge), outcome: "left" }))).toMatchObject({ status: 403, code: "results_published" });
     expect(outcome(() => setJudgingMode(org, "evt_01", { mode: "scores", reason: "go back" }))).toEqual({ status: 409, code: "results_published" });
+    // The judge's signed record counts their answers.
+    const record = getRecord(issueOwnRecord(judge, "evt_01", "judge").id).envelope.record as { judging: { finishedReviews: number; answers?: number } };
+    expect(record.judging.answers).toBe(1);
+  });
+
+  it("a judge with pairwise answers and no finished review may have a record; with neither, not (known-bad)", () => {
+    const judge = checker("judge_a");
+    const event: EventFacts = { id: "evt_01", submissionsOpenAt: null, submissionsCloseAt: "2026-09-20T18:00:00.000Z", resultsPublishedAt: NOW };
+    const subject = (finishedReviews: number, answers: number) =>
+      authorize(judge, "record.issue_own", { kind: "record_subject", event, recordKind: "judge", finishedReviews, answers, onSubmittedTeam: false }, new Date(NOW));
+    expect(subject(0, 3).ok).toBe(true);
+    expect(subject(2, 0).ok).toBe(true);
+    expect(subject(0, 0)).toMatchObject({ ok: false, code: "no_finished_reviews" });
   });
 });

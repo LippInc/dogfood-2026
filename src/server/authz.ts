@@ -73,8 +73,8 @@ export type Resource =
   | { kind: "ballot"; event: EventFacts; modes: VoterKind[]; voter: { id: string; kind: VoterKind; voided: boolean } | null }
   /** comments on one project */
   | { kind: "project_comments"; event: EventFacts; projectId: string; submitted: boolean }
-  /** the actor's own signed record: finishedReviews and onSubmittedTeam are the actor's, in this event */
-  | { kind: "record_subject"; event: EventFacts; recordKind: "judge" | "participant"; finishedReviews: number; onSubmittedTeam: boolean };
+  /** the actor's own signed record: finishedReviews, answers (pairwise) and onSubmittedTeam are the actor's, in this event */
+  | { kind: "record_subject"; event: EventFacts; recordKind: "judge" | "participant"; finishedReviews: number; answers: number; onSubmittedTeam: boolean };
 
 export type Refusal = { ok: false; status: 401 | 403; code: string; message: string };
 export type Decision = { ok: true } | Refusal;
@@ -268,7 +268,9 @@ export function authorize(
       if (resource.kind !== "record_subject") return refuse("bad_resource", "This action needs an event and a kind of record.");
       if (resource.recordKind === "judge") {
         if (!hasRole(actor, resource.event.id, "judge")) return refuse("not_a_judge_here", "Only this event's judges get a judging record.");
-        if (resource.finishedReviews < 1) return refuse("no_finished_reviews", "A judging record needs at least one finished review.");
+        if (resource.finishedReviews < 1 && resource.answers < 1) {
+          return refuse("no_finished_reviews", "A judging record needs at least one finished review or pairwise answer.");
+        }
       } else if (!resource.onSubmittedTeam) {
         return refuse("not_on_a_submitted_team", "Certificates go to members of teams that submitted a project.");
       }

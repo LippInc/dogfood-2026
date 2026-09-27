@@ -5,7 +5,7 @@ import { competitionPlaces, ordinal } from "@/lib/places";
 import { appendAudit } from "../audit";
 import type { Actor, Resource } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignments, projects, RECORD_KINDS, signedRecords, teamMembers, teams, tracks, users, type RecordKind, type SignedEnvelope } from "../db/schema";
+import { assignments, comparisons, projects, RECORD_KINDS, signedRecords, teamMembers, teams, tracks, users, type RecordKind, type SignedEnvelope } from "../db/schema";
 import { NotFoundError } from "../errors";
 import { guardRead, mutate } from "../mutate";
 import { ensureSigningKey, publishedKeys, signRecord, verifyEnvelope, type PublishedKey, type Verification } from "../signing";
@@ -29,7 +29,7 @@ export function issuer(): string {
   return (process.env.PUBLIC_URL ?? "http://localhost:8080").replace(/\/+$/, "");
 }
 
-/** A judge's finished reviews in an event, and the tracks they covered. */
+/** A judge's finished reviews and pairwise answers (taken-back ones not counted) in an event, and the tracks they covered. */
 function judgeFacts(db: DbOrTx, eventId: string, userId: string) {
   const rows = db
     .select({ status: assignments.status, track: tracks.name })
@@ -39,7 +39,14 @@ function judgeFacts(db: DbOrTx, eventId: string, userId: string) {
     .where(and(eq(assignments.eventId, eventId), eq(assignments.judgeUserId, userId)))
     .all();
   const done = rows.filter((r) => r.status === "done");
-  return { finishedReviews: done.length, tracks: [...new Set(done.map((r) => r.track).filter((t): t is string => Boolean(t)))].sort() };
+  const answered = db
+    .select({ track: tracks.name })
+    .from(comparisons)
+    .innerJoin(tracks, eq(tracks.id, comparisons.trackId))
+    .where(and(eq(comparisons.eventId, eventId), eq(comparisons.judgeUserId, userId), isNull(comparisons.voidedAt)))
+    .all();
+  const covered = [...done.map((r) => r.track), ...answered.map((r) => r.track)].filter((t): t is string => Boolean(t));
+  return { finishedReviews: done.length, answers: answered.length, tracks: [...new Set(covered)].sort() };
 }
 
 /** The person's team in an event and its submitted project (the kept copy, if it was entered twice). */
@@ -90,7 +97,8 @@ function buildRecord(db: DbOrTx, event: EventRow, userId: string, kind: RecordKi
   };
   if (kind === "judge") {
     const j = judgeFacts(db, event.id, userId);
-    return { ...base, judging: { finishedReviews: j.finishedReviews, tracks: j.tracks } };
+    // A record from a scores-only event keeps its exact shape; pairwise answers add one field.
+    return { ...base, judging: { finishedReviews: j.finishedReviews, tracks: j.tracks, ...(j.answers ? { answers: j.answers } : {}) } };
   }
   const m = memberFacts(db, event.id, userId)!;
   return { ...base, project: { id: m.projectId, title: m.title, team: m.teamName, track: m.trackName ?? null, awards: awards(event, m.projectId) } };
@@ -118,7 +126,10 @@ function subject(tx: DbOrTx, event: EventRow, actor: Actor | null, kind: RecordK
     kind: "record_subject",
     event: eventFacts(event),
     recordKind: kind,
-    finishedReviews: actor ? judgeFacts(tx, event.id, actor.userId).finishedReviews : 0,
+    ...(() => {
+      const j = actor ? judgeFacts(tx, event.id, actor.userId) : null;
+      return { finishedReviews: j?.finishedReviews ?? 0, answers: j?.answers ?? 0 };
+    })(),
     onSubmittedTeam: actor ? memberFacts(tx, event.id, actor.userId) !== null : false,
   };
 }
@@ -159,15 +170,22 @@ export function issueAllRecords(actor: Actor | null, eventIdOrSlug: string): { j
     load: (tx) => ({ kind: "event", event: eventFacts(requireEvent(tx, eventId)) }),
     run: (tx) => {
       const event = requireEvent(tx, eventId);
+      // Judges with a finished review or a pairwise answer that was not taken back.
       const judgeIds = [
-        ...new Set(
-          tx
+        ...new Set([
+          ...tx
             .select({ userId: assignments.judgeUserId })
             .from(assignments)
             .where(and(eq(assignments.eventId, eventId), eq(assignments.status, "done")))
             .all()
             .map((r) => r.userId),
-        ),
+          ...tx
+            .select({ userId: comparisons.judgeUserId })
+            .from(comparisons)
+            .where(and(eq(comparisons.eventId, eventId), isNull(comparisons.voidedAt)))
+            .all()
+            .map((r) => r.userId),
+        ]),
       ];
       const memberIds = tx
         .select({ userId: teamMembers.userId })

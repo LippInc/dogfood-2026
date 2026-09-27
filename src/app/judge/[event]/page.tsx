@@ -85,6 +85,9 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
     : state.event.resultsPublishedAt
       ? `Results published ${formatUtc(state.event.resultsPublishedAt)}`
       : "Judging stays open until the organizers publish results";
+  const record = state.event.resultsPublishedAt ? myRecords(actor, state.event.slug).find((r) => r.kind === "judge") : undefined;
+  const answered = state.tracks.some((t) => t.answered > 0);
+  const recordButton = "inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium whitespace-nowrap hover:bg-raised";
   return (
     <WorkShell
       eventName={state.event.name}
@@ -93,6 +96,15 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
       tools={
         <>
           <span className="hidden text-13 whitespace-nowrap text-ink-2 xl:inline">{closes}</span>
+          {record ? (
+            <Link href={`/records/${record.id}`} className={recordButton}>
+              Your judging record
+            </Link>
+          ) : state.event.resultsPublishedAt && answered ? (
+            <form action={openOwnRecord.bind(null, state.event.slug, "judge")}>
+              <button className={recordButton}>Get your signed judging record</button>
+            </form>
+          ) : null}
           <KeysButton />
         </>
       }
