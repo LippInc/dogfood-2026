@@ -115,6 +115,24 @@ describe("standard errors of the normalization", () => {
     expect(fit.se!.leniency.get("a")).toBe(0);
   });
 
+  it("known-bad: with no project reviewed twice nothing measures the noise, so no ± is reported (not the floor)", () => {
+    const single: Obs[] = [
+      { judgeId: "j1", projectId: "p1", y: 4 },
+      { judgeId: "j1", projectId: "p2", y: 3 },
+      { judgeId: "j2", projectId: "p3", y: 5 },
+    ];
+    const n = normalize(single, { errors: true });
+    expect(n.measured).toBe(false);
+    expect(n.sigma2).toBe(0.05); // only the floor
+    expect(n.se).toBeNull();
+    expect(n.scores.get("p1")).toBeCloseTo(4, 12); // the scores themselves are unchanged
+
+    // positive control: one project reviewed twice measures W, and the ± comes back
+    const twice = normalize([...single, { judgeId: "j2", projectId: "p1", y: 3 }], { errors: true });
+    expect(twice.measured).toBe(true);
+    expect(twice.se?.scores.get("p1")).toBeGreaterThan(0);
+  });
+
   it("asks nothing extra unless errors are wanted", () => {
     const fit = normalize([{ judgeId: "a", projectId: "p", y: 3 }]);
     expect(fit.se).toBeNull();

@@ -38,6 +38,11 @@ export type Variance = {
   sigma2: number;
   /** σ̂² / β̂², or null when β̂² ≤ 0 (no leniency correction) */
   k: number | null;
+  /**
+   * false when no project has two reviews: W is then not measured, σ̂² is only the
+   * floor, and no ± is reported rather than the floor posing as a standard error
+   */
+  measured: boolean;
 };
 
 export type Fit = {
@@ -107,7 +112,7 @@ export function estimateVariance(obs: readonly Obs[]): Variance {
   }
   const W = wd ? wn / wd : 0;
   const sigma2 = Math.max(SIGMA2_FLOOR, W - beta2);
-  return { beta2, W, sigma2, k: beta2 > 0 ? sigma2 / beta2 : null };
+  return { beta2, W, sigma2, k: beta2 > 0 ? sigma2 / beta2 : null, measured: wd > 0 };
 }
 
 /** The Cholesky factor L of a symmetric positive-definite A (A = L Lᵀ). */
@@ -337,7 +342,8 @@ export function normalize(obs: readonly Obs[], opts: { fixedK?: number; errors?:
   const kUsed = opts.fixedK ?? variance.k;
   const fit = fitLeniency(obs, kUsed, opts.errors ?? false);
   const se = (m: Map<string, number>) => new Map([...m].map(([id, f]) => [id, Math.sqrt(variance.sigma2 * f)]));
-  return { ...variance, kUsed, ...fit, se: fit.factors ? { scores: se(fit.factors.scores), leniency: se(fit.factors.leniency) } : null };
+  const errors = fit.factors && variance.measured ? { scores: se(fit.factors.scores), leniency: se(fit.factors.leniency) } : null;
+  return { ...variance, kUsed, ...fit, se: errors };
 }
 
 /** Sample variance of the project means. */
