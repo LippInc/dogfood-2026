@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { getDb } from "../db/client";
 import { signedRecords, teams } from "../db/schema";
+import { plural } from "@/lib/format";
 import { guardRead } from "../mutate";
 import { latestAudit, type AuditLine } from "./audit-log";
 import { eventFacts, getGallery, requireEvent, type EventRow } from "./events";
@@ -78,7 +79,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
     {
       no: "05",
       name: "Assignment",
-      state: assigned ? `${judges.length} judges` : judges.length ? "not run yet" : "no judges yet",
+      state: assigned ? plural(judges.length, "judge") : judges.length ? "not run yet" : "no judges yet",
       open: 0,
       done: assigned > 0,
     },
