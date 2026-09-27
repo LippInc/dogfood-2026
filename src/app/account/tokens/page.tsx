@@ -101,9 +101,16 @@ export default async function TokensPage() {
             </p>
           </>
         ) : (
-          <div className="mt-4 rounded-sm border border-dashed border-edge px-5 py-8 text-center">
-            <p className="text-15 font-medium">No tokens yet</p>
-            <p className="mt-1 text-14 text-ink-2">Make one above for each script that talks to the API; it is shown to you once.</p>
+          <div className="mt-4 flex items-start gap-4 rounded-sm border border-dashed border-edge px-5 py-6">
+            {/* where the first token's mark will sit */}
+            <span className="size-9 shrink-0 rounded-xs border border-dashed border-edge" aria-hidden="true" />
+            <span>
+              <span className="block text-15 font-medium">No tokens yet</span>
+              <span className="mt-1 block max-w-[560px] text-14 text-ink-2">
+                Make one above for each script that talks to the API. Each gets a row here with its mark, drawn from its first characters, and shows when it was
+                last used and when it expires.
+              </span>
+            </span>
           </div>
         )}
       </section>
