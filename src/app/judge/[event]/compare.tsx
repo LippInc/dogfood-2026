@@ -168,6 +168,8 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
   const left = questionsLeft(track);
   const canAnswer = !busy && !readOnly;
   const nextTrack = data.tracks.find((t) => t.trackId !== track.trackId && t.current);
+  // once answers are final, the projects this judge's list never reached
+  const unplaced = readOnly ? track.projects.filter((p) => !track.list.some((x) => x.id === p.id)) : [];
   const pickTrack = (id: string) => {
     setTrackId(id);
     setStatus({ kind: "idle" });
@@ -428,6 +430,23 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                       </li>
                     ))}
                   </ol>
+                  {unplaced.length ? (
+                    // The rest of the track, drawn where the list stops: the same cells, dashed and faded, with no place.
+                    <>
+                      <p className="mt-5 text-13 text-ink-2">Not placed before answers closed</p>
+                      <ul aria-label="Not placed before answers closed" className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3">
+                        {unplaced.map((p) => (
+                          <li key={p.id} className="min-w-0 overflow-hidden rounded-sm border border-dashed border-edge">
+                            <div className="relative aspect-[3/1] overflow-hidden border-b border-dashed border-edge opacity-50">{faces[p.id]?.large}</div>
+                            <div className="px-3 pt-2 pb-2.5">
+                              <span className="block truncate text-14 text-ink-2">{p.title}</span>
+                              <span className="block truncate text-12 text-ink-2">{p.teamName}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : null}
                 </figure>
               ) : null}
               {nextTrack && !readOnly ? (
