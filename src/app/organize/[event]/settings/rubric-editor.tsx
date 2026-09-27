@@ -6,10 +6,14 @@ import { RowsEditor, type RowField } from "@/components/rows-editor";
 type Criterion = { id?: string; label: string; prompt: string; weight: number };
 type Row = Record<string, string | number | boolean | undefined> & { id?: string };
 
+/**
+ * Weight sits beside the criterion's name, as Fig. 01 captions it ("Functionality × 1"). On a phone
+ * that keeps name and weight on one line and gives the judge's question the full width under them.
+ */
 const FIELDS: RowField[] = [
-  { key: "label", label: "Criterion", type: "text", width: "w-40" },
-  { key: "prompt", label: "Question for the judge", type: "text" },
+  { key: "label", label: "Criterion", type: "text", width: "grow basis-32" },
   { key: "weight", label: "Weight", type: "number", width: "w-20" },
+  { key: "prompt", label: "Question for the judge", type: "text", width: "basis-full max-lg:pl-7" },
 ];
 
 /**
@@ -59,7 +63,7 @@ export function RubricEditor({ saved, locked, lockedHint }: { saved: Criterion[]
         initial={saved}
         blank={{ label: "", prompt: "", weight: 1 }}
         addLabel="Add a criterion"
-        grid="lg:grid-cols-[20px_minmax(0,11rem)_minmax(0,1fr)_5rem_92px]"
+        grid="lg:grid-cols-[20px_minmax(0,11rem)_5rem_minmax(0,1fr)_92px]"
         locked={locked}
         lockedHint={lockedHint}
         fields={FIELDS}

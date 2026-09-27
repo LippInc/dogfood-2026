@@ -171,7 +171,7 @@ export function RowsEditor({
           type="button"
           onClick={() => setRows((r) => [...r, { ...blank }])}
           disabled={disabled || locked}
-          className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-dashed border-edge px-3 text-13 text-ink-2 hover:bg-raised hover:text-ink disabled:opacity-40"
+          className={`${grid ? "shrink-0 whitespace-nowrap " : ""}inline-flex h-8 items-center gap-1.5 rounded-sm border border-dashed border-edge px-3 text-13 text-ink-2 hover:bg-raised hover:text-ink disabled:opacity-40`}
         >
           <Plus className="size-3.5" aria-hidden /> {addLabel}
         </button>
