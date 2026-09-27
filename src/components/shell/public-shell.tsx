@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Menu } from "lucide-react";
+import { DemoTour } from "@/components/demo-tour";
 import { ModeToggle } from "@/components/mode-toggle";
 import { eventPhase, idLabel, type EventTimes } from "@/lib/format";
 import type { NavLink } from "@/server/dal";
@@ -149,6 +150,7 @@ export function PublicShell({
           ))}
         </p>
       </div>
+      <DemoTour eventSlug={event.slug} />
       <main id="main" className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-8 xl:px-16 print:p-0">
         {children}
       </main>

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DEMO_STEPS } from "@/components/demo-tour";
+import { Face } from "@/components/face";
 import { PlainShell } from "@/components/shell/plain-shell";
 import { demoIdentities } from "@/server/dal";
 import { demoSignIn } from "./actions";
@@ -7,6 +9,11 @@ import { PasswordForm } from "./password-form";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Sign in" };
+
+const WHAT: Record<string, string> = {
+  ...Object.fromEntries(DEMO_STEPS.map((s) => [s.label, s.what])),
+  judge_b: "A second judge on other projects: the same console, and a 403 if it asks for Judge A's scores.",
+};
 
 const LABEL: Record<string, string> = {
   organizer: "Organizer",
@@ -21,7 +28,7 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
   const demo = demoIdentities();
   return (
     <PlainShell>
-      <div className="grid gap-12 md:grid-cols-2">
+      <div className="grid gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <section aria-labelledby="signin-title">
           <h1 id="signin-title" className="font-display text-38">
             Sign in
@@ -50,15 +57,19 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
             <ul className="mt-5 divide-y divide-rule border-y border-rule">
               {demo.map((d) => (
                 <li key={d.label}>
-                  <form action={demoSignIn} className="flex items-center gap-4 py-3">
+                  <form action={demoSignIn} className="tile grid grid-cols-[64px_minmax(0,1fr)] items-start gap-x-4 gap-y-3 py-4 sm:grid-cols-[64px_minmax(0,1fr)_auto] sm:items-center">
                     <input type="hidden" name="label" value={d.label} />
-                    <div className="min-w-0 flex-1">
+                    <span className="overflow-hidden rounded-xs border border-rule">
+                      <Face id={d.userId} cols={32} rows={18} />
+                    </span>
+                    <div className="min-w-0">
                       <p className="text-15 font-medium">{d.name}</p>
                       <p className="text-13 text-ink-3">
                         {LABEL[d.label]} · {d.detail}
                       </p>
+                      {WHAT[d.label] ? <p className="mt-1 text-13 text-ink-2">{WHAT[d.label]}</p> : null}
                     </div>
-                    <button className="h-10 shrink-0 rounded-sm border border-edge px-4 text-14 hover:bg-raised">
+                    <button className="col-start-2 h-10 justify-self-start rounded-sm border border-edge px-4 text-14 hover:bg-raised sm:col-start-3">
                       Sign in as {LABEL[d.label]}
                     </button>
                   </form>
