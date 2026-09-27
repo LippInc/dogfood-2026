@@ -6,6 +6,7 @@ import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
+import { createEvent } from "@/server/dal/organize";
 import { HttpError } from "@/server/errors";
 import { addOrganizer, listOrganizers, removeOrganizer } from "@/server/dal/organizers";
 import type { Actor } from "@/server/authz";
@@ -88,5 +89,47 @@ describe("co-organizers", () => {
   it("known-bad: no session is 401", () => {
     expect(refusal(() => addOrganizer(null, "evt_01", { email: "x@example.org" })).status).toBe(401);
     expect(refusal(() => listOrganizers(null, "evt_01")).status).toBe(401);
+  });
+});
+
+describe("an organizer reaches only accounts with no place in an event they do not run", () => {
+  /** A second event, run by an administrator and by X, an organizer who is not one. */
+  function secondEventWithX(): { id: string; x: Actor } {
+    const second = createEvent(actor("usr_organizer"), {
+      details: { name: "Second Hack", submissionsCloseAt: "2026-12-01T18:00:00Z" },
+      tracks: [{ name: "Open" }],
+      prizes: [],
+    });
+    const add = h.sqlite.prepare("INSERT INTO users (id, email, name, password_hash, is_admin, created_at) VALUES (?, ?, ?, NULL, 0, ?)");
+    add.run("usr_x", "x@example.org", "Organizer X", NOW);
+    add.run("usr_fresh", "fresh@example.org", "Fresh Account", NOW);
+    addOrganizer(actor("usr_organizer"), second.id, { email: "x@example.org" });
+    return { id: second.id, x: actor("usr_x") };
+  }
+
+  it("known-bad: X cannot make a judge of the fixture event an organizer of X's event (403, audited, no role)", () => {
+    const { id, x } = secondEventWithX();
+    const j = judge();
+    const before = audits("authz.refused");
+    const err = refusal(() => addOrganizer(x, id, { email: j.email }));
+    expect([err.status, err.code]).toEqual([403, "account_in_other_event"]);
+    expect(audits("authz.refused")).toBe(before + 1);
+    const row = h.sqlite.prepare("SELECT after FROM audit_log WHERE action = 'authz.refused' ORDER BY id DESC LIMIT 1").get() as { after: string };
+    expect(JSON.parse(row.after)).toMatchObject({ attempted: "organizer.add", code: "account_in_other_event" });
+    expect(h.sqlite.prepare("SELECT count(*) AS n FROM user_roles WHERE user_id = ? AND event_id = ?").get(j.id, id)).toEqual({ n: 0 });
+  });
+
+  it("positive controls: X adds an account with no other place; an organizer of both events, and the administrator, reach the fixture's judges", () => {
+    const { id, x } = secondEventWithX();
+    expect(addOrganizer(x, id, { email: "fresh@example.org" })).toEqual({ userId: "usr_fresh", added: true });
+    const [j1, j2] = h.sqlite
+      .prepare("SELECT DISTINCT u.id AS id, u.email AS email FROM users u JOIN user_roles r ON r.user_id = u.id WHERE r.event_id = 'evt_01' AND r.role = 'judge' ORDER BY u.email LIMIT 2")
+      .all() as { id: string; email: string }[];
+    // X, once also an organizer of the fixture event, reaches its judges
+    addOrganizer(actor("usr_organizer"), "evt_01", { email: "x@example.org" });
+    expect(addOrganizer(actor("usr_x"), id, { email: j1!.email })).toEqual({ userId: j1!.id, added: true });
+    // the administrator reaches everyone, even a judge of an event they do not run
+    h.sqlite.prepare("DELETE FROM user_roles WHERE user_id = 'usr_organizer' AND event_id = 'evt_01'").run();
+    expect(addOrganizer(actor("usr_organizer"), id, { email: j2!.email })).toEqual({ userId: j2!.id, added: true });
   });
 });

@@ -7,7 +7,7 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { countWithoutPassword, currentActor, EXPORT_FILES, listDeliveries, listWebhooks } from "@/server/dal";
+import { countBeyondReach, countWithoutPassword, currentActor, EXPORT_FILES, listDeliveries, listWebhooks } from "@/server/dal";
 import { CopyButton } from "../judges/forms";
 import { retry, sendTest, toggleWebhook } from "./actions";
 import { AddWebhookForm, ClaimLinksForm, RotateSecretForm } from "./forms";
@@ -29,6 +29,7 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
   const origin = process.env.PUBLIC_URL ?? "http://localhost:8080";
   const snippet = `<script src="${origin}/embed.js" data-event="${event.slug}" async></script>`;
   const waiting = countWithoutPassword(actor, key);
+  const elsewhere = countBeyondReach(actor, key);
 
   return (
     <WorkShell
@@ -200,7 +201,7 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
               People who came in through an import have an account but no password. The portal sends no mail: make each of them a personal link
               here and send it; it lets that one person set a password, once, within 14 days.
             </p>
-            <ClaimLinksForm eventSlug={event.slug} waiting={waiting} />
+            <ClaimLinksForm eventSlug={event.slug} waiting={waiting} elsewhere={elsewhere} />
           </div>
         </section>
 

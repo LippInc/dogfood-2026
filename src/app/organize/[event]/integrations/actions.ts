@@ -62,17 +62,18 @@ export async function retry(slug: string, webhookId: string, deliveryId: string)
 
 export type ClaimResult = ActionResult & { links?: ClaimLink[] };
 
-/** Personal links for everyone in the event without a password; shown once. */
+/** Personal links for the people in the event without a password whose every event this organizer runs; shown once. */
 export async function claimLinksAction(_prev: ClaimResult, form: FormData): Promise<ClaimResult> {
   const slug = String(form.get("event") ?? "");
   try {
-    const { links } = makeClaimLinks(await currentActor(), slug);
+    const { links, elsewhere } = makeClaimLinks(await currentActor(), slug);
     refresh(slug);
-    return {
-      ok: true,
-      message: links.length ? `${links.length} personal links. Copy or download them now: they are shown only this once.` : "Everyone in this event has a password already.",
-      links,
-    };
+    const made = links.length ? `${links.length} personal links. Copy or download them now: they are shown only this once.` : elsewhere.length ? "No links made." : "Everyone in this event has a password already.";
+    const names = elsewhere.slice(0, 5).map((p) => p.name).join(", ") + (elsewhere.length > 5 ? ` and ${elsewhere.length - 5} more` : "");
+    const left = elsewhere.length
+      ? ` ${names} also ${elsewhere.length === 1 ? "belongs" : "belong"} to an event you do not run, so only the portal's administrator can send ${elsewhere.length === 1 ? "that person" : "them"} a password-reset link.`
+      : "";
+    return { ok: true, message: made + left, links };
   } catch (err) {
     return actionError(err);
   }

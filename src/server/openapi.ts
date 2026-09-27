@@ -81,7 +81,7 @@ export const OPERATIONS: Operation[] = [
     ok: 201,
     also: [409, 413],
   },
-  { method: "POST", path: "/api/events/{event}/claims", tag: "Accounts", summary: "Personal links for everyone in the event without a password, returned once", access: "organizer", ok: 201 },
+  { method: "POST", path: "/api/events/{event}/claims", tag: "Accounts", summary: "Personal links, returned once, for the people in the event without a password whose every event you run; elsewhere lists the others, whom only an administrator's reset link reaches", access: "organizer", ok: 201 },
   { method: "GET", path: "/api/claims/{token}", tag: "Accounts", summary: "Whose personal link this is (410 once used or expired)", access: "anyone", also: [410] },
   { method: "POST", path: "/api/claims/{token}", tag: "Accounts", summary: "Set your password with your personal link and sign in", access: "anyone", body: In.ClaimInput, also: [410] },
   { method: "POST", path: "/api/password-resets", tag: "Accounts", summary: "A one-time link for an account to set a new password, returned once (it works once, within a day)", access: "administrator", body: In.ResetLinkInput, ok: 201, also: [404, 409], note: "The four demo identities have no password to reset: 409 demo_account." },
@@ -110,7 +110,7 @@ export const OPERATIONS: Operation[] = [
 
   // Judging
   { method: "GET", path: "/api/events/{event}/organizers", tag: "Events", summary: "The event's organizers", access: "organizer" },
-  { method: "POST", path: "/api/events/{event}/organizers", tag: "Events", summary: "Make an existing account an organizer too (201 added, 200 already one)", access: "organizer", body: In.OrganizerInput, ok: 201, also: [404] },
+  { method: "POST", path: "/api/events/{event}/organizers", tag: "Events", summary: "Make an existing account an organizer too (201 added, 200 already one; 403 account_in_other_event when it has a place in an event you do not run, unless you are an administrator)", access: "organizer", body: In.OrganizerInput, ok: 201, also: [404] },
   { method: "DELETE", path: "/api/events/{event}/organizers/{user}", tag: "Events", summary: "Remove an organizer; the last one stays", access: "organizer", also: [404, 409] },
   { method: "GET", path: "/api/events/{event}/judges", tag: "Judging", summary: "Judges, invitations, tracks and loads", access: "organizer" },
   { method: "POST", path: "/api/events/{event}/judges/invites", tag: "Judging", summary: "Invite a judge: returns the invitation link once", access: "organizer", body: In.InviteInput, ok: 201 },

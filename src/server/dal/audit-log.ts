@@ -299,7 +299,9 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" revoked the API token "), { text: String(after.name ?? target), mono: true }];
     case "claims.issue": {
       const links = Number(after.links ?? 0);
-      return [actor, t(` made ${links} set-a-password ${links === 1 ? "link" : "links"} for people who came in through an import`)];
+      const elsewhere = Number(after.elsewhere ?? 0);
+      const left = elsewhere ? `; ${elsewhere} left for the administrator, who also belong to an event this organizer does not run` : "";
+      return [actor, t(` made ${links} set-a-password ${links === 1 ? "link" : "links"} for people who came in through an import${left}`)];
     }
     case "user.claim":
       return [actor, t(" set a password with their link")];

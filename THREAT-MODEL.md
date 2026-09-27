@@ -30,6 +30,12 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 **What is not, in pairwise mode:** collusion detection, again. The coin-flip flag rewards agreeing with the panel, so two judges who trade identical answers read as two judges who agree well; only their receipts side by side show it.
 
+## One event's organizer reaching into another
+
+**What is built:** accounts are shared by all the portal's events, and the two ways an organizer can act on someone's account without asking them follow one rule: an organizer reaches only people with no place (a role or a team seat) in an event that organizer does not run. Making someone a co-organizer by email is otherwise refused (403, audited), and the personal set-password links for imported people are made only for such people and checked again when a link is used, so a link dies if its person has joined another event since. An administrator reaches everyone, as they can send anyone a reset link anyway. Without the rule, one event's organizer could make another event's not-yet-claimed judge a co-organizer and then set that judge's password (`tests/organizers.test.ts`, `tests/import-claims.test.ts`).
+
+**What is not:** consent inside an organizer's own reach. An organizer can still make an account with no other place a co-organizer without asking it, and an administrator can still bring anyone into any event; neither sets a password the person already has.
+
 ## Tactical pairwise answers
 
 **What is built:** a judge cannot choose their questions. Which project sits on the left is fixed per judge and pair by a hash, and the next question is whatever the replay of their own answers produces, so there is no hunting for a favourable pair. The two pulls, of the left side and of the project just opened, are fitted from the event's own answers and taken out of every strength, so neither the side a project was shown on nor being the one just opened moves its place on average. "Too close to call" is half a win each way and places the project right below the one it tied with; it never says one project is better. A judge whose answers agree with the rest of the panel no better than coin flips, or who calls "too close to call" more than half the time, is flagged to the organizer: in the Monte Carlo that flags 56.7 % of judges answering at random and 9.1 % of honest ones, so a flag is a question for the organizer (keep the judge or leave them out, with a reason), never an automatic exclusion.

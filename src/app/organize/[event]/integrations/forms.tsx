@@ -100,7 +100,7 @@ function csvCell(v: string) {
   return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-export function ClaimLinksForm({ eventSlug, waiting }: { eventSlug: string; waiting: number }) {
+export function ClaimLinksForm({ eventSlug, waiting, elsewhere }: { eventSlug: string; waiting: number; elsewhere: number }) {
   const [state, form, pending] = useFormAction(claimLinksAction, noLinks);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const links = state.links ?? [];
@@ -123,6 +123,9 @@ export function ClaimLinksForm({ eventSlug, waiting }: { eventSlug: string; wait
         </Button>
         <span className="text-14 text-ink-2">
           {waiting === 1 ? "1 person has" : `${waiting} people have`} no password yet. A new batch replaces the links not used so far.
+          {elsewhere
+            ? ` ${elsewhere === 1 ? "1 more also belongs" : `${elsewhere} more also belong`} to an event you do not run: only the portal's administrator can send ${elsewhere === 1 ? "that person" : "them"} a password-reset link.`
+            : null}
         </span>
       </form>
       {state.message ? (

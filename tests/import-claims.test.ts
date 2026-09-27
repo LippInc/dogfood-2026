@@ -20,7 +20,8 @@ vi.mock("next/headers", () => ({
 
 const { importEventFile } = await import("@/server/dal/imports");
 const { exportFile } = await import("@/server/dal/exports");
-const { claimAccount, countWithoutPassword, describeClaim, makeClaimLinks } = await import("@/server/dal/claims");
+const { claimAccount, countBeyondReach, countWithoutPassword, describeClaim, makeClaimLinks } = await import("@/server/dal/claims");
+const { addOrganizer } = await import("@/server/dal/organizers");
 const { signUp } = await import("@/server/dal/accounts");
 const { signInWithPassword } = await import("@/server/dal/auth");
 
@@ -448,5 +449,71 @@ describe("importing onto what this portal already holds", () => {
     expect(countsOf(ha)).toEqual(before);
     expect(nOf(ha, "SELECT count(*) AS n FROM projects WHERE id = 'prj_99'")).toBe(0);
     expect(imports()).toBe(importsBefore + 1); // the passing re-import's row only: the refused one rolled back
+  });
+});
+
+describe("claim links reach only the people of the events the organizer runs", () => {
+  const TWO = "evt_02";
+  const X = { id: "usr_org_two", email: "org-two@example.org", name: "Second Event Organizer" };
+
+  /** A second event with its own people, run by X, an organizer who is not an administrator. */
+  function secondEventRunByX(): Actor {
+    const file = JSON.parse(exportFile(organizer(), EVENT, "fixtures.json").body) as FixtureFile;
+    importEventFile(organizer(), {
+      ...file,
+      event: { ...file.event, id: TWO, name: "Second Hack 2026" },
+      judges: file.judges.map((j) => ({ ...j, email: `two.${j.email}` })),
+      teams: file.teams.map((t) => ({ ...t, members: t.members.map((m) => `two.${m}`) })),
+    });
+    ha.sqlite
+      .prepare("INSERT INTO users (id, email, name, password_hash, is_admin, created_at) VALUES (?, ?, ?, NULL, 0, ?)")
+      .run(X.id, X.email, X.name, NOW);
+    addOrganizer(organizer(), TWO, { email: X.email });
+    return actorIn(ha, X.id);
+  }
+
+  /** A judge of the fixture event with no password yet: the account the takeover wants. */
+  const fixtureJudge = () =>
+    one<{ id: string; email: string }>(
+      ha,
+      "SELECT u.id, u.email FROM users u JOIN user_roles r ON r.user_id = u.id " +
+        "WHERE r.event_id = ? AND r.role = 'judge' AND u.password_hash IS NULL ORDER BY u.email LIMIT 1",
+      EVENT,
+    )!;
+
+  it("an organizer gets no set-password link for someone who also belongs to an event they do not run", () => {
+    const x = secondEventRunByX();
+    const judge = fixtureJudge();
+    // only an administrator can bring another event's judge in now (organizers.test.ts); the claim rule holds on its own too
+    expect(addOrganizer(organizer(), TWO, { email: judge.email })).toMatchObject({ added: true });
+
+    const { links, elsewhere } = makeClaimLinks(x, TWO);
+    expect(links.map((l) => l.email)).not.toContain(judge.email);
+    // left out: the judge, and the demo administrator who imported the second event (no password on purpose)
+    expect(elsewhere.map((p) => p.email)).toEqual([judge.email, "organizer@example.org"].sort());
+    expect(nOf(ha, "SELECT count(*) AS n FROM account_claims WHERE user_id IN (?, 'usr_organizer')", judge.id)).toBe(0);
+    expect(countWithoutPassword(x, TWO)).toBe(links.length);
+    expect(countBeyondReach(x, TWO)).toBe(2);
+
+    // positive controls: the second event's own people still get links, and an administrator reaches everyone
+    expect(links.length).toBeGreaterThan(0);
+    expect(links.every((l) => l.email.startsWith("two."))).toBe(true);
+    // an administrator reaches everyone (they can send anyone a reset link anyway), even a judge of an event they do not run
+    ha.sqlite.prepare("DELETE FROM user_roles WHERE user_id = 'usr_organizer' AND event_id = ?").run(EVENT);
+    expect(makeClaimLinks(organizer(), TWO).links.map((l) => l.email)).toContain(judge.email);
+  });
+
+  it("a link made while the person was the organizer's alone stops working once they also belong to another event", async () => {
+    const x = secondEventRunByX();
+    const [first, second] = makeClaimLinks(x, TWO).links;
+    addOrganizer(organizer(), EVENT, { email: first!.email }); // the fixture event takes the first person on too
+
+    expectHttpError(() => describeClaim(tokenOf(first!)), 410, "claim_out_of_reach");
+    await expectHttpErrorAsync(() => claimAccount(tokenOf(first!), { password: "a long enough password" }), 410, "claim_out_of_reach");
+    expect(nOf(ha, "SELECT count(*) AS n FROM users WHERE email = ? AND password_hash IS NULL", first!.email)).toBe(1);
+
+    // positive control: a link for someone still only in the second event works
+    const user = one<{ id: string }>(ha, "SELECT id FROM users WHERE email = ?", second!.email)!;
+    expect(await claimAccount(tokenOf(second!), { password: "a long enough password" })).toEqual({ userId: user.id });
   });
 });

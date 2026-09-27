@@ -39,18 +39,57 @@ function passwordless(db: DbOrTx, eventId: string) {
     .all();
 }
 
-/** How many people in the event have no password yet (organizers only). */
+/**
+ * The events where this person has a role or a team seat that the issuer does not
+ * organize. A link sets the password of an account the whole portal shares, so an
+ * organizer gets one, and it works, only while this is empty: otherwise an organizer of
+ * one event could make another event's judge a co-organizer (or import them) and sign in
+ * as that judge. An administrator, who can send anyone a reset link anyway, reaches
+ * everyone.
+ */
+function beyondReach(db: DbOrTx, personId: string, issuerId: string): string[] {
+  const issuer = db.select({ isAdmin: users.isAdmin }).from(users).where(eq(users.id, issuerId)).get();
+  if (issuer?.isAdmin) return [];
+  const runs = new Set(
+    db
+      .select({ eventId: userRoles.eventId })
+      .from(userRoles)
+      .where(and(eq(userRoles.userId, issuerId), eq(userRoles.role, "organizer")))
+      .all()
+      .map((r) => r.eventId),
+  );
+  const theirs = new Set([
+    ...db.select({ eventId: teamMembers.eventId }).from(teamMembers).where(eq(teamMembers.userId, personId)).all().map((r) => r.eventId),
+    ...db.select({ eventId: userRoles.eventId }).from(userRoles).where(eq(userRoles.userId, personId)).all().map((r) => r.eventId),
+  ]);
+  return [...theirs].filter((id) => !runs.has(id));
+}
+
+/** How many people in the event without a password this organizer can make links for. */
 export function countWithoutPassword(actor: Actor | null, eventIdOrSlug: string): number {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
   guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
-  return passwordless(db, event.id).filter((p) => p.id !== actor!.userId).length;
+  return passwordless(db, event.id).filter((p) => p.id !== actor!.userId && !beyondReach(db, p.id, actor!.userId).length).length;
+}
+
+/** How many more also belong to an event this organizer does not run: only an administrator's reset link reaches them. */
+export function countBeyondReach(actor: Actor | null, eventIdOrSlug: string): number {
+  const db = getDb();
+  const event = requireEvent(db, eventIdOrSlug);
+  guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
+  return passwordless(db, event.id).filter((p) => p.id !== actor!.userId && beyondReach(db, p.id, actor!.userId).length > 0).length;
 }
 
 export type ClaimLink = { email: string; name: string; path: string };
+export type ClaimSkip = { email: string; name: string };
 
-/** A fresh personal link for each person in the event without a password; returned this once. */
-export function makeClaimLinks(actor: Actor | null, eventIdOrSlug: string): { links: ClaimLink[] } {
+/**
+ * A fresh personal link for each person in the event without a password; returned this
+ * once. `elsewhere` lists the people left out because they also belong to an event the
+ * asking organizer does not run.
+ */
+export function makeClaimLinks(actor: Actor | null, eventIdOrSlug: string): { links: ClaimLink[]; elsewhere: ClaimSkip[] } {
   const { id: eventId } = requireEvent(getDb(), eventIdOrSlug);
   const now = nowIso();
   const expires = new Date(Date.parse(now) + CLAIM_DAYS * 86_400_000).toISOString();
@@ -60,28 +99,41 @@ export function makeClaimLinks(actor: Actor | null, eventIdOrSlug: string): { li
     load: (tx) => ({ kind: "event", event: eventFacts(requireEvent(tx, eventId)) }),
     run: (tx) => {
       const links: ClaimLink[] = [];
+      const elsewhere: ClaimSkip[] = [];
       // everyone but the organizer asking (a demo organizer has no password on purpose)
       for (const p of passwordless(tx, eventId).filter((x) => x.id !== actor!.userId)) {
+        if (beyondReach(tx, p.id, actor!.userId).length) {
+          elsewhere.push({ email: p.email, name: p.name });
+          continue;
+        }
         tx.delete(accountClaims).where(and(eq(accountClaims.userId, p.id), isNull(accountClaims.usedAt))).run();
         const token = newSecret(24);
         tx.insert(accountClaims).values({ tokenHash: sha256(token), userId: p.id, eventId, createdBy: actor!.userId, createdAt: now, expiresAt: expires }).run();
         links.push({ email: p.email, name: p.name, path: `/claim/${token}` });
       }
-      return { result: { links }, audit: links.length ? { action: "claims.issue", eventId, targetType: "event", targetId: eventId, after: { links: links.length } } : null };
+      return {
+        result: { links, elsewhere },
+        audit: links.length ? { action: "claims.issue", eventId, targetType: "event", targetId: eventId, after: { links: links.length, elsewhere: elsewhere.length } } : null,
+      };
     },
   });
 }
 
+const OUT_OF_REACH =
+  "This link no longer works: the account now also belongs to an event that the organizer who sent it does not run. Ask the portal's administrator for a password-reset link.";
+
 function openClaim(token: string) {
   const db = getDb();
   const row = db
-    .select({ tokenHash: accountClaims.tokenHash, userId: accountClaims.userId, eventId: accountClaims.eventId, usedAt: accountClaims.usedAt, expiresAt: accountClaims.expiresAt })
+    .select({ tokenHash: accountClaims.tokenHash, userId: accountClaims.userId, eventId: accountClaims.eventId, createdBy: accountClaims.createdBy, usedAt: accountClaims.usedAt, expiresAt: accountClaims.expiresAt })
     .from(accountClaims)
     .where(eq(accountClaims.tokenHash, sha256(token)))
     .get();
   if (!row) throw new NotFoundError("Link");
   if (row.usedAt) throw new HttpError(410, "claim_used", "This link was used already. Sign in with the password you set.");
   if (Date.parse(row.expiresAt) <= Date.now()) throw new HttpError(410, "claim_expired", "This link has expired. Ask the organizers for a new one.");
+  // checked again when the link is used: the person may have joined another event since it was made
+  if (beyondReach(db, row.userId, row.createdBy).length) throw new HttpError(410, "claim_out_of_reach", OUT_OF_REACH);
   return row;
 }
 
@@ -109,6 +161,8 @@ export async function claimAccount(token: string, body: unknown): Promise<{ user
       .where(and(eq(accountClaims.tokenHash, row.tokenHash), isNull(accountClaims.usedAt), gt(accountClaims.expiresAt, now)))
       .run();
     if (used.changes !== 1) throw new HttpError(410, "claim_used", "This link was used already. Sign in with the password you set.");
+    // again inside the transaction, so a role gained between the check above and this write counts too
+    if (beyondReach(tx, row.userId, row.createdBy).length) throw new HttpError(410, "claim_out_of_reach", OUT_OF_REACH);
     const user = tx.select({ name: users.name, passwordHash: users.passwordHash }).from(users).where(eq(users.id, row.userId)).get()!;
     if (user.passwordHash) throw new ValidationError("This account has a password already. Sign in instead.");
     const name = input.name ?? user.name;

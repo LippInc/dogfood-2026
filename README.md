@@ -209,7 +209,8 @@ Open it and sign up with the address in `ADMIN_EMAILS`: that account is an
 administrator, and on **Your events** it creates your event (dates, tracks,
 prizes, rubric) or imports one from a `fixtures.json`-format file. Judges and
 teams join through the links the portal gives you; co-organizers sign up and you
-add them by their email on the event's **Settings** tab. Someone who forgets
+add them by their email on the event's **Settings** tab (an account that already
+has a place in an event you do not run is added only by the administrator). Someone who forgets
 their password asks you: on **Accounts** (next to Portal log) you make a
 one-time link for their address, which works once, within a day, and signs
 that account out everywhere when the new password is set. Accounts are not
@@ -283,8 +284,11 @@ start, and the fixture import never overwrites what the organizers changed.
   password reset links and reminders are links the organizer or administrator
   copies and sends. Accounts are not email-verified. A forgotten password is
   reset only by a portal administrator's one-time link, never by an event's
-  organizer (whose link would let one event's organizer take over accounts that
-  matter in another).
+  organizer. An organizer's personal links for imported people reach only
+  people whose every event that organizer runs (checked again when a link is
+  used), and making someone a co-organizer follows the same rule, so one
+  event's organizer cannot take over accounts that matter in another; anyone
+  else waits for the administrator's reset link.
 - The per-address limits (open-link entries; sign-ups and sign-ins) and the
   duplicate-ballot flags key on the client's network address, so people behind
   one address (an office, a venue's wifi) share a limit.

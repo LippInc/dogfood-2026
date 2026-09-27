@@ -37,6 +37,7 @@ export type Action =
   | "portal.accounts"
   | "event.manage"
   | "event.export"
+  | "organizer.add"
   | "team.create"
   | "team.join"
   | "team.manage"
@@ -73,6 +74,8 @@ export type Resource =
   | { kind: "judge_invite"; event: EventFacts; email: string | null }
   /** one judge's assignment of one project; inJudgeTracks: the project is in one of that judge's tracks now */
   | { kind: "assignment"; id: string; event: EventFacts; judgeUserId: string; status: "pending" | "done" | "recused"; inJudgeTracks: boolean }
+  /** an account being made an organizer of this event; otherEventIds: the other events where it has a role or a team seat */
+  | { kind: "organizer_candidate"; event: EventFacts; otherEventIds: string[] }
   /** a community ballot; voter: who the voting link or account proves, or null */
   | { kind: "ballot"; event: EventFacts; modes: VoterKind[]; voter: { id: string; kind: VoterKind; voided: boolean } | null }
   /** comments on one project */
@@ -171,6 +174,19 @@ export function authorize(
       return hasRole(actor, resource.event.id, "organizer")
         ? allow
         : refuse("not_an_organizer", "Only this event's organizers can do this.");
+    }
+
+    case "organizer.add": {
+      // Nobody is asked before becoming an organizer, so an organizer reaches only accounts
+      // with no place in an event they do not run: otherwise one event's organizer could pull
+      // another event's people in (and their first password with them). An administrator,
+      // who can send anyone a reset link anyway, reaches everyone.
+      if (resource.kind !== "organizer_candidate") return refuse("bad_resource", "This action needs an event and an account.");
+      if (!hasRole(actor, resource.event.id, "organizer")) return refuse("not_an_organizer", "Only this event's organizers can do this.");
+      if (!actor.isAdmin && resource.otherEventIds.some((id) => !hasRole(actor, id, "organizer"))) {
+        return refuse("account_in_other_event", "That account also belongs to an event you do not run, so only the portal's administrator can make it an organizer here.");
+      }
+      return allow;
     }
 
     case "team.create":

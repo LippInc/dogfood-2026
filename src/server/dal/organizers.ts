@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { userRoles, users } from "../db/schema";
+import { teamMembers, userRoles, users } from "../db/schema";
 import { ConflictError, HttpError, NotFoundError } from "../errors";
 import { guardRead, mutate } from "../mutate";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -34,15 +34,28 @@ export function listOrganizers(actor: Actor | null, eventIdOrSlug: string): Orga
   return organizersOf(db, event.id);
 }
 
+/** The events other than this one where the account has a role or a team seat. */
+function otherEventsOf(db: DbOrTx, userId: string, eventId: string): string[] {
+  const ids = new Set([
+    ...db.select({ eventId: userRoles.eventId }).from(userRoles).where(eq(userRoles.userId, userId)).all().map((r) => r.eventId),
+    ...db.select({ eventId: teamMembers.eventId }).from(teamMembers).where(eq(teamMembers.userId, userId)).all().map((r) => r.eventId),
+  ]);
+  ids.delete(eventId);
+  return [...ids];
+}
+
 /** Make an existing account an organizer of the event; adding one twice changes nothing. */
 export function addOrganizer(actor: Actor | null, eventIdOrSlug: string, body: unknown): { userId: string; added: boolean } {
   let event: EventRow;
   return mutate<{ userId: string; added: boolean }>({
     actor,
-    action: "event.manage",
+    action: "organizer.add",
     load: (tx) => {
       event = requireEvent(tx, eventIdOrSlug);
-      return { kind: "event", event: eventFacts(event) };
+      // read without throwing: a malformed body is answered 422 only after the permission check
+      const email = OrganizerInput.safeParse(body).data?.email;
+      const candidate = email ? tx.select({ id: users.id }).from(users).where(eq(users.email, email)).get() : undefined;
+      return { kind: "organizer_candidate", event: eventFacts(event), otherEventIds: candidate ? otherEventsOf(tx, candidate.id, event.id) : [] };
     },
     run: (tx) => {
       const { email } = parse(OrganizerInput, body);
