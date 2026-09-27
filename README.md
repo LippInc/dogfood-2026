@@ -85,7 +85,8 @@ chain.
 How it is built: `ARCHITECTURE.md` (a request's path through the one permission
 check, the audit log, boot, the API) and `DATA-MODEL.md` (every table, its
 constraints and what personal data it keeps). How judging works and why:
-`JUDGING.md`.
+`JUDGING.md`. What the portal stops and what it does not (vote stuffing, collusion,
+deadline gaming and more): `THREAT-MODEL.md`.
 
 ## Beyond the checker
 
@@ -294,7 +295,7 @@ start, and the fixture import never overwrites what the organizers changed.
   each place its chance of being ahead of the next one, not a full interval.
 - Pairwise mode flags a judge who answers like a coin flip, but not one who calls
   "too close to call" whenever a favourite would lose (flagged in 9 of 120
-  simulated panels; JUDGING.md, "Tactical pairwise answers").
+  simulated panels; THREAT-MODEL.md, "Tactical pairwise answers").
 
 ## Licence
 
