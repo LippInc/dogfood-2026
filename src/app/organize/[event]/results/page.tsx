@@ -148,7 +148,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
               {n.variance.k !== null ? `At k = ${n.variance.k.toFixed(1)} a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.` : ""}
             </p>
             <div className="mt-4">
-              <LeniencyStrip points={points} label="Leniency per judge: plain average against what the data supports" />
+              <LeniencyStrip points={points} label="Leniency per judge: plain average against what the data supports" clearLabel />
             </div>
           </div>
           <div className="rounded-sm border border-rule bg-surface p-5">
