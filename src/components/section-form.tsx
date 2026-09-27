@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { startTransition, useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import type { ActionResult } from "@/server/dal";
 
 /**
  * One titled settings section with its own save button and result line. Field
- * errors come back keyed by field name and are listed under the heading.
+ * errors come back keyed by field name and are listed under the heading. The form
+ * sends itself from onSubmit so React does not reset it afterwards: a refused save
+ * keeps what was typed (the action prop stays for a browser without JavaScript).
  */
 export function SectionForm({
   id,
@@ -29,7 +31,16 @@ export function SectionForm({
   const errors = Object.entries(state.fieldErrors ?? {}).flatMap(([k, v]) => v.map((m) => `${k}: ${m}`));
   return (
     <section aria-labelledby={`${id}-title`} className="rounded-sm border border-rule bg-surface">
-      <form action={formAction} className="flex flex-col gap-5 p-5 lg:p-6" noValidate>
+      <form
+        action={formAction}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+          startTransition(() => formAction(data));
+        }}
+        className="flex flex-col gap-5 p-5 lg:p-6"
+        noValidate
+      >
         {hidden ? Object.entries(hidden).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />) : null}
         <div>
           <h2 id={`${id}-title`} className="text-17 font-semibold">
