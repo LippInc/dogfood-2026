@@ -33,6 +33,32 @@ function matches(item: BrowserItem, q: string): boolean {
     .every((word) => hay.includes(word));
 }
 
+/** Marks every part of `text` a search word matched, so a result shows why it is there. */
+function Hl({ text, words }: { text: string; words: string[] }) {
+  const lower = text.toLowerCase();
+  if (!words.length || lower.length !== text.length) return <>{text}</>;
+  const on = new Array<boolean>(text.length).fill(false);
+  for (const w of words) {
+    for (let at = lower.indexOf(w); at !== -1; at = lower.indexOf(w, at + 1)) on.fill(true, at, at + w.length);
+  }
+  const parts: ReactNode[] = [];
+  for (let i = 0; i < text.length; ) {
+    const start = i;
+    while (i < text.length && on[i] === on[start]) i++;
+    const s = text.slice(start, i);
+    parts.push(
+      on[start] ? (
+        <mark key={start} className="rounded-xs bg-accent-tint text-ink shadow-[inset_0_-2px_0_var(--accent)]">
+          {s}
+        </mark>
+      ) : (
+        s
+      ),
+    );
+  }
+  return <>{parts}</>;
+}
+
 /**
  * The Field (FIG. 01) plus the project grid. Every project is in the server's HTML
  * on first paint (the organizers' checker reads it); choosing a track or typing a
@@ -104,6 +130,8 @@ export function GalleryBrowser({
   // The Field draws what the grid shows: faces the grid has left out fade back.
   const shown = useMemo(() => new Set(visible.map((i) => i.id)), [visible]);
   const q = query.trim();
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hits = (text: string) => words.some((w) => text.toLowerCase().includes(w));
   const matchesIn = (trackId: string) => items.filter((i) => i.trackId === trackId && matches(i, q)).length;
   const elsewhere = q ? items.filter((i) => matches(i, q)).length : 0;
   const trackName = track ? tracks.find((t) => t.id === track)?.name : undefined;
@@ -327,27 +355,33 @@ export function GalleryBrowser({
                   <div className="relative overflow-hidden rounded-xs border border-rule">
                     {tileFaces[i.id]}
                     <span className="absolute left-2.5 top-2.5 hidden rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 sm:inline">
-                      {i.id}
+                      <Hl text={i.id} words={words} />
                     </span>
                   </div>
                   <span className="crop-marks" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 wrap-anywhere">
-                  <h3 className="font-display text-20 leading-tight sm:mt-4">{i.title}</h3>
+                  <h3 className="font-display text-20 leading-tight sm:mt-4">
+                    <Hl text={i.title} words={words} />
+                  </h3>
                   <p className="mt-1 text-15 text-ink-2">{i.summary}</p>
                   <p className="mt-2 text-13 text-ink-3">
                     {i.id === mine ? (
                       <Badge className="mr-2 border-ink align-[1px] text-ink">Your team</Badge>
                     ) : null}
-                    {i.teamName} · {i.trackName}
+                    <Hl text={i.teamName} words={words} /> · <Hl text={i.trackName} words={words} />
                   </p>
                   {i.tags.length ? (
                     <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Tech tags">
-                      {i.tags.slice(0, 4).map((t) => (
-                        <li key={t} className="rounded-xs border border-rule px-1.5 py-0.5 font-mono text-12 text-ink-2">
-                          {t}
-                        </li>
-                      ))}
+                      {/* A tag the search matched comes first, so it is never hidden behind "+n". */}
+                      {[...i.tags]
+                        .sort((x, y) => Number(hits(y)) - Number(hits(x)))
+                        .slice(0, 4)
+                        .map((t) => (
+                          <li key={t} className="rounded-xs border border-rule px-1.5 py-0.5 font-mono text-12 text-ink-2">
+                            <Hl text={t} words={words} />
+                          </li>
+                        ))}
                       {i.tags.length > 4 ? <li className="px-1 py-0.5 text-12 text-ink-3">+{i.tags.length - 4}</li> : null}
                     </ul>
                   ) : null}
