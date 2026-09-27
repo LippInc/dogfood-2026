@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { clientOf } from "@/lib/client";
+import { safeNext } from "@/lib/safe-next";
 import { actionError, signUp, type ActionResult } from "@/server/dal";
 
 export async function signUpAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
@@ -14,6 +15,5 @@ export async function signUpAction(_prev: ActionResult, form: FormData): Promise
   } catch (err) {
     return actionError(err);
   }
-  const next = form.get("next");
-  redirect(typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  redirect(safeNext(form.get("next")) ?? "/");
 }
