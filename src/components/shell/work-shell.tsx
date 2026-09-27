@@ -8,7 +8,7 @@ export type WorkTab = { href: string; label: string; active?: boolean };
  * The work side's frame (judges, organizers): quiet surfaces, navy ink, the event
  * marked by one pink square. Pages pass their tabs and a slot for the top bar's
  * right-hand tools. The page's mark closes the bar on the right, in whatever room the
- * bar leaves (none, no mark); on a phone, where the bar wraps, it frays the left edge.
+ * bar leaves (none, no mark); on a phone, where the bar wraps, it closes the brand row.
  */
 export function WorkShell({
   eventName,
@@ -42,13 +42,15 @@ export function WorkShell({
         Skip to content
       </a>
       <header className="relative border-b border-rule bg-surface">
-        <PageMark anchor="left" cols={3} rows={12} extra={markExtra} lit={false} className="absolute top-0 left-0 sm:hidden" />
-        {/* On a phone the header wraps: brand and controls on the first row, the tabs on a
-            scrolling row of their own, so Sign out and the mode toggle never sit off-screen. */}
+        {/* on a phone the bar wraps, and the mark sits in the brand row's right-hand corner */}
+        <PageMark anchor="right" cols={12} rows={11} extra={markExtra} className="absolute top-0 right-4 sm:hidden" />
+        {/* On a phone the header wraps: the brand on the first row (beside the page's mark), the
+            controls on the next, the tabs on a scrolling row of their own, so Sign out and the
+            mode toggle never sit off-screen or under the mark. */}
         <div className="flex flex-wrap items-stretch gap-x-6 px-4 sm:h-12 sm:flex-nowrap sm:overflow-x-auto lg:px-8">
-          <Link href={eventHref} className="flex shrink-0 items-center gap-3 self-center py-3 sm:py-0">
-            <span className="size-3 bg-accent" aria-hidden />
-            <span title={eventName} className="max-w-[20rem] truncate text-15 font-semibold sm:max-w-[28rem]">
+          <Link href={eventHref} className="flex shrink-0 items-center gap-3 self-center py-3 max-sm:basis-full max-sm:pr-16 sm:py-0">
+            <span className="size-3 shrink-0 bg-accent" aria-hidden />
+            <span title={eventName} className="max-w-[20rem] min-w-0 truncate text-15 font-semibold sm:max-w-[28rem]">
               {eventName}
             </span>
             {crumb ? (
