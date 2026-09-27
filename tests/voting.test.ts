@@ -349,6 +349,19 @@ describe("once the window closes the count is final", () => {
     expect(auditCount("voter.void") + auditCount("voter.restore") + auditCount("voting.settings")).toBe(rows);
   });
 
+  it("known-bad: after closing nobody new comes in and no new links are made — 403 for the entry, 409 for the organizer", () => {
+    const { code } = makeVotingLink(org(), "evt_01");
+    expect(enterVoting(code, { ip: nextIp(), agent: "Agent" }).token).toBeTruthy(); // positive control: entry works while open
+    h.sqlite.prepare("UPDATE events SET voting_close_at = '2026-01-02T00:00:00.000Z' WHERE id = 'evt_01'").run();
+    const voters = () => (h.sqlite.prepare("SELECT count(*) AS n FROM voters WHERE event_id = 'evt_01'").get() as { n: number }).n;
+    const before = voters();
+
+    expectHttpError(() => enterVoting(code, { ip: nextIp(), agent: "Agent" }), 403, "voting_closed");
+    expectHttpError(() => makeVotingLink(org(), "evt_01"), 409, "voting_closed");
+    expectHttpError(() => addListedVoters(org(), "evt_01", { emails: "late@example.org" }), 409, "voting_closed");
+    expect(voters()).toBe(before);
+  });
+
   it("a participant still gets 403 first, not the 409", () => {
     h.sqlite.prepare("UPDATE events SET voting_close_at = '2026-01-02T00:00:00.000Z' WHERE id = 'evt_01'").run();
     expectHttpError(

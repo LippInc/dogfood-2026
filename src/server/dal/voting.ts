@@ -7,7 +7,7 @@ import { DEFAULT_SEED_SECRET } from "../checker";
 import { getDb, type DbOrTx } from "../db/client";
 import { events, projects, teams, tracks, voters, votes } from "../db/schema";
 import { formatUtc } from "@/lib/format";
-import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from "../errors";
+import { AuthzError, ConflictError, NotFoundError, RateLimitedError, ValidationError } from "../errors";
 import { seededRng, shuffle } from "../judging/random";
 import { guardRead, mutate } from "../mutate";
 import { LIMITS, take, type Limit } from "../rate-limit";
@@ -245,6 +245,9 @@ export function enterVoting(code: string, client: Client): { eventSlug: string; 
     .all()
     .find((e) => e.settings.voting?.linkHash === hash);
   if (!event || !votingSettings(event).modes.includes("link")) throw new NotFoundError("Voting link");
+  // after the close nobody new comes in: the same refusal a late ballot gets
+  if (votingState(event) === "closed")
+    throw new AuthzError({ ok: false, status: 403, code: "voting_closed", message: `Voting closed at ${formatUtc(event.votingCloseAt)}.` });
   const ipHash = clientHash(client.ip, event.id);
   limitOrThrow(`linkvoter:${event.id}:${ipHash ?? "none"}`, LIMITS.linkVoter, { eventId: event.id, label: "anonymous", userId: null, what: "open-link entry" });
   const token = newSecret(24);
@@ -340,6 +343,7 @@ export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, b
 /** A new open voting link; the old one stops working. The code is shown once. */
 export function makeVotingLink(actor: Actor | null, eventIdOrSlug: string) {
   return organizer(actor, eventIdOrSlug, (tx, event) => {
+    voteFinal(event);
     const code = newSecret(18);
     const current = votingSettings(event);
     tx.update(events)
@@ -358,6 +362,7 @@ export const VoterList = z.object({ emails: z.string().max(200_000) });
 /** Add people to the voter list; each gets a personal link, shown once. Known addresses are skipped. */
 export function addListedVoters(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizer(actor, eventIdOrSlug, (tx, event) => {
+    voteFinal(event);
     const raw = parse(VoterList, body).emails;
     const emails = [...new Set(raw.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))];
     const bad = emails.filter((e) => !z.email().safeParse(e).success);
@@ -501,7 +506,7 @@ export function getCommunityResults(eventIdOrSlug: string): CommunityResults {
 }
 
 /** What a voting link is, without using it: link previews and bots fetch URLs, so entering takes a click. */
-export function describeVotingCode(code: string): { event: { id: string; slug: string; name: string }; kind: "listed" | "link"; state: VotingState } {
+export function describeVotingCode(code: string): { event: { id: string; slug: string; name: string }; kind: "listed" | "link"; state: VotingState; closesAt: string | null } {
   const db = getDb();
   const hash = sha256(code);
   const listed = db.select({ eventId: voters.eventId }).from(voters).where(eq(voters.tokenHash, hash)).get();
@@ -513,7 +518,7 @@ export function describeVotingCode(code: string): { event: { id: string; slug: s
         .all()
         .find((e) => e.settings.voting?.linkHash === hash && votingSettings(e).modes.includes("link"));
   if (!event) throw new NotFoundError("Voting link");
-  return { event: { id: event.id, slug: event.slug, name: event.name }, kind: listed ? "listed" : "link", state: votingState(event) };
+  return { event: { id: event.id, slug: event.slug, name: event.name }, kind: listed ? "listed" : "link", state: votingState(event), closesAt: event.votingCloseAt };
 }
 
 /** The cookie that carries a voter's token for one event. */

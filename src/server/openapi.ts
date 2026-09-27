@@ -175,8 +175,8 @@ export const OPERATIONS: Operation[] = [
   // Community vote
   { method: "GET", path: "/api/events/{event}/voting", tag: "Community vote", summary: "Voting settings, turnout, suspected duplicates; the count once closed", access: "organizer" },
   { method: "PUT", path: "/api/events/{event}/voting", tag: "Community vote", summary: "Set the voting window, the ways in and the votes per voter", access: "organizer", body: In.SettingsInput, also: [409], note: "Once the window has closed the count is final: 409 voting_closed." },
-  { method: "POST", path: "/api/events/{event}/voting/link", tag: "Community vote", summary: "Make a new open voting link (the old one stops working)", access: "organizer", ok: 201 },
-  { method: "POST", path: "/api/events/{event}/voting/voters", tag: "Community vote", summary: "Add people to the voter list: one personal link each, returned once", access: "organizer", body: In.VoterList, ok: 201 },
+  { method: "POST", path: "/api/events/{event}/voting/link", tag: "Community vote", summary: "Make a new open voting link (the old one stops working)", access: "organizer", ok: 201, also: [409] },
+  { method: "POST", path: "/api/events/{event}/voting/voters", tag: "Community vote", summary: "Add people to the voter list: one personal link each, returned once", access: "organizer", body: In.VoterList, ok: 201, also: [409] },
   {
     method: "POST",
     path: "/api/events/{event}/voting/voters/{voter}/void",
@@ -187,7 +187,7 @@ export const OPERATIONS: Operation[] = [
     also: [409],
   },
   { method: "POST", path: "/api/events/{event}/voting/voters/{voter}/restore", tag: "Community vote", summary: "Count a set-aside ballot again", access: "organizer", also: [409] },
-  { method: "POST", path: "/api/vote/{code}", tag: "Community vote", summary: "Enter voting with an open or personal link (sets the voter cookie)", access: "anyone", also: [429] },
+  { method: "POST", path: "/api/vote/{code}", tag: "Community vote", summary: "Enter voting with an open or personal link (sets the voter cookie)", access: "anyone", also: [403, 429], note: "A new entry through the open link after the window closed is 403 voting_closed." },
   { method: "GET", path: "/api/events/{event}/ballot", tag: "Community vote", summary: "Your ballot: the projects in your own shuffled order, and your picks", access: "anyone" },
   { method: "PUT", path: "/api/events/{event}/ballot", tag: "Community vote", summary: "Replace your picks while the window is open", access: "voter", body: In.BallotInput, also: [429] },
   { method: "GET", path: "/api/events/{event}/community", tag: "Community vote", summary: "The community count: null for everyone until the window closes", access: "anyone" },

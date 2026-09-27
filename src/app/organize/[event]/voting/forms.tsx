@@ -41,18 +41,33 @@ export function VotingSettingsForm({
   votesPerVoter: number;
 }) {
   const [state, form, pending] = useFormAction(votingSettingsAction, idle);
+  // a close time already passed ends the vote the moment it is saved, and the count is then final
+  const [pastClose, setPastClose] = useState(false);
   const e = state.fieldErrors ?? {};
   return (
-    <form {...form} className="flex flex-col gap-4">
+    <form {...form} onReset={() => setPastClose(false)} className="flex flex-col gap-4">
       <input type="hidden" name="event" value={eventSlug} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="votingOpenAt" label="Voting opens (UTC)" error={e.votingOpenAt}>
           {(a) => <Input {...a} name="votingOpenAt" type="datetime-local" defaultValue={openAt} />}
         </Field>
         <Field id="votingCloseAt" label="Voting closes (UTC)" error={e.votingCloseAt}>
-          {(a) => <Input {...a} name="votingCloseAt" type="datetime-local" defaultValue={closeAt} />}
+          {(a) => (
+            <Input
+              {...a}
+              name="votingCloseAt"
+              type="datetime-local"
+              defaultValue={closeAt}
+              onChange={(ev) => setPastClose(ev.currentTarget.value !== "" && Date.parse(`${ev.currentTarget.value.slice(0, 16)}:00Z`) <= Date.now())}
+            />
+          )}
         </Field>
       </div>
+      {pastClose ? (
+        <p role="status" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-flag">
+          That close time has passed: saving ends the vote now, and the count becomes public and final.
+        </p>
+      ) : null}
       <fieldset className="flex flex-col gap-2">
         <legend className="text-14 font-medium">Who may vote</legend>
         {MODES.map((m) => (
