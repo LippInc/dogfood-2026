@@ -39,14 +39,14 @@ describe("password sign-in is rate limited per email address and network address
     if (!eleventh.ok) expect(eleventh.message).toMatch(/Too many attempts/);
     await signInWithPassword("target@example.org", "wrong-11");
     expect(refusals()).toBe(1);
-  });
+  }, 30_000); // real argon2 checks; the full suite runs the pairwise Monte Carlo beside them
 
   it("known-bad: another address is not affected by the first one's limit", async () => {
     for (let i = 0; i < 11; i++) await signInWithPassword("target@example.org", `wrong-${i}`);
     const other = await signInWithPassword("someone-else@example.org", "wrong");
     expect(other.ok).toBe(false);
     if (!other.ok) expect(other.message).toMatch(/do not match/);
-  });
+  }, 30_000);
 
   it("a stranger at another network address cannot use up the owner's tries", async () => {
     const stranger = { ip: "203.0.113.50", agent: "test" };
@@ -60,7 +60,7 @@ describe("password sign-in is rate limited per email address and network address
     const fromOwner = await signInWithPassword("target@example.org", "still-wrong", owner);
     expect(fromOwner.ok).toBe(false);
     if (!fromOwner.ok) expect(fromOwner.message).toMatch(/do not match/);
-  });
+  }, 30_000);
 
   it("from many addresses together, one email address gets at most 100 tries an hour", async () => {
     for (let a = 0; a < 10; a++) {
