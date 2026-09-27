@@ -83,20 +83,22 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
   return (
     <PublicShell event={view.event} active="none" signedInAs={actor?.name ?? null} links={actorNav(actor, view.event.id)}>
       <RecordCheck envelope={view.envelope}>
-      <div className="mx-auto flex max-w-[960px] flex-col gap-10 py-10 print:max-w-none print:py-0">
-        <div className="flex flex-col gap-4">
+      <div className="mx-auto flex max-w-[960px] flex-col gap-10 py-6 sm:py-8 print:max-w-none print:py-0">
+        <div className="flex flex-col gap-3">
         <CheckedSheet
           aria-labelledby="record-name"
-          className="corner-marks [&.lit]:[--mark:var(--accent)] relative flex flex-col gap-8 rounded-sm border border-rule px-6 py-9 outline outline-1 outline-offset-4 outline-rule sm:p-12 print:break-inside-avoid print:border-2 print:border-ink print:p-12"
+          className="corner-marks [&.lit]:[--mark:var(--accent)] relative flex flex-col gap-6 rounded-sm border border-rule px-6 py-8 outline outline-1 outline-offset-4 outline-rule sm:px-12 sm:py-9 print:break-inside-avoid print:gap-8 print:border-2 print:border-ink print:p-12"
         >
-          <div className="flex items-baseline justify-between gap-4">
-            <span className="label-mono text-ink-3">[ signed record ]</span>
-            <span className="font-mono text-12 text-ink-3">{rec.id}</span>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+            <p className="text-14 font-medium uppercase tracking-[0.14em] text-ink-2">{heading}</p>
+            <p className="flex items-baseline gap-3 text-ink-3">
+              <span className="label-mono">[ signed record ]</span>
+              <span className="font-mono text-12">{rec.id}</span>
+            </p>
           </div>
 
           <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-start print:grid-cols-[minmax(0,1fr)_auto] print:items-start">
-            <div className="flex min-w-0 flex-col gap-4 wrap-anywhere">
-              <p className="text-14 font-medium uppercase tracking-[0.14em] text-ink-2">{heading}</p>
+            <div className="flex min-w-0 flex-col gap-3 wrap-anywhere">
               <h1 id="record-name" className="font-serif text-[40px] leading-[1.1] sm:text-64">
                 {rec.person.name}
               </h1>
@@ -143,7 +145,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
               {awards.map((a) => {
                 const p = placeOf(a);
                 return (
-                  <li key={a} className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-x-5 sm:grid-cols-[80px_minmax(0,1fr)] sm:gap-x-7">
+                  <li key={a} className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-x-5 sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-x-7">
                     {p ? (
                       <DitherDigits
                         value={String(p.place)}
