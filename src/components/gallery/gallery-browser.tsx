@@ -101,6 +101,7 @@ export function GalleryBrowser({
   const shown = useMemo(() => new Set(visible.map((i) => i.id)), [visible]);
   const q = query.trim();
   const matchesIn = (trackId: string) => items.filter((i) => i.trackId === trackId && matches(i, q)).length;
+  const elsewhere = q ? items.filter((i) => matches(i, q)).length : 0;
   const trackName = track ? tracks.find((t) => t.id === track)?.name : undefined;
 
   const chip =
@@ -249,17 +250,32 @@ export function GalleryBrowser({
         </div>
       ) : visible.length === 0 ? (
         <div className="mt-10 rounded-sm border border-dashed border-edge px-6 py-12 text-center">
-          <p className="text-17">No project matches {query ? `“${query}”` : "this filter"}.</p>
-          <button
-            type="button"
-            onClick={() => {
-              setTrackState(null);
-              setQuery("");
-            }}
-            className="mt-4 h-10 rounded-sm border border-edge px-4 text-14 hover:bg-surface"
-          >
-            Show all {items.length} projects
-          </button>
+          <p className="text-17">
+            No project matches {q ? `“${q}”` : "this filter"}
+            {trackName ? ` in ${trackName}` : ""}.
+          </p>
+          <p className="mt-2 text-14 text-ink-2">Search reads titles, teams, tracks, ids and tags, and every word has to match.</p>
+          <div className="mt-5 flex flex-wrap justify-center gap-3">
+            {track && q && elsewhere > 0 ? (
+              <button
+                type="button"
+                onClick={() => setTrack(null)}
+                className="h-10 rounded-sm border border-accent bg-accent px-4 text-14 font-medium text-on-accent"
+              >
+                Search every track ({elsewhere})
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                setTrackState(null);
+                setQuery("");
+              }}
+              className="h-10 rounded-sm border border-edge px-4 text-14 hover:bg-surface"
+            >
+              Show all {items.length} projects
+            </button>
+          </div>
         </div>
       ) : (
         <ul className="mt-6 grid gap-x-6 gap-y-6 sm:grid-cols-2 sm:gap-y-10 md:mt-8 lg:grid-cols-3 xl:grid-cols-4">
