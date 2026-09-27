@@ -63,7 +63,9 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
           {change.message}
         </p>
       ) : null}
-      {team.inviteCode ? (
+      {!open ? (
+        <p className="mt-3 border-t border-rule pt-3 text-12 text-ink-3">The team was fixed when submissions closed, so the invite link no longer works.</p>
+      ) : team.inviteCode ? (
         <div className="mt-4 flex flex-col gap-2">
           <label htmlFor="invite" className="text-13 text-ink-2">
             Invite link for teammates
@@ -94,15 +96,13 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
           <p aria-live="polite" className="text-12 text-ink-3">
             {copied ? "Copied." : state.message ?? "Anyone with this link can join while submissions are open."}
           </p>
-          {open ? (
-            <form {...form}>
-              <input type="hidden" name="team" value={team.id} />
-              <input type="hidden" name="event" value={eventSlug} />
-              <Button variant="ghost" size="sm" disabled={pending} className="-ml-2.5">
-                <RefreshCw aria-hidden /> Make a new link
-              </Button>
-            </form>
-          ) : null}
+          <form {...form}>
+            <input type="hidden" name="team" value={team.id} />
+            <input type="hidden" name="event" value={eventSlug} />
+            <Button variant="ghost" size="sm" disabled={pending} className="-ml-2.5">
+              <RefreshCw aria-hidden /> Make a new link
+            </Button>
+          </form>
         </div>
       ) : null}
     </section>
