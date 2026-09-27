@@ -205,8 +205,13 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             <li key={t.projectId} className={`grid items-center gap-x-3 px-4 py-2 text-14 ${withLink ? COUNT_ROW_LINK : COUNT_ROW}`}>
               <span className="text-ink-2 tnum">{t.place ?? "–"}</span>
               <Face id={t.projectId} cols={32} rows={18} className="h-[18px] w-8" />
-              <span className="min-w-0 truncate">
-                <span className="font-medium">{t.title}</span> <span className="text-ink-2">· {t.teamName}</span>
+              {/* phones: the team under the title, so neither is cut to "Amber Hours · ..." */}
+              <span className="min-w-0 md:truncate">
+                <span className="block truncate font-medium md:inline">{t.title}</span>
+                <span className="block truncate text-12 text-ink-2 md:inline md:text-14">
+                  <span className="max-md:hidden"> · </span>
+                  {t.teamName}
+                </span>
               </span>
               {/* the bar: votes against the leader's, so the gaps between places are seen, not read; the open
                   link's ballots hatched, as in the turnout bar: inside the bar when they count, a tail when they do not */}
