@@ -30,13 +30,15 @@ export const metadata: Metadata = { title: "Overview" };
 // ground, each a number, a picture of it and one line, with the details a click
 // away. The figures sit under a ruled head, like the gallery's Field.
 
+// Each export with what it holds (README, T4 row: "scores, projects, normalized
+// ranking and audit log as CSV, event.json").
 const EXPORTS = [
-  "scores.csv",
-  "projects.csv",
-  "normalized.csv",
-  "audit.csv",
-  "event.json",
-];
+  ["scores.csv", "every raw score"],
+  ["projects.csv", "the projects"],
+  ["normalized.csv", "the normalized ranking"],
+  ["audit.csv", "the audit log"],
+  ["event.json", "the whole event"],
+] as const;
 
 function Pipeline({ stages }: { stages: Stage[] }) {
   const reached = stages.filter((s) => s.done).length;
@@ -435,17 +437,19 @@ export default async function OverviewPage({
             )}
             <div className="flex flex-col gap-2 border-t border-rule pt-3">
               <p className="text-12 text-ink-2">Take it out, at any stage</p>
-              <div className="flex flex-wrap gap-2">
-                {EXPORTS.map((f) => (
-                  <a
-                    key={f}
-                    href={exportHref(event.id, f)}
-                    className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2 font-mono text-12 hover:bg-raised"
-                  >
-                    {f}
-                  </a>
+              <ul className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4">
+                {EXPORTS.map(([f, what]) => (
+                  <li key={f} className="col-span-2 grid grid-cols-subgrid items-baseline py-0.5">
+                    <a
+                      href={exportHref(event.id, f)}
+                      className="inline-flex min-h-6 items-center font-mono text-12 underline decoration-edge underline-offset-4 hover:decoration-ink"
+                    >
+                      {f}
+                    </a>
+                    <span className="truncate text-12 text-ink-2">{what}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           </Figure>
         </div>
