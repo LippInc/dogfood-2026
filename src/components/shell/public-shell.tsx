@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Menu } from "lucide-react";
 import { DemoTour } from "@/components/demo-tour";
 import { ModeToggle } from "@/components/mode-toggle";
+import { PageMark } from "@/components/page-mark";
 import { eventPhase, idLabel, type EventTimes } from "@/lib/format";
 import type { NavLink } from "@/server/dal";
 
@@ -139,16 +140,27 @@ export function PublicShell({
           </div>
         </div>
       </header>
+      {/* The status strip, and the page's own mark at its right end: a band of pixels that
+          fades out towards the status (on a phone, a short one beside the first line). */}
       <div className="border-b border-rule bg-sunken print:hidden">
-        <p className="mx-auto flex max-w-[1440px] flex-col gap-1 px-4 py-2.5 text-ink-2 sm:flex-row sm:items-center sm:gap-0 sm:px-8 xl:px-16">
-          {phase.parts.map((part, i) => (
-            <span key={part} className="label-mono flex items-center">
-              {i === 0 ? <span className="mr-3 inline-block size-2 bg-accent" aria-hidden /> : null}
-              {i > 0 ? <span className="mx-3 hidden text-ink-3 sm:inline" aria-hidden>/</span> : null}
-              {part}
-            </span>
-          ))}
-        </p>
+        <div className="relative mx-auto flex max-w-[1440px] items-stretch gap-8 px-4 sm:px-8 xl:px-16">
+          <p className="flex min-w-0 flex-col gap-1 py-2.5 text-ink-2 sm:flex-row sm:items-center sm:gap-0">
+            {phase.parts.map((part, i) => (
+              <span key={part} className={`label-mono flex items-center ${i === 0 ? "max-sm:pr-28" : ""}`}>
+                {i === 0 ? <span className="mr-3 inline-block size-2 shrink-0 bg-accent" aria-hidden /> : null}
+                {i > 0 ? <span className="mx-3 hidden text-ink-3 sm:inline" aria-hidden>/</span> : null}
+                {part}
+              </span>
+            ))}
+          </p>
+          {/* the widest whole mark that fits beside the status (a container query, no script) */}
+          <div className="@container relative ml-auto hidden max-w-[320px] min-w-0 flex-1 overflow-hidden sm:block" aria-hidden="true">
+            <PageMark anchor="right" cols={80} rows={9} className="absolute top-0 right-0 hidden @min-[320px]:block" />
+            <PageMark anchor="right" cols={40} rows={9} className="absolute top-0 right-0 hidden @min-[160px]:block @min-[320px]:hidden" />
+            <PageMark anchor="right" cols={20} rows={9} className="absolute top-0 right-0 @min-[160px]:hidden" />
+          </div>
+          <PageMark anchor="right" cols={24} rows={4} className="absolute top-2.5 right-4 sm:hidden" />
+        </div>
       </div>
       <DemoTour eventSlug={event.slug} />
       <main id="main" className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-8 xl:px-16 print:p-0">
