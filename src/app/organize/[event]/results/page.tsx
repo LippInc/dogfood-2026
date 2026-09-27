@@ -57,7 +57,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const tracks = [...new Map(n.projects.map((p) => [p.trackId, p.trackName])).entries()];
   const chosen = typeof track === "string" && tracks.some(([id]) => id === track) ? track : null;
   const rows = n.projects.filter((p) => !chosen || p.trackId === chosen);
-  const flat = decisions.find((d) => d.kind === "flat_judge");
+  const open = decisions.filter((d) => !d.resolved).length;
   const dup = decisions.find((d) => d.kind === "duplicate");
   const excludedNames = n.judges.filter((j) => j.excluded).map((j) => j.name);
   const slope = n.projects
@@ -110,6 +110,16 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                   </li>
                 ))}
             </ul>
+          ) : null}
+          {!event.resultsPublishedAt && open > 0 ? (
+            <p className="flex max-w-[860px] flex-wrap items-baseline gap-x-3 gap-y-1 border-l-[3px] border-flag-bar py-1 pl-3 text-14">
+              <span className="font-medium">
+                {open} {open === 1 ? "decision is" : "decisions are"} still open before the results can go out.
+              </span>
+              <Link href={`/organize/${event.slug}#decisions-title`} className="underline underline-offset-4">
+                Decide on the overview
+              </Link>
+            </p>
           ) : null}
         </header>
 
@@ -364,15 +374,6 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
         ) : null}
 
         <JudgeLedger n={n} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} />
-
-        {flat?.kind === "flat_judge" && !flat.resolved ? (
-          <p className="text-14">
-            <Link href={`/organize/${event.slug}`} className="underline underline-offset-4">
-              Back to the decisions
-            </Link>{" "}
-            : {decisions.filter((d) => !d.resolved).length} still open before results can go out.
-          </p>
-        ) : null}
 
         <RecordsSection eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} records={records} />
       </div>
