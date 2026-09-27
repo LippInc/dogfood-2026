@@ -354,11 +354,22 @@ export function computePairwise(db: DbOrTx, event: EventRow, opts: { scoresOnly?
   const set = judgeSet(db, event.id, reviews);
   const excluded = new Set(set.excluded);
 
+  // An answer about a project the judge has since recused from stops counting, as a recused
+  // review does in scores mode (a merged copy's recusal covers the kept copy too).
+  const recused = new Set(
+    db
+      .select({ judge: assignments.judgeUserId, project: assignments.projectId })
+      .from(assignments)
+      .where(and(eq(assignments.eventId, event.id), eq(assignments.status, "recused")))
+      .all()
+      .flatMap((r) => [`${r.judge}|${r.project}`, `${r.judge}|${canonical.get(r.project) ?? r.project}`]),
+  );
   const picks: Comparison[] = [];
   for (const c of opts.scoresOnly ? [] : activePicks(db, event.id)) {
     const a = canonical.get(c.leftProjectId);
     const b = canonical.get(c.rightProjectId);
     if (!a || !b || a === b || trackOf.get(a) !== trackOf.get(b)) continue;
+    if ([c.leftProjectId, c.rightProjectId, a, b].some((p) => recused.has(`${c.judgeUserId}|${p}`))) continue;
     picks.push({
       judgeId: c.judgeUserId,
       trackId: trackOf.get(a)!,

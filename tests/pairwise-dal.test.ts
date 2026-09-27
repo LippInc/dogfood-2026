@@ -5,8 +5,9 @@ import { ensureDemoOrganizer, seedCheckerSessions } from "@/server/checker";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { runMigrations } from "@/server/db/migrate";
-import { auditLog, comparisons, judgeTracks } from "@/server/db/schema";
+import { assignments, auditLog, comparisons, judgeTracks } from "@/server/db/schema";
 import { setJudgeTracks } from "@/server/dal/judges";
+import { recuseAssignment } from "@/server/dal/reviews";
 import { acceptUnderReviewed, getNormalization, getPublishedResults, kendallTauB, mergeDuplicate, publishResults, setJudgeOverride } from "@/server/dal/normalization";
 import { getOverview } from "@/server/dal/overview";
 import { getRecord, issueOwnRecord } from "@/server/dal/records";
@@ -137,6 +138,22 @@ describe("pairwise mode: who may do what", () => {
     const placed = (state: string) => Number(state.split(" of ")[0]);
     expect(placed(stage("06").state)).toBe(placed(before) + 1);
     expect(stage("07").state).toBe("1 answer");
+  });
+
+  it("an answer stops counting once the judge recuses from either project, as a recused review does", () => {
+    toPairwise();
+    const judge = checker("judge_a");
+    const q = firstQuestion(judge);
+    pickPairwise(judge, "evt_01", { ...q, outcome: "left" });
+    const org = checker("organizer");
+    expect(getPairwiseRanking(org, "evt_01").counts.picks).toBe(1);
+    const assignment = h.db
+      .select()
+      .from(assignments)
+      .where(and(eq(assignments.judgeUserId, judge.userId), eq(assignments.projectId, q.newId)))
+      .get()!;
+    recuseAssignment(judge, assignment.id, { reason: "I mentored this team" });
+    expect(getPairwiseRanking(org, "evt_01").counts.picks).toBe(0);
   });
 
   it("a track taken from the judge leaves their pairwise lists too", () => {
