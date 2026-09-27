@@ -332,6 +332,7 @@ export default async function OverviewPage({
                     </span>
                   </p>
                   <LeniencyStrip
+                    clearLabel
                     points={nz.points}
                     label={`Leniency of ${plural(nz.points.length, "judge")}: plain averages against what the data supports`}
                   />
