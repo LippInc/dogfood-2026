@@ -1,5 +1,6 @@
 import "server-only";
 import type { Role } from "./db/schema";
+import { formatUtc } from "@/lib/format";
 
 // authorize(actor, action, resource) is the one place a permission is decided.
 // It is pure: callers load the facts (roles, event dates, team membership) inside
@@ -103,19 +104,19 @@ export function submissionsOpen(event: EventFacts, now: Date): boolean {
 function judgingRefusal(event: EventFacts, now: Date): Refusal | null {
   const t = now.getTime();
   if (t < Date.parse(event.submissionsCloseAt)) {
-    return refuse("judging_not_open", `Judging opens when submissions close, at ${event.submissionsCloseAt}.`);
+    return refuse("judging_not_open", `Judging opens when submissions close, at ${formatUtc(event.submissionsCloseAt)}.`);
   }
   if (event.resultsPublishedAt) return refuse("results_published", "Results are published, so scores are final.");
   if (event.judgingCloseAt && t >= Date.parse(event.judgingCloseAt)) {
-    return refuse("judging_closed", `Judging closed at ${event.judgingCloseAt}.`);
+    return refuse("judging_closed", `Judging closed at ${formatUtc(event.judgingCloseAt)}.`);
   }
   return null;
 }
 
 function windowRefusal(event: EventFacts, now: Date, what: string): Refusal {
   return now.getTime() >= Date.parse(event.submissionsCloseAt)
-    ? refuse("submissions_closed", `Submissions closed at ${event.submissionsCloseAt}. ${what}.`)
-    : refuse("submissions_not_open", `Submissions open at ${event.submissionsOpenAt}.`);
+    ? refuse("submissions_closed", `Submissions closed at ${formatUtc(event.submissionsCloseAt)}. ${what}.`)
+    : refuse("submissions_not_open", `Submissions open at ${formatUtc(event.submissionsOpenAt)}.`);
 }
 
 /**
@@ -132,8 +133,8 @@ function decideVote(resource: Resource, now: Date): Decision {
   if (voter.voided) return refuse("voter_voided", "The organizers set this ballot aside as a suspected duplicate.");
   if (!event.votingOpenAt || !event.votingCloseAt) return refuse("voting_not_set", "This event has no voting window.");
   const t = now.getTime();
-  if (t < Date.parse(event.votingOpenAt)) return refuse("voting_not_open", `Voting opens at ${event.votingOpenAt}.`);
-  if (t >= Date.parse(event.votingCloseAt)) return refuse("voting_closed", `Voting closed at ${event.votingCloseAt}.`);
+  if (t < Date.parse(event.votingOpenAt)) return refuse("voting_not_open", `Voting opens at ${formatUtc(event.votingOpenAt)}.`);
+  if (t >= Date.parse(event.votingCloseAt)) return refuse("voting_closed", `Voting closed at ${formatUtc(event.votingCloseAt)}.`);
   return allow;
 }
 
