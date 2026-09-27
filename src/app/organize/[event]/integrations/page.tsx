@@ -280,6 +280,8 @@ function standing(d: Sent): Standing {
 function HookCard({ slug, hook: w, deliveries }: { slug: string; hook: Hook; deliveries: Sent[] }) {
   const failed = w.counts.failed > 0;
   const troubled = deliveries.some((d) => standing(d) === "failed" || standing(d) === "retrying");
+  // why the newest try that did not arrive failed: said once on the card, and on a row only when that row's reason differs
+  const reason = troubled ? deliveries.find((d) => standing(d) !== "delivered" && d.error)?.error ?? undefined : undefined;
   return (
     <li className={`flex flex-col gap-4 rounded-sm border border-rule bg-surface p-5 ${failed ? "border-l-4 border-l-flag-bar" : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -302,6 +304,12 @@ function HookCard({ slug, hook: w, deliveries }: { slug: string; hook: Hook; del
           <span className={failed ? "font-medium text-flag" : "text-ink"}>{w.counts.failed}</span> failed
           {deliveries.length ? null : <span className="text-ink-3"> · nothing sent yet</span>}
         </p>
+        {reason ? (
+          <p className="flex max-w-[760px] flex-wrap items-baseline gap-x-3 gap-y-0.5 border-l-2 border-flag-bar pl-3 text-14 text-ink">
+            <span className="label-mono text-flag">Last error</span>
+            <span>{reason}</span>
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -333,7 +341,7 @@ function HookCard({ slug, hook: w, deliveries }: { slug: string; hook: Hook; del
             </thead>
             <tbody className="divide-y divide-rule max-sm:block">
               {deliveries.map((d) => (
-                <DeliveryRow key={d.id} slug={slug} hookId={w.id} d={d} />
+                <DeliveryRow key={d.id} slug={slug} hookId={w.id} d={d} reason={reason} />
               ))}
             </tbody>
           </table>
@@ -386,7 +394,7 @@ function Tries({ d }: { d: Sent }) {
   );
 }
 
-function DeliveryRow({ slug, hookId, d }: { slug: string; hookId: string; d: Sent }) {
+function DeliveryRow({ slug, hookId, d, reason }: { slug: string; hookId: string; d: Sent; reason?: string }) {
   const s = standing(d);
   const td = "py-2 pr-4 align-top max-sm:p-0";
   return (
@@ -406,7 +414,7 @@ function DeliveryRow({ slug, hookId, d }: { slug: string; hookId: string; d: Sen
         ) : (
           <span className="text-ink-2">Waiting to send</span>
         )}
-        {s !== "delivered" && d.error ? <span className="mt-0.5 block text-12 text-ink-2">{d.error}</span> : null}
+        {s !== "delivered" && d.error && d.error !== reason ? <span className="mt-0.5 block text-12 text-ink-2">{d.error}</span> : null}
       </td>
       <td className="py-2 text-right align-top max-sm:col-start-2 max-sm:row-start-2 max-sm:p-0">
         {s !== "delivered" ? (
