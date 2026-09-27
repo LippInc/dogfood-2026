@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Menu } from "lucide-react";
 import { DemoTour } from "@/components/demo-tour";
 import { ModeToggle } from "@/components/mode-toggle";
-import { PageMark } from "@/components/page-mark";
+import { PageBand, PageMark } from "@/components/page-mark";
 import { eventPhase, idLabel, type EventTimes } from "@/lib/format";
 import type { NavLink } from "@/server/dal";
 
@@ -39,7 +39,7 @@ export function PublicShell({
   const takePart =
     (phase.key === "open" || phase.key === "upcoming") && !inEvent ? (signedInAs ? myProject : `/sign-up?next=${encodeURIComponent(myProject)}`) : null;
   return (
-    <div className="public min-h-dvh">
+    <div className="public flex min-h-dvh flex-col">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:bg-surface focus:px-4 focus:py-2"
@@ -163,9 +163,15 @@ export function PublicShell({
         </div>
       </div>
       <DemoTour eventSlug={event.slug} />
-      <main id="main" className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-8 xl:px-16 print:p-0">
+      <main id="main" className="mx-auto w-full max-w-[1440px] flex-1 px-4 pb-24 sm:px-8 xl:px-16 print:p-0">
         {children}
       </main>
+      {/* The page's mark again, drawn out in full: a band of pixels along the foot of the
+          page, dense at the bottom edge and fading up, like the band on the demo video's
+          drawing sheets. It closes every public page; narrower screens see its middle. */}
+      <div className="flex h-24 justify-center overflow-hidden print:hidden" aria-hidden="true">
+        <PageBand anchor="bottom" cols={480} rows={24} />
+      </div>
     </div>
   );
 }
