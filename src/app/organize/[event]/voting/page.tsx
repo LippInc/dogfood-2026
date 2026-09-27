@@ -23,6 +23,43 @@ const CHANNEL: Record<string, string> = {
 const COUNT_ROW = "grid-cols-[28px_32px_minmax(0,1fr)_40px] md:grid-cols-[28px_32px_minmax(0,300px)_minmax(0,1fr)_40px]";
 const COUNT_ROW_LINK = "grid-cols-[28px_32px_minmax(0,1fr)_40px_64px] md:grid-cols-[28px_32px_minmax(0,300px)_minmax(0,1fr)_40px_120px]";
 
+/** "1 d 22 h", "5 h 12 min", "40 min": a stretch of time, to the minute. */
+function stretch(ms: number): string {
+  const min = Math.max(0, Math.round(ms / 60_000));
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min % 1440) / 60);
+  const m = min % 60;
+  return d ? `${d} d ${h} h` : h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
+}
+
+/** Fig. 01: the voting window as a line from open to close, the part gone by drawn solid, with where now falls. */
+function WindowFigure({ openAt, closeAt }: { openAt: string; closeAt: string }) {
+  const o = Date.parse(openAt);
+  const c = Date.parse(closeAt);
+  const now = Date.now();
+  const gone = c > o ? Math.min(1, Math.max(0, (now - o) / (c - o))) : 1;
+  const open = now < c;
+  return (
+    <figure className="flex flex-col gap-2 border-t border-rule pt-4">
+      <figcaption className="flex items-baseline justify-between gap-3 text-12 text-ink-2">
+        <span className="label-mono text-ink">Fig. 01 — The window</span>
+        <span className="tnum">{open ? `${stretch(c - now)} left` : `ran ${stretch(c - o)}`}</span>
+      </figcaption>
+      <div aria-hidden className="relative h-3">
+        <span className="absolute inset-x-0 top-[5px] border-t border-dashed border-edge" />
+        <span className="absolute top-[4px] left-0 h-[3px] bg-ink" style={{ width: `${gone * 100}%` }} />
+        <span className="absolute top-0 left-0 h-3 w-px bg-ink" />
+        <span className={`absolute top-0 right-0 h-3 w-px ${open ? "bg-edge" : "bg-ink"}`} />
+        {open ? <span className="absolute top-0 h-3 w-[3px] -translate-x-1/2 bg-ink" style={{ left: `${gone * 100}%` }} /> : null}
+      </div>
+      <div className="flex justify-between gap-3 text-12 text-ink-2 tnum">
+        <span>opened {formatUtc(openAt)}</span>
+        <span className="text-right">{open ? "closes" : "closed"} {formatUtc(closeAt)}</span>
+      </div>
+    </figure>
+  );
+}
+
 export default async function VotingPage({ params }: PageProps<"/organize/[event]/voting">) {
   const { event: key } = await params;
   const actor = await currentActor();
@@ -128,7 +165,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
 
         {early ? null : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3">
-          <section aria-labelledby="turnout-title" className="rounded-sm border border-rule bg-surface p-5">
+          <section aria-labelledby="turnout-title" className="flex flex-col rounded-sm border border-rule bg-surface p-5">
             <h2 id="turnout-title" className="text-15 font-semibold">
               Turnout
             </h2>
@@ -153,6 +190,11 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                 </li>
               ))}
             </ul>
+            {event.votingOpenAt && event.votingCloseAt ? (
+              <div className="mt-5 lg:mt-auto lg:pt-5">
+                <WindowFigure openAt={event.votingOpenAt} closeAt={event.votingCloseAt} />
+              </div>
+            ) : null}
           </section>
           <section aria-labelledby="dup-title" className="rounded-sm border border-rule bg-surface p-5 lg:col-span-2">
             <h2 id="dup-title" className="text-15 font-semibold">
