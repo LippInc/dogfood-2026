@@ -19,6 +19,18 @@ export function eventFacts(e: EventRow): EventFacts {
   };
 }
 
+/**
+ * The event as a participant's own view returns it over the API: every date, but of the
+ * settings only the accent colour and the team size. The rest of the settings (which
+ * projects the organizer accepted as under-reviewed, the vote link's hash, the
+ * published run) is organizer business.
+ */
+export function participantEventView(e: EventRow) {
+  const { settings, ...rest } = e;
+  return { ...rest, settings: { accent: settings.accent, maxTeamSize: settings.maxTeamSize } };
+}
+export type ParticipantEventView = ReturnType<typeof participantEventView>;
+
 /** An event by id or by slug (public URLs use the slug, the API uses the id). */
 export function findEvent(db: DbOrTx, idOrSlug: string): EventRow | undefined {
   return db

@@ -8,7 +8,7 @@ import { assignments, customAnswers, customQuestions, projects, scoreComments, t
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { mutate } from "../mutate";
 import { newId } from "../util";
-import { eventFacts, requireEvent, type EventRow } from "./events";
+import { eventFacts, participantEventView, requireEvent, type EventRow, type ParticipantEventView } from "./events";
 import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
 import { getPublishedResults } from "./normalization";
 import { myTeam, type MyTeam } from "./teams";
@@ -246,7 +246,7 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
 export type Question = { id: string; label: string; help: string; type: "text" | "longtext" | "url"; required: boolean };
 
 export type MyWork = {
-  event: EventRow;
+  event: ParticipantEventView;
   open: boolean;
   tracks: { id: string; name: string }[];
   questions: Question[];
@@ -317,7 +317,7 @@ export function getMyWork(actor: Actor, eventIdOrSlug: string): MyWork {
       )
     : {};
   return {
-    event,
+    event: participantEventView(event),
     open: submissionsOpen(eventFacts(event), new Date()),
     tracks: db
       .select({ id: tracks.id, name: tracks.name })
