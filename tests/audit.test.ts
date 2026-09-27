@@ -137,3 +137,59 @@ describe("the audit chain", () => {
     expect(() => insertItem(0)).toThrow(/outside its criterion/); // below the scale
   });
 });
+
+describe("published results are final in the database too", () => {
+  const publish = () => h.sqlite.prepare("UPDATE events SET results_published_at = ? WHERE id = 'evt_01'").run(NOW);
+  const refused = (sql: string, pattern: RegExp, ...params: string[]) => expect(() => h.sqlite.prepare(sql).run(...params)).toThrow(pattern);
+  const item = () => h.sqlite.prepare("SELECT score_id AS s, criterion_id AS c, value AS v FROM score_items LIMIT 1").get() as { s: string; c: string; v: number };
+  const commented = () => (h.sqlite.prepare("SELECT score_id AS s FROM score_comments LIMIT 1").get() as { s: string }).s;
+  const answer = () =>
+    h.sqlite
+      .prepare("INSERT INTO comparisons (id, event_id, judge_user_id, track_id, left_project_id, right_project_id, new_project_id, outcome, created_at) VALUES ('cmp_t', 'evt_01', 'jdg_01', 'trk_01', 'prj_01', 'prj_02', 'prj_02', 'left', ?)")
+      .run(NOW);
+
+  it("normalization runs and their scores reject UPDATE and DELETE, published or not", () => {
+    h.sqlite.prepare("INSERT INTO normalization_runs (id, event_id, method, params, computed_at) VALUES ('nrm_t', 'evt_01', 'test', '{}', ?)").run(NOW);
+    h.sqlite.prepare("INSERT INTO normalized_scores (run_id, project_id, n, raw_mean, normalized_mean) VALUES ('nrm_t', 'prj_01', 3, 3.5, 3.6)").run();
+    refused("UPDATE normalization_runs SET method = 'edited' WHERE id = 'nrm_t'", /append-only: UPDATE rejected/);
+    refused("DELETE FROM normalization_runs WHERE id = 'nrm_t'", /append-only: DELETE rejected/);
+    refused("UPDATE normalized_scores SET normalized_mean = 5 WHERE run_id = 'nrm_t'", /append-only: UPDATE rejected/);
+    refused("DELETE FROM normalized_scores WHERE run_id = 'nrm_t'", /append-only: DELETE rejected/);
+  });
+
+  it("before publishing a judge's numbers change freely (positive control); after, no edit or removal gets through", () => {
+    const it0 = item();
+    const other = it0.v === 1 ? 2 : 1;
+    h.sqlite.prepare("UPDATE score_items SET value = ? WHERE score_id = ? AND criterion_id = ?").run(other, it0.s, it0.c);
+    h.sqlite.prepare("UPDATE score_comments SET feedback = 'edited before publishing' WHERE score_id = ?").run(commented());
+    answer();
+    h.sqlite.prepare("UPDATE comparisons SET voided_at = ? WHERE id = 'cmp_t'").run(NOW);
+
+    publish();
+    const it1 = item();
+    refused("UPDATE score_items SET value = ? WHERE score_id = ? AND criterion_id = ?", /published, so this is final/, String(it1.v === 1 ? 2 : 1), it1.s, it1.c);
+    refused("DELETE FROM score_items WHERE score_id = ? AND criterion_id = ?", /published, so this is final/, it1.s, it1.c);
+    refused("UPDATE score_comments SET feedback = 'edited after' WHERE score_id = ?", /published, so this is final/, commented());
+    refused("DELETE FROM score_comments WHERE score_id = ?", /published, so this is final/, commented());
+    refused("UPDATE scores SET submitted_at = NULL WHERE id = ?", /published, so this is final/, it1.s);
+    refused("DELETE FROM scores WHERE id = ?", /published, so this is final/, it1.s);
+    refused("UPDATE comparisons SET voided_at = NULL WHERE id = 'cmp_t'", /published, so this is final/);
+    refused("DELETE FROM comparisons WHERE id = 'cmp_t'", /published, so this is final/);
+  });
+
+  it("published results cannot be withdrawn or pointed at another run; other changes to the event still go through", () => {
+    h.sqlite.prepare("UPDATE events SET settings = json_set(coalesce(settings, '{}'), '$.publishedRunId', 'nrm_a') WHERE id = 'evt_01'").run();
+    publish();
+    refused("UPDATE events SET results_published_at = NULL WHERE id = 'evt_01'", /cannot be withdrawn or swapped/);
+    refused("UPDATE events SET results_published_at = '2026-09-27T00:00:00.000Z' WHERE id = 'evt_01'", /cannot be withdrawn or swapped/);
+    refused("UPDATE events SET settings = json_set(settings, '$.publishedRunId', 'nrm_b') WHERE id = 'evt_01'", /cannot be withdrawn or swapped/);
+    h.sqlite.prepare("UPDATE events SET settings = json_set(settings, '$.maxTeamSize', 5), name = 'Renamed Hack' WHERE id = 'evt_01'").run();
+    expect(h.sqlite.prepare("SELECT name FROM events WHERE id = 'evt_01'").get()).toEqual({ name: "Renamed Hack" });
+  });
+
+  it("the boot import still runs on a published event: it inserts nothing and edits nothing", () => {
+    publish();
+    const { fixture, sha256 } = loadFixtureFile(path.join(process.cwd(), "fixtures.json"));
+    expect(() => importFixtures(h.db, fixture, { source: "fixtures.json", sha256, now: NOW })).not.toThrow();
+  });
+});

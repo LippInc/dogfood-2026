@@ -84,7 +84,7 @@ as `isolation-report.txt`. Our own tests (`npm ci && npm test`, vitest, on Node 
 like the image: passwords use its built-in argon2) cover the permission
 rules, the assignment engine, the normalization engine and its Monte Carlo
 validation, the pairwise engine and its Monte Carlo proof, voting and comments, the audit log's append-only triggers and hash
-chain.
+chain, and the triggers that keep published results final.
 
 How it is built: `ARCHITECTURE.md` (a request's path through the one permission
 check, the audit log, boot, the API) and `DATA-MODEL.md` (every table, its

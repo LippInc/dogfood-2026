@@ -18,7 +18,48 @@ const range = (event: "INSERT" | "UPDATE OF value, criterion_id") => `
     SELECT RAISE(ABORT, 'score_items.value is outside its criterion''s scale');
   END`;
 
+const appendOnly = (table: string, op: "UPDATE" | "DELETE") => `
+  BEFORE ${op} ON ${table}
+  BEGIN
+    SELECT RAISE(ABORT, '${table} is append-only: ${op} rejected');
+  END`;
+
+// Once an event's results are published its numbers are final: the app refuses every
+// change, and these make the database refuse an edit or a removal too. INSERT is left to
+// the app on purpose: the boot import inserts with ON CONFLICT DO NOTHING, which fires
+// BEFORE INSERT triggers even for rows it then skips, and a published run cannot move
+// with new rows anyway, since runs are append-only.
+const eventOfScore = (scoreId: string) => `(SELECT a.event_id FROM scores s JOIN assignments a ON a.id = s.assignment_id WHERE s.id = ${scoreId})`;
+const eventOfAssignment = (assignmentId: string) => `(SELECT a.event_id FROM assignments a WHERE a.id = ${assignmentId})`;
+const final = (table: string, op: "UPDATE" | "DELETE", eventId: string) => `
+  BEFORE ${op} ON ${table}
+  WHEN EXISTS (SELECT 1 FROM events e WHERE e.id = ${eventId} AND e.results_published_at IS NOT NULL)
+  BEGIN
+    SELECT RAISE(ABORT, '${table}: the results are published, so this is final');
+  END`;
+
 export const TRIGGERS: Record<string, string> = {
+  normalization_runs_no_update: appendOnly("normalization_runs", "UPDATE"),
+  normalization_runs_no_delete: appendOnly("normalization_runs", "DELETE"),
+  normalized_scores_no_update: appendOnly("normalized_scores", "UPDATE"),
+  normalized_scores_no_delete: appendOnly("normalized_scores", "DELETE"),
+  score_items_final_update: final("score_items", "UPDATE", eventOfScore("OLD.score_id")),
+  score_items_final_delete: final("score_items", "DELETE", eventOfScore("OLD.score_id")),
+  score_comments_final_update: final("score_comments", "UPDATE", eventOfScore("OLD.score_id")),
+  score_comments_final_delete: final("score_comments", "DELETE", eventOfScore("OLD.score_id")),
+  scores_final_update: final("scores", "UPDATE", eventOfAssignment("OLD.assignment_id")),
+  scores_final_delete: final("scores", "DELETE", eventOfAssignment("OLD.assignment_id")),
+  comparisons_final_update: final("comparisons", "UPDATE", "OLD.event_id"),
+  comparisons_final_delete: final("comparisons", "DELETE", "OLD.event_id"),
+  // published results cannot be withdrawn, re-dated or pointed at another run
+  events_published_final: `
+  BEFORE UPDATE OF results_published_at, settings ON events
+  WHEN OLD.results_published_at IS NOT NULL
+    AND (NEW.results_published_at IS NOT OLD.results_published_at
+      OR json_extract(NEW.settings, '$.publishedRunId') IS NOT json_extract(OLD.settings, '$.publishedRunId'))
+  BEGIN
+    SELECT RAISE(ABORT, 'events: published results cannot be withdrawn or swapped');
+  END`,
   audit_log_no_update: `
   BEFORE UPDATE ON audit_log
   BEGIN
