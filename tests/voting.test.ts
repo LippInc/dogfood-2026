@@ -620,6 +620,14 @@ describe("rate limits", () => {
     expect(auditCount("vote.cast")).toBe(1); // the 29 repeats were no-ops, but each still spent a token
     expectHttpError(() => castBallot(null, "evt_01", token, { projectIds: ["prj_01"] }, CLIENT), 429, "rate_limited");
   });
+
+  it("known-bad: an account voter's first save and the ones after it share one limit (the 31st is 429)", () => {
+    const p = actorById("usr_organizer"); // on no team, so every project is a valid pick
+    for (let i = 0; i < 30; i++) {
+      castBallot(p, "evt_01", null, { projectIds: ["prj_01"] }, CLIENT);
+    }
+    expectHttpError(() => castBallot(p, "evt_01", null, { projectIds: ["prj_01"] }, CLIENT), 429, "rate_limited");
+  });
 });
 
 describe("the seeded ballot order", () => {

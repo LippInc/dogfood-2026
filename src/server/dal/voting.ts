@@ -232,7 +232,8 @@ export function castBallot(actor: Actor | null, eventIdOrSlug: string, token: st
   const settings = votingSettings(event);
   const who = resolveVoter(db, event, actor, token);
   const voterLabel = who && !who.viaAccount ? `${who.kind === "listed" ? "Listed" : "Link"} voter ${who.row.id.slice(-6)}` : null;
-  const limitKey = who?.row?.id ?? (actor ? `user:${actor.userId}` : `anon:${clientHash(client.ip, event.id)}`);
+  // An account voter keeps one bucket from the first save on (before it, there is no voter row).
+  const limitKey = who?.viaAccount && actor ? `user:${actor.userId}` : (who?.row?.id ?? `anon:${clientHash(client.ip, event.id)}`);
   limitOrThrow(`ballot:${limitKey}`, LIMITS.ballot, {
     eventId: event.id,
     label: actor && who?.viaAccount ? actor.name : (voterLabel ?? "anonymous"),
