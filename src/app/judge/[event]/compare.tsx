@@ -429,8 +429,8 @@ function ProjectCard({
         picked ? "lit border-accent shadow-[0_0_0_1px_var(--accent)]" : "border-rule"
       }`}
     >
-      <div className="relative overflow-hidden rounded-t-sm border-b border-rule">
-        {p.thumbnailUrl ? <ProjectImage src={p.thumbnailUrl} alt="" fallback={face} /> : face}
+      <div className="relative aspect-[3/1] overflow-hidden rounded-t-sm border-b border-rule">
+        {p.thumbnailUrl ? <ProjectImage src={p.thumbnailUrl} alt="" fallback={face} className="h-full" /> : face}
         <span className={`absolute top-2.5 rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 ${side === "left" ? "right-2.5" : "left-2.5"}`}>
           {p.id}
         </span>

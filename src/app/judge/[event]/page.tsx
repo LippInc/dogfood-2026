@@ -76,7 +76,8 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
       id,
       {
         small: <Face id={id} cols={32} rows={18} className="block h-[27px] w-12" />,
-        large: <Face id={id} cols={48} rows={27} className="block aspect-video w-full" />,
+        // a 3:1 band, drawn at that shape (not stretched), so both cards and all three answers fit a 900 px screen
+        large: <Face id={id} cols={48} rows={16} className="block h-full w-full" />,
       },
     ]),
   );
