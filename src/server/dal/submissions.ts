@@ -5,6 +5,7 @@ import { getDb } from "../db/client";
 import { assignments, projects, teamMembers, teams, tracks } from "../db/schema";
 import { guardRead } from "../mutate";
 import { eventFacts, requireEvent } from "./events";
+import { decisions } from "./normalization";
 
 // The organizer's list of every project, drafts included, with its review progress.
 
@@ -17,7 +18,10 @@ export type SubmissionRow = {
   members: number;
   submittedAt: string | null;
   duplicateOf: string | null;
+  /** a copy in a duplicate decision the organizer has not made yet */
   suspectedDuplicate: boolean;
+  /** copies the organizer merged into this one */
+  mergedIn: string[];
   reviewsDone: number;
   reviewsAssigned: number;
   repoUrl: string | null;
@@ -48,9 +52,11 @@ export function getSubmissions(actor: Actor | null, eventIdOrSlug: string) {
     .where(and(eq(projects.eventId, event.id)))
     .orderBy(asc(tracks.position), asc(projects.title))
     .all();
-  const key = (r: (typeof rows)[number]) => `${r.teamId}\u0000${r.title.trim().toLowerCase().replace(/\s+/g, " ")}`;
-  const seen = new Map<string, number>();
-  for (const r of rows) if (r.status === "submitted") seen.set(key(r), (seen.get(key(r)) ?? 0) + 1);
+  // the same duplicate groups as the overview's decisions, so the two pages never disagree
+  const dupes = decisions(db, event).flatMap((d) => (d.kind === "duplicate" ? [d] : []));
+  const open = new Set(dupes.filter((d) => d.resolved === null).flatMap((d) => d.copies.map((c) => c.id)));
+  const mergedIn = new Map<string, string[]>();
+  for (const d of dupes) for (const c of d.copies) if (c.duplicateOf) mergedIn.set(c.duplicateOf, [...(mergedIn.get(c.duplicateOf) ?? []), c.id]);
   const list: SubmissionRow[] = rows.map((r) => ({
     id: r.id,
     title: r.title,
@@ -60,7 +66,8 @@ export function getSubmissions(actor: Actor | null, eventIdOrSlug: string) {
     members: r.members,
     submittedAt: r.submittedAt,
     duplicateOf: r.duplicateOf,
-    suspectedDuplicate: r.status === "submitted" && (seen.get(key(r)) ?? 0) > 1,
+    suspectedDuplicate: open.has(r.id),
+    mergedIn: mergedIn.get(r.id) ?? [],
     reviewsDone: r.done,
     reviewsAssigned: r.assigned,
     repoUrl: r.repoUrl,

@@ -26,6 +26,7 @@ import {
   unmergeDuplicate,
   type Decision,
 } from "@/server/dal/normalization";
+import { getSubmissions } from "@/server/dal/submissions";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -341,6 +342,21 @@ describe("mergeDuplicate / unmergeDuplicate / dismissDuplicate", () => {
     expectHttpError(() => dismissDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_41"], reason: "" }), 422, "invalid");
     expect(decisions(h.db, eventOf()).find(isDuplicate)!.resolved).toBeNull();
     expect(auditRows().length).toBe(before);
+  });
+});
+
+describe("the submissions list follows the duplicate decision", () => {
+  const rowsOf = () => Object.fromEntries(getSubmissions(organizer(), "evt_01").rows.filter((r) => ["prj_07", "prj_41"].includes(r.id)).map((r) => [r.id, { suspected: r.suspectedDuplicate, of: r.duplicateOf, mergedIn: r.mergedIn }]));
+
+  it("flags both copies while the decision is open, and neither once it is made", () => {
+    expect(rowsOf()).toEqual({ prj_07: { suspected: true, of: null, mergedIn: [] }, prj_41: { suspected: true, of: null, mergedIn: [] } });
+
+    mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    expect(rowsOf()).toEqual({ prj_07: { suspected: false, of: null, mergedIn: ["prj_41"] }, prj_41: { suspected: false, of: "prj_07", mergedIn: [] } });
+
+    unmergeDuplicate(organizer(), "evt_01", { duplicateId: "prj_41" });
+    dismissDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_41"], reason: "Two different entries" });
+    expect(rowsOf()).toEqual({ prj_07: { suspected: false, of: null, mergedIn: [] }, prj_41: { suspected: false, of: null, mergedIn: [] } });
   });
 });
 

@@ -69,6 +69,8 @@ export default async function SubmissionsPage({ params }: PageProps<"/organize/[
                       {r.status === "draft" ? <span className="ml-2 text-12 text-ink-2">draft</span> : null}
                       {r.duplicateOf ? (
                         <span className="ml-2 text-12 text-ink-2">merged into {r.duplicateOf}</span>
+                      ) : r.mergedIn.length ? (
+                        <span className="ml-2 text-12 text-ink-2">{r.mergedIn.join(", ")} merged into this</span>
                       ) : r.suspectedDuplicate ? (
                         <Link href={`/organize/${event.slug}`} className="ml-2 text-12 text-flag underline underline-offset-2">
                           suspected duplicate
