@@ -144,6 +144,7 @@ export const OPERATIONS: Operation[] = [
   { method: "POST", path: "/api/events/{event}/duplicates/merge", tag: "Results", summary: "Merge a duplicate entry into the copy to keep", access: "organizer", body: In.MergeInput, also: [409] },
   { method: "POST", path: "/api/events/{event}/duplicates/unmerge", tag: "Results", summary: "Undo a merge", access: "organizer", body: In.UnmergeInput, also: [409] },
   { method: "POST", path: "/api/events/{event}/duplicates/not-duplicate", tag: "Results", summary: "Rule two flagged projects different, with a reason", access: "organizer", body: In.PairInput, also: [409] },
+  { method: "POST", path: "/api/events/{event}/duplicates/not-duplicate/undo", tag: "Results", summary: "Undo a 'different projects' ruling", access: "organizer", body: In.UndoPairInput, also: [409] },
   {
     method: "POST",
     path: "/api/events/{event}/projects/{project}/accept-under-reviewed",
@@ -151,6 +152,14 @@ export const OPERATIONS: Operation[] = [
     summary: "Publish a project with fewer than two reviews as it is, with a reason",
     access: "organizer",
     body: In.AcceptInput.pick({ reason: true }),
+    also: [409],
+  },
+  {
+    method: "DELETE",
+    path: "/api/events/{event}/projects/{project}/accept-under-reviewed",
+    tag: "Results",
+    summary: "Undo publishing a project as it is",
+    access: "organizer",
     also: [409],
   },
   {
