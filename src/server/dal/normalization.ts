@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignments, events, judgeOverrides, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, userRoles, users } from "../db/schema";
+import { assignments, events, judgeOverrides, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, users } from "../db/schema";
 import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import type { FlatFlag } from "../judging/flat";
@@ -12,7 +12,8 @@ import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { isJudgeIn } from "./judges";
-import { finishedReviews, judgeSet, rubricOf, weightedTotal, type ActiveOverride } from "./judging";
+import { finishedReviews, judgeSet, rubricOf, weightedTotal, type ActiveOverride, judgeNames, submittedProjects, type ProjectInfo } from "./judging";
+import { computePairwise, judgingModeOf, PAIRWISE_METHOD, pairwiseDecisions, storePairwiseRun, type CoinFlipDecision } from "./pairwise";
 import { parse } from "./parse";
 
 // Normalization as the organizer sees it, the decisions that stand between the
@@ -22,51 +23,6 @@ import { parse } from "./parse";
 
 export const METHOD = "leniency-shrunk-v1";
 export const METHOD_LABEL = "Judge leniency, shrunk by n ÷ (n + k), with k estimated from this event's own scores";
-
-type ProjectInfo = {
-  id: string;
-  title: string;
-  trackId: string;
-  trackName: string;
-  teamId: string;
-  teamName: string;
-  duplicateOf: string | null;
-  submittedAt: string | null;
-  repoUrl: string | null;
-};
-
-function submittedProjects(db: DbOrTx, eventId: string): ProjectInfo[] {
-  return db
-    .select({
-      id: projects.id,
-      title: projects.title,
-      trackId: projects.trackId,
-      trackName: tracks.name,
-      teamId: projects.teamId,
-      teamName: teams.name,
-      duplicateOf: projects.duplicateOf,
-      submittedAt: projects.submittedAt,
-      repoUrl: projects.repoUrl,
-    })
-    .from(projects)
-    .innerJoin(tracks, eq(tracks.id, projects.trackId))
-    .innerJoin(teams, eq(teams.id, projects.teamId))
-    .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted")))
-    .orderBy(asc(tracks.position), asc(projects.id))
-    .all();
-}
-
-function judgeNames(db: DbOrTx, eventId: string): Map<string, string> {
-  return new Map(
-    db
-      .select({ id: users.id, name: users.name })
-      .from(userRoles)
-      .innerJoin(users, eq(users.id, userRoles.userId))
-      .where(and(eq(userRoles.eventId, eventId), eq(userRoles.role, "judge")))
-      .all()
-      .map((u) => [u.id, u.name]),
-  );
-}
 
 const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
@@ -408,7 +364,10 @@ export type Decision =
       n: number;
       waiting: number;
       resolved: "accepted" | null;
-    };
+      /** set in pairwise mode, where n counts the judges who compared it */
+      mode?: "pairwise";
+    }
+  | CoinFlipDecision;
 
 export function decisions(db: DbOrTx, event: EventRow, now = computeNormalization(db, event)): Decision[] {
   const out: Decision[] = [];
@@ -508,6 +467,17 @@ export function decisions(db: DbOrTx, event: EventRow, now = computeNormalizatio
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
+
+/**
+ * The decisions that stand between an event and its published results, for how it is
+ * judged: the score engine's list, or in pairwise mode the flagged judges and the
+ * projects fewer than two judges compared, plus the duplicates either way.
+ */
+export function eventDecisions(db: DbOrTx, event: EventRow): Decision[] {
+  if (judgingModeOf(event) !== "pairwise") return decisions(db, event);
+  const duplicates = decisions(db, event, computeNormalization(db, event)).filter((d) => d.kind === "duplicate");
+  return [...pairwiseDecisions(event, computePairwise(db, event)), ...duplicates];
+}
 
 export type PrivateNote = { projectId: string; judgeId: string; judge: string; note: string };
 
@@ -799,12 +769,34 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
         `Submissions are open until ${formatUtc(event.submissionsCloseAt)}. Results can be published once they close.`,
       );
     }
+    const at = new Date().toISOString();
+    if (judgingModeOf(event) === "pairwise") {
+      const openPw = eventDecisions(tx, event).filter((d) => !d.resolved);
+      if (openPw.length) {
+        throw new ConflictError("decisions_open", `${openPw.length} ${openPw.length === 1 ? "decision is" : "decisions are"} still open. Settle ${openPw.length === 1 ? "it" : "them"} before publishing.`);
+      }
+      const pw = computePairwise(tx, event);
+      const pwRun = storePairwiseRun(tx, event, actor!.userId, pw, at);
+      tx.update(events)
+        .set({ resultsPublishedAt: at, settings: { ...event.settings, publishedRunId: pwRun } })
+        .where(eq(events.id, event.id))
+        .run();
+      return {
+        result: { runId: pwRun, publishedAt: at },
+        audit: {
+          action: "results.publish",
+          eventId: event.id,
+          targetType: "normalization_run",
+          targetId: pwRun,
+          after: { method: PAIRWISE_METHOD, counts: pw.counts, left: pw.fit.left, fresh: pw.fit.fresh, excluded: pw.excluded },
+        },
+      };
+    }
     const n = computeNormalization(tx, event, { signal: true });
     const open = decisions(tx, event, n).filter((d) => !d.resolved);
     if (open.length) {
       throw new ConflictError("decisions_open", `${open.length} ${open.length === 1 ? "decision is" : "decisions are"} still open. Settle ${open.length === 1 ? "it" : "them"} before publishing.`);
     }
-    const at = new Date().toISOString();
     const runId = storeRun(tx, event, actor!, n, at);
     tx.update(events)
       .set({ resultsPublishedAt: at, settings: { ...event.settings, publishedRunId: runId } })
@@ -829,6 +821,8 @@ export type PublishedResults =
       published: true;
       publishedAt: string;
       runId: string;
+      /** how the stored run was made: the score engine's method, or PAIRWISE_METHOD */
+      method: string;
       k: number | null;
       tracks: {
         id: string;
@@ -887,6 +881,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     published: true,
     publishedAt: event.resultsPublishedAt,
     runId,
+    method: run.method,
     k: (run.params as { k?: number | null }).k ?? null,
     tracks: [...byTrack.values()].map((t) => {
       const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));

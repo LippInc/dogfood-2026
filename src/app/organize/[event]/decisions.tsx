@@ -26,6 +26,7 @@ const STAGE: Record<Decision["kind"], string> = {
   duplicate: "04 Eligibility",
   under_reviewed: "06 Scoring",
   flat_judge: "07 Normalization",
+  coin_flip_judge: "07 Ranking",
 };
 const idle: ActionResult = { ok: false, message: null };
 
@@ -142,6 +143,9 @@ function sentence(d: Decision): string {
     return `${d.name} scored every project ${d.vector.join(" / ")}`;
   if (d.kind === "duplicate")
     return `${d.title} was entered ${d.copies.length === 2 ? "twice" : `${d.copies.length} times`} by ${d.team}`;
+  if (d.kind === "coin_flip_judge")
+    return d.why === "ties" ? `${d.name} called most pairs too close to call` : `${d.name}'s answers agree with the others no more than coin flips`;
+  if (d.mode === "pairwise") return `${d.title} was compared by ${d.n} ${d.n === 1 ? "judge" : "judges"}`;
   return `${d.title} has ${d.n} counted ${d.n === 1 ? "review" : "reviews"}`;
 }
 
@@ -161,6 +165,10 @@ function stateLine(d: Decision): string {
     return [same ? "Same repository" : "Same team and title", apart]
       .filter(Boolean)
       .join(", ");
+  }
+  if (d.kind === "coin_flip_judge") {
+    if (!d.resolved) return "Their answers still count";
+    return d.resolved.mode === "include" ? "Kept by you" : "Left out by you";
   }
   if (d.resolved) return "Publishing as it is";
   return d.waiting
@@ -317,17 +325,49 @@ function Body({ d, eventSlug, published }: { d: Decision; eventSlug: string; pub
       </div>
     );
   }
+  if (d.kind === "coin_flip_judge") {
+    const first = d.name.split(" ")[0];
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-14 leading-6">
+          <strong>
+            {d.name} answered {d.picks} questions
+            {d.share === null ? "" : `; weighted by how sure everyone else is, ${Math.round(d.share * 100)} % of them agree with the others`}
+            {d.ties ? `, and ${d.ties} were “too close to call”` : ""}.
+          </strong>{" "}
+          {d.why === "ties"
+            ? "Calling most pairs too close says little about which project is better. "
+            : "Answers given at random would agree 50 % of the time; these do no better. "}
+          Their answers still count until you decide. The flag also catches about one honest judge in eleven (JUDGING.md), so look at
+          their answers on the Results page before you leave anyone out.
+        </p>
+        {d.resolved ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-13 text-ink-2">Your reason: “{d.resolved.reason}”</p>
+            {published ? null : <OneClick label="Undo" variant="outline" action={undoOverrideAction} fields={{ judge: d.judgeId }} eventSlug={eventSlug} />}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-start gap-3">
+            <WithReason label={`Leave ${first} out, with a reason…`} submit="Leave out" action={overrideAction} hidden={{ judge: d.judgeId, mode: "exclude" }} eventSlug={eventSlug} />
+            <WithReason label={`Keep ${first}, with a reason…`} submit="Keep" action={overrideAction} hidden={{ judge: d.judgeId, mode: "include" }} eventSlug={eventSlug} />
+          </div>
+        )}
+      </div>
+    );
+  }
+  const pw = d.mode === "pairwise";
   return (
     <div className="flex flex-col gap-3">
       <p className="text-14 leading-6">
         <strong>
-          {d.title} ({d.trackName}) has {d.n} counted{" "}
-          {d.n === 1 ? "review" : "reviews"}; a fair score needs at least 2.
+          {pw
+            ? `${d.title} (${d.trackName}) was compared by ${d.n} ${d.n === 1 ? "judge" : "judges"}; a fair place needs at least 2.`
+            : `${d.title} (${d.trackName}) has ${d.n} counted ${d.n === 1 ? "review" : "reviews"}; a fair score needs at least 2.`}
         </strong>{" "}
-        Its score rests on{" "}
+        Its {pw ? "place" : "score"} rests on{" "}
         {d.n === 1 ? "one judge's opinion" : "too few opinions"}, so its rank
         can be off by several places. A top-up assigns more judges from its own
-        track; the decision settles itself once their reviews are finished.
+        track; the decision settles itself once {pw ? "they have placed it" : "their reviews are finished"}.
       </p>
       {d.resolved ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -419,7 +459,9 @@ export function Decisions({
                 ? d.evidence.map((e) => e.projectId)
                 : d.kind === "duplicate"
                   ? d.copies.map((c) => c.id)
-                  : [d.projectId];
+                  : d.kind === "coin_flip_judge"
+                    ? []
+                    : [d.projectId];
             return (
               <li key={d.key} className="border-b border-rule">
                 <button

@@ -129,9 +129,21 @@ export const OPERATIONS: Operation[] = [
   },
   { method: "PUT", path: "/api/judge/reviews/{assignment}", tag: "Judging", summary: "Save a review (autosave; submitted: true finishes it)", access: "judge", body: In.ReviewInput },
   { method: "POST", path: "/api/judge/reviews/{assignment}/recuse", tag: "Judging", summary: "Declare a conflict: the project leaves your list", access: "judge", body: In.RecuseInput },
+  { method: "GET", path: "/api/judge/{event}/pairwise", tag: "Judging", summary: "Pairwise mode: your lists so far and the question to answer next, per track", access: "judge" },
+  {
+    method: "POST",
+    path: "/api/judge/{event}/pairwise/pick",
+    tag: "Judging",
+    summary: "Pairwise mode: answer the current question (409 if it is not the current one)",
+    access: "judge",
+    body: In.PickInput,
+  },
+  { method: "POST", path: "/api/judge/{event}/pairwise/undo", tag: "Judging", summary: "Pairwise mode: take back your latest answer in a track", access: "judge", body: In.UndoInput },
 
   // Results
   { method: "GET", path: "/api/events/{event}/normalization", tag: "Results", summary: "The normalization run with its working, judge by judge", access: "organizer" },
+  { method: "GET", path: "/api/events/{event}/pairwise", tag: "Results", summary: "The live pairwise ranking: receipts, the two pulls and the flagged judges", access: "organizer" },
+  { method: "PUT", path: "/api/events/{event}/judging-mode", tag: "Results", summary: "How the judges judge: scores or pairwise (409 once published)", access: "organizer", body: In.ModeInput },
   {
     method: "POST",
     path: "/api/events/{event}/judges/{judge}/override",

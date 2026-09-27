@@ -46,6 +46,7 @@ export type Action =
   | "judging.console"
   | "review.save"
   | "review.recuse"
+  | "pairwise.pick"
   | "vote.cast"
   | "comment.post"
   | "record.issue_own"
@@ -226,6 +227,16 @@ export function authorize(
       return hasRole(actor, resource.event.id, "judge")
         ? allow
         : refuse("not_a_judge_here", "Only this event's judges can open its judging console.");
+    }
+
+    case "pairwise.pick": {
+      // Pairwise mode: the judge's own answer about two of their own projects. The judge
+      // id is the session's; which two projects is the server's question, checked in the DAL.
+      if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");
+      if (!hasRole(actor, resource.event.id, "judge")) {
+        return refuse("not_a_judge_here", "Only this event's judges can compare its projects.");
+      }
+      return judgingRefusal(resource.event, now) ?? allow;
     }
 
     case "review.save":

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import type { DbOrTx } from "../db/client";
-import { assignments, judgeOverrides, judgeTracks, projects, rubricCriteria, scoreItems, scores } from "../db/schema";
+import { assignments, judgeOverrides, judgeTracks, projects, rubricCriteria, scoreItems, scores, teams, tracks, userRoles, users } from "../db/schema";
 import { excludedJudges, flatJudges, type FinishedReview, type FlatFlag, type Override } from "../judging/flat";
 
 // Shared loaders for the judging side: the rubric, the finished reviews (every
@@ -133,4 +133,50 @@ export function judgeSet(db: DbOrTx, eventId: string, reviews = finishedReviews(
   const flags = flatJudges(reviews);
   const overrides = activeOverrides(db, eventId);
   return { flags, overrides, excluded: excludedJudges(flags, overrides) };
+}
+
+// Moved from normalization.ts so the score engine and the pairwise engine share them.
+export type ProjectInfo = {
+  id: string;
+  title: string;
+  trackId: string;
+  trackName: string;
+  teamId: string;
+  teamName: string;
+  duplicateOf: string | null;
+  submittedAt: string | null;
+  repoUrl: string | null;
+};
+
+export function submittedProjects(db: DbOrTx, eventId: string): ProjectInfo[] {
+  return db
+    .select({
+      id: projects.id,
+      title: projects.title,
+      trackId: projects.trackId,
+      trackName: tracks.name,
+      teamId: projects.teamId,
+      teamName: teams.name,
+      duplicateOf: projects.duplicateOf,
+      submittedAt: projects.submittedAt,
+      repoUrl: projects.repoUrl,
+    })
+    .from(projects)
+    .innerJoin(tracks, eq(tracks.id, projects.trackId))
+    .innerJoin(teams, eq(teams.id, projects.teamId))
+    .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted")))
+    .orderBy(asc(tracks.position), asc(projects.id))
+    .all();
+}
+
+export function judgeNames(db: DbOrTx, eventId: string): Map<string, string> {
+  return new Map(
+    db
+      .select({ id: users.id, name: users.name })
+      .from(userRoles)
+      .innerJoin(users, eq(users.id, userRoles.userId))
+      .where(and(eq(userRoles.eventId, eventId), eq(userRoles.role, "judge")))
+      .all()
+      .map((u) => [u.id, u.name]),
+  );
 }

@@ -105,7 +105,9 @@ export default async function OverviewPage({
         ? d.evidence.map((e) => e.projectId)
         : d.kind === "duplicate"
           ? d.copies.map((c) => c.id)
-          : [d.projectId],
+          : d.kind === "coin_flip_judge"
+            ? []
+            : [d.projectId],
     ),
   );
   const faces = Object.fromEntries(

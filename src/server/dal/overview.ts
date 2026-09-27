@@ -8,7 +8,8 @@ import { guardRead } from "../mutate";
 import { latestAudit, type AuditLine } from "./audit-log";
 import { eventFacts, getGallery, requireEvent, type EventRow } from "./events";
 import { judgeRows } from "./judges";
-import { computeNormalization, decisions, type Decision } from "./normalization";
+import { computeNormalization, decisions, eventDecisions, type Decision } from "./normalization";
+import { judgingModeOf } from "./pairwise";
 
 // The organizer's overview (DESIGN.md: one focal point, three levels, details on
 // request): the decisions that stand between the scores and the results, the
@@ -47,7 +48,7 @@ export type Overview = {
   audit: AuditLine[];
 };
 
-const STAGE_OF: Record<Decision["kind"], string> = { duplicate: "04", under_reviewed: "06", flat_judge: "07" };
+const STAGE_OF: Record<Decision["kind"], string> = { duplicate: "04", under_reviewed: "06", flat_judge: "07", coin_flip_judge: "07" };
 
 export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overview {
   const db = getDb();
@@ -55,7 +56,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
   guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
   const now = Date.now();
   const n = computeNormalization(db, event);
-  const list = decisions(db, event, n);
+  const list = judgingModeOf(event) === "pairwise" ? eventDecisions(db, event) : decisions(db, event, n);
   const open = list.filter((d) => !d.resolved);
   const gallery = getGallery(event.id);
   const judges = judgeRows(db, event.id);
@@ -174,6 +175,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       "project.accept_under_reviewed_undo",
       "assignment.run",
       "assignment.by_hand",
+      "event.judging_mode",
       "results.publish",
       "event.update",
       "voting.settings",

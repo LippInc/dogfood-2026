@@ -4,6 +4,7 @@ import type { Actor } from "../authz";
 import { toCsv, type Cell } from "../csv";
 import { getDb, type DbOrTx } from "../db/client";
 import {
+  comparisons,
   assignmentRuns,
   assignments,
   customAnswers,
@@ -113,6 +114,33 @@ function projectsCsv(db: DbOrTx, event: EventRow): string {
   return toCsv(
     ["project_id", "title", "summary", "team_id", "team", "track", "status", "submitted_at", "repo_url", "duplicate_of", "finished_reviews"],
     rows.map((r) => [r.id, r.title, r.summary, r.teamId, r.team, r.track, r.status, r.submittedAt, r.repoUrl, r.duplicateOf, r.reviews]),
+  );
+}
+
+/** Every pairwise answer, taken back ones included (voided_at set), in the order given. */
+function comparisonsCsv(db: DbOrTx, event: EventRow): string {
+  const rows = db
+    .select({
+      id: comparisons.id,
+      at: comparisons.createdAt,
+      judgeId: comparisons.judgeUserId,
+      judge: users.name,
+      track: tracks.name,
+      left: comparisons.leftProjectId,
+      right: comparisons.rightProjectId,
+      opened: comparisons.newProjectId,
+      outcome: comparisons.outcome,
+      voidedAt: comparisons.voidedAt,
+    })
+    .from(comparisons)
+    .innerJoin(users, eq(users.id, comparisons.judgeUserId))
+    .innerJoin(tracks, eq(tracks.id, comparisons.trackId))
+    .where(eq(comparisons.eventId, event.id))
+    .orderBy(asc(comparisons.createdAt), asc(comparisons.id))
+    .all();
+  return toCsv(
+    ["comparison_id", "answered_at", "judge_id", "judge", "track", "left_project", "right_project", "just_opened", "answer", "taken_back_at"],
+    rows.map((r) => [r.id, r.at, r.judgeId, r.judge, r.track, r.left, r.right, r.opened, r.outcome, r.voidedAt]),
   );
 }
 
@@ -266,6 +294,7 @@ const EXPORTS: Record<string, Exporter> = {
   "projects.csv": projectsCsv,
   "normalized.csv": normalizedCsv,
   "audit.csv": (db, event) => auditCsv(db, event.id),
+  "comparisons.csv": comparisonsCsv,
   "event.json": eventJson,
   "fixtures.json": fixturesJson,
 };

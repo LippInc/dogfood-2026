@@ -168,6 +168,17 @@ function sentence(r: Row, n: Names): Part[] {
     }
     case "judge.override":
       return [actor, t(after.mode === "include" ? " reinstated " : " left out "), person(target), t(`: ${quote(after.reason)}`)];
+    case "pairwise.pick": {
+      const said = after.outcome === "tie" ? "called " : "compared ";
+      const pick = after.outcome === "left" ? after.left : after.outcome === "right" ? after.right : null;
+      return pick
+        ? [actor, t(" picked "), project(String(pick)), t(" over "), project(String(pick === after.left ? after.right : after.left))]
+        : [actor, t(` ${said}`), project(String(after.left)), t(" and "), project(String(after.right)), t(" too close to call")];
+    }
+    case "pairwise.undo":
+      return [actor, t(" took back an answer about "), project(String(before.left)), t(" and "), project(String(before.right))];
+    case "event.judging_mode":
+      return [actor, t(after.mode === "pairwise" ? " switched judging to pairwise: " : " switched judging to rubric scores: "), t(quote(after.reason))];
     case "judge.override_revoke":
       return [actor, t(" undid the override on "), person(target)];
     case "event.organizer_added":

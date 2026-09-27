@@ -141,3 +141,20 @@ export {
 export { claimAccount, countWithoutPassword, describeClaim, makeClaimLinks, type ClaimLink } from "./claims";
 export { importEventFile, type EventImport } from "./imports";
 export { createApiToken, listApiTokens, revokeApiToken, type TokenView } from "./tokens";
+export {
+  getPairwiseRanking,
+  getPairwiseState,
+  judgingModeOf,
+  PAIRWISE_METHOD,
+  PAIRWISE_METHOD_LABEL,
+  pickPairwise,
+  setJudgingMode,
+  undoPairwise,
+  type CoinFlipFlag,
+  type JudgingMode,
+  type PairwiseProject,
+  type PairwiseRanking,
+  type PairwiseState,
+  type PairwiseTrackState,
+  type ReceiptLine,
+} from "./pairwise";
