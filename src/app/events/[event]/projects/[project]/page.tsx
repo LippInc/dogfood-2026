@@ -7,7 +7,7 @@ import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
 import { competitionPlaces, ordinal } from "@/lib/places";
 import Link from "next/link";
-import { actorNav, currentActor, getGallery, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
+import { actorNav, currentActor, getGallery, getMyWork, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
 import { CommentForm, HideForm } from "./comments";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +58,15 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
   const comments = listComments(actor, p.id);
   const canModerate = Boolean(actor?.roles.some((r) => r.eventId === event.id && r.role === "organizer"));
   const path = `/events/${event.slug}/projects/${p.id}`;
+  // A signed-in member of this project's team: the page says so and points to where they manage it.
+  const ours = (() => {
+    if (!actor?.roles.some((r) => r.eventId === event.id && r.role === "participant")) return false;
+    try {
+      return getMyWork(actor, event.id).project?.id === p.id;
+    } catch {
+      return false;
+    }
+  })();
   // Once published, this project's own row of the published run: its place, score and ±, as the results page shows them.
   const results = event.resultsPublishedAt ? getPublishedResults(event.id) : null;
   const standing = (() => {
@@ -86,6 +95,15 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
   return (
     <PublicShell event={event} active="projects" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       <article className="pt-10">
+        {ours ? (
+          <p className="mb-8 flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-xs border border-ink px-4 py-3 text-14">
+            <span className="label-mono text-ink">Your team’s project</span>
+            <span className="text-ink-2">This is how the public sees it.</span>
+            <Link href={`/events/${event.slug}/my-project`} className="font-medium underline decoration-edge underline-offset-4 hover:decoration-ink sm:ml-auto">
+              Open My project
+            </Link>
+          </p>
+        ) : null}
         <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-start md:gap-12">
           <header className="min-w-0 wrap-anywhere">
             <p className="label-mono text-ink-3">
