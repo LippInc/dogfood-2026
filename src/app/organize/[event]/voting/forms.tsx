@@ -152,11 +152,18 @@ export function VoidForm({ eventSlug, voterId, voided }: { eventSlug: string; vo
     <form {...form} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="event" value={eventSlug} />
       <input type="hidden" name="voter" value={voterId} />
-      <Input name="reason" placeholder="Reason, for the audit log" className="w-64" aria-label="Reason" autoFocus />
+      <Input
+        name="reason"
+        placeholder="Reason, for the audit log"
+        className="w-64"
+        aria-label="Reason"
+        aria-invalid={state.fieldErrors?.reason ? true : undefined}
+        autoFocus
+      />
       <Button size="sm" disabled={pending}>
         Set aside
       </Button>
-      <Status state={state} />
+      {state.fieldErrors?.reason ? <p className="text-13 text-flag">{state.fieldErrors.reason[0]}</p> : <Status state={state} />}
     </form>
   );
 }

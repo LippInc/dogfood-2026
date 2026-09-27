@@ -79,7 +79,8 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                             <span className="font-mono text-12">{voter.id}</span> · {KIND[voter.kind]} · {voter.picks} {voter.picks === 1 ? "pick" : "picks"} · from{" "}
                             {formatUtc(voter.createdAt)}
                           </span>
-                          <VoidForm eventSlug={event.slug} voterId={voter.id} voided={voter.voided} />
+                          {/* keyed on voided, so the form starts closed again after each change */}
+                          <VoidForm key={`${voter.id}:${voter.voided}`} eventSlug={event.slug} voterId={voter.id} voided={voter.voided} />
                         </li>
                       ))}
                     </ul>
