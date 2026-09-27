@@ -301,15 +301,12 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                 Weigh them as a whole, the way you would score them. When you truly cannot choose, call it too close; the new project then
                 goes right below the other one.
               </p>
-              {/* The duel: the two projects face each other across one spine that holds the third answer. */}
-              <div
-                key={`${q.left.id}:${q.right.id}:${q.question}`}
-                className="duel-in mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_76px_minmax(0,1fr)] lg:gap-0"
-              >
+              {/* The duel: the two projects face each other, drawn the same; the third answer sits under them, as it always did. */}
+              <div key={`${q.left.id}:${q.right.id}:${q.question}`} className="duel-in mt-8 grid gap-6 md:grid-cols-2">
                 {([q.left, q.right] as const).map((p, n) => {
                   const side = n === 0 ? "left" : "right";
                   return (
-                    <div key={p.id} className={n === 0 ? "min-w-0 lg:col-start-1" : "min-w-0 lg:col-start-3"}>
+                    <div key={p.id} className="min-w-0">
                       <ProjectCard
                         project={p}
                         face={faces[p.id]?.large}
@@ -323,27 +320,21 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                     </div>
                   );
                 })}
-                <div className="row-start-1 hidden flex-col items-center lg:col-start-2 lg:flex">
-                  <span aria-hidden className="w-px flex-1 bg-rule" />
-                  <button
-                    type="button"
-                    onClick={() => answer("tie")}
-                    disabled={!canAnswer}
-                    aria-pressed={picked === "tie" ? true : undefined}
-                    className="group my-3 flex w-[60px] flex-col items-center gap-1.5 rounded-sm border border-edge bg-surface px-1 pt-2.5 pb-2 text-center hover:bg-raised disabled:cursor-not-allowed disabled:text-ink-3 aria-pressed:border-accent aria-pressed:bg-accent-tint"
-                  >
-                    <span aria-hidden className="font-mono text-20 leading-none">=</span>
-                    <span className="text-12 leading-[14px] font-medium">
-                      Too close
-                      <br />
-                      to call
-                    </span>
-                    <span aria-hidden className={lettersOn ? "" : "opacity-50"}>
-                      <Kbd>T</Kbd>
-                    </span>
-                  </button>
-                  <span aria-hidden className="w-px flex-1 bg-rule" />
-                </div>
+              </div>
+              <div className="mt-6 flex justify-center max-lg:hidden">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => answer("tie")}
+                  disabled={!canAnswer}
+                  aria-pressed={picked === "tie" ? true : undefined}
+                  className="aria-pressed:border-accent aria-pressed:bg-accent-tint"
+                >
+                  Too close to call
+                  <span aria-hidden className={lettersOn ? "" : "opacity-50"}>
+                    <Kbd>T</Kbd>
+                  </span>
+                </Button>
               </div>
             </>
           ) : (
