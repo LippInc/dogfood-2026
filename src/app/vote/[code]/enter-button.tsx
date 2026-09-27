@@ -6,9 +6,9 @@ import type { ActionResult } from "@/server/dal";
 import { enterAction } from "./actions";
 
 export function EnterButton({ code }: { code: string }) {
-  const [state, action, pending] = useFormAction<ActionResult>(enterAction, { ok: false, message: null });
+  const [state, form, pending] = useFormAction<ActionResult>(enterAction, { ok: false, message: null });
   return (
-    <form {...action} className="flex flex-col gap-3">
+    <form {...form} className="flex flex-col gap-3">
       <input type="hidden" name="code" value={code} />
       <Button size="xl" disabled={pending} className="self-start">
         {pending ? "Opening…" : "Open my ballot"}

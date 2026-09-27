@@ -7,9 +7,9 @@ import { removeOrganizerAction } from "./actions";
 
 /** One organizer's Remove button; the server keeps the last organizer (409). */
 export function RemoveOrganizer({ eventSlug, userId, name }: { eventSlug: string; userId: string; name: string }) {
-  const [state, run, pending] = useFormAction<ActionResult>(removeOrganizerAction, { ok: false, message: null });
+  const [state, form, pending] = useFormAction<ActionResult>(removeOrganizerAction, { ok: false, message: null });
   return (
-    <form {...run} className="flex flex-col items-end gap-1">
+    <form {...form} className="flex flex-col items-end gap-1">
       <input type="hidden" name="event" value={eventSlug} />
       <input type="hidden" name="user" value={userId} />
       <Button variant="outline" size="sm" disabled={pending} aria-label={`Remove ${name} as an organizer`}>

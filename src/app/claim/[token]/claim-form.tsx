@@ -10,10 +10,10 @@ import { claimAction } from "./actions";
 const idle: ActionResult = { ok: false, message: null };
 
 export function ClaimForm({ token, name }: { token: string; name: string }) {
-  const [state, action, pending] = useFormAction(claimAction.bind(null, token), idle);
+  const [state, form, pending] = useFormAction(claimAction.bind(null, token), idle);
   const e = state.fieldErrors ?? {};
   return (
-    <form {...action} className="flex max-w-[420px] flex-col gap-4">
+    <form {...form} className="flex max-w-[420px] flex-col gap-4">
       <Field id="claim-name" label="Your name" error={e.name}>
         {(a) => <Input {...a} name="name" defaultValue={name} autoComplete="name" />}
       </Field>

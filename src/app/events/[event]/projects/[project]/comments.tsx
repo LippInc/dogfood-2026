@@ -11,9 +11,9 @@ import { hideCommentAction, postCommentAction } from "./actions";
 const idle: ActionResult = { ok: false, message: null };
 
 export function CommentForm({ projectId, path }: { projectId: string; path: string }) {
-  const [state, action, pending] = useFormAction(postCommentAction, idle);
+  const [state, form, pending] = useFormAction(postCommentAction, idle);
   return (
-    <form {...action} className="flex flex-col gap-3">
+    <form {...form} className="flex flex-col gap-3">
       <input type="hidden" name="project" value={projectId} />
       <input type="hidden" name="path" value={path} />
       <label htmlFor="comment-body" className="text-14 font-medium">
@@ -34,7 +34,7 @@ export function CommentForm({ projectId, path }: { projectId: string; path: stri
 
 export function HideForm({ commentId, path }: { commentId: string; path: string }) {
   const [open, setOpen] = useState(false);
-  const [state, action, pending] = useFormAction(hideCommentAction, idle);
+  const [state, form, pending] = useFormAction(hideCommentAction, idle);
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="text-13 text-ink-2 underline underline-offset-4 hover:text-ink">
@@ -43,7 +43,7 @@ export function HideForm({ commentId, path }: { commentId: string; path: string 
     );
   }
   return (
-    <form {...action} className="flex flex-wrap items-center gap-2">
+    <form {...form} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="comment" value={commentId} />
       <input type="hidden" name="path" value={path} />
       <Input name="reason" placeholder="Reason, shown in its place" className="w-64" aria-label="Reason" autoFocus />

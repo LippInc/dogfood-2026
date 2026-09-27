@@ -8,9 +8,9 @@ import { importEventAction, type ImportResult } from "./actions";
 const idle: ImportResult = { ok: false, message: null };
 
 export function ImportEventForm() {
-  const [state, action, pending] = useFormAction(importEventAction, idle);
+  const [state, form, pending] = useFormAction(importEventAction, idle);
   return (
-    <form {...action} className="flex flex-col gap-3">
+    <form {...form} className="flex flex-col gap-3">
       <label htmlFor="event-file" className="text-14 font-medium">
         Event file (JSON, the fixture format)
       </label>

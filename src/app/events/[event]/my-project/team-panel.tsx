@@ -10,7 +10,7 @@ import { createTeamAction, rotateInviteAction } from "./actions";
 
 /** The team block of the side column: members, and for the captain the invite link. */
 export function TeamPanel({ team, eventSlug, open }: { team: MyTeam; eventSlug: string; open: boolean }) {
-  const [state, rotate, pending] = useFormAction<ActionResult>(rotateInviteAction, { ok: false, message: null });
+  const [state, form, pending] = useFormAction<ActionResult>(rotateInviteAction, { ok: false, message: null });
   const [copied, setCopied] = useState(false);
   const link = team.inviteCode && typeof window !== "undefined" ? `${window.location.origin}/join/${team.inviteCode}` : null;
   return (
@@ -59,7 +59,7 @@ export function TeamPanel({ team, eventSlug, open }: { team: MyTeam; eventSlug: 
             {copied ? "Copied." : state.message ?? "Anyone with this link can join while submissions are open."}
           </p>
           {open ? (
-            <form {...rotate}>
+            <form {...form}>
               <input type="hidden" name="team" value={team.id} />
               <input type="hidden" name="event" value={eventSlug} />
               <Button variant="ghost" size="sm" disabled={pending} className="-ml-2.5">
@@ -75,7 +75,7 @@ export function TeamPanel({ team, eventSlug, open }: { team: MyTeam; eventSlug: 
 
 /** For someone signed in with no team yet: start one (or open a captain's link). */
 export function StartTeam({ eventSlug, open }: { eventSlug: string; open: boolean }) {
-  const [state, action, pending] = useFormAction<ActionResult>(createTeamAction, { ok: false, message: null });
+  const [state, form, pending] = useFormAction<ActionResult>(createTeamAction, { ok: false, message: null });
   return (
     <div className="grid gap-8 md:grid-cols-2">
       <section aria-labelledby="start-title" className="rounded-sm border border-rule bg-surface p-6">
@@ -83,7 +83,7 @@ export function StartTeam({ eventSlug, open }: { eventSlug: string; open: boolea
           Start a team
         </h2>
         <p className="mt-1 text-14 text-ink-2">You become its captain and get an invite link to share.</p>
-        <form {...action} className="mt-5 flex flex-col gap-3">
+        <form {...form} className="mt-5 flex flex-col gap-3">
           <input type="hidden" name="event" value={eventSlug} />
           <label htmlFor="team-name" className="text-14 font-medium">
             Team name

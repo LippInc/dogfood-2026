@@ -4,9 +4,9 @@ import { useFormAction } from "@/components/use-form-action";
 import { passwordSignIn, type SignInState } from "./actions";
 
 export function PasswordForm({ next }: { next: string | null }) {
-  const [state, action, pending] = useFormAction<SignInState>(passwordSignIn, { message: null });
+  const [state, form, pending] = useFormAction<SignInState>(passwordSignIn, { message: null });
   return (
-    <form {...action} className="flex flex-col gap-4" noValidate>
+    <form {...form} className="flex flex-col gap-4" noValidate>
       {next ? <input type="hidden" name="next" value={next} /> : null}
       <label className="flex flex-col gap-1.5 text-14 font-medium">
         Email

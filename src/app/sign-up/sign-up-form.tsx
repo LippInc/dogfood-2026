@@ -8,10 +8,10 @@ import type { ActionResult } from "@/server/dal";
 import { signUpAction } from "./actions";
 
 export function SignUpForm({ next, setup }: { next: string | null; setup: string | null }) {
-  const [state, action, pending] = useFormAction<ActionResult>(signUpAction, { ok: false, message: null });
+  const [state, form, pending] = useFormAction<ActionResult>(signUpAction, { ok: false, message: null });
   const e = state.fieldErrors ?? {};
   return (
-    <form {...action} className="flex flex-col gap-5" noValidate>
+    <form {...form} className="flex flex-col gap-5" noValidate>
       {next ? <input type="hidden" name="next" value={next} /> : null}
       {setup ? <input type="hidden" name="setup" value={setup} /> : null}
       {setup ? (

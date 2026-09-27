@@ -65,7 +65,7 @@ export function WithReason({
   idKey?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, run, pending] = useFormAction(action, idle);
+  const [state, form, pending] = useFormAction(action, idle);
   if (!open) {
     return (
       <Button type="button" variant="outline" onClick={() => setOpen(true)}>
@@ -74,7 +74,7 @@ export function WithReason({
     );
   }
   return (
-    <form {...run} className="flex w-full flex-col gap-2">
+    <form {...form} className="flex w-full flex-col gap-2">
       <input type="hidden" name="event" value={eventSlug} />
       {Object.entries(hidden).flatMap(([k, v]) =>
         (Array.isArray(v) ? v : [v]).map((x) => (
@@ -115,9 +115,9 @@ export function OneClick({
   eventSlug: string;
   variant?: "primary" | "outline";
 }) {
-  const [state, run, pending] = useFormAction(action, idle);
+  const [state, form, pending] = useFormAction(action, idle);
   return (
-    <form {...run} className="flex flex-col gap-2">
+    <form {...form} className="flex flex-col gap-2">
       <input type="hidden" name="event" value={eventSlug} />
       {Object.entries(fields).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
@@ -426,7 +426,7 @@ export function PublishPanel({
   total: number;
   publishedAt: string | null;
 }) {
-  const [state, run, pending] = useFormAction(publishAction, idle);
+  const [state, form, pending] = useFormAction(publishAction, idle);
   const decided = total - open;
   return (
     <section
@@ -466,7 +466,7 @@ export function PublishPanel({
             )}
             {open ? "Locked" : "Ready"}
           </h2>
-          <form {...run} className="flex flex-col gap-3">
+          <form {...form} className="flex flex-col gap-3">
             <input type="hidden" name="event" value={eventSlug} />
             {open ? null : (
               <label className="flex items-start gap-2 text-14">
