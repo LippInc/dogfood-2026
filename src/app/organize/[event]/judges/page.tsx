@@ -197,12 +197,11 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                                   ))}
                                 </span>
                               ) : null}
-                              <span className="whitespace-nowrap">
+                              <span className="whitespace-nowrap" title={j.lastScoredAt ? `last review ${formatUtc(j.lastScoredAt)}` : undefined}>
                                 {j.done} of {j.assigned}
                               </span>
                             </div>
                             {j.recused ? <p className="mt-1 text-12 text-ink-2">{j.recused} recused</p> : null}
-                            {j.lastScoredAt ? <p className="mt-1 text-12 whitespace-nowrap text-ink-3">last {formatUtc(j.lastScoredAt)}</p> : null}
                           </TableCell>
                           {norm ? (
                             <TableCell className="max-md:col-span-2 max-md:block max-md:p-0">
@@ -219,13 +218,18 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                               <p className="text-flag">Excluded by an organizer.</p>
                             ) : j.pending > 0 ? (
                               <div className="flex flex-col items-start gap-2">
-                                <p className="text-ink-2">{j.pending} open</p>
+                                <p className="text-ink-2">
+                                  {j.pending} open
+                                  {/* When a judge last scored matters only while they still have work: it shows who has gone quiet. */}
+                                  <span className="block text-12 text-ink-3">{j.lastScoredAt ? `last review ${formatUtc(j.lastScoredAt)}` : "nothing scored yet"}</span>
+                                </p>
                                 <CopyButton text={reminder} label="Copy reminder" />
                               </div>
                             ) : j.assigned > 0 ? (
+                              // Under the "All finished" label the words would repeat on every row: the check says it.
                               <p className="flex items-center gap-1.5 text-ink-2">
                                 <Check className="size-3.5 shrink-0 text-ok" aria-hidden />
-                                All finished
+                                <span className={grouped ? "sr-only" : undefined}>All finished</span>
                               </p>
                             ) : (
                               <p className="text-ink-2">Nothing assigned yet</p>
