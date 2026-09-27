@@ -680,6 +680,26 @@ export function dismissDuplicate(actor: Actor | null, eventIdOrSlug: string, bod
   });
 }
 
+export const UndoPairInput = z.object({ ids: z.array(z.string().min(1)).min(2) });
+
+/** Undo "they are different projects": the copies are flagged as a duplicate again. */
+export function undoNotDuplicate(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
+  return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
+    notPublished(event);
+    const { ids } = parse(UndoPairInput, body);
+    const sorted = [...new Set(ids)].sort();
+    const pairs = new Set(sorted.flatMap((a, i) => sorted.slice(i + 1).map((b) => pairKey(a, b))));
+    const before = event.settings.notDuplicates ?? [];
+    const notDuplicates = before.filter((p) => !pairs.has(p));
+    if (notDuplicates.length === before.length) return { result: { ids: sorted }, audit: null };
+    tx.update(events).set({ settings: { ...event.settings, notDuplicates } }).where(eq(events.id, event.id)).run();
+    return {
+      result: { ids: sorted },
+      audit: { action: "project.not_duplicate_undo", eventId: event.id, targetType: "project", targetId: sorted[0]!, before: { ids: sorted } },
+    };
+  });
+}
+
 export const AcceptInput = z.object({ projectId: z.string().min(1), reason: Reason });
 
 /** Publish an under-reviewed project as it is; the results mark it. */
@@ -692,6 +712,24 @@ export function acceptUnderReviewed(actor: Actor | null, eventIdOrSlug: string, 
     return {
       result: { projectId },
       audit: { action: "project.accept_under_reviewed", eventId: event.id, targetType: "project", targetId: projectId, after: { reason } },
+    };
+  });
+}
+
+export const UndoAcceptInput = z.object({ projectId: z.string().min(1) });
+
+/** Undo "publish it as it is": the under-reviewed project is an open decision again. */
+export function undoAcceptUnderReviewed(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
+  return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
+    notPublished(event);
+    const { projectId } = parse(UndoAcceptInput, body);
+    const before = event.settings.acceptedUnderReviewed ?? [];
+    if (!before.includes(projectId)) return { result: { projectId }, audit: null };
+    const acceptedUnderReviewed = before.filter((p) => p !== projectId);
+    tx.update(events).set({ settings: { ...event.settings, acceptedUnderReviewed } }).where(eq(events.id, event.id)).run();
+    return {
+      result: { projectId },
+      audit: { action: "project.accept_under_reviewed_undo", eventId: event.id, targetType: "project", targetId: projectId, before: { accepted: true } },
     };
   });
 }

@@ -21,6 +21,8 @@ import {
   publishResults,
   revokeJudgeOverride,
   setJudgeOverride,
+  undoAcceptUnderReviewed,
+  undoNotDuplicate,
   unmergeDuplicate,
   type Decision,
 } from "@/server/dal/normalization";
@@ -336,6 +338,53 @@ describe("mergeDuplicate / unmergeDuplicate / dismissDuplicate", () => {
     expectHttpError(() => dismissDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_41"], reason: "" }), 422, "invalid");
     expect(decisions(h.db, eventOf()).find(isDuplicate)!.resolved).toBeNull();
     expect(auditRows().length).toBe(before);
+  });
+});
+
+describe("undoing a duplicate or under-reviewed decision", () => {
+  const judge = () => actorById("jdg_01");
+
+  it("undoing 'different projects' reopens the duplicate decision and writes one audit row", () => {
+    dismissDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_41"], reason: "Two different entries" });
+    undoNotDuplicate(organizer(), "evt_01", { ids: ["prj_41", "prj_07"] });
+    expect(decisions(h.db, eventOf()).find(isDuplicate)!.resolved).toBeNull();
+    expect(auditOf("project.not_duplicate_undo")).toHaveLength(1);
+    expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
+  it("undoing 'publish it as it is' reopens the under-reviewed decision and writes one audit row", () => {
+    acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    undoAcceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19" });
+    expect(decisions(h.db, eventOf()).find(isUnder)!.resolved).toBeNull();
+    expect(auditOf("project.accept_under_reviewed_undo")).toHaveLength(1);
+  });
+
+  it("an undo with nothing to undo changes nothing and writes no row", () => {
+    const before = auditRows().length;
+    undoNotDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_41"] });
+    undoAcceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19" });
+    expect(auditRows().length).toBe(before);
+  });
+
+  it("known-bad: a judge cannot undo either decision — 403, both stay decided", () => {
+    dismissDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_41"], reason: "Two different entries" });
+    acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    expectHttpError(() => undoNotDuplicate(judge(), "evt_01", { ids: ["prj_07", "prj_41"] }), 403, "not_an_organizer");
+    expectHttpError(() => undoAcceptUnderReviewed(judge(), "evt_01", { projectId: "prj_19" }), 403, "not_an_organizer");
+    expect(decisions(h.db, eventOf()).find(isDuplicate)!.resolved).toBe("not_duplicates");
+    expect(decisions(h.db, eventOf()).find(isUnder)!.resolved).toBe("accepted");
+    expect(auditOf("project.not_duplicate_undo")).toHaveLength(0);
+    expect(auditOf("project.accept_under_reviewed_undo")).toHaveLength(0);
+  });
+
+  it("known-bad: once published, no decision can be undone — 409 results_published", () => {
+    setJudgeOverride(organizer(), "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    dismissDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_41"], reason: "Two different entries" });
+    acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    publishResults(organizer(), "evt_01");
+    expectHttpError(() => undoNotDuplicate(organizer(), "evt_01", { ids: ["prj_07", "prj_41"] }), 409, "results_published");
+    expectHttpError(() => undoAcceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19" }), 409, "results_published");
+    expectHttpError(() => unmergeDuplicate(organizer(), "evt_01", { duplicateId: "prj_41" }), 409, "results_published");
   });
 });
 

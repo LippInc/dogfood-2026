@@ -15,7 +15,10 @@ import {
   overrideAction,
   publishAction,
   topUpAction,
+  undoAcceptAction,
+  undoNotDuplicateAction,
   undoOverrideAction,
+  unmergeAction,
 } from "./decision-actions";
 
 const STAGE: Record<Decision["kind"], string> = {
@@ -111,7 +114,7 @@ export function OneClick({
 }: {
   label: string;
   action: (prev: ActionResult, form: FormData) => Promise<ActionResult>;
-  fields: Record<string, string>;
+  fields: Record<string, string | string[]>;
   eventSlug: string;
   variant?: "primary" | "outline";
 }) {
@@ -119,9 +122,9 @@ export function OneClick({
   return (
     <form {...form} className="flex flex-col gap-2">
       <input type="hidden" name="event" value={eventSlug} />
-      {Object.entries(fields).map(([k, v]) => (
-        <input key={k} type="hidden" name={k} value={v} />
-      ))}
+      {Object.entries(fields).flatMap(([k, v]) =>
+        (Array.isArray(v) ? v : [v]).map((x) => <input key={`${k}-${x}`} type="hidden" name={k} value={x} />),
+      )}
       <Button variant={variant} disabled={pending}>
         {pending ? "Recording…" : label}
       </Button>
@@ -255,7 +258,27 @@ function Body({ d, eventSlug }: { d: Decision; eventSlug: string }) {
             table. Which copy you keep does not change the merged result, so
             scores are hidden here.
           </p>
-          {d.resolved ? null : (
+          {d.resolved === "merged" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              {d.copies
+                .filter((c) => c.id !== d.keptId)
+                .map((c) => (
+                  <OneClick
+                    key={c.id}
+                    label={d.copies.length > 2 ? `Undo: count ${c.id} again` : "Undo the merge"}
+                    variant="outline"
+                    action={unmergeAction}
+                    fields={{ duplicate: c.id }}
+                    eventSlug={eventSlug}
+                  />
+                ))}
+            </div>
+          ) : d.resolved === "not_duplicates" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-13 text-ink-2">Ruled different projects; the reason is in the audit log.</p>
+              <OneClick label="Undo" variant="outline" action={undoNotDuplicateAction} fields={{ ids: d.copies.map((c) => c.id) }} eventSlug={eventSlug} />
+            </div>
+          ) : (
             <div className="flex flex-wrap items-start gap-3">
               {d.copies.slice(0, 2).map((c, i) => {
                 const other = d.copies[1 - i]!;
@@ -295,7 +318,12 @@ function Body({ d, eventSlug }: { d: Decision; eventSlug: string }) {
         can be off by several places. A top-up assigns more judges from its own
         track; the decision settles itself once their reviews are finished.
       </p>
-      {d.resolved ? null : (
+      {d.resolved ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-13 text-ink-2">It will be published as it is, marked; the reason is in the audit log.</p>
+          <OneClick label="Undo" variant="outline" action={undoAcceptAction} fields={{ project: d.projectId }} eventSlug={eventSlug} />
+        </div>
+      ) : (
         <div className="flex flex-wrap items-start gap-3">
           <OneClick
             label="Assign more reviews (top-up)"

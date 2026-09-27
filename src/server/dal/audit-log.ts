@@ -180,8 +180,12 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" undid the merge of "), project(target)];
     case "project.not_duplicate":
       return [actor, t(` ruled ${(after.ids as string[] | undefined)?.join(" and ") ?? target} are different projects: ${quote(after.reason)}`)];
+    case "project.not_duplicate_undo":
+      return [actor, t(` undid the ruling that ${(before.ids as string[] | undefined)?.join(" and ") ?? target} are different projects`)];
     case "project.accept_under_reviewed":
       return [actor, t(" will publish "), project(target), t(` with fewer than two reviews: ${quote(after.reason)}`)];
+    case "project.accept_under_reviewed_undo":
+      return [actor, t(" undid publishing "), project(target), t(" as it is")];
     case "results.publish":
       return [actor, t(" published the results")];
     case "authz.refused":

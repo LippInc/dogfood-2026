@@ -65,6 +65,8 @@ export {
   publishResults,
   revokeJudgeOverride,
   setJudgeOverride,
+  undoAcceptUnderReviewed,
+  undoNotDuplicate,
   unmergeDuplicate,
   type Decision,
   type Influence,

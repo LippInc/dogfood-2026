@@ -11,6 +11,9 @@ import {
   revokeJudgeOverride,
   runAssignment,
   setJudgeOverride,
+  undoAcceptUnderReviewed,
+  undoNotDuplicate,
+  unmergeDuplicate,
   type ActionResult,
 } from "@/server/dal";
 
@@ -61,6 +64,21 @@ export async function notDuplicateAction(_prev: ActionResult, form: FormData): P
     (slug) => dismissDuplicate(actor, slug, { ids: form.getAll("ids").map(String), reason: form.get("reason") ?? "" }),
     "Recorded: these are different projects.",
   );
+}
+
+export async function unmergeAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  return settle(form, (slug) => unmergeDuplicate(actor, slug, { duplicateId: form.get("duplicate") }), "Undone. Both copies count as projects again.");
+}
+
+export async function undoNotDuplicateAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  return settle(form, (slug) => undoNotDuplicate(actor, slug, { ids: form.getAll("ids").map(String) }), "Undone. The copies are flagged as a duplicate again.");
+}
+
+export async function undoAcceptAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  return settle(form, (slug) => undoAcceptUnderReviewed(actor, slug, { projectId: form.get("project") }), "Undone. The project is an open decision again.");
 }
 
 export async function acceptAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
