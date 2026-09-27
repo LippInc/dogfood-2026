@@ -66,7 +66,7 @@ export function Timeline({ stages }: { stages: Stage[] }) {
   return (
     <ol className={`mt-8 flex flex-col lg:grid ${cols}`}>
       {stages.map((s, i) => (
-        <li key={s.name} className="relative pb-8 pl-8 lg:pb-0 lg:pl-0 lg:pr-8 lg:pt-8" aria-current={s.state === "now" ? "step" : undefined}>
+        <li key={s.name} className="relative pb-8 pl-8 last:pb-0 lg:pb-0 lg:pl-0 lg:pr-8 lg:pt-8" aria-current={s.state === "now" ? "step" : undefined}>
           <span
             aria-hidden
             className={`absolute top-0 bottom-0 left-[5px] w-[3px] lg:left-0 lg:right-0 lg:bottom-auto lg:h-[3px] lg:w-auto ${

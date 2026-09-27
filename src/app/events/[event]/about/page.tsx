@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/shell/public-shell";
 import { plural, weightShares } from "@/lib/format";
 import { actorNav, currentActor, getAbout, NotFoundError, type About } from "@/server/dal";
+import { Rubric } from "./rubric";
 import { stagesOf, Timeline } from "./timeline";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,15 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
         </div>
         <Timeline stages={stagesOf(event)} />
       </section>
+      <section aria-labelledby="rubric-title" className="mt-12 border-t border-rule pt-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-5">
+          <h2 id="rubric-title" className="label-mono text-ink">
+            Fig. 02 — How projects are judged
+          </h2>
+          <p className="text-13 text-ink-3">The weights are the organizers&apos; setting.</p>
+        </div>
+        <Rubric rubric={about.rubric} shares={shares} resultsHref={`/events/${event.slug}/results`} />
+      </section>
       <div className="mt-12 grid gap-12 border-t border-rule pt-10 lg:grid-cols-2">
         <section aria-labelledby="tracks-title">
           <h2 id="tracks-title" className="label-mono text-ink">
@@ -78,27 +88,6 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
           )}
         </section>
       </div>
-      <section aria-labelledby="rubric-title" className="mt-14 border-t border-rule pt-10">
-        <h2 id="rubric-title" className="label-mono text-ink">
-          How projects are judged
-        </h2>
-        <p className="mt-3 max-w-[680px] text-15 text-ink-2">
-          Each judge scores every criterion from {about.rubric[0]?.scaleMin ?? 1} to {about.rubric[0]?.scaleMax ?? 5}. A
-          review&apos;s total is the weighted mean of its criteria. Before ranking, the portal evens out judges who score
-          harshly or generously, and shows its working next to every result.
-        </p>
-        <ul className="mt-6 grid gap-4 sm:grid-cols-3">
-          {about.rubric.map((c, i) => (
-            <li key={c.key} className="rounded-sm border border-rule bg-surface p-5 wrap-anywhere">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="min-w-0 text-15 font-semibold">{c.label}</p>
-                <p className="shrink-0 font-mono text-13 text-ink-3">weight {shares[i]}</p>
-              </div>
-              <p className="mt-1 text-14 text-ink-2">{c.prompt}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
     </PublicShell>
   );
 }
