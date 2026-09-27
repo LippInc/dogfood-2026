@@ -4,7 +4,7 @@ import { Face } from "@/components/face";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
 import { actorNav, currentActor, getRecord, NotFoundError, type RecordView } from "@/server/dal";
-import { BrowserCheck, RecordActions } from "./check";
+import { BrowserCheck, ForgeTry, LiveSeal, RecordActions, RecordCheck } from "./check";
 
 export const dynamic = "force-dynamic";
 
@@ -44,10 +44,11 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
 
   return (
     <PublicShell event={view.event} active="none" signedInAs={actor?.name ?? null} links={actorNav(actor, view.event.id)}>
+      <RecordCheck envelope={view.envelope}>
       <div className="mx-auto flex max-w-[960px] flex-col gap-10 py-10 print:max-w-none print:py-0">
         <article
           aria-labelledby="record-name"
-          className="relative flex flex-col gap-8 rounded-sm border border-rule bg-surface p-6 sm:p-12 print:border-2 print:border-ink print:p-16"
+          className="corner-marks relative flex flex-col gap-8 rounded-sm border border-rule p-6 outline outline-1 outline-offset-4 outline-rule sm:p-12 print:border-2 print:border-ink print:p-16"
         >
           <div className="flex items-baseline justify-between gap-4">
             <span className="label-mono text-ink-3">[ signed record ]</span>
@@ -108,7 +109,9 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
             </ul>
           ) : null}
 
-          <dl className="grid gap-4 border-t border-rule pt-6 text-14 sm:grid-cols-3">
+          <div className="grid gap-8 border-t border-rule pt-6 md:grid-cols-[minmax(0,1fr)_208px] md:items-start">
+          <div className="flex flex-col gap-4">
+          <dl className="grid gap-4 text-14 sm:grid-cols-3">
             <div>
               <dt className="text-ink-3">Issued</dt>
               <dd>{formatUtc(rec.issuedAt)}</dd>
@@ -129,6 +132,9 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
               {view.anchor.holds ? "The log still holds that entry as signed." : "The log no longer holds that entry as signed: it was changed after this record was issued."}
             </p>
           ) : null}
+          </div>
+          <LiveSeal signature={view.envelope.signature} />
+          </div>
           <p className="hidden text-12 text-ink-2 print:block">
             Check this record at {rec.issuer}/records/{rec.id}
           </p>
@@ -147,7 +153,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
             <RecordActions envelope={view.envelope} id={rec.id} />
           </div>
 
-          <BrowserCheck envelope={view.envelope} serverSays={view.verification.valid} />
+          <BrowserCheck serverSays={view.verification.valid} />
 
           <ol className="flex flex-col gap-6">
             <li className="flex flex-col gap-2">
@@ -182,9 +188,14 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
                 or paste the downloaded record into <a href="/verify" className="underline underline-offset-4">the verify page</a>.
               </p>
             </li>
+            <li className="flex flex-col gap-2">
+              <h3 className="text-15 font-semibold">5. Try to forge it</h3>
+              <ForgeTry envelope={view.envelope} />
+            </li>
           </ol>
         </section>
       </div>
+      </RecordCheck>
     </PublicShell>
   );
 }

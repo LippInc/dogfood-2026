@@ -206,6 +206,29 @@
     }
   }
 
+  /* a drawing sheet's four corner marks, inset 12px, on the surface colour */
+  .corner-marks {
+    --mark: var(--edge);
+    background:
+      linear-gradient(var(--mark), var(--mark)) top 12px left 12px / 14px 1px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top 12px left 12px / 1px 14px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top 12px right 12px / 14px 1px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top 12px right 12px / 1px 14px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom 12px left 12px / 14px 1px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom 12px left 12px / 1px 14px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom 12px right 12px / 14px 1px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom 12px right 12px / 1px 14px no-repeat,
+      var(--surface);
+  }
+  .sig-bits path {
+    transition: fill 600ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sig-bits path {
+      transition: none;
+    }
+  }
+
   /* a sealed slot: hatched like a section cut on a drawing */
   .sealed {
     background-image: repeating-linear-gradient(135deg, var(--rule) 0 1px, transparent 1px 5px);
@@ -235,6 +258,15 @@
     .grow-bar {
       transform-origin: left;
       animation: grow-bar 800ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
+    .stamp {
+      animation: stamp 360ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+    }
+  }
+  @keyframes stamp {
+    from {
+      opacity: 0;
+      transform: scale(1.15);
     }
   }
   @keyframes reveal {
