@@ -244,7 +244,7 @@ function Contents({ entries }: { entries: ContentsEntry[] }) {
                 <span className="font-mono text-12 text-ink-3">{String(i + 1).padStart(2, "0")}</span>
                 <span className="truncate text-14 font-medium text-ink group-hover:underline group-hover:underline-offset-4">{e.title}</span>
               </span>
-              <span className={`mt-0.5 block truncate text-12 ${e.mark === "flag" ? "font-medium text-flag" : "text-ink-2"}`}>{e.holds}</span>
+              <span className={`mt-0.5 block text-12 ${e.mark === "flag" ? "font-medium text-flag" : "text-ink-2"}`}>{e.holds}</span>
             </a>
           </li>
         ))}
