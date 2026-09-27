@@ -118,6 +118,9 @@ function activePicks(db: DbOrTx, eventId: string) {
 export type PairwiseTrackState = {
   trackId: string;
   trackName: string;
+  /** every project of the judge's in this track, placed or not */
+  projects: PairwiseProject[];
+  /** the judge's order so far, best first */
   list: PairwiseProject[];
   current: { left: PairwiseProject; right: PairwiseProject; newId: string; question: number; ofAbout: number } | null;
   placed: number;
@@ -143,6 +146,7 @@ function trackStates(db: DbOrTx, event: EventRow, judgeUserId: string): Pairwise
     return {
       trackId: t.trackId,
       trackName: t.trackName,
+      projects: t.projects,
       list: s.list.map((id) => byId.get(id)!),
       current: s.current
         ? {
@@ -161,7 +165,7 @@ function trackStates(db: DbOrTx, event: EventRow, judgeUserId: string): Pairwise
 }
 
 export type PairwiseState = {
-  event: { id: string; slug: string; name: string; resultsPublishedAt: string | null };
+  event: { id: string; slug: string; name: string; judgingCloseAt: string | null; resultsPublishedAt: string | null };
   judge: { id: string; name: string };
   mode: JudgingMode;
   tracks: PairwiseTrackState[];
@@ -179,7 +183,7 @@ export function getPairwiseState(actor: Actor | null, eventIdOrSlug: string): Pa
   const decision = authorize(judge, "pairwise.pick", { kind: "event", event: eventFacts(event) }, new Date());
   const readOnly = decision.ok ? null : decision.message;
   return {
-    event: { id: event.id, slug: event.slug, name: event.name, resultsPublishedAt: event.resultsPublishedAt },
+    event: { id: event.id, slug: event.slug, name: event.name, judgingCloseAt: event.judgingCloseAt, resultsPublishedAt: event.resultsPublishedAt },
     judge: { id: judge.userId, name: judge.name },
     mode,
     tracks: mode === "pairwise" ? trackStates(db, event, judge.userId) : [],
