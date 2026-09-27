@@ -33,19 +33,21 @@ Herrera, Jonas Vogel) and a participant.
    the raw mean, the ± of the score). Below it, the **judge ledger** gives every
    judge's leniency ± error and what leaving that judge out would move, before
    you decide.
-3. Settle the decisions and publish. `/events/sample-hack-2026/results` shows each
-   place with its score ± error; signed in as the participant, **My project**
-   shows the team its reviews and a signed certificate, which `/verify` checks.
-4. Sign in as a judge: the keyboard-first console shows only that judge's own
-   scores; asking the API for another judge's is refused with 403.
-5. **Audit log** lists every change and every refused request from a signed-in
-   user, with the hash chain's head; **Integrations** has webhooks, the `fixtures.json` export and a link
-   to your API tokens; `/api-docs` is the API reference.
-6. The community vote is open in demo mode, for 30 days from the first start:
+3. The community vote is open in demo mode, for 30 days from the first start:
    signed in as anyone, pick up to three favourites at
    `/events/sample-hack-2026/vote`, or open the link the start prints
    (`community vote (demo): ...`) in a private window. The organizer's **Voting**
-   tab shows the count live; everyone else sees it only when the window closes.
+   tab shows the count live; everyone else sees it only when the vote closes.
+4. Settle the decisions and publish. Publishing also closes the community vote,
+   so nobody votes with the judged ranking in view; its count goes public with
+   the results. `/events/sample-hack-2026/results` shows each place with its
+   score ± error; signed in as the participant, **My project** shows the team
+   its reviews and a signed certificate, which `/verify` checks.
+5. Sign in as a judge: the keyboard-first console shows only that judge's own
+   scores; asking the API for another judge's is refused with 403.
+6. **Audit log** lists every change and every refused request from a signed-in
+   user, with the hash chain's head; **Integrations** has webhooks, the `fixtures.json` export and a link
+   to your API tokens; `/api-docs` is the API reference.
 7. Pairwise judging, on a fresh start (`docker compose down -v && docker compose
    up`) or any time before you publish: as the organizer, **Settings**, "How
    judges judge", choose Pairwise and give a reason. Sign in as a judge: the
@@ -92,9 +94,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 
 | Tier | Bullet | Status | Where | Hand check |
 |---|---|---|---|---|
-| T3 | Community voting: email gated, link based or authenticated | Built | Organizer: Voting tab. Voters: `/events/sample-hack-2026/vote`, `/vote/<code>` | `isolation_check.py` B1, B3, B4, B6. In demo mode the sample event's vote is open from the first start (tour step 6). Email gated means a voter list by address with one personal link each; the portal sends no mail, the organizer sends the links |
+| T3 | Community voting: email gated, link based or authenticated | Built | Organizer: Voting tab. Voters: `/events/sample-hack-2026/vote`, `/vote/<code>` | `isolation_check.py` B1, B3, B4, B6. In demo mode the sample event's vote is open from the first start (tour step 3). Email gated means a voter list by address with one personal link each; the portal sends no mail, the organizer sends the links |
 | T3 | Project comments | Built | Each project page; `GET/POST /api/projects/<id>/comments` | B8: post, organizer hides with a reason, the reason stays in place |
-| T3 | Results hidden during the voting window | Built | `GET /api/events/evt_01/community`, `GET /api/events/evt_01/voting` | B2, B5: while the window is open the public count is `null` for everyone and live only for organizers (403 for a participant); B10 after |
+| T3 | Results hidden during the voting window | Built | `GET /api/events/evt_01/community`, `GET /api/events/evt_01/voting` | B2, B5: while the window is open the public count is `null` for everyone and live only for organizers (403 for a participant); B10 after. The judged results never show during the vote either: publishing closes it (vitest, `publishing ends the community vote`) |
 | T3 | Randomized project ordering on ballots | Built | Each voter's ballot, seeded per voter | B4: two ballots, two different orders |
 | T3 | Anti abuse: rate limits, duplicate detection, audit trail | Built | Limits on ballots, link entries, comments, sign-in; no signed-in vote for your own team's project; one ballot per person the portal can name; flags on the organizer's Voting tab; the audit log | B3 (an own-project pick is 422), B5, B7, B9 (429 with `Retry-After`), B12 (every step is in the audit log) |
 | T4 | REST API and webhooks | Built | A JSON route for every action in the interface, through the same data access layer and permission checks; OpenAPI 3.1 at `/api/openapi.json`, readable at `/api-docs`; the session cookie, or a named API token (made at `/account/tokens`, revocable, acting with its owner's permissions) as `Authorization: Bearer <token>`. Webhooks on the organizer's Integrations tab: any audited action, queued in the same transaction as the change, signed `Dogfood-Signature: t=…,v1=<HMAC-SHA256>`, retried with backoff, with a delivery log | `isolation_check.py` C1 to C3. By hand: `curl -H "Authorization: Bearer <token>" localhost:8080/api/events/sample-hack-2026/overview`, where `<token>` is the part after `session=` on the organizer line of `.dogfood.toml` (a session token works as a Bearer too): 200; with the participant's token 403; with no header 401. To watch a webhook arrive: set `WEBHOOKS_ALLOW_PRIVATE: "true"` in docker-compose.yml (local targets are refused otherwise) and run `docker compose up -d` again, add a webhook on Integrations with the URL `http://host.docker.internal:9911/`, run `node scripts/webhook-receiver.mjs --secret <the secret it shows>` on your machine and press "Send a test": each delivery prints with `signature: valid` (Linux needs one more line, in the script's header) |
@@ -142,7 +144,8 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   who may vote: signed-in accounts, a voter list with personal links, and/or an
   open link. Each ballot lists the projects in the voter's own shuffled order; the
   count is live for organizers only while the window is open, public when it
-  closes, and final from then on. Suspected duplicate ballots are flagged while voting is open, for an
+  closes, and final from then on. Publishing the results closes an open vote
+  (and calls off one not yet open), so nobody votes with the ranking in view. Suspected duplicate ballots are flagged while voting is open, for an
   audited set-aside; ballots, link entries, comments
   and sign-in are rate limited. Signed-in visitors can comment on projects, and an
   organizer can hide a comment with a reason that stays in its place.

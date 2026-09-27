@@ -184,6 +184,8 @@ export function seedDemoVote(db: Db, eventId: string, now: string): { opened: bo
   return db.transaction((tx) => {
     const event = tx.select().from(events).where(eq(events.id, eventId)).get();
     if (!event) return { opened: false, code, closesAt: null };
+    // Publishing ends the vote (dal/voting.ts endVoteForPublish): none opens after it.
+    if (event.resultsPublishedAt) return { opened: false, code: "", closesAt: null };
     if (event.votingOpenAt || event.votingCloseAt || event.settings.voting) {
       const linked = event.settings.voting?.linkHash === sha256(code);
       return { opened: false, code: linked ? code : "", closesAt: event.votingCloseAt };

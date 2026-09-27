@@ -11,6 +11,7 @@ import { averageRanks, normalize, permutationShare, type Obs, type SignalCheck }
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
+import { endVoteForPublish } from "./voting";
 import { isJudgeIn } from "./judges";
 import { finishedReviews, judgeSet, rubricOf, weightedTotal, type ActiveOverride, judgeNames, submittedProjects, type ProjectInfo } from "./judging";
 import { computePairwise, judgingModeOf, PAIRWISE_METHOD, pairwiseDecisions, storePairwiseRun, type CoinFlipDecision } from "./pairwise";
@@ -845,6 +846,7 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
       }
       const pw = computePairwise(tx, event);
       const pwRun = storePairwiseRun(tx, event, actor!.userId, pw, at);
+      const vote = endVoteForPublish(tx, event, at);
       tx.update(events)
         .set({ resultsPublishedAt: at, settings: { ...event.settings, publishedRunId: pwRun } })
         .where(eq(events.id, event.id))
@@ -856,7 +858,15 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
           eventId: event.id,
           targetType: "normalization_run",
           targetId: pwRun,
-          after: { method: PAIRWISE_METHOD, counts: pw.counts, left: pw.fit.left, fresh: pw.fit.fresh, excluded: pw.excluded },
+          before: vote ? { voting: vote.before } : undefined,
+          after: {
+            method: PAIRWISE_METHOD,
+            counts: pw.counts,
+            left: pw.fit.left,
+            fresh: pw.fit.fresh,
+            excluded: pw.excluded,
+            ...(vote ? { voteEnded: vote.ended, voting: vote.after } : {}),
+          },
         },
       };
     }
@@ -866,6 +876,7 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
       throw new ConflictError("decisions_open", `${open.length} ${open.length === 1 ? "decision is" : "decisions are"} still open. Settle ${open.length === 1 ? "it" : "them"} before publishing.`);
     }
     const runId = storeRun(tx, event, actor!, n, at);
+    const vote = endVoteForPublish(tx, event, at);
     tx.update(events)
       .set({ resultsPublishedAt: at, settings: { ...event.settings, publishedRunId: runId } })
       .where(eq(events.id, event.id))
@@ -877,7 +888,15 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
         eventId: event.id,
         targetType: "normalization_run",
         targetId: runId,
-        after: { k: n.variance.k, beta2: n.variance.beta2, sigma2: n.variance.sigma2, ranked: n.ranked, excluded: n.excluded },
+        before: vote ? { voting: vote.before } : undefined,
+        after: {
+          k: n.variance.k,
+          beta2: n.variance.beta2,
+          sigma2: n.variance.sigma2,
+          ranked: n.ranked,
+          excluded: n.excluded,
+          ...(vote ? { voteEnded: vote.ended, voting: vote.after } : {}),
+        },
       },
     };
   });

@@ -12,7 +12,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 ## Events
 
-**`events`** — one event. `id`; `slug` unique (CHECK: lowercase letters, digits, hyphens); `name`; `description`; `submissions_open_at` (null: open from the start); `submissions_close_at`; `judging_close_at`; `voting_open_at`; `voting_close_at` (CHECK: voting opens before it closes); `results_published_at`; `settings` json (skin, `reviewsPerProject`, `maxTeamSize`, `judgingMode` (`scores` | `pairwise`, absent means scores), the published run, the organizer's not-duplicate pairs, the voting configuration); `created_at`. CHECK: submissions open before they close.
+**`events`** — one event. `id`; `slug` unique (CHECK: lowercase letters, digits, hyphens); `name`; `description`; `submissions_open_at` (null: open from the start); `submissions_close_at`; `judging_close_at`; `voting_open_at`; `voting_close_at` (CHECK: voting opens before it closes; publishing the results ends the vote: an open window closes at the publishing moment, one not yet open is cleared); `results_published_at`; `settings` json (skin, `reviewsPerProject`, `maxTeamSize`, `judgingMode` (`scores` | `pairwise`, absent means scores), the published run, the organizer's not-duplicate pairs, the voting configuration); `created_at`. CHECK: submissions open before they close.
 
 **`tracks`** — one track of an event. `id`; `event_id`; `name` (unique per event); `position`. (`id`, `event_id`) is also unique — it is the target of the composite foreign keys that keep a team, project or assignment inside its own event.
 

@@ -179,7 +179,7 @@ export const OPERATIONS: Operation[] = [
     method: "POST",
     path: "/api/events/{event}/publish",
     tag: "Results",
-    summary: "Publish the results (409 while submissions or decisions are open)",
+    summary: "Publish the results (409 while submissions or decisions are open); an open community vote closes with it",
     access: "organizer",
     also: [409],
   },

@@ -168,6 +168,7 @@ export default async function OverviewPage({
             publishedAt={event.resultsPublishedAt}
             submissionsCloseAt={o.submissionsOpenUntil}
             pairwise={o.pairwise !== null}
+            vote={o.vote}
           />
         </div>
 

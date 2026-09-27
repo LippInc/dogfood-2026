@@ -14,6 +14,7 @@ import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { authorize, type EventFacts } from "@/server/authz";
 import { computePairwise, getPairwiseRanking, getPairwiseState, pickPairwise, pullShare, setJudgingMode, undoPairwise, PAIRWISE_METHOD, PULL_SHOWN_WITHIN } from "@/server/dal/pairwise";
 import { requireEvent } from "@/server/dal/events";
+import { getCommunityResults, saveVotingSettings } from "@/server/dal/voting";
 import { actorForToken } from "@/server/session";
 
 // Pairwise mode's rules (JUDGING.md "Pairwise mode"): only the event's judges answer,
@@ -282,6 +283,22 @@ describe("pairwise mode: publishing", () => {
     // The judge's signed record counts their answers.
     const record = getRecord(issueOwnRecord(judge, "evt_01", "judge").id).envelope.record as { judging: { finishedReviews: number; answers?: number } };
     expect(record.judging.answers).toBe(1);
+  });
+
+  it("publishing in pairwise mode ends an open community vote too", () => {
+    toPairwise();
+    const org = checker("organizer");
+    saveVotingSettings(org, "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["account"], votesPerVoter: "3" });
+    const judge = checker("judge_a");
+    pickPairwise(judge, "evt_01", { ...firstQuestion(judge), outcome: "left" });
+    mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "only one judge compared it" });
+    setJudgeOverride(org, "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "flat scores" });
+    expect(getCommunityResults("evt_01").state).toBe("open");
+    expect(outcome(() => publishResults(org, "evt_01")).status).toBe(200);
+    const event = requireEvent(h.db, "evt_01");
+    expect(event.votingCloseAt).toBe(event.resultsPublishedAt);
+    expect(getCommunityResults("evt_01").state).toBe("closed");
   });
 
   it("a judge with pairwise answers and no finished review may have a record; with neither, not (known-bad)", () => {

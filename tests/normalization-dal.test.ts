@@ -27,6 +27,8 @@ import {
   type Decision,
 } from "@/server/dal/normalization";
 import { getSubmissions } from "@/server/dal/submissions";
+import { castBallot, enterVoting, getCommunityResults, makeVotingLink, saveVotingSettings } from "@/server/dal/voting";
+import { getAuditLog } from "@/server/dal/audit-log";
 import { exportFile } from "@/server/dal/exports";
 import type { Actor } from "@/server/authz";
 
@@ -505,6 +507,60 @@ describe("acceptUnderReviewed and publishResults", () => {
     expect(eventRow().resultsPublishedAt).toBeNull();
     expect(count("SELECT count(*) AS n FROM normalization_runs")).toBe(0);
     expect(count("SELECT count(*) AS n FROM normalized_scores")).toBe(0);
+  });
+});
+
+describe("publishing ends the community vote", () => {
+  const CLIENT = { ip: "10.9.0.1", agent: "Browser" };
+  const settle = () => {
+    setJudgeOverride(organizer(), "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+  };
+  const setWindow = (votingOpenAt: string, votingCloseAt: string) =>
+    saveVotingSettings(organizer(), "evt_01", { votingOpenAt, votingCloseAt, modes: ["link"], votesPerVoter: "3" });
+  const lastPublish = () => auditOf("results.publish").at(-1)!.after as { voteEnded?: string };
+
+  it("an open vote closes at the publishing moment: no ballot after it, the count public and final, the log says so", () => {
+    setWindow("2026-01-01T00:00", "2999-01-01T00:00");
+    const { token } = enterVoting(makeVotingLink(organizer(), "evt_01").code, CLIENT);
+    castBallot(null, "evt_01", token, { projectIds: ["prj_02"] }, CLIENT);
+    expect(getCommunityResults("evt_01").tally).toBeNull();
+    settle();
+    publishResults(organizer(), "evt_01");
+
+    const event = eventOf();
+    expect(event.votingCloseAt).toBe(event.resultsPublishedAt);
+    const community = getCommunityResults("evt_01");
+    expect(community.state).toBe("closed");
+    expect(community.tally!.find((t) => t.projectId === "prj_02")?.votes).toBe(1);
+    expectHttpError(() => castBallot(null, "evt_01", token, { projectIds: ["prj_03"] }, CLIENT), 403, "voting_closed");
+    expectHttpError(() => setWindow("2026-01-01T00:00", "2999-01-01T00:00"), 409, "voting_closed");
+    expect(lastPublish().voteEnded).toBe("open");
+    const line = getAuditLog(organizer(), "evt_01").lines.find((l) => l.action === "results.publish")!;
+    expect(line.parts.map((p) => p.text).join("")).toMatch(/published the results and closed the community vote$/);
+    expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
+  it("a vote that has not opened is called off, and none can be set up after publishing (known-bad control: before publishing it can)", () => {
+    setWindow("2998-01-01T00:00", "2999-01-01T00:00");
+    setWindow("2998-01-01T00:00", "2999-06-01T00:00"); // before publishing the window can still move
+    settle();
+    publishResults(organizer(), "evt_01");
+    const event = eventOf();
+    expect([event.votingOpenAt, event.votingCloseAt]).toEqual([null, null]);
+    expect(getCommunityResults("evt_01").state).toBe("not_set");
+    expectHttpError(() => setWindow("2026-01-01T00:00", "2999-01-01T00:00"), 409, "results_published");
+    expectHttpError(() => makeVotingLink(organizer(), "evt_01"), 409, "results_published");
+    expect(lastPublish().voteEnded).toBe("upcoming");
+  });
+
+  it("with no vote set up, publishing leaves the window unset and says nothing about a vote", () => {
+    settle();
+    publishResults(organizer(), "evt_01");
+    expect(eventOf().votingOpenAt).toBeNull();
+    expect(lastPublish().voteEnded).toBeUndefined();
+    expectHttpError(() => setWindow("2026-01-01T00:00", "2999-01-01T00:00"), 409, "results_published");
   });
 });
 

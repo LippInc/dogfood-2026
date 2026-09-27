@@ -199,7 +199,16 @@ function sentence(r: Row, n: Names): Part[] {
     case "project.accept_under_reviewed_undo":
       return [actor, t(" undid publishing "), project(target), t(" as it is")];
     case "results.publish":
-      return [actor, t(" published the results")];
+      return [
+        actor,
+        t(
+          after.voteEnded === "open"
+            ? " published the results and closed the community vote"
+            : after.voteEnded === "upcoming"
+              ? " published the results and called off the community vote that had not opened"
+              : " published the results",
+        ),
+      ];
     case "authz.refused":
       return [actor, t(` was refused: ${after.attempted ?? "an action"} (${after.code ?? after.status})`)];
     case "voting.settings":

@@ -415,6 +415,41 @@ function organizer<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOr
 function voteFinal(event: EventRow) {
   if (votingState(event) === "closed")
     throw new ConflictError("voting_closed", `Voting closed ${formatUtc(event.votingCloseAt)}; the window and the count are final.`);
+  // Publishing ends the vote (endVoteForPublish), and a vote set up after it would run with the ranking in view.
+  if (event.resultsPublishedAt)
+    throw new ConflictError("results_published", "Results are published, so the community vote is over and cannot be set up or changed.");
+}
+
+export type VoteSummary = { state: VotingState; opensAt: string | null; closesAt: string | null; ballots: number };
+
+/** Where the community vote stands, for the publish step (publishing ends it). */
+export function voteSummary(db: DbOrTx, event: EventRow): VoteSummary {
+  const state = votingState(event);
+  const ballots =
+    state === "not_set"
+      ? 0
+      : db
+          .select({ n: sql<number>`count(distinct ${voters.id})` })
+          .from(voters)
+          .innerJoin(votes, eq(votes.voterId, voters.id))
+          .where(and(eq(voters.eventId, event.id), isNull(voters.voidedAt)))
+          .get()!.n;
+  return { state, opensAt: event.votingOpenAt, closesAt: event.votingCloseAt, ballots };
+}
+
+/**
+ * Publishing ends the community vote, so nobody votes with the judged ranking in view (the
+ * organizers' rule: results hidden from everyone but organizers during the voting window). An
+ * open vote closes at the publishing moment, its count final and public with the results; a
+ * vote that has not opened yet is called off. Runs inside the publish transaction and returns
+ * what changed for its audit row, or null when there was no vote to end.
+ */
+export function endVoteForPublish(tx: DbOrTx, event: EventRow, at: string) {
+  const state = votingState(event, Date.parse(at));
+  if (state !== "open" && state !== "upcoming") return null;
+  const window = state === "open" ? { votingOpenAt: event.votingOpenAt, votingCloseAt: at } : { votingOpenAt: null, votingCloseAt: null };
+  tx.update(events).set(window).where(eq(events.id, event.id)).run();
+  return { ended: state, before: { votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt }, after: window };
 }
 
 export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, body: unknown) {

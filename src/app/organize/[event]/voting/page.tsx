@@ -19,6 +19,8 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
   const v = guardPage(() => getVotingAdmin(actor, key));
   const { event } = v;
   const closed = v.state === "closed";
+  // Publishing ends the vote: after it nothing here can change, even with no window set.
+  const over = !closed && Boolean(event.resultsPublishedAt);
   return (
     <WorkShell
       eventName={event.name}
@@ -32,13 +34,15 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
         <header>
           <h1 className="text-24 font-semibold">Community vote</h1>
           <p className="mt-2 max-w-[860px] text-15 text-ink-2">
-            {v.state === "not_set"
+            {over
+              ? "No community vote: the results are published, and a vote now would run with the ranking in view."
+              : v.state === "not_set"
               ? "Not set up. Choose a window and who may vote."
               : v.state === "upcoming"
                 ? `Opens ${formatUtc(event.votingOpenAt)}, closes ${formatUtc(event.votingCloseAt)}.`
                 : v.state === "open"
                   ? `Open until ${formatUtc(event.votingCloseAt)}. The count below is live and only organizers see it; everyone else sees it when the window closes.`
-                  : `Closed ${formatUtc(event.votingCloseAt)}. The counts are public on the results page, and final: the window cannot move and no ballot can be set aside or restored.`}
+                  : `Closed ${formatUtc(event.votingCloseAt)}${event.votingCloseAt === event.resultsPublishedAt ? ", when the results were published" : ""}. The counts are public on the results page, and final: the window cannot move and no ballot can be set aside or restored.`}
           </p>
         </header>
 
@@ -135,6 +139,8 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                 <dt className="text-ink-2">Favourites per voter</dt>
                 <dd className="tnum">{v.settings.votesPerVoter}</dd>
               </dl>
+            ) : over ? (
+              <p className="text-14 text-ink-2">The results are published, so no window can be set.</p>
             ) : (
               <VotingSettingsForm
                 eventSlug={event.slug}
@@ -150,7 +156,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
               <h2 id="link-title" className="mb-3 text-17 font-semibold">
                 Open voting link
               </h2>
-              {closed ? <p className="text-14 text-ink-2">Voting has closed; the link only says so.</p> : <VotingLinkForm eventSlug={event.slug} active={v.settings.linkActive} />}
+              {closed || over ? <p className="text-14 text-ink-2">{closed ? "Voting has closed; the link only says so." : "No vote to link to."}</p> : <VotingLinkForm eventSlug={event.slug} active={v.settings.linkActive} />}
             </section>
             <section aria-labelledby="list-title" className="rounded-sm border border-rule bg-surface p-5">
               <h2 id="list-title" className="mb-1 text-17 font-semibold">
@@ -158,9 +164,9 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
               </h2>
               <p className="mb-3 text-14 text-ink-2">
                 {v.listed.length} on the list, {v.listed.filter((l) => l.voted).length} voted.
-                {closed ? "" : " The portal sends no email: copy the links and send them yourself."}
+                {closed || over ? "" : " The portal sends no email: copy the links and send them yourself."}
               </p>
-              {closed ? null : <VoterListForm eventSlug={event.slug} />}
+              {closed || over ? null : <VoterListForm eventSlug={event.slug} />}
             </section>
           </div>
         </div>

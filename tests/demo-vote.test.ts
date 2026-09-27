@@ -49,6 +49,13 @@ describe("the demo community vote", () => {
     expect(opened()).toBe(1);
   });
 
+  it("does not open once results are published: a vote then would run with the ranking in view", () => {
+    h.db.update(events).set({ resultsPublishedAt: NOW }).where(eq(events.id, "evt_01")).run();
+    expect(seedDemoVote(h.db, "evt_01", NOW)).toMatchObject({ opened: false, code: "" });
+    expect(event().votingOpenAt).toBeNull();
+    expect(opened()).toBe(0);
+  });
+
   it("never replaces an organizer's own vote settings, and then prints no link", () => {
     const mine = { modes: ["listed" as const], votesPerVoter: 5, linkHash: null };
     h.db.update(events)
