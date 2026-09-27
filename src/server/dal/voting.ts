@@ -629,7 +629,7 @@ export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
       voters: all.length,
       ballots: all.filter((v) => (counts.get(v.id) ?? 0) > 0 && !v.voidedAt).length,
       voided: all.filter((v) => v.voidedAt).length,
-      byKind: (["account", "listed", "link"] as const).map((kind) => ({ kind, ballots: all.filter((v) => v.kind === kind && (counts.get(v.id) ?? 0) > 0).length })),
+      byKind: (["account", "listed", "link"] as const).map((kind) => ({ kind, ballots: all.filter((v) => v.kind === kind && (counts.get(v.id) ?? 0) > 0 && !v.voidedAt).length })),
     },
     listed: all
       .filter((v) => v.kind === "listed")

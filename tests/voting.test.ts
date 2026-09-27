@@ -428,6 +428,18 @@ describe("voiding a voter", () => {
     const again = castBallot(null, "evt_01", token, { projectIds: ["prj_02"] }, CLIENT);
     expect(again.picks).toEqual(["prj_02"]);
   });
+
+  it("turnout: the ballots by way of voting add up to the ballots counted, a set-aside one in neither", () => {
+    const kept = castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_01"] }, CLIENT);
+    const voided = castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_02"] }, CLIENT);
+    voidVoter(org(), "evt_01", { voterId: voided.voterId, reason: "Same browser as another ballot" });
+    const { turnout } = getVotingAdmin(org(), "evt_01");
+    expect(turnout.ballots).toBe(1);
+    expect(turnout.voided).toBe(1);
+    expect(turnout.byKind.find((k) => k.kind === "link")!.ballots).toBe(1);
+    expect(turnout.byKind.reduce((s, k) => s + k.ballots, 0)).toBe(turnout.ballots);
+    expect(kept.voterId).toBeTruthy();
+  });
 });
 
 describe("once the window closes the count is final", () => {
