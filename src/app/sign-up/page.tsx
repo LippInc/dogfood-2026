@@ -14,8 +14,9 @@ export default async function SignUpPage({ searchParams }: PageProps<"/sign-up">
     <PlainShell width="max-w-[520px]">
       <h1 className="font-display text-38">Create an account</h1>
       <p className="mt-2 text-15 text-ink-2">
-        An account on its own can do nothing yet: you get a role by starting or joining a team, or when an organizer
-        invites you to judge.
+        {setup
+          ? "This account will administer the portal: it creates events, or imports them from a file."
+          : "An account on its own can do nothing yet: you get a role by starting or joining a team, or when an organizer invites you to judge."}
       </p>
       <div className="mt-8">
         <SignUpForm next={next} setup={setup} />
