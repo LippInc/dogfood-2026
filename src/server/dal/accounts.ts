@@ -10,6 +10,7 @@ import { createLoginSession, hashPassword, setSessionCookie } from "../session";
 import { newId } from "../util";
 import { addressLimit } from "./auth";
 import type { Client } from "./voting";
+import { issuesOf } from "./parse";
 
 function refuseTaken(existing: { passwordHash: string | null } | undefined): void {
   if (existing && !existing.passwordHash) {
@@ -34,7 +35,7 @@ export const SignUp = z.object({
  */
 export async function signUp(body: unknown, client?: Client): Promise<{ userId: string }> {
   const parsed = SignUp.safeParse(body);
-  if (!parsed.success) throw new ValidationError("Check the highlighted fields.", z.flattenError(parsed.error).fieldErrors);
+  if (!parsed.success) throw new ValidationError("Check the highlighted fields.", issuesOf(parsed.error));
   const { name, email, password, setup } = parsed.data;
   const wait = addressLimit(client);
   if (wait) throw new RateLimitedError(wait);

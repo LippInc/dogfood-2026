@@ -8,6 +8,7 @@ import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { mutate } from "../mutate";
 import { newId, newSecret } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
+import { issuesOf } from "./parse";
 
 // Teams form by invite link: a signed-in person creates a team (and becomes its
 // captain), the captain shares /join/<code>, anyone signed in who is not yet on a
@@ -54,7 +55,7 @@ export function createTeam(actor: Actor | null, eventIdOrSlug: string, body: unk
     },
     run: (tx) => {
       const parsed = TeamName.safeParse(body);
-      if (!parsed.success) throw new ValidationError("The team is not valid.", z.flattenError(parsed.error).fieldErrors);
+      if (!parsed.success) throw new ValidationError("The team is not valid.", issuesOf(parsed.error));
       const now = new Date().toISOString();
       const team = { id: newId("tm"), eventId: event.id, name: parsed.data.name, inviteCode: newSecret(12), createdAt: now };
       tx.insert(teams).values(team).run();

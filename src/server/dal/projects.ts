@@ -12,6 +12,7 @@ import { eventFacts, requireEvent, type EventRow } from "./events";
 import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
 import { getPublishedResults } from "./normalization";
 import { myTeam, type MyTeam } from "./teams";
+import { issuesOf } from "./parse";
 
 // A team's project: created and edited by its members while submissions are open,
 // saved as a draft or submitted. The deadline holds in the backend: after
@@ -51,7 +52,7 @@ export function teamOf(tx: DbOrTx, userId: string, eventId: string) {
 
 function parse(body: unknown) {
   const parsed = ProjectInput.safeParse(body);
-  if (!parsed.success) throw new ValidationError("The project is not valid.", z.flattenError(parsed.error).fieldErrors);
+  if (!parsed.success) throw new ValidationError("The project is not valid.", issuesOf(parsed.error));
   return parsed.data;
 }
 

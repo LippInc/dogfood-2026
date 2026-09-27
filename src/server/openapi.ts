@@ -257,7 +257,7 @@ const REFUSAL: Record<number, string> = {
   409: "Not possible in the current state",
   410: "The link was used already or has expired",
   413: "The body is too large",
-  422: "The body failed validation; details lists the fields",
+  422: "The body failed validation; details lists the fields (a body of the wrong shape as a whole under request)",
   429: "Too many requests; wait the Retry-After seconds",
 };
 
