@@ -48,14 +48,14 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
       <div className="mx-auto flex max-w-[960px] flex-col gap-10 py-10 print:max-w-none print:py-0">
         <article
           aria-labelledby="record-name"
-          className="corner-marks relative flex flex-col gap-8 rounded-sm border border-rule px-6 py-9 outline outline-1 outline-offset-4 outline-rule sm:p-12 print:border-2 print:border-ink print:p-16"
+          className="corner-marks relative flex flex-col gap-8 rounded-sm border border-rule px-6 py-9 outline outline-1 outline-offset-4 outline-rule sm:p-12 print:break-inside-avoid print:border-2 print:border-ink print:p-12"
         >
           <div className="flex items-baseline justify-between gap-4">
             <span className="label-mono text-ink-3">[ signed record ]</span>
             <span className="font-mono text-12 text-ink-3">{rec.id}</span>
           </div>
 
-          <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+          <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-start print:grid-cols-[minmax(0,1fr)_auto] print:items-start">
             <div className="flex min-w-0 flex-col gap-4 wrap-anywhere">
               <p className="text-14 font-medium uppercase tracking-[0.14em] text-ink-2">{heading}</p>
               <h1 id="record-name" className="font-serif text-[40px] leading-[1.1] sm:text-64">
@@ -96,7 +96,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
                 ) : null}
               </p>
             </div>
-            {rec.project ? <Face id={rec.project.id} cols={32} rows={18} className="block h-[135px] w-60 max-md:hidden" /> : null}
+            {rec.project ? <Face id={rec.project.id} cols={32} rows={18} className="block h-[135px] w-60 max-md:hidden print:block" /> : null}
           </div>
 
           {awards.length ? (
@@ -109,9 +109,9 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
             </ul>
           ) : null}
 
-          <div className="grid gap-8 border-t border-rule pt-6 md:grid-cols-[minmax(0,1fr)_208px] md:items-start">
+          <div className="grid gap-8 border-t border-rule pt-6 md:grid-cols-[minmax(0,1fr)_208px] md:items-start print:grid-cols-[minmax(0,1fr)_208px] print:items-start">
           <div className="flex flex-col gap-4">
-          <dl className="grid gap-4 text-14 sm:grid-cols-3">
+          <dl className="grid gap-4 text-14 sm:grid-cols-3 print:grid-cols-1! print:gap-1.5 print:[&>div]:grid print:[&>div]:grid-cols-[88px_minmax(0,1fr)] print:[&>div]:gap-3">
             <div>
               <dt className="text-ink-3">Issued</dt>
               <dd>{formatUtc(rec.issuedAt)}</dd>
