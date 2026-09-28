@@ -234,7 +234,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           </Link>
                           <span className="block truncate text-14 text-ink-2">
                             {r.teamName}
-                            {p.place !== null ? ` · ${ordinal(p.place)} in ${t.name}` : ""}
+                            {/* the track's heading already says where; the place in words stays for screen readers */}
+                            {p.place !== null ? <span className="sr-only">{` · ${ordinal(p.place)} in ${t.name}`}</span> : null}
                           </span>
                         </span>
                         <span className="col-start-2 col-span-2 row-start-2 md:col-start-4 md:col-span-1 md:row-start-1">
