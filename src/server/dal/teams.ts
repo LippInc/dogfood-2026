@@ -18,6 +18,16 @@ const DEFAULT_MAX_TEAM_SIZE = 4;
 
 export const TeamName = z.object({ name: z.string().trim().min(1, "a team name is required").max(60) });
 
+/** An event of one person per team: nobody forms a team, so nobody should have to name one. */
+export const isSolo = (e: Pick<EventRow, "settings">) => (e.settings.maxTeamSize ?? DEFAULT_MAX_TEAM_SIZE) === 1;
+
+/** The body with the person's own name as the team's, when the event is one person per team and no name was given. */
+function nameOrOwn(body: unknown, event: EventRow, actor: Actor): unknown {
+  const given = body && typeof body === "object" ? (body as { name?: unknown }).name : undefined;
+  if (!isSolo(event) || (typeof given === "string" && given.trim() !== "")) return body;
+  return { ...(body && typeof body === "object" ? body : {}), name: actor.name.trim().slice(0, 60) };
+}
+
 function onTeamIn(tx: DbOrTx, userId: string, eventId: string): boolean {
   return Boolean(
     tx
@@ -54,7 +64,7 @@ export function createTeam(actor: Actor | null, eventIdOrSlug: string, body: unk
       return { kind: "team_work", event: eventFacts(event), onTeam: actor ? onTeamIn(tx, actor.userId, event.id) : false };
     },
     run: (tx) => {
-      const parsed = TeamName.safeParse(body);
+      const parsed = TeamName.safeParse(nameOrOwn(body, event, actor!));
       if (!parsed.success) throw new ValidationError("The team is not valid.", issuesOf(parsed.error));
       const now = new Date().toISOString();
       const team = { id: newId("tm"), eventId: event.id, name: parsed.data.name, inviteCode: newSecret(12), createdAt: now };

@@ -30,6 +30,8 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
     throw err;
   }
   const { event, team, project, open } = work;
+  // one person per team: no team to form, name or invite anyone to
+  const solo = (event.settings.maxTeamSize ?? 4) === 1;
   const closeLabel = formatUtc(event.submissionsCloseAt, { weekday: true });
   const certificate = work.feedback ? myRecords(actor, key).find((r) => r.kind === "participant") : undefined;
   const pairwise = work.feedback?.method === PAIRWISE_METHOD;
@@ -79,7 +81,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           </p>
         </section>
       ) : null}
-      {team ? <TeamPanel team={team} eventSlug={event.slug} open={open} me={actor.userId} /> : null}
+      {team ? <TeamPanel team={team} eventSlug={event.slug} open={open} me={actor.userId} solo={solo} /> : null}
     </>
   );
 
@@ -87,7 +89,9 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
     <PublicShell event={event} active="none" signedInAs={actor.name} links={actorNav(actor, event.id)}>
       <div className="grid gap-8 pt-10 pb-8 md:grid-cols-[minmax(0,1fr)_280px] md:items-end lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0 wrap-anywhere">
-          <p className="label-mono text-ink-3">{team ? `Team ${team.name}` : open ? "No team yet" : "No team"}</p>
+          <p className="label-mono text-ink-3">
+            {solo ? (team ? team.name : open ? "Not taking part yet" : "Did not take part") : team ? `Team ${team.name}` : open ? "No team yet" : "No team"}
+          </p>
           <h1 className="mt-2 font-display text-[40px] leading-[46px] md:text-[52px] md:leading-[58px]">Your project</h1>
           {project?.title ? (
             <p className="mt-3 font-serif text-24 leading-8">
@@ -117,9 +121,9 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           </figure>
         ) : null}
       </div>
-      <Stages work={work} />
+      <Stages work={work} solo={solo} />
       {/* On a phone the side column, and the invite link in it, comes after the whole form; a captain still alone on the team gets a way down to it. */}
-      {open && team?.role === "captain" && team.inviteCode && team.members.length === 1 ? (
+      {open && !solo && team?.role === "captain" && team.inviteCode && team.members.length === 1 ? (
         <p className="mb-6 text-14 text-ink-2 lg:hidden">
           Only you on the team so far.{" "}
           <a href="#team-title" className="font-medium text-ink underline underline-offset-4">
@@ -167,7 +171,13 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
         </section>
       ) : null}
       {!team ? (
-        <StartTeam eventSlug={event.slug} open={open} closedLabel={formatUtc(event.submissionsCloseAt)} published={Boolean(event.resultsPublishedAt)} />
+        <StartTeam
+          eventSlug={event.slug}
+          open={open}
+          closedLabel={formatUtc(event.submissionsCloseAt)}
+          published={Boolean(event.resultsPublishedAt)}
+          solo={solo ? { name: actor.name } : null}
+        />
       ) : open ? (
         <ProjectForm
           eventSlug={event.slug}
@@ -201,7 +211,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
  * Where the team stands in the event, in five steps, from the event's own dates and
  * the team's own project: what is done, what is happening now, what comes next.
  */
-function Stages({ work }: { work: MyWork }) {
+function Stages({ work, solo }: { work: MyWork; solo: boolean }) {
   const { event, team, project, open } = work;
   const published = Boolean(event.resultsPublishedAt);
   const short = (iso: string) => formatUtc(iso, { time: false });
@@ -209,8 +219,9 @@ function Stages({ work }: { work: MyWork }) {
   // After the close a step the team never reached is missed, not "now": it can no longer happen.
   const steps: { name: string; state: string; done: boolean; missed: boolean }[] = [
     {
-      name: "Team",
-      state: team ? `${team.members.length} ${team.members.length === 1 ? "member" : "members"}` : open ? "not started" : "no team",
+      // one person per team: the first step is taking part, not forming a team
+      name: solo ? "Taking part" : "Team",
+      state: team ? (solo ? "yes" : `${team.members.length} ${team.members.length === 1 ? "member" : "members"}`) : open ? "not started" : solo ? "no" : "no team",
       done: Boolean(team),
       missed: !team && !open,
     },

@@ -12,7 +12,20 @@ import { createTeamAction, rotateInviteAction, teamMemberAction } from "./action
 const noSubscription = () => () => {};
 
 /** The team block of the side column: members, and for the captain the invite link. */
-export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSlug: string; open: boolean; me: string }) {
+export function TeamPanel({
+  team,
+  eventSlug,
+  open,
+  me,
+  solo = false,
+}: {
+  team: MyTeam;
+  eventSlug: string;
+  open: boolean;
+  me: string;
+  /** one person per team: nobody can join, so there is no invite link to show */
+  solo?: boolean;
+}) {
   const [state, form, pending] = useFormAction<ActionResult>(rotateInviteAction, { ok: false, message: null });
   const [change, changeForm, changing] = useFormAction<ActionResult>(teamMemberAction, { ok: false, message: null });
   const captain = team.role === "captain";
@@ -27,14 +40,14 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
   return (
     <section aria-labelledby="team-title">
       <h2 id="team-title" className="label-mono text-ink-2 wrap-anywhere">
-        Team {team.name}
+        {solo ? "Your entry" : `Team ${team.name}`}
       </h2>
       <ul className="mt-3 flex flex-col gap-1.5">
         {team.members.map((m) => (
           <li key={m.userId} className="flex flex-col gap-1 text-14">
             <span className="flex items-baseline justify-between gap-3">
               <span className="min-w-0 wrap-anywhere">{m.name}</span>
-              <span className="shrink-0 text-12 text-ink-3">{m.role}</span>
+              {solo ? null : <span className="shrink-0 text-12 text-ink-3">{m.role}</span>}
             </span>
             {open && captain && m.userId !== me ? (
               <form {...changeForm} className="flex gap-1">
@@ -94,6 +107,8 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
       ) : null}
       {!open ? (
         <p className="mt-3 border-t border-rule pt-3 text-12 text-ink-3">The team was fixed when submissions closed, so the invite link no longer works.</p>
+      ) : solo ? (
+        <p className="mt-3 border-t border-rule pt-3 text-12 text-ink-3">This event is one person per team, so there is no invite link.</p>
       ) : team.inviteCode ? (
         <div className="mt-4 flex flex-col gap-2">
           <label htmlFor="invite" className="text-13 text-ink-2">
@@ -148,11 +163,14 @@ export function StartTeam({
   open,
   closedLabel,
   published = false,
+  solo = null,
 }: {
   eventSlug: string;
   open: boolean;
   closedLabel?: string;
   published?: boolean;
+  /** one person per team: the person's own name, which their entry goes by unless they give another */
+  solo?: { name: string } | null;
 }) {
   const [state, form, pending] = useFormAction<ActionResult>(createTeamAction, { ok: false, message: null });
   if (!open) {
@@ -177,6 +195,35 @@ export function StartTeam({
             </Link>
           ) : null}
         </div>
+      </section>
+    );
+  }
+  if (solo) {
+    // Nobody forms a team here, so there is no team to start or join: one step, under the person's own name.
+    return (
+      <section aria-labelledby="start-title" className="max-w-[560px] rounded-sm border border-rule bg-surface p-6">
+        <h2 id="start-title" className="text-20 font-semibold">
+          Take part
+        </h2>
+        <p className="mt-1 text-14 text-ink-2">
+          This event is one person per team, so your entry is yours alone. It goes by your name unless you give it another.
+        </p>
+        <form {...form} className="mt-5 flex flex-col gap-3">
+          <input type="hidden" name="event" value={eventSlug} />
+          <input type="hidden" name="solo" value="1" />
+          <label htmlFor="team-name" className="text-14 font-medium">
+            Name on your entry
+          </label>
+          <Input id="team-name" name="name" maxLength={60} defaultValue={solo.name} aria-invalid={state.fieldErrors?.name ? true : undefined} />
+          <Button size="lg" disabled={pending}>
+            {pending ? "Starting…" : "Start my project"}
+          </Button>
+          {state.message ? (
+            <p role="status" className={state.ok ? "text-14 text-ok" : "text-14 text-flag"}>
+              {state.fieldErrors?.name?.[0] ?? state.message}
+            </p>
+          ) : null}
+        </form>
       </section>
     );
   }

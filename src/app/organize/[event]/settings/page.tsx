@@ -122,6 +122,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               <label className="flex flex-col gap-1 text-13 text-ink-2">
                 Most people on one team
                 <input type="number" name="maxTeamSize" min={1} max={20} defaultValue={event.settings.maxTeamSize ?? 4} className={input} />
+                <span className="text-12 text-ink-3">1: everyone takes part alone, under their own name, with no team to form or invite to.</span>
               </label>
             </div>
             <UtcNow />

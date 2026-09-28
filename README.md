@@ -131,6 +131,8 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   nothing else. A project with no title of its own is called by its team's name,
   a hidden track is the event's one track, and a hidden field is shown nowhere
   (what a team typed before stays stored and returns if the field comes back).
+  With one person per team (most people on one team: 1), taking part is one
+  step: no team to name (the entry goes by the person's name) and no invite link.
   The public gallery shows every submitted project, searchable (tags included)
   and filterable by track.
 - **Judging.** The organizer invites judges by link (no mail server needed) and

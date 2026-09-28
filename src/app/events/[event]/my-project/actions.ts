@@ -22,7 +22,8 @@ export async function createTeamAction(_prev: ActionResult, form: FormData): Pro
     return actionError(err);
   }
   revalidatePath(`/events/${slug}/my-project`);
-  return { ok: true, message: "Team created. Share the invite link with your teammates." };
+  const solo = form.get("solo") === "1";
+  return { ok: true, message: solo ? "You are in. Your project form is below." : "Team created. Share the invite link with your teammates." };
 }
 
 export async function rotateInviteAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
