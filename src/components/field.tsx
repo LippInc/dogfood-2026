@@ -2,15 +2,15 @@
  * The error line of a field that does not use <Field> (a one-line inline form, a dialog, a
  * group of checkboxes): the control points at it with aria-describedby={id} and carries
  * aria-invalid, and role="alert" reads it out the moment it appears. Renders nothing
- * without a message.
+ * without a message. A span drawn as a block, so it may sit inside a paragraph's line too.
  */
 export function FieldError({ id, message }: { id: string; message?: string[] | string | null }) {
   const text = Array.isArray(message) ? message[0] : message;
   if (!text) return null;
   return (
-    <p id={id} role="alert" className="text-13 font-medium text-flag">
+    <span id={id} role="alert" className="block text-13 font-medium text-flag">
       {text}
-    </p>
+    </span>
   );
 }
 
