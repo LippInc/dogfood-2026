@@ -49,14 +49,31 @@ function sortKeys(value: unknown): unknown {
   return value;
 }
 
-export function slugify(text: string): string {
-  return (
-    text
-      .toLowerCase()
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "event"
-  );
+/** Letters with no Latin base that NFKD cannot take apart: Cyrillic, Greek and a few Latin ones, spelt out. */
+const SPELT: Record<string, string> = {
+  а: "a", б: "b", в: "v", г: "g", ґ: "g", д: "d", е: "e", ё: "e", є: "ye", ж: "zh", з: "z", и: "i", і: "i", ї: "yi", й: "y",
+  к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts", ч: "ch",
+  ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya", ў: "u", ђ: "dj", ј: "j", љ: "lj", њ: "nj", ћ: "c", џ: "dz",
+  α: "a", β: "v", γ: "g", δ: "d", ε: "e", ζ: "z", η: "i", θ: "th", ι: "i", κ: "k", λ: "l", μ: "m", ν: "n", ξ: "x", ο: "o",
+  π: "p", ρ: "r", σ: "s", ς: "s", τ: "t", υ: "y", φ: "f", χ: "ch", ψ: "ps", ω: "o",
+  ß: "ss", æ: "ae", œ: "oe", ø: "o", ł: "l", đ: "d", ð: "d", þ: "th", ı: "i", ŋ: "ng",
+};
+
+/**
+ * A web address part from a name: lower-case letters, digits and single hyphens, at most 60 characters, never a
+ * hyphen at either end. Accents are dropped and Cyrillic and Greek are spelt out in Latin letters; a name with
+ * nothing left (Chinese, Arabic, only symbols) gets the fallback and a short suffix from the name itself, so two
+ * such names do not collide and the same name always gives the same address.
+ */
+export function slugify(text: string, fallback = "event"): string {
+  const slug = text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/./gu, (c) => SPELT[c] ?? c)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/, "");
+  return slug || `${fallback}-${sha256(text).slice(0, 6)}`;
 }

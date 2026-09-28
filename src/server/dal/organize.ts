@@ -515,7 +515,7 @@ export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown)
         if (r.id && existing.some((c) => c.id === r.id)) {
           tx.update(rubricCriteria).set({ label: r.label, prompt: r.prompt, weight: r.weight, position }).where(eq(rubricCriteria.id, r.id)).run();
         } else {
-          const key = slugify(r.label).replace(/-/g, "_") || `criterion_${position + 1}`;
+          const key = slugify(r.label, `criterion-${position + 1}`).replace(/-/g, "_");
           tx.insert(rubricCriteria).values({ id: `crit_${e.id}_${key}_${newId("c", 4).slice(2)}`, eventId: e.id, key, label: r.label, prompt: r.prompt, weight: r.weight, position }).run();
         }
       });
