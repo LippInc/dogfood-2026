@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { Suspense } from "react";
+import { NavProgress } from "@/components/nav-progress";
 import { Toaster } from "@/components/ui/sonner";
 import { archivo, jetbrains, plex, sourceSerif } from "./fonts";
 import "./globals.css";
@@ -23,6 +25,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       {/* The work tokens on body are the fallback for portals (dialogs, toasts) that render outside a page's .work or .public frame. */}
       <body className="work">
+        {/* the loading line for a page the reader asked for (it reads the address, so it waits for it in its own boundary) */}
+        <Suspense fallback={null}>
+          <NavProgress />
+        </Suspense>
         {children}
         <Toaster />
       </body>

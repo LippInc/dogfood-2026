@@ -427,6 +427,46 @@
       animation: none;
     }
   }
+
+  /* the loading line (src/components/nav-progress.tsx): fixed over the top edge, it takes no room and moves nothing */
+  .nav-progress {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 60;
+    height: 2px;
+    background: var(--accent);
+    transform-origin: left;
+    pointer-events: none;
+    animation: nav-progress 12s cubic-bezier(0.05, 0.6, 0.15, 1) both;
+  }
+  .nav-progress[data-phase="done"] {
+    animation: nav-progress-done 380ms ease-out both;
+  }
+  @keyframes nav-progress {
+    from {
+      transform: scaleX(0.08);
+    }
+    to {
+      transform: scaleX(0.9);
+    }
+  }
+  @keyframes nav-progress-done {
+    from {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+    to {
+      transform: scaleX(1);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nav-progress,
+    .nav-progress[data-phase="done"] {
+      animation: none;
+      transform: none;
+    }
+  }
 }
 
 /* A printed certificate (or any public page) prints on white, not on the page's tinted background,
