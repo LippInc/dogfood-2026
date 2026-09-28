@@ -27,7 +27,9 @@ export function LiveRefresh({ seconds = 15 }: { seconds?: number }) {
   return (
     <span className="hidden items-center gap-1.5 text-12 whitespace-nowrap text-ink-2 md:inline-flex" title={`Refreshes every ${seconds} s while this tab is open`}>
       <span className={`size-1.5 rounded-full ${visible ? "bg-ok" : "bg-ink-3"}`} aria-hidden />
-      Live{at ? ` · ${at}` : ""}
+      Live
+      {/* the clock's room is kept from the start, so the header does not shift when the first refresh writes the time */}
+      <span className="inline-block min-w-[10ch] tnum">{at ? `· ${at}` : ""}</span>
     </span>
   );
 }
