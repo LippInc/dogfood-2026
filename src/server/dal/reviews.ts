@@ -15,6 +15,7 @@ import {
   teams,
   tracks,
 } from "../db/schema";
+import { textEdit } from "@/lib/text-edit";
 import { NotFoundError, ValidationError } from "../errors";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
 import { fieldModes, shownTitle } from "./project-fields";
@@ -299,14 +300,20 @@ export function saveReview(actor: Actor | null, assignmentId: string, body: unkn
       const privateNote = input.privateNote ?? comments?.privateNote ?? "";
       const feedbackChanged = feedback !== (comments?.feedback ?? "");
       const noteChanged = privateNote !== (comments?.privateNote ?? "");
-      // Texts are recorded by length only: the organizers can read them on the page.
+      // A text change is recorded as the edit it made (where, what was taken out, what was written):
+      // a judge cannot rewrite feedback or a note an organizer may have read and leave no trace of what
+      // it said, and typing, which autosaves as it goes, adds only the new characters to each row. The
+      // log is read by the event's organizers (who may read both texts) and administrators; a webhook
+      // gets none of a review's values (src/server/webhooks.ts, SEALED).
       if (feedbackChanged) {
         before.feedbackChars = comments?.feedback.length ?? 0;
         after.feedbackChars = feedback.length;
+        after.feedbackEdit = textEdit(comments?.feedback ?? "", feedback);
       }
       if (noteChanged) {
         before.privateNoteChars = comments?.privateNote.length ?? 0;
         after.privateNoteChars = privateNote.length;
+        after.privateNoteEdit = textEdit(comments?.privateNote ?? "", privateNote);
       }
 
       const next = new Map(current);

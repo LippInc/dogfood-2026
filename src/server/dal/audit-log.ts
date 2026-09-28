@@ -5,6 +5,7 @@ import type { Actor } from "../authz";
 import { verifyAuditChain } from "../audit";
 import { getDb, type DbOrTx } from "../db/client";
 import { formatUtc } from "@/lib/format";
+import type { TextEdit } from "@/lib/text-edit";
 import { assignments, auditLog, events, projects, rubricCriteria, teams, tracks, users, voters } from "../db/schema";
 import { guardRead } from "../mutate";
 import { toCsv } from "../csv";
@@ -106,6 +107,27 @@ const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${ite
 
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
 const quote = (s: unknown) => `“${String(s ?? "")}”`;
+
+/** At most this much of a changed text goes into a sentence; the row itself (the CSV's after column) holds all of it. */
+const CLIP = 160;
+const clip = (s: string) => {
+  const chars = Array.from(s); // whole characters: an emoji is not cut in two
+  return quote(chars.length > CLIP ? `${chars.slice(0, CLIP).join("")}…` : s);
+};
+
+/** What a review save did to the judge's texts, in words; null when it left both as they were. */
+function reviewTexts(after: Record<string, unknown>): { which: string; what: string } | null {
+  const edit = (v: unknown): TextEdit | null => (v && typeof v === "object" && "removed" in v && "added" in v ? (v as TextEdit) : null);
+  const say = (e: TextEdit) =>
+    e.removed && e.added ? `took out ${clip(e.removed)} and wrote ${clip(e.added)}` : e.removed ? `took out ${clip(e.removed)}` : `wrote ${clip(e.added)}`;
+  const parts = [
+    { which: "their feedback to the team", e: edit(after.feedbackEdit) },
+    { which: "their private note", e: edit(after.privateNoteEdit) },
+  ].filter((x): x is { which: string; e: TextEdit } => x.e !== null);
+  if (!parts.length) return null;
+  if (parts.length === 1) return { which: parts[0]!.which, what: say(parts[0]!.e) };
+  return { which: "their feedback and their private note", what: parts.map((p) => `${p.which === "their private note" ? "note" : "feedback"}: ${say(p.e)}`).join("; ") };
+}
 
 type TrackRow = { id: string; name: string };
 const trackRows = (v: unknown): TrackRow[] | null =>
@@ -259,6 +281,9 @@ function sentence(r: Row, n: Names): Part[] {
       const a = n.assignment.get(target);
       const proj = project(after.project ?? a?.projectId ?? "");
       const keys = Object.keys(after).filter((k) => n.criterion.has(k));
+      // a save that changed only the feedback or the private note says what it took out and wrote
+      const texts = reviewTexts(after);
+      if (keys.length === 0 && texts && r.action !== "review.submit") return [actor, t(` edited ${texts.which} on `), proj, t(`: ${texts.what}`)];
       if (r.action === "review.amend" && keys.length === 1) {
         const k = keys[0]!;
         return [actor, t(` changed ${n.criterion.get(k)} for `), proj, t(` from ${before[k] ?? "–"} to ${after[k] ?? "–"}`)];
