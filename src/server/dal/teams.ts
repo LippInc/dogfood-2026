@@ -1,11 +1,25 @@
 import "server-only";
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx, type Tx } from "../db/client";
-import { assignments, events, projects, teamMembers, teams, userRoles, users } from "../db/schema";
+import {
+  assignments,
+  comments,
+  comparisons,
+  customAnswers,
+  events,
+  normalizedScores,
+  projects,
+  teamMembers,
+  teams,
+  userRoles,
+  users,
+  votes,
+} from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { mutate } from "../mutate";
+import { discardUpload } from "../uploads";
 import { newId, newSecret } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { issuesOf } from "./parse";
@@ -195,7 +209,7 @@ const memberOf = (tx: DbOrTx, teamId: string, userId: string) =>
 /**
  * A member leaves the team (their participant role stays, so they can join another). The
  * captain hands the captaincy over first, and the last member cannot leave, so a team and
- * its project are never left with nobody.
+ * its project are never left with nobody: they dissolve the team instead (dissolveTeam).
  */
 export function leaveTeam(actor: Actor | null, teamId: string) {
   let team: { id: string; eventId: string };
@@ -211,7 +225,10 @@ export function leaveTeam(actor: Actor | null, teamId: string) {
       const me = memberOf(tx, team.id, actor!.userId)!;
       const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, team.id)).get()!.n;
       if (size === 1) {
-        throw new ConflictError("last_member", "You are the team's only member, so you cannot leave it: a team and its project are never left with nobody.");
+        throw new ConflictError(
+          "last_member",
+          "You are the team's only member, so leaving would leave it with nobody. Dissolve the team instead (a draft project goes with it).",
+        );
       }
       if (me.role === "captain") throw new ConflictError("captain_hands_over_first", "Make another member captain first, then leave.");
       tx.delete(teamMembers).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, actor!.userId))).run();
@@ -221,6 +238,80 @@ export function leaveTeam(actor: Actor | null, teamId: string) {
       };
     },
   });
+}
+
+/**
+ * The team's only member dissolves it, while submissions are open: someone who started a team by
+ * mistake can then join the one they meant to. A submitted project keeps its team (it is in the
+ * gallery and may be judged), so only a team with no project or a draft can go; the draft goes with
+ * it, answers and uploaded picture included, and the audit row keeps its id and title.
+ */
+export function dissolveTeam(actor: Actor | null, teamId: string) {
+  let team: { id: string; name: string; eventId: string };
+  let picture: string | null = null;
+  const result = mutate({
+    actor,
+    action: "team.dissolve",
+    load: (tx) => {
+      const loaded = loadTeam(tx, actor, teamId);
+      team = loaded.team;
+      return loaded.resource;
+    },
+    run: (tx) => {
+      const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, team.id)).get()!.n;
+      if (size > 1) {
+        throw new ConflictError("others_on_the_team", "Others are still on this team. Only its last member can dissolve it; to go, leave it instead.");
+      }
+      const project = tx
+        .select({ id: projects.id, title: projects.title, status: projects.status, thumbnailUrl: projects.thumbnailUrl })
+        .from(projects)
+        .where(eq(projects.teamId, team.id))
+        .get();
+      if (project?.status === "submitted") {
+        throw new ConflictError(
+          "project_submitted",
+          "This team's project is submitted, so the team stays with it. If it was a mistake, ask the organizers.",
+        );
+      }
+      if (project) {
+        // A draft has no reviews, votes or comments; if anything points at it after all, keep everything.
+        const used = [
+          tx.select({ x: assignments.id }).from(assignments).where(eq(assignments.projectId, project.id)).get(),
+          tx.select({ x: comments.id }).from(comments).where(eq(comments.projectId, project.id)).get(),
+          tx.select({ x: votes.voterId }).from(votes).where(eq(votes.projectId, project.id)).get(),
+          tx.select({ x: normalizedScores.projectId }).from(normalizedScores).where(eq(normalizedScores.projectId, project.id)).get(),
+          tx
+            .select({ x: comparisons.id })
+            .from(comparisons)
+            .where(or(eq(comparisons.leftProjectId, project.id), eq(comparisons.rightProjectId, project.id)))
+            .get(),
+          tx.select({ x: projects.id }).from(projects).where(eq(projects.duplicateOf, project.id)).get(),
+        ].some(Boolean);
+        if (used) throw new ConflictError("project_in_use", "This team's draft is already part of the judging, so the team stays. Ask the organizers.");
+        tx.delete(customAnswers).where(eq(customAnswers.projectId, project.id)).run();
+        tx.delete(projects).where(eq(projects.id, project.id)).run();
+        // the file goes after the commit, and only if no other project shows it
+        const shared = project.thumbnailUrl
+          ? tx.select({ id: projects.id }).from(projects).where(eq(projects.thumbnailUrl, project.thumbnailUrl)).get()
+          : undefined;
+        picture = shared ? null : project.thumbnailUrl;
+      }
+      tx.delete(teamMembers).where(eq(teamMembers.teamId, team.id)).run();
+      tx.delete(teams).where(eq(teams.id, team.id)).run();
+      return {
+        result: { teamId: team.id, draftDeleted: project?.id ?? null },
+        audit: {
+          action: "team.dissolved",
+          eventId: team.eventId,
+          targetType: "team",
+          targetId: team.id,
+          before: { name: team.name, member: actor!.userId, draft: project ? { id: project.id, title: project.title } : null },
+        },
+      };
+    },
+  });
+  discardUpload(picture);
+  return result;
 }
 
 /** The captain takes a member off the team (to leave themselves, they hand the captaincy over and leave). */

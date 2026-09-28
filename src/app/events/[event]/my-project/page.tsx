@@ -81,7 +81,16 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           </p>
         </section>
       ) : null}
-      {team ? <TeamPanel team={team} eventSlug={event.slug} open={open} me={actor.userId} solo={solo} /> : null}
+      {team ? (
+        <TeamPanel
+          team={team}
+          eventSlug={event.slug}
+          open={open}
+          me={actor.userId}
+          solo={solo}
+          project={project ? { title: project.title, status: project.status } : null}
+        />
+      ) : null}
     </>
   );
 

@@ -18,6 +18,7 @@ export function TeamPanel({
   open,
   me,
   solo = false,
+  project,
 }: {
   team: MyTeam;
   eventSlug: string;
@@ -25,10 +26,15 @@ export function TeamPanel({
   me: string;
   /** one person per team: nobody can join, so there is no invite link to show */
   solo?: boolean;
+  /** the team's project, for what dissolving the team would take with it */
+  project: { title: string; status: "draft" | "submitted" } | null;
 }) {
   const [state, form, pending] = useFormAction<ActionResult>(rotateInviteAction, { ok: false, message: null });
   const [change, changeForm, changing] = useFormAction<ActionResult>(teamMemberAction, { ok: false, message: null });
   const captain = team.role === "captain";
+  // The only member cannot leave (a team is never left with nobody), so they can dissolve it instead,
+  // unless its project is submitted: that one is in the gallery and keeps its team.
+  const canDissolve = open && team.members.length === 1 && project?.status !== "submitted";
   const [copied, setCopied] = useState(false);
   // Leaving and removing ask once more: one click used to drop a teammate, or yourself, from the
   // team and its project at once (a tester left by accident).
@@ -100,6 +106,38 @@ export function TeamPanel({
         </form>
       ) : null}
       {open && captain && team.members.length > 1 ? <p className="mt-2 text-12 text-ink-3">To leave, make another member captain first.</p> : null}
+      {canDissolve ? (
+        <form {...changeForm} className="mt-3">
+          <input type="hidden" name="team" value={team.id} />
+          <input type="hidden" name="event" value={eventSlug} />
+          {confirming === "dissolve" ? (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-13 text-ink-2">
+                {project ? (
+                  <>
+                    Dissolve {team.name}? Your draft <span className="font-medium text-ink">{project.title || "Untitled draft"}</span> is deleted with it, for
+                    good. You can then start or join another team.
+                  </>
+                ) : (
+                  <>Dissolve {team.name}? Its invite link stops working, and you can then start or join another team.</>
+                )}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                <Button variant="ghost" size="sm" name="do" value="dissolve" disabled={changing} className="-ml-2.5 text-flag">
+                  {project ? "Yes, dissolve and delete the draft" : "Yes, dissolve"}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(null)}>
+                  Keep the team
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming("dissolve")} className="-ml-2.5">
+              Dissolve team
+            </Button>
+          )}
+        </form>
+      ) : null}
       {change.message ? (
         <p aria-live="polite" className={`mt-2 text-13 ${change.ok ? "text-ink-2" : "text-flag"}`}>
           {change.message}

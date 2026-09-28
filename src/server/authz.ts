@@ -42,6 +42,7 @@ export type Action =
   | "team.join"
   | "team.manage"
   | "team.leave"
+  | "team.dissolve"
   | "team.members"
   | "project.create"
   | "project.edit"
@@ -233,7 +234,9 @@ export function authorize(
     }
 
     // Who is on a team changes only while submissions are open: the team that submitted is the team judged.
-    case "team.leave": {
+    // Dissolving is the last member leaving: the same member-only rule, and the DAL checks the team is theirs alone.
+    case "team.leave":
+    case "team.dissolve": {
       if (resource.kind !== "team") return refuse("bad_resource", "This action needs a team.");
       if (!resource.isMember) return refuse("not_on_this_team", "You are not on this team.");
       if (!submissionsOpen(resource.event, now)) return windowRefusal(resource.event, now, "Teams can no longer change");

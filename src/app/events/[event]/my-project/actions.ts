@@ -6,6 +6,7 @@ import {
   createProject,
   createTeam,
   currentActor,
+  dissolveTeam,
   leaveTeam,
   makeCaptain,
   removeMember,
@@ -36,7 +37,7 @@ export async function rotateInviteAction(_prev: ActionResult, form: FormData): P
   return { ok: true, message: "New link made. The old one no longer works." };
 }
 
-/** Leave the team, take a member off it, or hand the captaincy over: the form's "do" says which. */
+/** Leave the team, take a member off it, hand the captaincy over, or (its last member) dissolve it: the form's "do" says which. */
 export async function teamMemberAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const team = String(form.get("team") ?? "");
   const user = String(form.get("user") ?? "");
@@ -47,6 +48,9 @@ export async function teamMemberAction(_prev: ActionResult, form: FormData): Pro
     if (what === "leave") {
       leaveTeam(actor, team);
       message = "You left the team. You can start or join another while submissions are open.";
+    } else if (what === "dissolve") {
+      const { draftDeleted } = dissolveTeam(actor, team);
+      message = `Team dissolved${draftDeleted ? " and its draft deleted" : ""}. You can start or join another while submissions are open.`;
     } else if (what === "remove") {
       removeMember(actor, team, user);
       message = "Taken off the team.";

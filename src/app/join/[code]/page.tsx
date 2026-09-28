@@ -63,7 +63,7 @@ export default async function JoinPage({ params }: PageProps<"/join/[code]">) {
             <>
               <TicketNote>
                 You are on {mine.name} in this event, and a person can be on one team only. To join {invite.teamName}, leave {mine.name} first on your
-                project page.
+                project page (its only member dissolves it instead).
               </TicketNote>
               <Link href={project} className={`${buttonVariants({ variant: "outline", size: "xl" })} self-start`}>
                 Open your project page

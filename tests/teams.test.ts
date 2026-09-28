@@ -8,7 +8,8 @@ import { auditLog, userRoles } from "@/server/db/schema";
 import { verifyAuditChain } from "@/server/audit";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
-import { createTeam, inviteByCode, joinTeam, leaveTeam, makeCaptain, removeMember, rotateInvite } from "@/server/dal/teams";
+import { createTeam, dissolveTeam, inviteByCode, joinTeam, leaveTeam, makeCaptain, removeMember, rotateInvite } from "@/server/dal/teams";
+import { createProject } from "@/server/dal/projects";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -345,6 +346,83 @@ describe("leaving a team, taking a member off, handing the captaincy over", () =
     leaveTeam(actorById(captain.userId), teamId);
     expect(roleIn(teamId, captain.userId)).toBeUndefined();
     expect(h.sqlite.prepare("SELECT count(*) AS n FROM team_members WHERE team_id = ? AND role = 'captain'").get(teamId)).toEqual({ n: 1 });
+  });
+
+  describe("the last member dissolves the team", () => {
+    const teamRow = (teamId: string) => h.sqlite.prepare("SELECT id FROM teams WHERE id = ?").get(teamId);
+    const projectRow = (projectId: string) => h.sqlite.prepare("SELECT id FROM projects WHERE id = ?").get(projectId);
+
+    it("a team started by mistake: its only member dissolves it (one team.dissolved row naming it) and can then join the friend's team", () => {
+      const solo = addUser("usr_solo", "solo@example.org", "Solo Captain");
+      const mistake = createTeam(solo, "evt_01", { name: "Oops Team" }).id;
+      const friend = addUser("usr_friend", "friend@example.org", "Friend");
+      const meant = createTeam(friend, "evt_01", { name: "Meant Team" }).id;
+      // the dead end this fixes: joining is refused while on a team, leaving is refused for the last member
+      expectHttpError(() => joinTeam(actorById("usr_solo"), inviteCodeOf(meant)), 403, "already_on_a_team");
+      expectHttpError(() => leaveTeam(actorById("usr_solo"), mistake), 409, "last_member");
+
+      const out = dissolveTeam(actorById("usr_solo"), mistake);
+
+      expect(out).toEqual({ teamId: mistake, draftDeleted: null });
+      expect(teamRow(mistake)).toBeUndefined();
+      expect(memberCount(mistake)).toBe(0);
+      expect(lastAction()).toMatchObject({ action: "team.dissolved", targetId: mistake, before: { name: "Oops Team", member: "usr_solo", draft: null } });
+      expect(hasParticipantRole("usr_solo")).toBe(true);
+      expect(joinTeam(actorById("usr_solo"), inviteCodeOf(meant)).teamId).toBe(meant);
+      expect(verifyAuditChain(h.db).ok).toBe(true);
+    });
+
+    it("a draft project goes with the team, its custom answers too, and the audit row keeps its id and title", () => {
+      const solo = addUser("usr_solo", "solo@example.org", "Solo Captain");
+      const teamId = createTeam(solo, "evt_01", { name: "Draft Team" }).id;
+      const draft = createProject(actorById("usr_solo"), "evt_01", { title: "Half Done", trackId: "trk_01", status: "draft" });
+      h.sqlite.prepare("INSERT INTO custom_questions (id, event_id, label) VALUES ('q_team', 'evt_01', 'Who did what?')").run();
+      h.sqlite.prepare("INSERT INTO custom_answers (project_id, question_id, value) VALUES (?, 'q_team', 'x')").run(draft.id);
+      expect(count(`SELECT count(*) AS n FROM custom_answers WHERE project_id = '${draft.id}'`)).toBe(1);
+
+      dissolveTeam(actorById("usr_solo"), teamId);
+
+      expect(projectRow(draft.id)).toBeUndefined();
+      expect(count(`SELECT count(*) AS n FROM custom_answers WHERE project_id = '${draft.id}'`)).toBe(0);
+      expect(teamRow(teamId)).toBeUndefined();
+      expect(lastAction()).toMatchObject({ action: "team.dissolved", before: { draft: { id: draft.id, title: "Half Done" } } });
+    });
+
+    it("known-bad: a submitted project keeps its team (409 project_submitted); a draft already in the judging too (409 project_in_use); nothing changes", () => {
+      const solo = addUser("usr_solo", "solo@example.org", "Solo Captain");
+      const teamId = createTeam(solo, "evt_01", { name: "Handed In" }).id;
+      const p = createProject(actorById("usr_solo"), "evt_01", { title: "Done", trackId: "trk_01", status: "draft" });
+      h.sqlite.prepare("UPDATE projects SET status = 'submitted', submitted_at = ? WHERE id = ?").run(NOW, p.id);
+      const before = auditRows().length;
+      expectHttpError(() => dissolveTeam(actorById("usr_solo"), teamId), 409, "project_submitted");
+      expect(teamRow(teamId)).toBeDefined();
+      expect(projectRow(p.id)).toBeDefined();
+      expect(auditRows().length).toBe(before);
+
+      // back to a draft that someone has already commented on (by hand: the app never lets that happen)
+      h.sqlite.prepare("UPDATE projects SET status = 'draft', submitted_at = NULL WHERE id = ?").run(p.id);
+      h.sqlite
+        .prepare("INSERT INTO comments (id, event_id, project_id, user_id, body, created_at) VALUES ('cmt_x', 'evt_01', ?, 'usr_solo', 'hi', ?)")
+        .run(p.id, NOW);
+      expectHttpError(() => dissolveTeam(actorById("usr_solo"), teamId), 409, "project_in_use");
+      expect(teamRow(teamId)).toBeDefined();
+      expect(projectRow(p.id)).toBeDefined();
+    });
+
+    it("known-bad: with others on the team it is 409 others_on_the_team; an outsider is 403 not_on_this_team; after the close 403 submissions_closed", () => {
+      const { teamId, captain } = teamOfThree();
+      expectHttpError(() => dissolveTeam(captain, teamId), 409, "others_on_the_team");
+      const outsider = addUser("usr_out", "out@example.org", "Out Sider");
+      expectHttpError(() => dissolveTeam(outsider, teamId), 403, "not_on_this_team");
+      expect(memberCount(teamId)).toBe(3);
+
+      const solo = addUser("usr_solo", "solo@example.org", "Solo Captain");
+      const soloTeam = createTeam(solo, "evt_01", { name: "Just Me" }).id;
+      closeEvent();
+      expectHttpError(() => dissolveTeam(actorById("usr_solo"), soloTeam), 403, "submissions_closed");
+      expect(teamRow(soloTeam)).toBeDefined();
+      expect(auditRows().at(-1)!.action).toBe("authz.refused");
+    });
   });
 
   it("known-bad: once submissions close, leaving, taking off and handing over are 403 submissions_closed and nothing changes", () => {
