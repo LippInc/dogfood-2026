@@ -253,6 +253,17 @@ export function pickPairwise(actor: Actor | null, eventIdOrSlug: string, body: u
       const before = trackStates(tx, event, actor!.userId).find((t) => t.trackId === input.trackId);
       const q = before?.current;
       if (!q || q.left.id !== input.left || q.right.id !== input.right) {
+        // A resend of the judge's latest answer in this track (a double click, a retry on a flaky
+        // network) is already recorded exactly as sent: answer as if taken, store nothing new.
+        const latest = tx
+          .select()
+          .from(comparisons)
+          .where(and(eq(comparisons.eventId, event.id), eq(comparisons.judgeUserId, actor!.userId), eq(comparisons.trackId, input.trackId), isNull(comparisons.voidedAt)))
+          .orderBy(desc(sql`rowid`))
+          .get();
+        if (before && latest && latest.leftProjectId === input.left && latest.rightProjectId === input.right && latest.outcome === input.outcome) {
+          return { result: { trackId: input.trackId, placed: before.placed, total: before.total, done: before.current === null, repeated: true }, audit: null };
+        }
         throw new ConflictError("question_changed", "That is not the question to answer now; reload to see the current one.");
       }
       const now = new Date().toISOString();

@@ -106,6 +106,25 @@ describe("pairwise mode: who may do what", () => {
     expect(h.db.select().from(comparisons).all()).toHaveLength(1);
   });
 
+  it("the same answer sent twice (a double click, a resend on a flaky network) is taken once and the resend succeeds; any other stale answer is 409", () => {
+    toPairwise();
+    const judge = checker("judge_a");
+    const q1 = firstQuestion(judge);
+    const audits = () => h.db.select().from(auditLog).where(eq(auditLog.action, "pairwise.pick")).all().length;
+    expect(pickPairwise(judge, "evt_01", { ...q1, outcome: "left" })).toMatchObject({ trackId: q1.trackId });
+    expect(outcome(() => pickPairwise(judge, "evt_01", { ...q1, outcome: "left" })).status).toBe(200);
+    expect(h.db.select().from(comparisons).all()).toHaveLength(1);
+    expect(audits()).toBe(1);
+    // The same pair with another answer is not a resend: 409, nothing stored.
+    expect(outcome(() => pickPairwise(judge, "evt_01", { ...q1, outcome: "right" }))).toEqual({ status: 409, code: "question_changed" });
+    // Known-bad: once a later answer is in, the first one sent again is stale, not a resend.
+    const t = getPairwiseState(judge, "evt_01").tracks.find((x) => x.trackId === q1.trackId)!;
+    expect(t.current).not.toBeNull();
+    pickPairwise(judge, "evt_01", { trackId: t.trackId, left: t.current!.left.id, right: t.current!.right.id, outcome: "tie" });
+    expect(outcome(() => pickPairwise(judge, "evt_01", { ...q1, outcome: "left" }))).toEqual({ status: 409, code: "question_changed" });
+    expect(h.db.select().from(comparisons).all()).toHaveLength(2);
+  });
+
   it("one judge's answers never show in another judge's state; only an organizer reads the ranking", () => {
     toPairwise();
     const a = checker("judge_a");
