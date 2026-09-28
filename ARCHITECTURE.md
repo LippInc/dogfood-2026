@@ -26,7 +26,7 @@ The rule: nothing outside `src/server/` touches the database. `tests/dal-boundar
 ## The audit log
 
 - `appendAudit()` writes one row per change in the same transaction as the change, and one row per 403 refusal; past 60 refusals of one person in 10 minutes, `mutate()` and `guardRead()` answer 429 instead and write nothing (`LIMITS.refusal`).
-- Append-only is enforced by the database: triggers reject UPDATE and DELETE (`src/server/db/triggers.ts`), re-asserted with `CREATE TRIGGER IF NOT EXISTS` at every boot.
+- Append-only is enforced by the database: triggers reject UPDATE and DELETE (`src/server/db/triggers.ts`), made by the migrations (`drizzle/0012_triggers.sql`) and re-asserted at every boot, where one whose SQL was replaced is dropped and restored.
 - Each row stores the hash of the row before it; its own hash is `sha256(prevHash + "\n" + canonicalJson(row))` over its fields (`chainHash`, `src/server/audit.ts`). `verifyAuditChain()` recomputes the chain and names the row where it breaks.
 - An organizer reads the log on the audit page (`src/app/organize/[event]/audit/page.tsx`, through `getAuditLog`) and exports it as `audit.csv` with the other exports (`src/server/dal/exports.ts`, `GET /api/events/{event}/export/{file}`).
 - Webhooks ride on it: `appendAudit()` calls `enqueueForAudit()` (`src/server/webhooks.ts`), which inserts one `webhook_deliveries` row per subscribed webhook. The outbox commits exactly when the change does — none lost, none invented.
@@ -74,6 +74,7 @@ The only background work is the webhook worker: `startWebhookWorker()` runs a ti
 - Add a JSON route: the handler under `src/app/api/` plus its `OPERATIONS` entry in `src/server/openapi.ts` — the registry test fails until the two agree; new body shapes go in `src/server/dal/inputs.ts`.
 - Add a mutation: a DAL function that calls `mutate()` (`src/server/mutate.ts`) with `load` and `run`; the audit row and webhook queueing follow on their own.
 - Add a table: define it in `src/server/db/schema.ts`, generate the migration into `drizzle/`, and touch it only from a module under `src/server/dal/`.
+- Change or add a trigger: edit `TRIGGERS` in `src/server/db/triggers.ts` and add a migration (`npm run db:generate -- --custom`) that drops and recreates it; `tests/triggers-migration.test.ts` fails until the migrations match the file.
 - Make an action webhook-able: nothing extra. Every audited row that carries an event id can be subscribed to by action name or `*` on the organizer's Integrations tab; platform-wide rows queue nothing.
 - Add an export file: `EXPORT_FILES` in `src/server/dal/exports.ts`.
 - Add a rate limit: a key and a `Limit` in `LIMITS` (`src/server/rate-limit.ts`).

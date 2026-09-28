@@ -1,9 +1,13 @@
 import "server-only";
 import type Database from "better-sqlite3";
 
-// The one home of every trigger. They are re-asserted at every boot, after the
-// migrations: a missing trigger is created, and a trigger whose SQL differs from
-// the text below (someone replaced it with a no-op) is dropped and recreated.
+// The one place to change a trigger. The migrations make them too, with the same
+// text (drizzle/0012_triggers.sql), so a database built from drizzle/ alone is
+// guarded; tests/triggers-migration.test.ts fails while the two disagree, so a
+// change here needs a migration that drops and recreates it. They are also
+// re-asserted at every boot, after the migrations: a missing trigger is created,
+// and a trigger whose SQL differs from the text below (someone replaced it with
+// a no-op) is dropped and recreated.
 // This stops edits made through the app or a stray tool; it cannot stop someone
 // who holds the database file and rewrites it by hand. Nor does the hash chain
 // in audit_log on its own: it has no key, so that person can recompute it. The
