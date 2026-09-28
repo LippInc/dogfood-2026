@@ -14,6 +14,7 @@ import { eventFacts, requireEvent, type PublicEvent } from "./events";
 import { getPublishedResults } from "./results";
 import { parse } from "./parse";
 import { getCommunityResults } from "./voting-organizer";
+import { shownTitle } from "./project-fields";
 
 // Signed records: a judge's participation record and a team member's certificate.
 // Each is issued once per person, event and kind, after the results are published,
@@ -52,7 +53,7 @@ function judgeFacts(db: DbOrTx, eventId: string, userId: string) {
 /** The person's team in an event and its submitted project (the kept copy, if it was entered twice). */
 function memberFacts(db: DbOrTx, eventId: string, userId: string) {
   const row = db
-    .select({ teamName: teams.name, projectId: projects.id, title: projects.title, trackId: projects.trackId, trackName: tracks.name })
+    .select({ teamName: teams.name, projectId: projects.id, title: shownTitle(), trackId: projects.trackId, trackName: tracks.name })
     .from(teamMembers)
     .innerJoin(teams, eq(teams.id, teamMembers.teamId))
     .innerJoin(projects, and(eq(projects.teamId, teams.id), eq(projects.status, "submitted"), isNull(projects.duplicateOf)))

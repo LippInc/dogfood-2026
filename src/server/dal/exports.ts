@@ -32,7 +32,7 @@ import { computeNormalization } from "./normalization";
 import { issuer } from "./records";
 import { reviewsOf } from "./scores";
 import { changedFromDefaults } from "@/lib/project-fields";
-import { fieldModes } from "./project-fields";
+import { fieldModes, shownTitle } from "./project-fields";
 
 // Organizer exports: CSV at every stage, and always a header row, even before
 // anything is scored or published (a platform you cannot leave is a trap).
@@ -97,7 +97,7 @@ function projectsCsv(db: DbOrTx, event: EventRow): string {
   const rows = db
     .select({
       id: projects.id,
-      title: projects.title,
+      title: shownTitle(),
       summary: projects.summary,
       teamId: teams.id,
       team: teams.name,

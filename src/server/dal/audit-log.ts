@@ -10,6 +10,7 @@ import { guardRead } from "../mutate";
 import { toCsv } from "../csv";
 import { eventFacts, requireEvent } from "./events";
 import { votingState } from "./voting";
+import { shownTitle } from "./project-fields";
 
 // The audit log read as sentences ("Jonas Vogel changed Innovation for Paper Anchor
 // from 4 to 5"), for the organizer's overview card and the full log page. The
@@ -51,7 +52,7 @@ const SEALED = "hidden until voting closes";
 function loadNames(db: DbOrTx, eventId: string): Names {
   return {
     user: new Map(db.select({ id: users.id, name: users.name }).from(users).all().map((u) => [u.id, u.name])),
-    project: new Map(db.select({ id: projects.id, title: projects.title }).from(projects).where(eq(projects.eventId, eventId)).all().map((p) => [p.id, p.title])),
+    project: new Map(db.select({ id: projects.id, title: shownTitle() }).from(projects).where(eq(projects.eventId, eventId)).all().map((p) => [p.id, p.title])),
     team: new Map(db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, eventId)).all().map((t) => [t.id, t.name])),
     track: new Map(db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, eventId)).all().map((t) => [t.id, t.name])),
     criterion: new Map(

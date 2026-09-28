@@ -16,6 +16,7 @@ import { judgeSet } from "./judging";
 import { computePairwise, judgingModeOf, PAIRWISE_METHOD, storePairwiseRun } from "./pairwise";
 import { METHOD, METHOD_LABEL, type ProjectRow, type Normalized, computeNormalization } from "./normalization";
 import { decisions, eventDecisions, organizerMutation, notPublished } from "./decisions";
+import { shownTitle } from "./project-fields";
 
 // The organizer's results view (the normalization, its decisions, the judges' private notes
 // and the cross-check between methods), publishing, which stores the run it publishes, and
@@ -284,7 +285,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
       se: normalizedScores.se,
       raw: normalizedScores.rawMean,
       rankOverall: normalizedScores.rankNormalized,
-      title: projects.title,
+      title: shownTitle(),
       teamName: teams.name,
       trackId: tracks.id,
       trackName: tracks.name,

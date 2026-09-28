@@ -15,6 +15,7 @@ import {
 } from "../db/schema";
 import { guardRead } from "../mutate";
 import { inJudgeTracks } from "./judging";
+import { shownTitle } from "./project-fields";
 
 export type ReviewItem = { key: string; label: string; value: number; weight: number };
 
@@ -66,7 +67,7 @@ export function reviewsOf(db: DbOrTx, judgeUserId: string, opts: { ownTracksOnly
       assignmentId: assignments.id,
       eventId: assignments.eventId,
       projectId: projects.id,
-      projectTitle: projects.title,
+      projectTitle: shownTitle(),
       teamName: teams.name,
       trackId: tracks.id,
       trackName: tracks.name,

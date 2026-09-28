@@ -11,6 +11,7 @@ import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { parse, utcTimeOrEmpty } from "./parse";
 import { votingSettings, anyBallotCast, type VotingState, votingState, keptCopies, type VoterRow } from "./voting";
+import { shownTitle } from "./project-fields";
 
 // The organizer's side of the community vote: the window and who may vote, the voter list and its
 // links, setting a ballot aside and counting it again, and the count, live for the organizers and
@@ -267,7 +268,7 @@ function tally(db: DbOrTx, event: EventRow): Tally[] {
   const { countLink } = votingSettings(event);
   const kept = keptCopies(db, eventId);
   const rows = db
-    .select({ id: projects.id, title: projects.title, teamId: projects.teamId, teamName: teams.name })
+    .select({ id: projects.id, title: shownTitle(), teamId: projects.teamId, teamName: teams.name })
     .from(projects)
     .innerJoin(teams, eq(teams.id, projects.teamId))
     .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted"), isNull(projects.duplicateOf)))

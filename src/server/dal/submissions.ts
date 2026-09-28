@@ -6,6 +6,7 @@ import { assignments, projects, teamMembers, teams, tracks } from "../db/schema"
 import { guardRead } from "../mutate";
 import { eventFacts, requireEvent } from "./events";
 import { decisions } from "./decisions";
+import { shownTitle } from "./project-fields";
 
 // The organizer's list of every project, drafts included, with its review progress.
 
@@ -35,7 +36,7 @@ export function getSubmissions(actor: Actor | null, eventIdOrSlug: string) {
   const rows = db
     .select({
       id: projects.id,
-      title: projects.title,
+      title: shownTitle(),
       status: projects.status,
       trackName: tracks.name,
       teamId: teams.id,
@@ -51,7 +52,7 @@ export function getSubmissions(actor: Actor | null, eventIdOrSlug: string) {
     .innerJoin(teams, eq(teams.id, projects.teamId))
     .innerJoin(tracks, eq(tracks.id, projects.trackId))
     .where(and(eq(projects.eventId, event.id)))
-    .orderBy(asc(tracks.position), asc(projects.title))
+    .orderBy(asc(tracks.position), asc(shownTitle()))
     .all();
   // the same duplicate groups as the overview's decisions, so the two pages never disagree
   const dupes = decisions(db, event).flatMap((d) => (d.kind === "duplicate" ? [d] : []));

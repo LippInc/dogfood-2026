@@ -5,7 +5,7 @@ import { getDb, type DbOrTx } from "../db/client";
 import { events, prizes, projects, rubricCriteria, teams, tracks, userRoles } from "../db/schema";
 import { NotFoundError } from "../errors";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
-import { fieldModes, trackCount } from "./project-fields";
+import { fieldModes, trackCount, shownTitle } from "./project-fields";
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -123,7 +123,7 @@ export function getGallery(idOrSlug: string): Gallery {
   const rows = db
     .select({
       id: projects.id,
-      title: projects.title,
+      title: shownTitle(),
       summary: projects.summary,
       teamName: teams.name,
       trackId: tracks.id,

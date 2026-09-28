@@ -114,7 +114,7 @@ export function decisions(db: DbOrTx, event: EventRow, now = computeNormalizatio
   const info = submittedProjects(db, event.id);
   const groups = new Map<string, ProjectInfo[]>();
   for (const p of info) {
-    const k = `${p.teamId}\u0000${normTitle(p.title)}`;
+    const k = `${p.teamId}\u0000${normTitle(p.typedTitle)}`;
     groups.set(k, [...(groups.get(k) ?? []), p]);
   }
   for (const copies of groups.values()) {

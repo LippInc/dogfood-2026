@@ -15,7 +15,7 @@ import { myTeam, organizerChangedAfterClose, type MyTeam } from "./teams";
 import { issuesOf } from "./parse";
 import { discardUpload, UPLOAD_PATH } from "../uploads";
 import { DEFAULT_FIELD_MODES, PROJECT_FIELDS, REQUIRED_MESSAGES, withoutHidden, type FieldModes } from "@/lib/project-fields";
-import { fieldModes } from "./project-fields";
+import { fieldModes, shownTitle } from "./project-fields";
 
 // A team's project: created and edited by its members while submissions are open,
 // saved as a draft or submitted. The deadline holds in the backend: after
@@ -420,6 +420,7 @@ export function getMyWork(actor: Actor, eventIdOrSlug: string): MyWork {
   const event = requireEvent(db, eventIdOrSlug);
   const team = myTeam(db, actor, event.id);
   const project = team?.projectId ? db.select().from(projects).where(eq(projects.id, team.projectId)).get() : undefined;
+  const fields = fieldModes(db, event.id);
   const answers = project
     ? Object.fromEntries(
         db
@@ -440,9 +441,10 @@ export function getMyWork(actor: Actor, eventIdOrSlug: string): MyWork {
       .orderBy(asc(tracks.position))
       .all(),
     questions: eventQuestions(db, event.id),
-    fields: fieldModes(db, event.id),
+    fields,
     team,
-    project: project ? { ...project, answers } : null,
+    // the team sees its project under the name everyone else sees; the form does not ask for a hidden title, and a save keeps the stored one
+    project: project ? { ...project, title: fields.title === "hidden" ? titleFrom(team?.name ?? "") : project.title, answers } : null,
     faceId: project?.id ?? (team ? projectIdFor(team.id) : null),
     feedback: project && project.status === "submitted" ? teamFeedback(db, event, project.id) : null,
   };
@@ -489,7 +491,7 @@ export function getPublicProject(eventIdOrSlug: string, projectId: string): { ev
   const p = db
     .select({
       id: projects.id,
-      title: projects.title,
+      title: shownTitle(),
       summary: projects.summary,
       description: projects.description,
       repoUrl: projects.repoUrl,

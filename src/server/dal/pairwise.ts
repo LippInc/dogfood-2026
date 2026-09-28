@@ -23,7 +23,7 @@ import { eventFacts, requireEvent, type EventRow } from "./events";
 import { finishedReviews, inJudgeTracks, judgeNames, judgeSet, rubricOf, submittedProjects, weightedTotal, type ProjectInfo } from "./judging";
 import { parse } from "./parse";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
-import { fieldModes } from "./project-fields";
+import { fieldModes, shownTitle } from "./project-fields";
 
 // Pairwise mode (JUDGING.md "Pairwise mode"; the engine is src/server/judging/pairwise.ts).
 // A judge's list and next question are replayed from their own answers on every read
@@ -74,7 +74,7 @@ function ownProjects(db: DbOrTx, eventId: string, judgeUserId: string) {
     .select({
       id: projects.id,
       assignmentId: assignments.id,
-      title: projects.title,
+      title: shownTitle(),
       summary: projects.summary,
       description: projects.description,
       repoUrl: projects.repoUrl,

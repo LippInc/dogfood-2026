@@ -13,6 +13,7 @@ import { eventFacts, requireEvent, type EventRow } from "./events";
 import { isJudgeIn, judgeRows } from "./judges";
 import { judgeSet } from "./judging";
 import { parse } from "./parse";
+import { shownTitle } from "./project-fields";
 
 // Assignment runs: the organizer starts a fresh run once,
 // then top-ups as judges join, reviews go missing or a judge is excluded. Every run
@@ -292,7 +293,7 @@ export function getAssignments(actor: Actor | null, eventIdOrSlug: string) {
   const preview = assignJudges({ mode: "topup", seed: 1, reviewsPerProject: target, bridgePerTrack: 0, maxPerJudge: null, ...data });
   const trackNames = new Map(db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, event.id)).all().map((t) => [t.id, t.name]));
   const titles = new Map(
-    db.select({ id: projects.id, title: projects.title }).from(projects).where(eq(projects.eventId, event.id)).all().map((p) => [p.id, p.title]),
+    db.select({ id: projects.id, title: shownTitle() }).from(projects).where(eq(projects.eventId, event.id)).all().map((p) => [p.id, p.title]),
   );
   return {
     event,

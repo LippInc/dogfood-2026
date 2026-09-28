@@ -9,7 +9,7 @@ const MODE_LABELS: Record<FieldMode, string> = { required: "Required", optional:
 function hint(field: ProjectField, tracks: number): string {
   switch (field) {
     case "title":
-      return "The project's name. Optional or hidden: a project without one is called by its team's name.";
+      return "The project's name. Optional: a project without one is called by its team's name. Hidden: every project is.";
     case "summary":
       return "One line under the title, in the gallery and the judge's console.";
     case "trackId":

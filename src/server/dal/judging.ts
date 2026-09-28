@@ -3,6 +3,7 @@ import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import type { DbOrTx } from "../db/client";
 import { assignments, judgeOverrides, judgeTracks, projects, rubricCriteria, scoreItems, scores, teams, tracks, userRoles, users } from "../db/schema";
 import { excludedJudges, flatJudges, type FinishedReview, type FlatFlag, type Override } from "../judging/flat";
+import { shownTitle } from "./project-fields";
 
 // Shared loaders for the judging side: the rubric, the finished reviews (every
 // criterion scored), the flat-judge flags and the organizer's overrides. The
@@ -138,7 +139,10 @@ export function judgeSet(db: DbOrTx, eventId: string, reviews = finishedReviews(
 // Moved from normalization.ts so the score engine and the pairwise engine share them.
 export type ProjectInfo = {
   id: string;
+  /** the name it is shown under (the team's name while the organizer hides the title) */
   title: string;
+  /** what the team typed, which duplicate matching compares */
+  typedTitle: string;
   trackId: string;
   trackName: string;
   teamId: string;
@@ -152,7 +156,8 @@ export function submittedProjects(db: DbOrTx, eventId: string): ProjectInfo[] {
   return db
     .select({
       id: projects.id,
-      title: projects.title,
+      title: shownTitle(),
+      typedTitle: projects.title,
       trackId: projects.trackId,
       trackName: tracks.name,
       teamId: projects.teamId,

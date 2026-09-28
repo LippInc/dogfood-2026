@@ -17,7 +17,7 @@ import {
 } from "../db/schema";
 import { NotFoundError, ValidationError } from "../errors";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
-import { fieldModes } from "./project-fields";
+import { fieldModes, shownTitle } from "./project-fields";
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -95,7 +95,7 @@ export function getJudgeConsole(actor: Actor | null, eventIdOrSlug: string): Jud
       position: assignments.position,
       status: assignments.status,
       projectId: projects.id,
-      title: projects.title,
+      title: shownTitle(),
       summary: projects.summary,
       description: projects.description,
       repoUrl: projects.repoUrl,

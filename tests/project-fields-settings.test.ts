@@ -15,7 +15,9 @@ import { exportFile } from "@/server/dal/exports";
 import { createEvent, getOrganizerEvent, saveProjectFields, saveTracks } from "@/server/dal/organize";
 import { fieldModes } from "@/server/dal/project-fields";
 import { createProject, getMyWork, getPublicProject, updateProject } from "@/server/dal/projects";
+import { getNormalization } from "@/server/dal/results";
 import { getJudgeConsole } from "@/server/dal/reviews";
+import { getSubmissions } from "@/server/dal/submissions";
 import { createTeam } from "@/server/dal/teams";
 import { DEFAULT_FIELD_MODES } from "@/lib/project-fields";
 
@@ -155,6 +157,45 @@ describe("a title the team does not give", () => {
     expect(row(made.id).title).toBe("Larks");
     updateProject(team.member(), made.id, { title: "Sent again", summary: "One line", trackId: "trk_01" });
     expect(row(made.id).title).toBe("Larks");
+  });
+
+  it("hidden on a project that already has one: the team's name wherever it is shown, the typed title kept and back with the field", () => {
+    // the fixture's first project has a typed title of its own, is submitted, scored and judged
+    const typed = row("prj_01").title;
+    const teamName = (h.sqlite.prepare("SELECT name FROM teams WHERE id = 'tm_01'").get() as { name: string }).name;
+    expect(typed).not.toBe(teamName);
+    const judgeId = h.db.select({ j: assignments.judgeUserId }).from(assignments).where(eq(assignments.projectId, "prj_01")).get()!.j;
+    const captain = actor((h.sqlite.prepare("SELECT user_id AS id FROM team_members WHERE team_id = 'tm_01' AND role = 'captain'").get() as { id: string }).id);
+    const names = () => ({
+      page: getPublicProject("evt_01", "prj_01").project.title,
+      gallery: getGallery("evt_01").projects.find((p) => p.id === "prj_01")?.title,
+      judge: getJudgeConsole(actor(judgeId), "evt_01").items.find((i) => i.project.id === "prj_01")?.project.title,
+      results: getNormalization(organizer(), "evt_01").normalization.projects.find((p) => p.id === "prj_01")?.title,
+      submissions: getSubmissions(organizer(), "evt_01").rows.find((p) => p.id === "prj_01")?.title,
+      team: getMyWork(captain, "evt_01").project?.title,
+      csv: exportFile(organizer(), "evt_01", "projects.csv").body.split("\n").find((l) => l.startsWith("prj_01,"))?.split(",")[1],
+    });
+    const everywhere = (name: string) => ({ page: name, gallery: name, judge: name, results: name, submissions: name, team: name, csv: name });
+    // a second, differently named entry from the same team: not a copy while the titles differ
+    const cols = (h.sqlite.prepare("PRAGMA table_info(projects)").all() as { name: string }[]).map((c) => c.name);
+    const copy = cols.map((c) => (c === "id" ? "'prj_01b'" : c === "title" ? "'Another Thing'" : c)).join(", ");
+    h.sqlite.prepare(`INSERT INTO projects (${cols.join(", ")}) SELECT ${copy} FROM projects WHERE id = 'prj_01'`).run();
+    const duplicates = () => getNormalization(organizer(), "evt_01").decisions.filter((d) => d.kind === "duplicate").map((d) => d.key);
+    const found = duplicates();
+    // the control: while the title is asked, every reader shows the typed one
+    expect(names()).toEqual(everywhere(typed));
+
+    saveProjectFields(organizer(), "evt_01", { title: "hidden" });
+    expect(names()).toEqual(everywhere(teamName));
+    expect(row("prj_01").title).toBe(typed);
+    // copies of one entry are still found by what the team typed, not by the shared team name
+    expect(duplicates()).toEqual(found);
+    // the event's own export keeps what the team typed, so an import loses nothing
+    const exported = JSON.parse(exportFile(organizer(), "evt_01", "fixtures.json").body) as { projects: { id: string; title: string }[] };
+    expect(exported.projects.find((p) => p.id === "prj_01")?.title).toBe(typed);
+
+    saveProjectFields(organizer(), "evt_01", { title: "required" });
+    expect(names()).toEqual(everywhere(typed));
   });
 });
 
