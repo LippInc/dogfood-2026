@@ -204,10 +204,43 @@ export function fitPairwise(
   const prior = Array.from({ length: n }, (_, i) => 1 / (i < P ? sigmaS * sigmaS : sigmaB * sigmaB));
   const theta = new Array<number>(n).fill(0);
 
+  // The information matrix (the negative Hessian) in the shape the model gives it: no
+  // comparison crosses tracks, so the strengths' part is one block per track, and only the
+  // two pulls touch every project. Each Newton step and the covariance are solved per track
+  // with the pulls eliminated (the Schur complement), so the cost grows with each track's
+  // size cubed, not the event's. The answer is the one dense solve of the whole matrix gives
+  // (tests/pairwise-engine.test.ts holds the two together).
+  const blockOf = new Array<number>(P);
+  const posIn = new Array<number>(P);
+  const members: number[][] = [];
+  {
+    const byTrack = new Map<string, number>();
+    ids.forEach((id, i) => {
+      const t = trackOf.get(id)!;
+      let b = byTrack.get(t);
+      if (b === undefined) {
+        b = members.length;
+        byTrack.set(t, b);
+        members.push([]);
+      }
+      blockOf[i] = b;
+      posIn[i] = members[b]!.length;
+      members[b]!.push(i);
+    });
+  }
+  type Info = { A: number[][][]; B: number[][]; C: number[][] };
+
   const evaluate = (th: number[]) => {
     let logPost = 0;
     const g = th.map((v, i) => -prior[i]! * v);
-    const H = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? prior[i]! : 0))); // -Hessian
+    const H: Info = {
+      A: members.map((m) => m.map((_, a) => m.map((__, b) => (a === b ? prior[0]! : 0)))),
+      B: Array.from({ length: P }, () => [0, 0]),
+      C: [
+        [prior[H_]!, 0],
+        [0, prior[NU]!],
+      ],
+    };
     for (let i = 0; i < n; i++) logPost -= 0.5 * prior[i]! * th[i]! * th[i]!;
     for (const r of rows) {
       let x = 0;
@@ -218,10 +251,57 @@ export function fitPairwise(
       const curv = r.w * p * (1 - p);
       for (const [k, v] of r.terms) {
         g[k] = g[k]! + resid * v;
-        for (const [l, u] of r.terms) H[k]![l] = H[k]![l]! + curv * v * u;
+        for (const [l, u] of r.terms) {
+          if (k < P && l < P) H.A[blockOf[k]!]![posIn[k]!]![posIn[l]!] += curv * v * u;
+          else if (k < P) H.B[k]![l - P] += curv * v * u;
+          else if (l >= P) H.C[k - P]![l - P] += curv * v * u;
+          // (a pull's row against a strength is the transpose of B, kept once)
+        }
       }
     }
     return { logPost, g, H };
+  };
+
+  /** Factor the information matrix: each track's block, and the pulls' 2 × 2 after the strengths are eliminated. */
+  const factor = (H: Info) => {
+    const L = H.A.map((a) => cholesky(a));
+    // X = A⁻¹ B, per track: how each strength leans on each pull
+    const X = members.map((m, b) => {
+      const cols = [0, 1].map((c) => cholSolve(L[b]!, m.map((i) => H.B[i]![c]!)));
+      return m.map((_, a) => [cols[0]![a]!, cols[1]![a]!]);
+    });
+    const S = [
+      [H.C[0]![0]!, H.C[0]![1]!],
+      [H.C[1]![0]!, H.C[1]![1]!],
+    ];
+    members.forEach((m, b) =>
+      m.forEach((i, a) => {
+        for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) S[r]![c] = S[r]![c]! - H.B[i]![r]! * X[b]![a]![c]!;
+      }),
+    );
+    return { L, X, LS: cholesky(S) };
+  };
+
+  /** Solve H x = rhs with the factors: the pulls first, then each track's strengths. */
+  const solve = (H: Info, f: ReturnType<typeof factor>, rhs: number[]) => {
+    const y = members.map((m, b) => cholSolve(f.L[b]!, m.map((i) => rhs[i]!)));
+    const rb = [rhs[H_]!, rhs[NU]!];
+    members.forEach((m, b) =>
+      m.forEach((i, a) => {
+        rb[0] = rb[0]! - H.B[i]![0]! * y[b]![a]!;
+        rb[1] = rb[1]! - H.B[i]![1]! * y[b]![a]!;
+      }),
+    );
+    const xb = cholSolve(f.LS, rb);
+    const x = new Array<number>(n).fill(0);
+    members.forEach((m, b) =>
+      m.forEach((i, a) => {
+        x[i] = y[b]![a]! - f.X[b]![a]![0]! * xb[0]! - f.X[b]![a]![1]! * xb[1]!;
+      }),
+    );
+    x[H_] = xb[0]!;
+    x[NU] = xb[1]!;
+    return x;
   };
 
   let state = evaluate(theta);
@@ -230,8 +310,7 @@ export function fitPairwise(
   const maxIt = opts.maxIterations ?? 100;
   while (iterations < maxIt) {
     iterations++;
-    const L = cholesky(state.H);
-    const step = cholSolve(L, state.g);
+    const step = solve(state.H, factor(state.H), state.g);
     let scale = 1;
     let next = theta.map((v, i) => v + step[i]!);
     let trial = evaluate(next);
@@ -248,7 +327,27 @@ export function fitPairwise(
       break;
     }
   }
-  const cov = inverse(cholesky(state.H));
+
+  // The covariance (the inverse information matrix) where it is read: within a track and for
+  // the pulls. With Σ the pulls' block, S⁻¹: a strength pair (i, j) is A⁻¹ᵢⱼ + Xᵢ Σ Xⱼᵀ,
+  // a strength against a pull −(Xᵢ Σ), and two strengths in different tracks Xᵢ Σ Xⱼᵀ.
+  const f = factor(state.H);
+  const Ainv = f.L.map((l) => inverse(l));
+  const Sigma = inverse(f.LS);
+  const xs = (i: number) => f.X[blockOf[i]!]![posIn[i]!]!;
+  const lean = (i: number) => [
+    xs(i)[0]! * Sigma[0]![0]! + xs(i)[1]! * Sigma[1]![0]!,
+    xs(i)[0]! * Sigma[0]![1]! + xs(i)[1]! * Sigma[1]![1]!,
+  ];
+  const cov = (i: number, j: number): number => {
+    if (i >= P && j >= P) return Sigma[i - P]![j - P]!;
+    if (i >= P) return cov(j, i);
+    if (j >= P) return -lean(i)[j - P]!;
+    const xj = xs(j);
+    const li = lean(i);
+    const pullPart = li[0]! * xj[0]! + li[1]! * xj[1]!;
+    return blockOf[i] === blockOf[j] ? Ainv[blockOf[i]!]![posIn[i]!]![posIn[j]!]! + pullPart : pullPart;
+  };
 
   // Counts and groups (union-find over the comparisons, within each track).
   const parent = ids.map((_, i) => i);
@@ -270,29 +369,29 @@ export function fitPairwise(
   const out: ProjectFit[] = [];
   const trackSummary: { trackId: string; groups: number }[] = [];
   for (const t of tracks) {
-    const members = t.projectIds.filter((id) => trackOf.get(id) === t.trackId).map((id) => index.get(id)!);
-    if (members.length === 0) {
+    const inTrack = t.projectIds.filter((id) => trackOf.get(id) === t.trackId).map((id) => index.get(id)!);
+    if (inTrack.length === 0) {
       trackSummary.push({ trackId: t.trackId, groups: 0 });
       continue;
     }
-    const m = members.length;
-    const mean = members.reduce((acc, i) => acc + theta[i]!, 0) / m;
+    const m = inTrack.length;
+    const mean = inTrack.reduce((acc, i) => acc + theta[i]!, 0) / m;
     const roots = new Map<number, number>();
-    for (const i of members) if (count[i]! > 0 && !roots.has(find(i))) roots.set(find(i), roots.size);
+    for (const i of inTrack) if (count[i]! > 0 && !roots.has(find(i))) roots.set(find(i), roots.size);
     trackSummary.push({ trackId: t.trackId, groups: roots.size });
     // Var(s_i - mean) = cov_ii - 2/m * sum_j cov_ij + 1/m^2 * sum_jk cov_jk
     let all = 0;
-    for (const j of members) for (const k of members) all += cov[j]![k]!;
-    const rowsFit = members.map((i) => {
+    for (const j of inTrack) for (const k of inTrack) all += cov(j, k);
+    const rowsFit = inTrack.map((i) => {
       let row = 0;
-      for (const j of members) row += cov[i]![j]!;
-      const v = Math.max(0, cov[i]![i]! - (2 / m) * row + all / (m * m));
+      for (const j of inTrack) row += cov(i, j);
+      const v = Math.max(0, cov(i, i) - (2 / m) * row + all / (m * m));
       const p = sigmoid(theta[i]! - mean);
       return {
         id: ids[i]!,
         trackId: t.trackId,
         s: theta[i]!,
-        se: Math.sqrt(cov[i]![i]!),
+        se: Math.sqrt(cov(i, i)),
         winPct: p,
         winPctSe: p * (1 - p) * Math.sqrt(v),
         comparisons: count[i]!,
@@ -309,13 +408,13 @@ export function fitPairwise(
       const next = rowsFit[k + 1];
       // Only within a group: across groups never compared, the difference is the prior's, not evidence.
       if (next && r.comparisons > 0 && next.comparisons > 0 && find(r._i) === find(next._i)) {
-        const sd = Math.sqrt(Math.max(1e-18, cov[r._i]![r._i]! + cov[next._i]![next._i]! - 2 * cov[r._i]![next._i]!));
+        const sd = Math.sqrt(Math.max(1e-18, cov(r._i, r._i) + cov(next._i, next._i) - 2 * cov(r._i, next._i)));
         r.beatsNext = normalCdf((r.s - next.s) / sd);
       }
     });
     for (const { _i: _drop, ...r } of rowsFit) out.push(r);
   }
-  const bias = (k: number): Bias => (hasPicks ? { est: theta[k]!, se: Math.sqrt(cov[k]![k]!) } : null);
+  const bias = (k: number): Bias => (hasPicks ? { est: theta[k]!, se: Math.sqrt(cov(k, k)) } : null);
   return { projects: out, left: bias(H_), fresh: bias(NU), tracks: trackSummary, converged, iterations };
 }
 

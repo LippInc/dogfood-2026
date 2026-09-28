@@ -7,8 +7,10 @@ import {
   replayInsertion,
   sigmoid,
   type Comparison,
+  type PairwiseFit,
   type PickRecord,
 } from "@/server/judging/pairwise";
+import { fitPairwiseDense } from "./support/pairwise-dense";
 
 // The pairwise engine's own checks (JUDGING.md "Pairwise mode"). The Monte Carlo on
 // the fixture's real judge-project pairs is tests/pairwise-mc.test.ts.
@@ -257,5 +259,81 @@ describe("a judge's agreement with the rest of the panel", () => {
     const contrary = pairs.map(([a, b]) => pick(a, b, 0, "contrary"));
     expect(judgeAgreement(tr, [...panel, ...honest], "honest").share).toBe(1);
     expect(judgeAgreement(tr, [...panel, ...contrary], "contrary").share).toBe(0);
+  });
+});
+
+describe("the per-track solve", () => {
+  /** A multi-track event: picks with and without a just-opened side, ties, pairs from scores, a one-project track and projects never compared. */
+  function design(seed: number, sizes: number[], withPicks: boolean): { tracks: { trackId: string; projectIds: string[] }[]; comps: Comparison[] } {
+    const r = rng(seed);
+    const tracks = sizes.map((m, t) => ({ trackId: `t${t}`, projectIds: Array.from({ length: m }, (_, i) => `t${t}p${i}`) }));
+    const comps: Comparison[] = [];
+    for (const t of tracks) {
+      const ids = t.projectIds;
+      if (ids.length < 2) continue;
+      // leave the last project of each track uncompared
+      const live = ids.slice(0, -1);
+      for (let k = 0; k < live.length * 4; k++) {
+        const a = live[Math.floor(r() * live.length)]!;
+        const b = live[Math.floor(r() * live.length)]!;
+        if (a === b) continue;
+        const u = r();
+        const y = (u < 0.15 ? 0.5 : u < 0.6 ? 1 : 0) as 1 | 0.5 | 0;
+        const isPick = withPicks && r() < 0.6;
+        const side = r();
+        comps.push({
+          judgeId: `j${k % 5}`,
+          trackId: t.trackId,
+          a,
+          b,
+          y,
+          weight: isPick ? 1 : 2 / 4,
+          kind: isPick ? "pick" : "scores",
+          newIs: isPick ? (side < 0.4 ? "a" : side < 0.8 ? "b" : null) : null,
+        });
+      }
+    }
+    return { tracks, comps };
+  }
+
+  const worst = (x: PairwiseFit, y: PairwiseFit) => {
+    let d = 0;
+    expect(x.projects.map((p) => p.id)).toEqual(y.projects.map((p) => p.id));
+    x.projects.forEach((p, i) => {
+      const q = y.projects[i]!;
+      expect([p.place, p.group, p.comparisons, p.picks, p.beatsNext === null]).toEqual([q.place, q.group, q.comparisons, q.picks, q.beatsNext === null]);
+      d = Math.max(d, Math.abs(p.s - q.s), Math.abs(p.se - q.se), Math.abs(p.winPct - q.winPct), Math.abs(p.winPctSe - q.winPctSe), Math.abs((p.beatsNext ?? 0) - (q.beatsNext ?? 0)));
+    });
+    for (const k of ["left", "fresh"] as const) {
+      expect(x[k] === null).toBe(y[k] === null);
+      if (x[k] && y[k]) d = Math.max(d, Math.abs(x[k]!.est - y[k]!.est), Math.abs(x[k]!.se - y[k]!.se));
+    }
+    expect(x.converged).toBe(y.converged);
+    return d;
+  };
+
+  it("gives what one dense solve of the whole matrix gives: strengths, ±, win %, next-place chances and both pulls", () => {
+    for (const seed of [1, 2, 3, 4]) {
+      for (const withPicks of [true, false]) {
+        const { tracks, comps } = design(seed, [1, 6, 11, 4], withPicks);
+        expect(worst(fitPairwise(tracks, comps), fitPairwiseDense(tracks, comps))).toBeLessThan(1e-9);
+      }
+    }
+  });
+
+  it("known-bad: one comparison weighted a little differently on one side breaks the agreement", () => {
+    const { tracks, comps } = design(5, [6, 8], true);
+    const nudged = comps.map((c, i) => (i === 0 ? { ...c, weight: c.weight * 1.01 } : c));
+    expect(worst(fitPairwise(tracks, nudged), fitPairwiseDense(tracks, comps))).toBeGreaterThan(1e-6);
+  });
+
+  it("fits an event of 1,000 projects in 8 tracks in well under the dense solve's time", () => {
+    const { tracks, comps } = design(20260929, Array.from({ length: 8 }, () => 125), true);
+    const t0 = performance.now();
+    const fast = fitPairwise(tracks, comps);
+    const t1 = performance.now();
+    console.log(`1,000 projects in 8 tracks, ${comps.length} comparisons: the per-track solve ${(t1 - t0).toFixed(0)} ms, ${fast.iterations} steps`);
+    expect(fast.converged).toBe(true);
+    expect(t1 - t0).toBeLessThan(3_000);
   });
 });
