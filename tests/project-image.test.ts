@@ -14,7 +14,7 @@ import { HttpError } from "@/server/errors";
 import { removeProjectImage, setProjectImage } from "@/server/dal/project-image";
 import { createProject, updateProject } from "@/server/dal/projects";
 import { createTeam } from "@/server/dal/teams";
-import { MAX_IMAGE_BYTES, readUpload, sniffImage } from "@/server/uploads";
+import { MAX_IMAGE_BYTES, readUpload, sniffImage, stripMetadata } from "@/server/uploads";
 import type { Actor } from "@/server/authz";
 
 // Every judge's-eye reading marked the portal down for having no uploads: a team could only point at an
@@ -25,8 +25,8 @@ import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-28T02:00:00.000Z";
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
-const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0xff, 0xd9]);
-const WEBP = Buffer.concat([Buffer.from("RIFF"), Buffer.from([0x1a, 0, 0, 0]), Buffer.from("WEBPVP8L"), Buffer.alloc(14)]);
+// the smallest well-formed JPEG stream: start, a JFIF header with its right length, end
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xd9]);
 const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
 const HTML = Buffer.from("<!doctype html><script>alert(1)</script>");
 
@@ -91,6 +91,70 @@ describe("sniffImage", () => {
   });
 });
 
+// Phone photos carry where they were taken; a picture here is public, so what is not the picture goes.
+const seg = (marker: number, payload: Buffer) => Buffer.concat([Buffer.from([0xff, marker, (payload.length + 2) >> 8, (payload.length + 2) & 0xff]), payload]);
+const JPEG_WITH_GPS = Buffer.concat([
+  Buffer.from([0xff, 0xd8]),
+  seg(0xe0, Buffer.from("JFIF\0\x01\x01\0\0\x01\0\x01\0\0", "latin1")),
+  seg(0xe1, Buffer.from("Exif\0\0GPSLatitude 59.43N GPSLongitude 24.75E", "latin1")),
+  seg(0xfe, Buffer.from("shot at home", "latin1")),
+  seg(0xdb, Buffer.alloc(65, 1)),
+  seg(0xda, Buffer.from([1, 1, 0, 0, 0x3f, 0])),
+  Buffer.from([0x12, 0x34, 0xff, 0x00, 0x56, 0xff, 0xd9]),
+]);
+const chunk = (type: string, data: Buffer) => {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length);
+  return Buffer.concat([len, Buffer.from(type, "latin1"), data, Buffer.alloc(4)]);
+};
+const PNG_WITH_TEXT = Buffer.concat([PNG.subarray(0, 33), chunk("tEXt", Buffer.from("Comment\0GPS 59.43N 24.75E", "latin1")), chunk("eXIf", Buffer.from("MM\0*GPS", "latin1")), PNG.subarray(33)]);
+const riffChunk = (type: string, data: Buffer) => {
+  const len = Buffer.alloc(4);
+  len.writeUInt32LE(data.length);
+  return Buffer.concat([Buffer.from(type, "latin1"), len, data, data.length % 2 ? Buffer.alloc(1) : Buffer.alloc(0)]);
+};
+const webp = (...chunks: Buffer[]) => {
+  const body = Buffer.concat([Buffer.from("WEBP"), ...chunks]);
+  const size = Buffer.alloc(4);
+  size.writeUInt32LE(body.length);
+  return Buffer.concat([Buffer.from("RIFF"), size, body]);
+};
+// a well-formed WebP: RIFF, its size, WEBP, one image chunk
+const WEBP = webp(riffChunk("VP8L", Buffer.alloc(14, 7)));
+const WEBP_WITH_EXIF = webp(riffChunk("VP8X", Buffer.from([0x0c, 0, 0, 0, 0, 0, 0, 0, 0, 0])), riffChunk("VP8L", Buffer.alloc(9, 7)), riffChunk("EXIF", Buffer.from("GPS 59.43N 24.75E")), riffChunk("XMP ", Buffer.from("<x>GPS</x>")));
+const has = (b: Uint8Array, text: string) => Buffer.from(b).includes(Buffer.from(text, "latin1"));
+
+describe("stripMetadata", () => {
+  it("takes EXIF, XMP, IPTC and comments out of a JPEG and keeps the image data", () => {
+    const out = stripMetadata(JPEG_WITH_GPS, "jpg")!;
+    expect(has(out, "GPS")).toBe(false);
+    expect(has(out, "shot at home")).toBe(false);
+    expect(has(out, "JFIF")).toBe(true);
+    expect(Buffer.from(out).subarray(-7).equals(Buffer.from([0x12, 0x34, 0xff, 0x00, 0x56, 0xff, 0xd9]))).toBe(true);
+    expect(sniffImage(out)).toBe("jpg");
+  });
+
+  it("takes text and EXIF chunks out of a PNG, and leaves a PNG without them byte for byte", () => {
+    const out = stripMetadata(PNG_WITH_TEXT, "png")!;
+    expect(has(out, "GPS")).toBe(false);
+    expect(Buffer.from(out).equals(PNG)).toBe(true);
+    expect(Buffer.from(stripMetadata(PNG, "png")!).equals(PNG)).toBe(true);
+  });
+
+  it("takes EXIF and XMP chunks out of a WebP, fixing its size and its flags", () => {
+    const out = Buffer.from(stripMetadata(WEBP_WITH_EXIF, "webp")!);
+    expect(has(out, "GPS")).toBe(false);
+    expect(out.readUInt32LE(4)).toBe(out.length - 8);
+    expect(out[20]! & 0x0c).toBe(0);
+    expect(has(out, "VP8L")).toBe(true);
+  });
+
+  it("refuses a file whose structure does not hold (null), rather than store it with what it hides", () => {
+    expect(stripMetadata(Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0x7f, 0xff, 0x45, 0x78]), "jpg")).toBeNull();
+    expect(stripMetadata(Buffer.concat([PNG.subarray(0, 8), Buffer.from([0, 0, 0x7f, 0xff]), Buffer.from("tEXt")]), "png")).toBeNull();
+  });
+});
+
 describe("setProjectImage with the event open", () => {
   beforeEach(openEvent);
 
@@ -107,6 +171,13 @@ describe("setProjectImage with the event open", () => {
     expect(row.after).toEqual({ thumbnailUrl: r.thumbnailUrl });
     expect(row.before).toEqual({ thumbnailUrl: before });
     expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
+  it("stores a phone photo without where it was taken", () => {
+    const url = setProjectImage(member(), "prj_01", JPEG_WITH_GPS).thumbnailUrl;
+    const stored = fs.readFileSync(path.join(dir, url.slice("/uploads/".length)));
+    expect(has(stored, "GPS")).toBe(false);
+    expectHttpError(() => setProjectImage(member(), "prj_01", Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0x7f, 0xff, 0x45, 0x78])), 415, "unsupported_image");
   });
 
   it("names the file by what the bytes are: JPEG and WebP too", () => {

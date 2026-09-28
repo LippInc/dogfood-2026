@@ -5,7 +5,7 @@ import type { Tx } from "../db/client";
 import { projects, teamMembers } from "../db/schema";
 import { AuthzError, HttpError, NotFoundError } from "../errors";
 import { mutate } from "../mutate";
-import { discardUpload, MAX_IMAGE_BYTES, sniffImage, storeUpload } from "../uploads";
+import { discardUpload, MAX_IMAGE_BYTES, sniffImage, storeUpload, stripMetadata } from "../uploads";
 import { eventFacts, requireEvent } from "./events";
 
 // A project's picture, uploaded by its team. The same rule as editing the project (project.edit:
@@ -64,7 +64,10 @@ export function setProjectImage(actor: Actor | null, projectId: string, bytes: U
       if (bytes.length > MAX_IMAGE_BYTES) throw new HttpError(413, "image_too_large", "The image is over 2 MB. Save a smaller one (1600 pixels wide is plenty) and try again.");
       const kind = sniffImage(bytes);
       if (!kind) throw new HttpError(415, "unsupported_image", "Only PNG, JPEG or WebP images can be uploaded.");
-      stored = storeUpload(bytes, kind);
+      // stored without its metadata: a phone photo would publish where it was taken
+      const clean = stripMetadata(bytes, kind);
+      if (!clean) throw new HttpError(415, "unsupported_image", "The image file is damaged. Save it again as PNG, JPEG or WebP and try again.");
+      stored = storeUpload(clean, kind);
       return `/uploads/${stored}`;
     }) as { id: string; thumbnailUrl: string };
   } catch (err) {
