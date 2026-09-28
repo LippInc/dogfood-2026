@@ -176,7 +176,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           questions={work.questions}
           project={formProject}
           side={side}
-          face={<Face id={project?.id ?? `team-${team.id}`} className="block aspect-video w-full" />}
+          face={<Face id={work.faceId ?? team.id} className="block aspect-video w-full" />}
         />
       ) : (
         <div className="grid gap-10 lg:grid-cols-[minmax(0,680px)_320px] lg:justify-between">

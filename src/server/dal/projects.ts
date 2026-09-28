@@ -7,7 +7,7 @@ import { getDb, type DbOrTx, type Tx } from "../db/client";
 import { assignments, customAnswers, customQuestions, projects, scoreComments, teamMembers, teams, tracks } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { mutate } from "../mutate";
-import { newId } from "../util";
+import { derivedId, newId } from "../util";
 import { eventFacts, participantEventView, requireEvent, type EventRow, type ParticipantEventView } from "./events";
 import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
 import { getPublishedResults } from "./results";
@@ -136,6 +136,15 @@ function writeAnswers(tx: Tx, projectId: string, eventId: string, answers: Recor
 }
 
 /**
+ * The id a team's project gets, worked out from the team. The "my project" page draws the
+ * team's picture from it before the first save, so the picture the team sees while filling
+ * in the form is the one the project keeps everywhere.
+ */
+export function projectIdFor(teamId: string): string {
+  return derivedId("prj", `project-of:${teamId}`);
+}
+
+/**
  * Create the actor's team project. Refusals come first, in this order: no session
  * (401), not on a team in this event (403), submissions closed (403). Only then is
  * the body validated (422), so a closed event refuses whatever is sent.
@@ -162,8 +171,11 @@ export function createProject(actor: Actor | null, eventIdOrSlug: string, body: 
       requireTrack(tx, input.trackId, event.id);
       if (input.status === "submitted") assertSubmittable(tx, event.id, input);
       const now = new Date().toISOString();
+      // the id the team's picture was drawn from before this save; a random one only if some row holds it already
+      const planned = projectIdFor(t.id);
+      const taken = tx.select({ id: projects.id }).from(projects).where(eq(projects.id, planned)).get();
       const row = {
-        id: newId("prj"),
+        id: taken ? newId("prj") : planned,
         eventId: event.id,
         teamId: t.id,
         trackId: input.trackId,
@@ -306,6 +318,8 @@ export type MyWork = {
   questions: Question[];
   team: MyTeam | null;
   project: (typeof projects.$inferSelect & { answers: Record<string, string> }) | null;
+  /** what the team's picture is drawn from: its project's id, or before the first save the id the project will get */
+  faceId: string | null;
   /** after results are published: the team's place, score and every review, judges unnamed */
   feedback: TeamFeedback | null;
 };
@@ -385,6 +399,7 @@ export function getMyWork(actor: Actor, eventIdOrSlug: string): MyWork {
     questions: eventQuestions(db, event.id),
     team,
     project: project ? { ...project, answers } : null,
+    faceId: project?.id ?? (team ? projectIdFor(team.id) : null),
     feedback: project && project.status === "submitted" ? teamFeedback(db, event, project.id) : null,
   };
 }

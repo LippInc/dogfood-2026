@@ -8,7 +8,7 @@ import { verifyAuditChain } from "@/server/audit";
 import { ensureDemoOrganizer, seedCheckerSessions } from "@/server/checker";
 import { actorForToken } from "@/server/session";
 import { HttpError } from "@/server/errors";
-import { createProject } from "@/server/dal/projects";
+import { createProject, getMyWork, projectIdFor } from "@/server/dal/projects";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -162,6 +162,29 @@ describe("createProject through the real data access layer", () => {
       expect(last.targetId).toBe(row.id);
       expect(last.eventId).toBe("evt_01");
       expect(verifyAuditChain(h.db).ok).toBe(true);
+    });
+
+    it("a new project gets the id its team's picture was drawn from before the first save, so the picture stays", () => {
+      insertTeamWithoutProject();
+      const before = getMyWork(newMember, "evt_01").faceId;
+      expect(before).toBe(projectIdFor("tm_test"));
+      expect(before).toMatch(/^prj_[a-z2-9]{12}$/);
+      const row = createProject(newMember, "evt_01", { title: "Same picture", summary: "One line.", trackId: "trk_01" });
+      expect(row.id).toBe(before);
+      expect(getMyWork(newMember, "evt_01").faceId).toBe(row.id);
+    });
+
+    it("when some row already holds the planned id, the project is still created, with a random id (positive control)", () => {
+      insertTeamWithoutProject();
+      const planned = projectIdFor("tm_test");
+      h.sqlite.exec(`
+        INSERT INTO teams (id, event_id, name, invite_code, created_at) VALUES ('tm_other', 'evt_01', 'Other Team', 'invioth1234', '${NOW}');
+        INSERT INTO projects (id, event_id, team_id, track_id, title, created_at, updated_at)
+        VALUES ('${planned}', 'evt_01', 'tm_other', 'trk_01', 'Holds the id', '${NOW}', '${NOW}');
+      `);
+      const row = createProject(newMember, "evt_01", { title: "Still created", summary: "One line.", trackId: "trk_01" });
+      expect(row.id).not.toBe(planned);
+      expect(row.id).toMatch(/^prj_[a-z2-9]{12}$/);
     });
 
     it("known-bad: an empty title is 422", () => {

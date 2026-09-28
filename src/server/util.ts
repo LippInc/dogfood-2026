@@ -11,6 +11,14 @@ export function newId(prefix: string, length = 12): string {
   return `${prefix}_${out}`;
 }
 
+/** An id in newId's shape worked out from a key: the same key always gives the same id. */
+export function derivedId(prefix: string, key: string, length = 12): string {
+  const bytes = crypto.createHash("sha256").update(key).digest();
+  let out = "";
+  for (let i = 0; i < length; i++) out += ALPHABET[bytes[i] % ALPHABET.length];
+  return `${prefix}_${out}`;
+}
+
 /** A random URL-safe secret for cookies and invite links (letters and digits only). */
 export function newSecret(bytes = 24): string {
   return crypto.randomBytes(bytes).toString("base64url").replace(/[-_]/g, "x");
