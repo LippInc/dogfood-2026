@@ -12,6 +12,7 @@ import { currentActor, getNormalization, getPairwiseRanking, judgingModeOf, list
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
 import { PairwiseResults } from "./pairwise-results";
+import { plainSummary } from "./plain-summary";
 import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +72,8 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const maxLeniency = kept.reduce((m, j) => Math.max(m, Math.abs(j.leniency)), 0);
   const copies = dup?.kind === "duplicate" ? dup.copies.filter((c) => c.rankRaw !== null).sort((a, b) => a.rankRaw! - b.rankRaw!) : [];
   const records = event.resultsPublishedAt ? listRecords(actor, key) : [];
+  // what the run shows in words, before its statistics (a results-day tester met k and β̂² first)
+  const summary = plainSummary(n, { open, published: Boolean(event.resultsPublishedAt) });
 
   if (judgingModeOf(event) === "pairwise") {
     const ranking = guardPage(() => getPairwiseRanking(actor, key));
@@ -91,6 +94,14 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
         <header className="flex flex-col gap-3">
           <p className="label-mono text-ink-2">{event.resultsPublishedAt ? "Published run" : "Preview: nothing is public until you publish"}</p>
           <h1 className="text-24 font-semibold">The ranking and how it is worked out</h1>
+          <ol aria-label="What this run shows, in plain words" className="max-w-[860px] border-b border-rule text-15 wrap-anywhere">
+            {summary.map((line, i) => (
+              <li key={i} className="grid grid-cols-[36px_minmax(0,1fr)] items-baseline border-t border-rule py-2">
+                <span className="font-mono text-12 tnum text-ink-3">{String(i + 1).padStart(2, "0")}</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ol>
           <p className="max-w-[860px] text-15 leading-6 wrap-anywhere">
             <strong>{METHOD_LABEL}.</strong>{" "}
             {!n.variance.measured
