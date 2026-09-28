@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers";
 import type { Actor } from "./authz";
 import { getDb, type DbOrTx } from "./db/client";
 import { apiTokens, sessions, userRoles, users } from "./db/schema";
-import { operatorCount } from "./settings";
+import { operatorCount, secureCookies } from "./settings";
 import { newSecret, sha256 } from "./util";
 
 export const SESSION_COOKIE = "session";
@@ -101,7 +101,7 @@ export async function setSessionCookie(token: string, expires: Date): Promise<vo
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    secure: process.env.COOKIE_SECURE === "true",
+    secure: secureCookies(),
     expires,
   });
 }

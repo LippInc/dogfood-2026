@@ -30,6 +30,19 @@ export function operatorCount(name: OperatorCount, env: Env = process.env): numb
   return typeof n === "number" ? n : spec.fallback;
 }
 
+/**
+ * Whether cookies are marked Secure (sent over HTTPS only). COOKIE_SECURE "true" or "false"
+ * decides; unset, they are Secure when PUBLIC_URL starts with https://, so an HTTPS
+ * deployment that forgets the variable still keeps its session cookies off plain http. The
+ * offline run on http://localhost:8080 stays plain, which a browser needs to keep them there.
+ */
+export function secureCookies(env: Env = process.env): boolean {
+  const flag = env.COOKIE_SECURE?.trim().toLowerCase();
+  if (flag === "true") return true;
+  if (flag === "false") return false;
+  return /^https:\/\//i.test(env.PUBLIC_URL?.trim() ?? "");
+}
+
 /** Why the portal must not start, when a setting holds something that is not a whole number in range; else null. */
 export function settingsProblem(env: Env = process.env): string | null {
   for (const [name, spec] of Object.entries(OPERATOR_COUNTS)) {

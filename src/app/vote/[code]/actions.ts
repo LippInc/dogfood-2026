@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { clientOf } from "@/lib/client";
-import { actionError, enterVoting, voteCookieName, type ActionResult } from "@/server/dal";
+import { actionError, enterVoting, secureCookies, voteCookieName, type ActionResult } from "@/server/dal";
 
 export async function enterAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   let slug: string;
@@ -15,7 +15,7 @@ export async function enterAction(_prev: ActionResult, form: FormData): Promise<
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 60,
-      secure: process.env.COOKIE_SECURE === "true",
+      secure: secureCookies(),
     });
     slug = entered.eventSlug;
   } catch (err) {

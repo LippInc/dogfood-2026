@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { clientOf } from "@/lib/client";
-import { enterVoting, json, route, voteCookieName } from "@/server/dal";
+import { enterVoting, json, route, secureCookies, voteCookieName } from "@/server/dal";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export async function POST(_req: Request, { params }: RouteContext<"/api/vote/[c
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 60,
-      secure: process.env.COOKIE_SECURE === "true",
+      secure: secureCookies(),
     });
     return json({ eventId: entered.eventId, eventSlug: entered.eventSlug });
   });
