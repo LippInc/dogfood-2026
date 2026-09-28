@@ -87,9 +87,15 @@ export async function removeOrganizerAction(_prev: ActionResult, form: FormData)
 export async function saveJudgingModeAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const actor = await currentActor();
   const mode = String(form.get("mode") ?? "");
-  return run(
+  let changed = true;
+  const saved = await run(
     form,
-    (slug) => setJudgingMode(actor, slug, { mode, reason: form.get("reason") }),
+    (slug) => {
+      changed = setJudgingMode(actor, slug, { mode, reason: form.get("reason") }).changed;
+    },
     mode === "pairwise" ? "Pairwise from now on: judges see two projects at a time." : "Scores from now on: judges score each project on the rubric.",
   );
+  // Saving the mode the event already has changes nothing and logs nothing; say so.
+  if (saved.ok && !changed) return { ok: true, message: `Nothing changed: the event already judges ${mode === "pairwise" ? "pairwise" : "by scores"}, so nothing was logged.` };
+  return saved;
 }

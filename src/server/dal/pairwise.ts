@@ -581,13 +581,13 @@ export function setJudgingMode(actor: Actor | null, eventIdOrSlug: string, body:
       const input = parse(ModeInput, body);
       if (event.resultsPublishedAt) throw new ConflictError("results_published", "Results are published, so how the event was judged is final.");
       const before = judgingModeOf(event);
-      if (before === input.mode) return { result: { mode: before }, audit: null };
+      if (before === input.mode) return { result: { mode: before, changed: false }, audit: null };
       tx.update(events)
         .set({ settings: { ...event.settings, judgingMode: input.mode } })
         .where(eq(events.id, event.id))
         .run();
       return {
-        result: { mode: input.mode },
+        result: { mode: input.mode, changed: true },
         audit: { action: "event.judging_mode", eventId: event.id, targetType: "event", targetId: event.id, before: { mode: before }, after: { mode: input.mode, reason: input.reason } },
       };
     },
