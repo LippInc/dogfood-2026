@@ -857,6 +857,34 @@ describe("rate limits", () => {
     expect(getVotingAdmin(org(), "evt_01").settings.linkPerAddress).toBe(200);
   });
 
+  it("the ran-out note stays through a save that leaves the per-network number alone, and goes at the one that changes it", () => {
+    const { code } = makeVotingLink(org(), "evt_01");
+    const venue = (i: number): Client => ({ ip: "10.7.7.7", agent: `Tablet ${i}` });
+    for (let i = 0; i < 8; i++) enterVoting(code, venue(i));
+    expectHttpError(() => enterVoting(code, venue(8)), 429, "rate_limited");
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway.times).toBe(1);
+    // moving the close time, with the number sent unchanged or left out, answers nothing about the network
+    saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2998-01-01T00:00", modes: ["account", "listed", "link"], votesPerVoter: "3", linkPerAddress: "8" });
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway.times).toBe(1);
+    saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2997-01-01T00:00", modes: ["account", "listed", "link"], votesPerVoter: "3" });
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway.times).toBe(1);
+    // the save that changes it restarts the count, and a later unrelated save does not bring it back
+    saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2997-01-01T00:00", modes: ["account", "listed", "link"], votesPerVoter: "3", linkPerAddress: "9" });
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway.times).toBe(0);
+    saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2996-01-01T00:00", modes: ["account", "listed", "link"], votesPerVoter: "3" });
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway.times).toBe(0);
+    // once ballots are in, a save that changes the rules (with its reason) and the number answers the note too
+    const other = (i: number): Client => ({ ip: "10.7.7.8", agent: `Phone ${i}` });
+    const first = enterVoting(code, other(0));
+    for (let i = 1; i < 9; i++) enterVoting(code, other(i));
+    expectHttpError(() => enterVoting(code, other(9)), 429, "rate_limited");
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway.times).toBe(1);
+    castBallot(null, "evt_01", first.token, { projectIds: ["prj_01"] }, CLIENT);
+    saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2996-01-01T00:00", modes: ["account", "listed", "link"], votesPerVoter: "4", linkPerAddress: "10", reason: "Four favourites were announced" });
+    expect(auditRows().at(-1)!.action).toBe("voting.rules_changed");
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway.times).toBe(0);
+  });
+
   it("known-bad input: 0, 5001 and a fraction per address are 422 on the field, and change nothing", () => {
     for (const bad of ["0", "5001", "2.5"]) {
       let caught: unknown;

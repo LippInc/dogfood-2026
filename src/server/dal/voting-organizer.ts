@@ -408,12 +408,21 @@ export function recordCountChange(
 
 export type DuplicateGroup = { key: string; voters: { id: string; kind: VoterKind; picks: number; createdAt: string; voided: boolean }[] };
 
-/** Counted since the voting settings were last saved: a raise answers the ones before it. */
+/** Counted since the per-network number last changed: a raise answers the ones before it. */
 function turnedAway(db: DbOrTx, eventId: string): { times: number; lastAt: string | null } {
+  // The count restarts at the latest save that changed the number per network (that save is
+  // the organizer's answer); a save that only moved the window or the picks answers nothing.
   const saved = db
     .select({ at: sql<string | null>`max(${auditLog.at})` })
     .from(auditLog)
-    .where(and(eq(auditLog.eventId, eventId), inArray(auditLog.action, ["voting.settings", "voting.rules_changed"])))
+    .where(
+      and(
+        eq(auditLog.eventId, eventId),
+        // a save with a reason (the rules changed after the first ballot) is a save too
+        inArray(auditLog.action, ["voting.settings", "voting.rules_changed"]),
+        sql`json_extract(${auditLog.before}, '$.linkPerAddress') IS NOT json_extract(${auditLog.after}, '$.linkPerAddress')`,
+      ),
+    )
     .get()?.at;
   const row = db
     .select({ n: sql<number>`count(*)`, last: sql<string | null>`max(${auditLog.at})` })
