@@ -118,6 +118,15 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
         ) : null}
       </div>
       <Stages work={work} />
+      {/* On a phone the side column, and the invite link in it, comes after the whole form; a captain still alone on the team gets a way down to it. */}
+      {open && team?.role === "captain" && team.inviteCode && team.members.length === 1 ? (
+        <p className="mb-6 text-14 text-ink-2 lg:hidden">
+          Only you on the team so far.{" "}
+          <a href="#team-title" className="font-medium text-ink underline underline-offset-4">
+            Invite teammates with your link ↓
+          </a>
+        </p>
+      ) : null}
       {work.feedback ? (
         <section aria-labelledby="feedback-title" className="mb-10 border-b border-rule py-10">
           <p className="label-mono text-accent-ink">Results are published</p>
