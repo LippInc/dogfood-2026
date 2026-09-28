@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import type { Influence, JudgeStanding, Normalized } from "@/server/dal";
+import { KEPT_MIN_TILT, type Influence, type JudgeStanding, type Normalized } from "@/server/dal";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
 import { overrideAction, undoOverrideAction } from "../decision-actions";
 import { OneClick, WithReason } from "../decisions";
@@ -12,6 +12,8 @@ const f2 = (v: number) => v.toFixed(2);
 /** Signed to two decimals; a value that rounds to zero shows as 0.00, never −0.00. */
 const signed = (v: number) => (Math.abs(v) < 0.005 ? "0.00" : `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`);
 const rk = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+/** A share in whole percent, with a true minus sign when the engine reads the judge the other way. */
+const pct = (v: number) => `${Math.round(v * 100) < 0 ? "−" : ""}${Math.abs(Math.round(v * 100))} %`;
 
 function Standing({ j }: { j: JudgeStanding }) {
   if (j.removed) {
@@ -113,9 +115,12 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
         Judge ledger
       </h2>
       <p className="max-w-[860px] text-14 text-ink-2">
-        A judge&rsquo;s leniency is what the engine takes off each of their reviews: their plain tilt against the other reviewers of the same projects, of which it
-        keeps n ÷ (n + k). The ± is one standard error; a leniency within about two of them of zero cannot be told apart from zero. The last columns rerun the whole
-        engine with that one judge&rsquo;s status flipped, so you see what an override would change before you make it.
+        A judge&rsquo;s leniency is what the engine takes off each of their reviews. It starts from how far the judge&rsquo;s reviews sit from the projects&rsquo;
+        fitted levels and keeps n ÷ (n + k) of that. The plain tilt beside it is measured against the other reviewers&rsquo; raw scores, which carry their own
+        leniency, so the two need not match: &ldquo;Tilt kept&rdquo; is what the engine actually takes off as a share of the plain tilt (blank under a tilt of{" "}
+        {KEPT_MIN_TILT.toFixed(2)}, where the share would divide by noise; below zero, the engine reads the judge the other way). The ± is one standard error; a
+        leniency within about two of them of zero cannot be told apart from zero. The last columns rerun the whole engine with that one judge&rsquo;s status
+        flipped, so you see what an override would change before you make it.
         {published ? " The results are published, so the judge set is final." : ""}
       </p>
       <Summary judges={judges} />
@@ -170,7 +175,7 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
                   <p className="text-12 text-ink-2 md:hidden">
                     {j.excluded ? `0 of ${j.nAll} reviews counted` : `${j.n} ${j.n === 1 ? "review" : "reviews"}`}
                     {j.tilt === null || j.excluded ? "" : ` · plain tilt ${signed(j.tilt)}`}
-                    {j.excluded || k === null ? "" : ` · keeps ${Math.round(j.shrink * 100)} %`}
+                    {j.kept === null ? "" : ` · tilt kept ${pct(j.kept)}`}
                   </p>
                   <Standing j={j} />
                 </td>
@@ -185,7 +190,7 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
                     {j.excluded || k === null ? null : <LeniencyRow tilt={j.tilt} leniency={j.leniency} se={j.se} span={span} />}
                   </td>
                 ) : null}
-                <td className="px-3 py-2 text-right tnum max-md:hidden">{j.excluded || k === null ? "–" : `${Math.round(j.shrink * 100)} %`}</td>
+                <td className="px-3 py-2 text-right tnum max-md:hidden">{j.kept === null ? "–" : pct(j.kept)}</td>
                 <td className="min-w-[220px] px-3 py-2 text-13 max-md:col-span-2 max-md:min-w-0 max-md:p-0">{j.influence ? <IfFlipped inf={j.influence} /> : "–"}</td>
                 {published ? null : (
                   <td className="min-w-[180px] px-3 py-2 max-md:col-span-2 max-md:min-w-0 max-md:p-0">

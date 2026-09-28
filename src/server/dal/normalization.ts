@@ -17,6 +17,9 @@ export const METHOD_LABEL = "Judge leniency, shrunk by n ÷ (n + k), with k esti
 
 const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
+/** Below this plain tilt (in rubric points) the ledger gives no share kept: leniency ÷ tilt would divide by noise. */
+export const KEPT_MIN_TILT = 0.05;
+
 export type Receipt = {
   judgeId: string;
   judge: string;
@@ -74,10 +77,20 @@ export type JudgeStanding = {
   leniency: number;
   /** one standard error of the leniency; null when no leniency is fitted for this judge */
   se: number | null;
-  /** n ÷ (n + k): how much of the judge's own tilt the engine keeps */
+  /**
+   * n ÷ (n + k): the share the engine keeps of how far the judge's reviews sit from the
+   * projects' fitted levels. Those levels already allow for the other reviewers' own
+   * leniency, so this is not the share of the plain tilt; `kept` is.
+   */
   shrink: number;
   /** the plain average of the judge's deviations from co-reviewers, unshrunk */
   tilt: number | null;
+  /**
+   * What the engine actually takes off, as a share of the plain tilt: leniency ÷ tilt.
+   * Null when no leniency is corrected, the judge is left out, or the tilt is under
+   * KEPT_MIN_TILT, where the ratio of two small numbers means nothing.
+   */
+  kept: number | null;
   flag: FlatFlag | null;
   override: ActiveOverride | null;
   excluded: boolean;
@@ -306,6 +319,7 @@ function normalizationRun(db: DbOrTx, event: EventRow, opts: NormalizationOption
         se: fitted ? (fit.se?.leniency.get(id) ?? null) : null,
         shrink: fit.kUsed === null || excluded.has(id) ? 0 : n / (n + fit.kUsed),
         tilt: t && t.length ? mean(t) : null,
+        kept: fitted && t && t.length && Math.abs(mean(t)) >= KEPT_MIN_TILT ? (fit.leniency.get(id) ?? 0) / mean(t) : null,
         flag: set.flags.find((f) => f.judgeId === id) ?? null,
         override: [...set.overrides].reverse().find((o) => o.judgeId === id) ?? null,
         excluded: excluded.has(id),

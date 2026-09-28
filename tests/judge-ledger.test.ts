@@ -7,7 +7,7 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { requireEvent } from "@/server/dal/events";
-import { computeNormalization, type Normalized } from "@/server/dal/normalization";
+import { computeNormalization, KEPT_MIN_TILT, type Normalized } from "@/server/dal/normalization";
 import {
   acceptUnderReviewed,
   mergeDuplicate,
@@ -96,6 +96,18 @@ describe("the judge ledger", () => {
       expect(j.se!).toBeGreaterThanOrEqual(Math.sqrt(n.variance.sigma2 / (j.n + n.variance.k!)) - 1e-12);
       expect(j.nAll).toBe(j.n);
     }
+  });
+
+  it("its tilt kept agrees with the same row: tilt × kept = leniency, blank under a tilt of 0.05 (known-bad: the nominal n ÷ (n + k) does not)", () => {
+    const n = getNormalization(organizer(), "evt_01").normalization;
+    const counted = n.judges.filter((j) => !j.excluded && j.n > 0);
+    const shown = counted.filter((j) => j.kept !== null);
+    expect(shown.length).toBeGreaterThan(20);
+    for (const j of shown) expect(Math.abs(j.tilt! * j.kept! - j.leniency)).toBeLessThan(1e-12);
+    for (const j of counted.filter((x) => x.kept === null)) expect(j.tilt === null || Math.abs(j.tilt) < KEPT_MIN_TILT).toBe(true);
+    expect(n.judges.find((j) => j.id === "jdg_07")!.kept).toBeNull();
+    // The number the ledger used to show: on the sample event it is off by far more than rounding for some judge.
+    expect(Math.max(...shown.map((j) => Math.abs(j.tilt! * j.shrink - j.leniency)))).toBeGreaterThan(0.01);
   });
 
   it("gives every ranked project a ± at least √(σ̂² ÷ n)", () => {

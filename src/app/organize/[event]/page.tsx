@@ -373,7 +373,7 @@ export default async function OverviewPage({
                   <p className="text-13 leading-5 text-ink-2">
                     {nz.k === null
                       ? "The scores show no steady difference between lenient and harsh judges, so the engine corrects nothing and ranks by the plain mean."
-                      : `${nz.minReviews} to ${nz.maxReviews} reviews per judge is too few to tell a lenient judge from a strong batch: at k = ${nz.k.toFixed(1)} half a judge's tilt counts after ${plural(Math.round(nz.k), "review")}, so the engine keeps at most ${Math.round(nz.keptShare * 100)} % of anyone's.`}
+                      : `${nz.minReviews} to ${nz.maxReviews} reviews per judge is too few to tell a lenient judge from a strong batch: at k = ${nz.k.toFixed(1)} half a judge's tilt counts after ${plural(Math.round(nz.k), "review")}, so the engine keeps at most ${Math.round(nz.keptShare * 100)} % of how far any judge's reviews sit from the projects' fitted levels.`}
                     {nz.excludedNames.length
                       ? ` Left out: ${nz.excludedNames.join(", ")}.`
                       : ""}

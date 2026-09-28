@@ -92,6 +92,7 @@ export {
 } from "./reviews";
 export type { Criterion } from "./judging";
 export {
+  KEPT_MIN_TILT,
   METHOD_LABEL,
   type Influence,
   type JudgeStanding,
