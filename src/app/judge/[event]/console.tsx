@@ -9,6 +9,7 @@ import { useFlip } from "@/components/use-flip";
 import { formatUtc, weightShares } from "@/lib/format";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
 import { Kbd, letters, paragraphs, RecuseDialog, shortUrl } from "./judge-bits";
+import { saveAndNextTarget } from "./save-next";
 import "./judge.css";
 
 // The judge console (DESIGN.md: the judge keys with autosave and "your ranking so
@@ -117,7 +118,7 @@ export function JudgeConsoleView({
   const [keysOpen, setKeysOpen] = useState(false);
   const [recuseOpen, setRecuseOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
-  // Save and open next on the last unfinished project stays and says the batch is done (it used to wrap to the first).
+  // Once every project is scored, Save and open next says so; on the last one it stays instead of wrapping to the first.
   const [batchDone, setBatchDone] = useState(false);
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
   // Keys that jump into the feedback box put the caret after what is already there.
@@ -260,17 +261,13 @@ export function JudgeConsoleView({
   const saveAndNext = useCallback(() => {
     if (!current) return;
     void flush(current.assignmentId);
-    const after = [...items.slice(index + 1), ...items.slice(0, index)];
-    const next = after.find((i) => {
+    const slots = items.map((i) => {
       const r = reviewsRef.current[i.assignmentId]!;
-      return r.status !== "recused" && !r.readOnly && totalOf(criteria, r.values) === null;
+      return { open: r.status !== "recused" && !r.readOnly, scored: totalOf(criteria, r.values) !== null };
     });
-    const here = reviewsRef.current[current.assignmentId]!;
-    if (!next && !here.readOnly && totalOf(criteria, here.values) !== null) {
-      setBatchDone(true);
-      return;
-    }
-    go(next ? items.indexOf(next) : index + 1);
+    const { to, batchDone: done } = saveAndNextTarget(slots, index);
+    if (to !== index) go(to);
+    setBatchDone(done);
   }, [criteria, current, flush, go, index, items]);
 
   useEffect(() => {
