@@ -4,7 +4,7 @@ import { appendAudit } from "../audit";
 import { CHECKER_LABELS, checkerSessionsEnabled, type CheckerLabel } from "../checker";
 import { getDb } from "../db/client";
 import { events, sessions, teamMembers, teams, userRoles, users } from "../db/schema";
-import { LIMITS, take } from "../rate-limit";
+import { LIMITS, takeAudited } from "../rate-limit";
 import { createLoginSession, endSession, setSessionCookie, verifyPassword } from "../session";
 import type { Client } from "./voting";
 
@@ -19,14 +19,8 @@ const DUMMY_HASH =
  * first refusal for an address is audited.
  */
 export function addressLimit(client: Client | undefined): number | null {
-  const t = take(`account:${client?.ip ?? "none"}`, LIMITS.accountAddress);
-  if (t.ok) return null;
-  if (t.firstRefusal) {
-    getDb().transaction((tx) =>
-      appendAudit(tx, { actorUserId: null, actorLabel: "anonymous", action: "ratelimit.refused", targetType: "limit", targetId: "account-address", after: { retryAfter: t.retryAfter } }),
-    );
-  }
-  return t.retryAfter;
+  const t = takeAudited(`account:${client?.ip ?? "none"}`, LIMITS.accountAddress, { userId: null, label: "anonymous", what: "account-address" });
+  return t.ok ? null : t.retryAfter;
 }
 
 export type SignInResult = { ok: true; userId: string } | { ok: false; message: string; retryAfter?: number };
@@ -44,14 +38,8 @@ export async function signInWithPassword(emailRaw: string, password: string, cli
     { key: `signin:${email}`, limit: LIMITS.signInAccount, target: "sign-in-account", message: "Too many attempts for this email address from several networks." },
   ];
   for (const l of limits) {
-    const t = take(l.key, l.limit);
-    if (t.ok) continue;
-    if (t.firstRefusal) {
-      db.transaction((tx) =>
-        appendAudit(tx, { actorUserId: null, actorLabel: "anonymous", action: "ratelimit.refused", targetType: "limit", targetId: l.target, after: { retryAfter: t.retryAfter } }),
-      );
-    }
-    return { ok: false, message: `${l.message} Try again in ${Math.ceil(t.retryAfter / 60)} min.`, retryAfter: t.retryAfter };
+    const t = takeAudited(l.key, l.limit, { userId: null, label: "anonymous", what: l.target });
+    if (!t.ok) return { ok: false, message: `${l.message} Try again in ${Math.ceil(t.retryAfter / 60)} min.`, retryAfter: t.retryAfter };
   }
   const user = db.select().from(users).where(eq(users.email, email)).get();
   const valid = verifyPassword(password, user?.passwordHash ?? DUMMY_HASH) && Boolean(user?.passwordHash);

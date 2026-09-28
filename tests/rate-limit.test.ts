@@ -47,6 +47,17 @@ describe("rate limits in the database", () => {
     expect(second.take("other", LIMIT, now + 1000).ok).toBe(true);
   });
 
+  it("takeAudited: a key's first refusal writes one ratelimit.refused row, later refusals none, takes that go through none", async () => {
+    const { takeAudited } = await start();
+    const who = { userId: null, label: "anonymous", what: "test-limit" };
+    const rows = () =>
+      h!.sqlite.prepare("SELECT actor_label AS label, event_id AS eventId, target_id AS target FROM audit_log WHERE action = 'ratelimit.refused'").all();
+    expect([takeAudited("k", LIMIT, who).ok, takeAudited("k", LIMIT, who).ok]).toEqual([true, true]);
+    expect(rows()).toEqual([]);
+    expect([takeAudited("k", LIMIT, who).ok, takeAudited("k", LIMIT, who).ok, takeAudited("k", LIMIT, who).ok]).toEqual([false, false, false]);
+    expect(rows()).toEqual([{ label: "anonymous", eventId: null, target: "test-limit" }]);
+  });
+
   it("refills with time, and deletes the rows of buckets that are full again", async () => {
     const { take, LIMITS } = await start();
     const t0 = Date.now();

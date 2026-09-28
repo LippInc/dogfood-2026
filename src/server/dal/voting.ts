@@ -10,7 +10,7 @@ import { formatUtc } from "@/lib/format";
 import { AuthzError, ConflictError, NotFoundError, RateLimitedError, ValidationError } from "../errors";
 import { seededRng, shuffle } from "../judging/random";
 import { guardRead, mutate } from "../mutate";
-import { LIMITS, take, type Limit } from "../rate-limit";
+import { LIMITS, takeAudited, type Limit } from "../rate-limit";
 import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { parse, utcTimeOrEmpty } from "./parse";
@@ -82,9 +82,14 @@ function accountVoter(db: DbOrTx, eventId: string, userId: string): VoterRow | u
     .get();
 }
 
+/** A ballot's order seed: a hash of the voter, so the same voter always sees the same order. */
+function ballotSeed(voter: string): number {
+  return parseInt(sha256(`ballot-order:${voter}`).slice(0, 8), 16) & 0x7fffffff;
+}
+
 /** An account voter's order seed is fixed by who they are, so the ballot looks the same before and after the first vote. */
 function accountSeed(eventId: string, userId: string): number {
-  return parseInt(sha256(`ballot-order:${eventId}:${userId}`).slice(0, 8), 16) & 0x7fffffff;
+  return ballotSeed(`${eventId}:${userId}`);
 }
 
 function ballotProjects(db: DbOrTx, eventId: string) {
@@ -227,19 +232,8 @@ function foldPicks(kept: Map<string, string>, ids: string[]): string[] {
 }
 
 function limitOrThrow(key: string, limit: Limit, audit: { eventId: string; label: string; userId: string | null; what: string }) {
-  const t = take(key, limit);
-  if (t.ok) return;
-  if (t.firstRefusal) {
-    // One audit row when a key first runs dry, not one per refused request.
-    getDb().transaction((tx) => {
-      appendAudit(
-        tx,
-        { actorUserId: audit.userId, actorLabel: audit.label, action: "ratelimit.refused", eventId: audit.eventId, targetType: "limit", targetId: audit.what, after: { retryAfter: t.retryAfter } },
-        new Date().toISOString(),
-      );
-    });
-  }
-  throw new RateLimitedError(t.retryAfter);
+  const t = takeAudited(key, limit, audit);
+  if (!t.ok) throw new RateLimitedError(t.retryAfter);
 }
 
 export const BallotInput = z.object({ projectIds: z.array(z.string().min(1)).max(50) });
@@ -394,7 +388,7 @@ export function enterVoting(
         eventId: event.id,
         kind: "link",
         tokenHash: sha256(token),
-        orderSeed: parseInt(sha256(`ballot-order:${id}`).slice(0, 8), 16) & 0x7fffffff,
+        orderSeed: ballotSeed(id),
         ipHash,
         agentHash: clientHash(client.agent, event.id),
         createdAt: new Date().toISOString(),

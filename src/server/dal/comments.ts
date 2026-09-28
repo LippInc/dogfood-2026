@@ -1,13 +1,12 @@
 import "server-only";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { appendAudit } from "../audit";
 import type { Actor } from "../authz";
 import { getDb } from "../db/client";
 import { comments, projects, users } from "../db/schema";
 import { NotFoundError, RateLimitedError } from "../errors";
 import { mutate } from "../mutate";
-import { LIMITS, take } from "../rate-limit";
+import { LIMITS, takeAudited } from "../rate-limit";
 import { newId } from "../util";
 import { eventFacts, requireEvent } from "./events";
 import { parse } from "./parse";
@@ -58,19 +57,8 @@ export function postComment(actor: Actor | null, projectId: string, body: unknow
   const project = db.select({ id: projects.id, eventId: projects.eventId, status: projects.status }).from(projects).where(eq(projects.id, projectId)).get();
   if (!project) throw new NotFoundError("Project");
   if (actor) {
-    const t = take(`comment:${actor.userId}`, LIMITS.comment);
-    if (!t.ok) {
-      if (t.firstRefusal) {
-        db.transaction((tx) =>
-          appendAudit(
-            tx,
-            { actorUserId: actor.userId, actorLabel: actor.name, action: "ratelimit.refused", eventId: project.eventId, targetType: "limit", targetId: "comment", after: { retryAfter: t.retryAfter } },
-            new Date().toISOString(),
-          ),
-        );
-      }
-      throw new RateLimitedError(t.retryAfter);
-    }
+    const t = takeAudited(`comment:${actor.userId}`, LIMITS.comment, { userId: actor.userId, label: actor.name, eventId: project.eventId, what: "comment" });
+    if (!t.ok) throw new RateLimitedError(t.retryAfter);
   }
   return mutate({
     actor,

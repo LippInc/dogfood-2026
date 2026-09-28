@@ -1,5 +1,6 @@
 import "server-only";
 import { eq, lt } from "drizzle-orm";
+import { appendAudit } from "./audit";
 import { currentHandle, getDb } from "./db/client";
 import { rateBuckets } from "./db/schema";
 
@@ -65,6 +66,28 @@ export function take(key: string, limit: Limit, now = Date.now()): Take {
     tx.insert(rateBuckets).values({ key, ...b }).onConflictDoUpdate({ target: rateBuckets.key, set: b }).run();
     return result;
   });
+}
+
+/**
+ * take(), and a key's first refusal writes one ratelimit.refused audit row: one when it
+ * runs dry, not one per refused request, so hammering a limit cannot fill the log.
+ */
+export function takeAudited(key: string, limit: Limit, who: { userId: string | null; label: string; eventId?: string | null; what: string }): Take {
+  const t = take(key, limit);
+  if (!t.ok && t.firstRefusal) {
+    getDb().transaction((tx) =>
+      appendAudit(tx, {
+        actorUserId: who.userId,
+        actorLabel: who.label,
+        action: "ratelimit.refused",
+        eventId: who.eventId ?? null,
+        targetType: "limit",
+        targetId: who.what,
+        after: { retryAfter: t.retryAfter },
+      }),
+    );
+  }
+  return t;
 }
 
 /** For tests: empty the buckets of the database in use, if one is open. */
