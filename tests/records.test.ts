@@ -11,6 +11,8 @@ import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
 import { getPublishedResults, publishResults } from "@/server/dal/results";
+import { updateEventDetails } from "@/server/dal/organize";
+import { requireEvent } from "@/server/dal/events";
 import { issueAllRecords, issueOwnRecord, issueOwnRecordRequest, getRecord, keysDocument, listRecords, verifyRecord } from "@/server/dal/records";
 import type { Actor } from "@/server/authz";
 
@@ -128,6 +130,27 @@ describe("signed records and certificates", () => {
     const rows = auditRows().filter((r) => r.action === "record.issue");
     expect(rows).toHaveLength(1);
     expect(rows[0]!.targetId).toBe(first.id);
+  });
+
+  it("a rename after publishing leaves the record as signed and the record's page says so; no rename, no note (positive control)", () => {
+    publish();
+    const { id } = issueOwnRecord(actorById(topJudge().id), "evt_01", "judge");
+    expect(getRecord(id).renamed).toBeNull();
+    const e = requireEvent(h.db, "evt_01");
+    const minute = (v: string | null) => (v ? new Date(v).toISOString().slice(0, 16) : "");
+    updateEventDetails(organizer(), "evt_01", {
+      name: "Sample Hack 2026, renamed",
+      description: e.description,
+      submissionsOpenAt: minute(e.submissionsOpenAt),
+      submissionsCloseAt: minute(e.submissionsCloseAt),
+      judgingCloseAt: minute(e.judgingCloseAt),
+      maxTeamSize: e.settings.maxTeamSize ?? 4,
+    });
+    const view = getRecord(id);
+    expect((view.envelope.record as { event: { name: string } }).event.name).toBe("Sample Hack 2026");
+    expect(view.event.name).toBe("Sample Hack 2026, renamed");
+    expect(view.renamed).toEqual({ signed: "Sample Hack 2026", now: "Sample Hack 2026, renamed" });
+    expect(view.verification.valid).toBe(true);
   });
 
   it("the stored record verifies against the portal's own key", () => {

@@ -190,8 +190,10 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   team member can get a certificate and each judge a record of their judging,
   signed with the portal's Ed25519 key. Anyone holding one can check it: on its
   page (the browser verifies the signature itself), on `/verify`, or offline with
-  `scripts/verify-record.mjs`. The key is made at first start and kept in the
-  database; back the database up (below) to keep it.
+  `scripts/verify-record.mjs`. A record keeps what it was signed with: if the
+  organizers rename the event later, its page says so beside the signed name.
+  The key is made at first start and kept in the database; back the database up
+  (below) to keep it.
 - **API and webhooks.** Everything the interface does is also a JSON route,
   documented at `/api-docs` and as OpenAPI 3.1 at `/api/openapi.json`.
   Its request bodies come from the server's own validators, and a test fails if

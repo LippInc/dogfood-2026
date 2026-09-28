@@ -236,6 +236,12 @@ export type RecordView = {
   keys: PublishedKey[];
   /** the audit log entry the record pins, and whether the log still holds it as signed */
   anchor: (ChainAnchor & { holds: boolean }) | null;
+  /**
+   * The event's name as signed and as it is now, when the organizers renamed it after this record was
+   * signed (the name can still change after publishing); null while they match. The record keeps the
+   * name it was signed with: `event` is the event as it is now, for the page around the record.
+   */
+  renamed: { signed: string; now: string } | null;
 };
 
 /** A record by its id, with this portal's own check of its signature. Public: the id is the share link. */
@@ -257,6 +263,10 @@ export function getRecord(id: string): RecordView {
     anchor: (() => {
       const a = (row.envelope.record as { auditLog?: ChainAnchor }).auditLog;
       return a ? { ...a, holds: anchorHolds(db, a) } : null;
+    })(),
+    renamed: (() => {
+      const signed = (row.envelope.record as { event?: { name?: unknown } }).event?.name;
+      return typeof signed === "string" && signed !== name ? { signed, now: name } : null;
     })(),
   };
 }

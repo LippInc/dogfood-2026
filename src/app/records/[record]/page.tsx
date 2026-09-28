@@ -186,6 +186,12 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
               {view.anchor.holds ? "The log still holds that entry as signed." : "The log no longer holds that entry as signed: it was changed after this record was issued."}
             </p>
           ) : null}
+          {view.renamed ? (
+            <p className="text-13 text-ink-2">
+              Signed when the event was called &ldquo;{view.renamed.signed}&rdquo;. The organizers have renamed it &ldquo;{view.renamed.now}&rdquo; since; the
+              record keeps the name it was signed with.
+            </p>
+          ) : null}
           </div>
           <LiveSeal signature={view.envelope.signature} />
           </div>
