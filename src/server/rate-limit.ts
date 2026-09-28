@@ -16,8 +16,11 @@ export const LIMITS = {
   ballot: { capacity: 30, perSeconds: 60 },
   /** new open-link voters per network address */
   linkVoter: { capacity: 8, perSeconds: 3600 },
-  /** comments per account */
-  comment: { capacity: 5, perSeconds: 600 },
+  /**
+   * comments per account: roomy enough for someone answering a busy thread (one every
+   * 20 seconds for ten minutes), low enough that one account cannot bury a project page
+   */
+  comment: { capacity: 30, perSeconds: 600 },
   /** password sign-in attempts per email address from one network address */
   signIn: { capacity: 10, perSeconds: 900 },
   /**

@@ -543,7 +543,10 @@ def run_checks(cfg):
     # B9 -- the rate limits bite, say when to come back, and ignore the address a client claims
     c = Check("B", "rate limits answer 429 with retry-after, whatever address a client claims")
     saw_429 = retry = False
-    for i in range(1, 9):
+    # comments allow 30 per account in 10 minutes (the participant has posted one above), and the bucket gains one
+    # back every 20 seconds while this loop runs: a slow client (Python on Windows can take 2 s a request to
+    # localhost) earns several more, so the loop leaves room for them
+    for i in range(1, 81):
         s, body, headers = participant.request(
             "POST", comments_url, {"body": f"isolation check: filler comment {i}"})
         if s == 429:
@@ -551,7 +554,7 @@ def run_checks(cfg):
             retry = bool(headers.get("retry-after"))
             break
     expect(c, saw_429, participant, "POST", comments_url, f"still not limited after {i} attempts",
-           "a 429 within 8 attempts")
+           "a 429 within 80 attempts")
     if saw_429:
         expect(c, retry, participant, "POST", comments_url, "429 without a retry-after header",
                "a retry-after header")

@@ -16,7 +16,7 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 ## Submission scraping
 
-**What is built:** drafts are private, and the gallery and the API show only submitted projects. Comments need an account and are limited to 5 per 10 minutes per account.
+**What is built:** drafts are private, and the gallery and the API show only submitted projects. Comments need an account and are limited to 30 per 10 minutes per account.
 
 **What is not:** a rate limit on reading. A client can read the public pages and API as fast as it likes; what it gets is what the event made public.
 

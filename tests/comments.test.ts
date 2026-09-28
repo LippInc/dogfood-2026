@@ -122,16 +122,16 @@ describe("postComment", () => {
     expect(count("SELECT count(*) AS n FROM comments")).toBe(0);
   });
 
-  it("rate limit: the 6th comment in the window is 429, with one ratelimit.refused row and no 6th comment", () => {
+  it("rate limit: 30 comments in the window pass, the 31st is 429, with one ratelimit.refused row and no 31st comment", () => {
     const u = addUser("usr_flood", "flood@example.org", "Flood");
-    for (let i = 0; i < 5; i++) postComment(u, "prj_01", { body: `Comment number ${i}` });
+    for (let i = 0; i < 30; i++) postComment(u, "prj_01", { body: `Comment number ${i}` });
     expect(auditCount("ratelimit.refused")).toBe(0);
-    expect(count("SELECT count(*) AS n FROM comments")).toBe(5);
+    expect(count("SELECT count(*) AS n FROM comments")).toBe(30);
 
-    expectHttpError(() => postComment(u, "prj_01", { body: "Sixth" }), 429, "rate_limited");
+    expectHttpError(() => postComment(u, "prj_01", { body: "One too many" }), 429, "rate_limited");
 
     expect(auditCount("ratelimit.refused")).toBe(1);
-    expect(count("SELECT count(*) AS n FROM comments")).toBe(5);
+    expect(count("SELECT count(*) AS n FROM comments")).toBe(30);
   });
 });
 
