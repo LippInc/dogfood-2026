@@ -62,7 +62,15 @@ describe("proxy", () => {
 describe("proxy: the writes that set a cookie without needing one", () => {
   const at = (path: string, headers: Record<string, string>, method = "POST") =>
     new NextRequest(`http://localhost:8080${path}`, { method, headers: { host: "localhost:8080", ...headers } });
-  const STARTERS = ["/api/auth/sign-in", "/api/auth/sign-up", "/api/auth/demo-sign-in", "/api/vote/vote0123abcd"];
+  // setting a password with a personal link or a reset link signs the caller in too (claims.ts, password-resets.ts)
+  const STARTERS = [
+    "/api/auth/sign-in",
+    "/api/auth/sign-up",
+    "/api/auth/demo-sign-in",
+    "/api/vote/vote0123abcd",
+    "/api/claims/clm0123abcd",
+    "/api/password-resets/rst0123abcd",
+  ];
   const CROSS: Record<string, string>[] = [{ "sec-fetch-site": "cross-site" }, { "sec-fetch-site": "same-site" }, { origin: "http://evil.example" }, { origin: "null" }];
 
   it("refuses a write from another origin: 403 cross_origin, cookies or not", async () => {
@@ -87,5 +95,8 @@ describe("proxy: the writes that set a cookie without needing one", () => {
   it("leaves other routes' cross-origin writes to the cookie rule, and sign-out alone", () => {
     expect(proxy(at("/api/events", { "sec-fetch-site": "cross-site" })).status).toBe(200);
     expect(proxy(at("/api/auth/sign-out", { "sec-fetch-site": "cross-site" })).status).toBe(200);
+    // making the links needs an organizer's or an administrator's session, which the cookie rule already drops
+    expect(proxy(at("/api/password-resets", { "sec-fetch-site": "cross-site" })).status).toBe(200);
+    expect(proxy(at("/api/events/evt_01/claims", { "sec-fetch-site": "cross-site" })).status).toBe(200);
   });
 });

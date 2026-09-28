@@ -3,14 +3,16 @@ import { crossOriginWrite } from "@/lib/cross-site";
 import { PAGE_PATH_HEADER } from "@/lib/page-mark";
 
 /**
- * The writes that set a cookie without needing one: signing in or up (a session) and entering a voting link (a
- * voter). Dropping the cookies does not stop a page of another origin from sending them, which would sign the
- * visitor in to an account of that page's choosing (login CSRF) or enter voting in the visitor's name, so such
- * writes are refused outright. The portal's own pages, and curl or the checker (no Origin, no Sec-Fetch-Site),
- * are not affected.
+ * The writes that set a cookie without needing one: signing in or up, setting a password with a personal link or a
+ * reset link (each signs the caller in: a session) and entering a voting link (a voter). Dropping the cookies does
+ * not stop a page of another origin from sending them, which would sign the visitor in to an account of that page's
+ * choosing (login CSRF) or enter voting in the visitor's name, so such writes are refused outright. The portal's own
+ * pages, and curl or the checker (no Origin, no Sec-Fetch-Site), are not affected.
  */
 const SESSION_STARTERS = new Set(["/api/auth/sign-in", "/api/auth/sign-up", "/api/auth/demo-sign-in"]);
-const startsCookie = (pathname: string) => SESSION_STARTERS.has(pathname) || pathname.startsWith("/api/vote/");
+/** A link's token is the last part of these: /api/claims/{token}, /api/password-resets/{token}, /api/vote/{code}. */
+const LINK_STARTERS = ["/api/claims/", "/api/password-resets/", "/api/vote/"];
+const startsCookie = (pathname: string) => SESSION_STARTERS.has(pathname) || LINK_STARTERS.some((p) => pathname.startsWith(p));
 
 /**
  * A write to the API from a page of another origin arrives without its cookies (src/lib/cross-site.ts), and one
