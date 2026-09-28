@@ -154,6 +154,8 @@ export type ImportReport = {
   conflicts: string[];
   /** file ids another event already used, and the ids this event's rows got instead */
   renamed: { kind: "track" | "team" | "project" | "judge"; from: string; to: string }[];
+  /** set when the event is new and the web address its name gives was taken by another event */
+  slug?: { wanted: string; used: string };
   /**
    * What this import added that judging rests on, one entry each, for its audit row: the accounts it
    * made judges of the event, and every review it brought in or added to (the judge's account, the
@@ -254,7 +256,16 @@ export function importFixtures(
     const teamOf = ownIds("team", fixture.teams.map((t) => t.id));
     const projectOf = ownIds("project", fixture.projects.map((p) => p.id));
 
-    // Event
+    // Event. A new event whose name gives a web address another event already has gets the first free one
+    // with a number after it (the report says so); an event that is here keeps its own.
+    const here = tx.select({ slug: events.slug }).from(events).where(eq(events.id, eventId)).get();
+    const wanted = slugify(fixture.event.name);
+    let slug = here?.slug ?? wanted;
+    const taken = (s: string) => tx.select({ id: events.id }).from(events).where(eq(events.slug, s)).get() !== undefined;
+    if (!here && taken(slug)) {
+      for (let n = 2; taken(slug); n++) slug = `${wanted.slice(0, 60 - `-${n}`.length).replace(/-+$/, "")}-${n}`;
+      report.slug = { wanted, used: slug };
+    }
     bump(
       "events",
       insertOnce(
@@ -262,7 +273,7 @@ export function importFixtures(
           .insert(events)
           .values({
             id: eventId,
-            slug: slugify(fixture.event.name),
+            slug,
             name: fixture.event.name,
             submissionsOpenAt: null,
             submissionsCloseAt: fixture.event.submissions_close,

@@ -6,7 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type ImportResult = { ok: boolean; message: string | null; slug?: string };
-type Report = { eventSlug: string; inserted: { events: number; tracks: number; users: number; teams: number; projects: number; scores: number }; skipped: unknown[]; renamed: unknown[] };
+type Report = { eventSlug: string; inserted: { events: number; tracks: number; users: number; teams: number; projects: number; scores: number }; skipped: unknown[]; renamed: unknown[]; slug?: { wanted: string; used: string } };
 
 const idle: ImportResult = { ok: false, message: null };
 
@@ -15,7 +15,7 @@ function said(r: Report): string {
   const n = r.inserted;
   const added = n.events + n.tracks + n.users + n.teams + n.projects + n.scores;
   return added
-    ? `Imported: ${n.tracks} tracks, ${n.teams} teams, ${n.projects} projects, ${n.scores} scores and ${n.users} people${r.skipped.length ? `; ${r.skipped.length} rows skipped` : ""}${r.renamed.length ? `; ${r.renamed.length} ids renamed because another event here already uses them` : ""}.`
+    ? `Imported: ${n.tracks} tracks, ${n.teams} teams, ${n.projects} projects, ${n.scores} scores and ${n.users} people${r.skipped.length ? `; ${r.skipped.length} rows skipped` : ""}${r.renamed.length ? `; ${r.renamed.length} ids renamed because another event here already uses them` : ""}${r.slug ? `; its web address is /events/${r.slug.used}, because /events/${r.slug.wanted} belongs to another event` : ""}.`
     : "Everything in this file is here already; nothing changed.";
 }
 
