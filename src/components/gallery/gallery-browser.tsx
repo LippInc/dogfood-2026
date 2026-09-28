@@ -317,8 +317,14 @@ export function GalleryBrowser({
         </div>
       </div>
 
-      {/* Phones: the mosaic's filter becomes scrolling track chips (44px targets). */}
-      <div ref={chipRow} className="-mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden" role="group" aria-label="Filter by track">
+      {/* Phones: the mosaic's filter becomes scrolling track chips (44px targets); the row's right edge fades,
+          so chips beyond the edge read as more to scroll to (a low-vision tester at 200 % zoom saw no sign of them). */}
+      <div
+        ref={chipRow}
+        className="-mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1 [mask-image:linear-gradient(to_right,#000_calc(100%_-_32px),transparent)] md:hidden"
+        role="group"
+        aria-label="Filter by track"
+      >
         <button type="button" aria-pressed={track === null} onClick={() => setTrack(null)} className={`${chip} border-edge`}>
           All <span className="tnum">{q ? `${elsewhere} of ${items.length}` : items.length}</span>
         </button>
