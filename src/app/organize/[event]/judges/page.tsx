@@ -6,6 +6,7 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DetailRows, DetailToggle } from "@/components/detail-row";
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
@@ -174,39 +175,15 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                             </TableCell>
                           </TableRow>
                         ) : null}
-                        {/* On phones each row stacks: name and reviews side by side, then tracks, leniency and standing. */}
-                        <TableRow
-                          className={`align-top max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-4 max-md:gap-y-2.5 max-md:px-4 max-md:py-3.5 ${j.excluded ? "max-md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}
-                        >
-                          <TableCell className={`max-md:col-start-1 max-md:row-start-1 max-md:block max-md:p-0 ${j.excluded ? "md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}>
-                            {published ? (
-                              <>
-                                <p className="font-medium">{j.name}</p>
-                                <p className="text-13 text-ink-2">{j.email}</p>
-                              </>
-                            ) : (
-                              // The name opens what an organizer can do to the judge as a whole: remove them.
-                              <details>
-                                <summary className="cursor-pointer">
-                                  <span className="font-medium">{j.name}</span>
-                                  <span className="block pl-4 text-13 text-ink-2">{j.email}</span>
-                                </summary>
-                                <div className="mt-3 flex max-w-[340px] flex-col items-start gap-3 text-13 text-ink-2">
-                                  <p>
-                                    Remove {j.name} from this event, for an invitation accepted by the wrong account or a judge who has to go.
-                                    {j.pending ? ` Their ${plural(j.pending, "open review")} ${j.pending === 1 ? "is" : "are"} withdrawn if not started.` : ""}{" "}
-                                    Whatever they saved stays on record, out of the ranking, and the results name them as removed.
-                                  </p>
-                                  <WithReason label="Remove judge…" submit="Remove" action={removeJudgeAction} hidden={{ judge: j.id }} eventSlug={event.slug} idKey={`remove-${j.id}`} />
-                                </div>
-                              </details>
-                            )}
-                          </TableCell>
-                          <TableCell className="max-w-[220px] max-md:col-span-2 max-md:block max-md:max-w-none max-md:p-0">
-                            <details>
-                              <summary className="cursor-pointer text-14">
-                                {j.tracks.map((t) => (t.byHand ? `${t.name} (by hand)` : t.name)).join(", ") || "No tracks"}
-                              </summary>
+                        {/* The tracks open in a row of their own below, across the table: inside the narrow Tracks cell
+                            they widened the column and slid every column beside it sideways, and the boxes wrapped letter by letter. */}
+                        <DetailRows
+                          colSpan={norm ? 5 : 4}
+                          detailRowClassName="border-b border-rule max-md:block"
+                          detailCellClassName="px-2 pt-1 pb-4 max-md:block max-md:px-4"
+                          detail={
+                            <>
+                            <div className="max-w-[560px]">
                               {/* a track a hand assignment added reaches every project in it: say where it came from */}
                               {j.tracks
                                 .filter((t) => t.byHand)
@@ -216,7 +193,45 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                                   </p>
                                 ))}
                               <TracksForm eventSlug={event.slug} judgeId={j.id} tracks={tracks} checked={j.tracks.map((t) => t.id)} />
-                            </details>
+                            </div>
+                            {published ? null : (
+                              // What an organizer can do to the judge as a whole: remove them.
+                              <div className="mt-4 flex max-w-[560px] flex-col items-start gap-3 border-t border-rule pt-4 text-13 text-ink-2">
+                                <p>
+                                  Remove {j.name} from this event, for an invitation accepted by the wrong account or a judge who has to go.
+                                  {j.pending ? ` Their ${plural(j.pending, "open review")} ${j.pending === 1 ? "is" : "are"} withdrawn if not started.` : ""}{" "}
+                                  Whatever they saved stays on record, out of the ranking, and the results name them as removed.
+                                </p>
+                                <WithReason label="Remove judge…" submit="Remove" action={removeJudgeAction} hidden={{ judge: j.id }} eventSlug={event.slug} idKey={`remove-${j.id}`} />
+                              </div>
+                            )}
+                            </>
+                          }
+                        >
+                        {/* On phones each row stacks: name and reviews side by side, then tracks, leniency and standing. */}
+                        <TableRow
+                          className={`align-top [&:has(+tr[hidden]:last-child)]:border-b-0 max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-4 max-md:gap-y-2.5 max-md:px-4 max-md:py-3.5 ${j.excluded ? "max-md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}
+                        >
+                          <TableCell className={`max-md:col-start-1 max-md:row-start-1 max-md:block max-md:p-0 ${j.excluded ? "md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}>
+                            {published ? (
+                              <>
+                                <p className="font-medium">{j.name}</p>
+                                <p className="text-13 text-ink-2">{j.email}</p>
+                              </>
+                            ) : (
+                              // The name opens the same row below as the tracks: what an organizer can do to the judge, removal included.
+                              <DetailToggle>
+                                <span className="font-medium">{j.name}</span>
+                                <span className="block text-13 text-ink-2">{j.email}</span>
+                                <span className="sr-only">: tracks, or remove this judge</span>
+                              </DetailToggle>
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-[220px] max-md:col-span-2 max-md:block max-md:max-w-none max-md:p-0">
+                            <DetailToggle className="text-14">
+                              {j.tracks.map((t) => (t.byHand ? `${t.name} (by hand)` : t.name)).join(", ") || "No tracks"}
+                              <span className="sr-only">: change the tracks of {j.name}</span>
+                            </DetailToggle>
                           </TableCell>
                           <TableCell className="text-right tnum max-md:col-start-2 max-md:row-start-1 max-md:block max-md:p-0">
                             <div className="flex items-center justify-end gap-2.5">
@@ -281,6 +296,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                             {j.override ? <p className="mt-1 text-12 text-ink-2">Reason: {j.override.reason}</p> : null}
                           </TableCell>
                         </TableRow>
+                        </DetailRows>
                         </Fragment>
                       );
                     })}
