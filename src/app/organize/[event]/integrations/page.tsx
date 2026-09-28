@@ -7,7 +7,7 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { countBeyondReach, countWithoutPassword, currentActor, emailIsOn, EXPORT_FILES, listDeliveries, listOutbox, listWebhooks } from "@/server/dal";
+import { countBeyondReach, countWithoutPassword, currentActor, emailIsOn, EXPORT_FILES, listDeliveries, listOutbox, listWebhooks, ValidationError, type OutboxPage } from "@/server/dal";
 import { CopyButton } from "../judges/forms";
 import { retry, sendTest, toggleWebhook } from "./actions";
 import { AddWebhookForm, ClaimLinksForm, RotateSecretForm } from "./forms";
@@ -32,7 +32,7 @@ const EXPORT_HOLDS: Record<string, string> = {
   "fixtures.json": "the fixture format, to import elsewhere",
 };
 
-export default async function IntegrationsPage({ params }: PageProps<"/organize/[event]/integrations">) {
+export default async function IntegrationsPage({ params, searchParams }: PageProps<"/organize/[event]/integrations">) {
   const { event: key } = await params;
   const actor = await currentActor();
   if (!actor) unauthorized();
@@ -43,9 +43,19 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
   const waiting = countWithoutPassword(actor, key);
   const elsewhere = countBeyondReach(actor, key);
   const on = webhooks.filter((w) => w.enabled).length;
-  const mail = listOutbox(actor, key);
+  // ?outbox=<id>: an older page of the outbox, starting after that message; a stale or made-up one shows the newest
+  const before = (await searchParams).outbox;
+  let showingOlder = typeof before === "string" && before !== "";
+  let mail: OutboxPage;
+  try {
+    mail = listOutbox(actor, key, { before: showingOlder ? (before as string) : null });
+  } catch (err) {
+    if (!(err instanceof ValidationError)) throw err;
+    mail = listOutbox(actor, key);
+    showingOlder = false;
+  }
   const mailOn = emailIsOn();
-  const mailFailed = mail.filter((m) => m.status === "failed").length;
+  const mailFailed = mail.counts.failed;
   const totals = webhooks.reduce((t, w) => ({ delivered: t.delivered + w.counts.delivered, failed: t.failed + w.counts.failed }), { delivered: 0, failed: 0 });
 
   return (
@@ -78,12 +88,12 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
               {
                 id: "mail-title",
                 title: "Email",
-                holds: mail.length
-                  ? [`${mail.length - mailFailed} sent`, mailFailed ? `${mailFailed} failed` : null].filter(Boolean).join(" · ")
+                holds: mail.counts.total
+                  ? [`${mail.counts.total - mailFailed} sent`, mailFailed ? `${mailFailed} failed` : null].filter(Boolean).join(" · ")
                   : mailOn
                     ? "on, nothing mailed yet"
                     : "off",
-                mark: mail[0]?.status === "failed" ? "flag" : mailOn ? "set" : "open",
+                mark: !showingOlder && mail.messages[0]?.status === "failed" ? "flag" : mailOn ? "set" : "open",
               },
               {
                 id: "io-title",
@@ -181,7 +191,7 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
                 : "Email is off: each link shows once on the screen that makes it, to copy and send yourself. With SMTP_URL and MAIL_FROM set, the portal mails them as they are made."}
             </p>
           </div>
-          <OutboxTable mail={mail} />
+          <OutboxTable page={mail} older={showingOlder} href={(b) => (b ? `?outbox=${encodeURIComponent(b)}#mail-title` : "?#mail-title")} />
         </section>
 
         <section aria-labelledby="io-title" className="flex flex-col gap-4">

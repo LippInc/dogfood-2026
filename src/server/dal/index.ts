@@ -187,7 +187,7 @@ export {
 } from "./webhooks";
 export { claimAccount, countBeyondReach, countWithoutPassword, describeClaim, makeClaimLinks, type ClaimLink, type ClaimSkip } from "./claims";
 export { describePasswordReset, guardAccounts, makePasswordReset, resetPassword, type ResetLink } from "./password-resets";
-export { listOutbox, listPortalOutbox, type OutboxView } from "./outbox";
+export { listOutbox, listPortalOutbox, OUTBOX_PAGE_MAX, type OutboxPage, type OutboxView } from "./outbox";
 export { emailIsOn, mailClaimLinks, mailJudgeInvite, mailJudgeInvites, mailPasswordReset, mailVoterLinks, type MailReport, type Mailed } from "./mailing";
 export { EVENT_FILE_TOO_LARGE, guardImport, importEventFile, MAX_EVENT_FILE_BYTES, type EventImport } from "./imports";
 export { createApiToken, listApiTokens, revokeApiToken, type TokenView } from "./tokens";

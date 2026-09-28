@@ -308,12 +308,13 @@ describe("no key at rest, every kind", () => {
     const resetRows = byKind("password_reset");
     expect(resetRows).toHaveLength(1);
     expect(resetRows[0]!.event_id).toBeNull();
-    expect(resetRows.map((r) => r.id)).toEqual(listPortalOutbox(actorIn("usr_admin")).map((r) => r.id)); // the portal row alone
-    // the event's rows (the read gives the newest 100, and here there are more): each one it gives is the event's, never the portal's
+    expect(resetRows.map((r) => r.id)).toEqual(listPortalOutbox(actorIn("usr_admin")).messages.map((r) => r.id)); // the portal row alone
+    // the event's rows (a page holds the newest 100, and here there may be more): each one it gives is the event's, never the portal's
     const eventIds = new Set(rows.filter((r) => r.event_id === EVENT).map((r) => r.id));
     const read = listOutbox(organizer(), EVENT);
-    expect(read).toHaveLength(Math.min(100, eventIds.size));
-    expect(read.every((r) => eventIds.has(r.id))).toBe(true);
+    expect(read.messages).toHaveLength(Math.min(100, eventIds.size));
+    expect(read.messages.every((r) => eventIds.has(r.id))).toBe(true);
+    expect(read.counts.total).toBe(eventIds.size);
   });
 });
 

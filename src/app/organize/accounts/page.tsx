@@ -3,7 +3,7 @@ import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, emailIsOn, guardAccounts, listPortalOutbox } from "@/server/dal";
+import { currentActor, emailIsOn, guardAccounts, listPortalOutbox, ValidationError, type OutboxPage } from "@/server/dal";
 import { OutboxTable } from "@/components/outbox-table";
 import { ResetLinkForm } from "./reset-link-form";
 
@@ -29,12 +29,22 @@ const steps = (mailOn: boolean): React.ReactNode[] => [
 ];
 
 /** Password resets, for the portal's administrators. */
-export default async function AccountsPage() {
+export default async function AccountsPage({ searchParams }: PageProps<"/organize/accounts">) {
   const actor = await currentActor();
   if (!actor) unauthorized();
   guardPage(() => guardAccounts(actor));
   const mailOn = emailIsOn();
-  const portalMail = listPortalOutbox(actor);
+  // ?outbox=<id>: an older page of the outbox, starting after that message; a stale or made-up one shows the newest
+  const before = (await searchParams).outbox;
+  let showingOlder = typeof before === "string" && before !== "";
+  let portalMail: OutboxPage;
+  try {
+    portalMail = listPortalOutbox(actor, { before: showingOlder ? (before as string) : null });
+  } catch (err) {
+    if (!(err instanceof ValidationError)) throw err;
+    portalMail = listPortalOutbox(actor);
+    showingOlder = false;
+  }
   return (
     <WorkShell eventName="Dogfood portal" eventHref="/organize" crumb="Accounts" person={actor.name} role="Administrator">
       <div className="mx-auto flex max-w-[1100px] flex-col gap-8">
@@ -69,13 +79,13 @@ export default async function AccountsPage() {
             <p className="mt-3 text-13 text-ink-3">Steps 02 and 03 are yours; this page does 02.</p>
           </aside>
         </div>
-        {portalMail.length || mailOn ? (
+        {portalMail.counts.total || mailOn ? (
           <section aria-labelledby="mail-title" className="flex flex-col gap-3">
             <h2 id="mail-title" className="text-17 font-semibold">
               Mailed from here
             </h2>
-            {portalMail.length ? (
-              <OutboxTable mail={portalMail} />
+            {portalMail.counts.total ? (
+              <OutboxTable page={portalMail} older={showingOlder} href={(b) => (b ? `?outbox=${encodeURIComponent(b)}#mail-title` : "?#mail-title")} />
             ) : (
               <p className="text-14 text-ink-2">Nothing mailed yet: a reset link made here is mailed to the account&rsquo;s own address.</p>
             )}

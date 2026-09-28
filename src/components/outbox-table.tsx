@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { formatUtc } from "@/lib/format";
-import type { OutboxView } from "@/server/dal";
+import type { OutboxPage, OutboxView } from "@/server/dal";
 
 // What the portal mailed, in the webhook deliveries' own parts (Integrations page, HookCard): a count
 // line, the newest failure called out, and the last messages in a table that stacks on a phone. Each
@@ -14,26 +15,31 @@ const KIND: Record<string, string> = {
   admin_setup: "Setup link",
 };
 
-export function OutboxTable({ mail }: { mail: OutboxView[] }) {
-  if (!mail.length) return null;
-  const sent = mail.filter((m) => m.status === "sent").length;
-  const failed = mail.filter((m) => m.status === "failed").length;
-  const newest = mail[0]!;
-  const troubled = newest.status === "failed";
+/**
+ * `page` is one page of the outbox; `href(before)` makes the address of another page (null: the newest),
+ * and `older` says this page is not the newest one.
+ */
+export function OutboxTable({ page, href, older = false }: { page: OutboxPage; href: (before: string | null) => string; older?: boolean }) {
+  const mail = page.messages;
+  if (!mail.length && !older) return null;
+  const { sent, failed, total } = page.counts;
+  const newest = mail[0];
+  const troubled = !older && newest?.status === "failed";
+  const paged = older || page.next !== null;
   return (
     <div className="flex flex-col gap-3">
       <p className="text-13 text-ink-2 tnum">
         <span className="text-ink">{sent}</span> sent · <span className={failed ? "font-medium text-flag" : "text-ink"}>{failed}</span> failed
-        {mail.length === 100 ? <span className="text-ink-3"> · the last 100</span> : null}
+        {paged ? <span className="text-ink-3"> · {total} in all</span> : null}
       </p>
-      {troubled && newest.error ? (
+      {troubled && newest?.error ? (
         <p className="flex max-w-[760px] flex-wrap items-baseline gap-x-3 gap-y-0.5 border-l-2 border-flag-bar pl-3 text-14 text-ink">
           <span className="label-mono text-flag">Last error</span>
           <span>{newest.error}</span>
         </p>
       ) : null}
-      <details open={troubled || undefined} className="border-t border-rule pt-3">
-        <summary className="cursor-pointer text-13 font-medium text-ink-2 hover:text-ink">Last messages, newest first</summary>
+      <details open={troubled || older || undefined} className="border-t border-rule pt-3">
+        <summary className="cursor-pointer text-13 font-medium text-ink-2 hover:text-ink">{older ? "Older messages, newest first" : "Last messages, newest first"}</summary>
         <table className="mt-2 w-full text-13 max-sm:block">
           <thead className="text-left text-12 text-ink-2 max-sm:hidden">
             <tr>
@@ -49,6 +55,22 @@ export function OutboxTable({ mail }: { mail: OutboxView[] }) {
             ))}
           </tbody>
         </table>
+        {paged ? (
+          <nav aria-label="Outbox pages" className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-13">
+            {older ? (
+              <Link href={href(null)} scroll={false} className="font-medium text-accent-ink underline-offset-4 hover:underline">
+                Newest messages
+              </Link>
+            ) : null}
+            {page.next ? (
+              <Link href={href(page.next)} scroll={false} className="font-medium text-accent-ink underline-offset-4 hover:underline">
+                Older messages
+              </Link>
+            ) : (
+              <span className="text-ink-3">The oldest message is the last one above.</span>
+            )}
+          </nav>
+        ) : null}
       </details>
     </div>
   );

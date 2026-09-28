@@ -405,7 +405,7 @@ describe("reading the outbox", () => {
     seedOutbox();
     // the fixture names no slug; it is derived from the event's name at import, so read it back
     const slug = one<{ slug: string }>("SELECT slug FROM events WHERE id = ?", EVENT).slug;
-    const byId = listOutbox(organizer(), EVENT);
+    const byId = listOutbox(organizer(), EVENT).messages;
     expect(ids(byId)).toEqual(["obx_evt_new", "obx_evt_old"]); // newest first, and neither the portal row nor evt_02's
     const newest = byId[0]!;
     expect(newest.kind).toBe("voter_link");
@@ -419,28 +419,57 @@ describe("reading the outbox", () => {
     expect(older.status).toBe("failed");
     expect(older.error).toBe("connection refused");
     expect(older.sentAt).toBeNull();
-    expect(listOutbox(organizer(), slug)).toEqual(byId); // the slug names the same event
-    expect(listOutbox(actorIn("usr_org_plain"), EVENT)).toEqual(byId); // the organizer role alone is enough
-    expect(listOutbox(actorIn("usr_admin"), EVENT)).toEqual(byId); // so is being an administrator
+    expect(listOutbox(organizer(), slug).messages).toEqual(byId); // the slug names the same event
+    expect(listOutbox(actorIn("usr_org_plain"), EVENT).messages).toEqual(byId); // the organizer role alone is enough
+    expect(listOutbox(actorIn("usr_admin"), EVENT).messages).toEqual(byId); // so is being an administrator
   });
 
   it("the portal's own rows are for administrators alone", () => {
     seedOutbox();
-    const rows = listPortalOutbox(actorIn("usr_admin"));
+    const rows = listPortalOutbox(actorIn("usr_admin")).messages;
     expect(ids(rows)).toEqual(["obx_portal"]); // the portal row only, never an event's
     expect(rows[0]!.kind).toBe("admin_setup");
     expect(rows[0]!.toEmail).toBe("founder@example.org");
     expect(rows[0]!.status).toBe("off");
-    expect(listPortalOutbox(organizer())).toEqual(rows); // usr_organizer is an administrator too
+    expect(listPortalOutbox(organizer()).messages).toEqual(rows); // usr_organizer is an administrator too
   });
 
-  it("the read gives back at most the newest 100 rows", () => {
-    for (let i = 0; i < 101; i++) {
-      insertOutbox({ eventId: EVENT, subject: `Cap ${String(i).padStart(3, "0")}`, createdAt: new Date(Date.parse("2026-10-01T00:00:00.000Z") + i * 60_000).toISOString() });
-    }
-    const rows = listOutbox(organizer(), EVENT);
-    expect(rows).toHaveLength(100);
-    expect(rows[0]!.subject).toBe("Cap 100"); // newest first
-    expect(rows.map((r) => r.subject)).not.toContain("Cap 000"); // the oldest fell off the end
+  it("reads a page at a time: 100 newest first, then the older ones after the cursor, every message once, none lost", () => {
+    const at = (i: number) => new Date(Date.parse("2026-10-01T00:00:00.000Z") + i * 60_000).toISOString();
+    for (let i = 0; i < 230; i++) insertOutbox({ eventId: EVENT, subject: `Cap ${String(i).padStart(3, "0")}`, status: i % 10 === 0 ? "failed" : "sent", error: i % 10 === 0 ? "refused" : null, sentAt: i % 10 === 0 ? null : at(i), createdAt: at(i) });
+    const first = listOutbox(organizer(), EVENT);
+    expect(first.messages).toHaveLength(100);
+    expect(first.messages[0]!.subject).toBe("Cap 229"); // newest first
+    expect(first.counts).toEqual({ total: 230, sent: 207, failed: 23 }); // over every message, not the page
+    const second = listOutbox(organizer(), EVENT, { before: first.next });
+    expect(second.messages[0]!.subject).toBe("Cap 129");
+    // mail arriving between two reads shifts nothing on the next page
+    insertOutbox({ eventId: EVENT, subject: "Arrived meanwhile", createdAt: at(500) });
+    const third = listOutbox(organizer(), EVENT, { before: second.next });
+    expect(third.messages).toHaveLength(30);
+    expect(third.next).toBeNull();
+    expect(third.messages.at(-1)!.subject).toBe("Cap 000"); // the oldest is reachable
+    const seen = [...first.messages, ...second.messages, ...third.messages].map((m) => m.subject);
+    expect(new Set(seen).size).toBe(230);
+    // a smaller page on request; the same order
+    expect(listOutbox(organizer(), EVENT, { limit: "5" }).messages.map((m) => m.subject)).toEqual(["Arrived meanwhile", "Cap 229", "Cap 228", "Cap 227", "Cap 226"]);
+  });
+
+  it("two messages in the same second page by id, so neither is skipped or shown twice", () => {
+    for (const id of ["obx_a", "obx_b", "obx_c"]) insertOutbox({ id, eventId: EVENT, createdAt: "2026-10-02T00:00:00.000Z" });
+    const one = listOutbox(organizer(), EVENT, { limit: 2 });
+    const two = listOutbox(organizer(), EVENT, { limit: 2, before: one.next });
+    expect([...one.messages, ...two.messages].map((m) => m.id)).toEqual(["obx_c", "obx_b", "obx_a"]);
+  });
+
+  it("known-bad paging: another event's message or a made-up id as the cursor, and a limit of 0 or 501, are 422; a refusal still comes first", () => {
+    seedOutbox();
+    const portalId = listPortalOutbox(actorIn("usr_admin")).messages[0]!.id;
+    expectHttpError(() => listOutbox(organizer(), EVENT, { before: portalId }), 422, "invalid");
+    expectHttpError(() => listOutbox(organizer(), EVENT, { before: "obx_nothing" }), 422, "invalid");
+    expectHttpError(() => listOutbox(organizer(), EVENT, { limit: 0 }), 422, "invalid");
+    expectHttpError(() => listOutbox(organizer(), EVENT, { limit: 501 }), 422, "invalid");
+    expectHttpError(() => listOutbox(participant(), EVENT, { before: "obx_nothing" }), 403, "not_an_organizer");
+    expectHttpError(() => listOutbox(null, EVENT, { limit: 0 }), 401, "unauthenticated");
   });
 });

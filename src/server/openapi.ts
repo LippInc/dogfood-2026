@@ -299,7 +299,7 @@ export const OPERATIONS: Operation[] = [
   },
 
   // Email
-  { method: "GET", path: "/api/events/{event}/outbox", tag: "Email", summary: "The last 100 messages the portal mailed for the event, or would have mailed while email is off", access: "organizer" },
+  { method: "GET", path: "/api/events/{event}/outbox", tag: "Email", summary: "The messages the portal mailed for the event, or would have mailed while email is off, newest first, a page at a time", access: "organizer", also: [422], note: "Query: limit (1 to 500, default 100) and before (a message id: the page starts after it). The answer's next is the id to pass as before for the older page, null at the end; counts (total, sent, failed) are over every message. A before that names no message of this event is 422." },
 
   // Records
   { method: "GET", path: "/api/events/{event}/records", tag: "Records", summary: "Every signed record issued for the event", access: "organizer" },
