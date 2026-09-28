@@ -6,8 +6,9 @@ import { nowIso } from "./util";
 // Email, off by default: with SMTP_URL unset the portal mails nothing and `docker compose up` stays
 // offline, and each link is shown once on the screen that made it, as before. With SMTP_URL set
 // (smtp://user:pass@host:587 or smtps://...) and MAIL_FROM, messages go out through that server.
-// nodemailer builds the headers; a line break in an address or a subject is refused before it is
-// handed over, so nothing a person typed can add a header.
+// nodemailer builds the headers; the address must be one plain address and the subject cannot hold a
+// line break, both refused before nodemailer sees them, so nothing a person typed can add a header
+// or a recipient.
 
 /** The two settings mail reads: process.env at run time, a plain object in tests. */
 export type MailEnv = { SMTP_URL?: string; MAIL_FROM?: string; [name: string]: string | undefined };
