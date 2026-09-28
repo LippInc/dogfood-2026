@@ -54,6 +54,16 @@ function scoresCsv(db: DbOrTx, event: EventRow): string {
     .where(eq(assignments.eventId, event.id))
     .orderBy(asc(users.id))
     .all();
+  // reviews that arrived by an import (the fixture at boot, or an uploaded event file) rather than typed here
+  const imported = new Set(
+    db
+      .select({ id: assignments.id })
+      .from(assignments)
+      .innerJoin(assignmentRuns, eq(assignmentRuns.id, assignments.runId))
+      .where(and(eq(assignments.eventId, event.id), eq(assignmentRuns.mode, "fixture")))
+      .all()
+      .map((a) => a.id),
+  );
   const rows: Cell[][] = [];
   for (const j of judges) {
     for (const r of reviewsOf(db, j.id).filter((x) => x.eventId === event.id)) {
@@ -70,6 +80,7 @@ function scoresCsv(db: DbOrTx, event: EventRow): string {
         r.status,
         r.submittedAt,
         r.feedback,
+        imported.has(r.assignmentId) ? "import" : "portal",
       ]);
     }
   }
@@ -87,6 +98,7 @@ function scoresCsv(db: DbOrTx, event: EventRow): string {
       "status",
       "submitted_at",
       "feedback",
+      "source",
     ],
     rows,
   );

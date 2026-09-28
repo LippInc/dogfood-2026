@@ -153,7 +153,15 @@ export type ImportReport = {
   conflicts: string[];
   /** file ids another event already used, and the ids this event's rows got instead */
   renamed: { kind: "track" | "team" | "project" | "judge"; from: string; to: string }[];
+  /**
+   * What this import added that judging rests on, one entry each, for its audit row: the accounts it
+   * made judges of the event, and every review it brought in or added to (the judge's account, the
+   * project, whether the file's review is finished, the scores and feedback it added).
+   */
+  added: { judges: string[]; reviews: ImportedReview[] };
 };
+
+export type ImportedReview = { judge: string; project: string; finished: boolean; values: Record<string, number>; feedback?: string };
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -209,6 +217,7 @@ export function importFixtures(
     skipped: [],
     conflicts: [],
     renamed: [],
+    added: { judges: [], reviews: [] },
   };
   const bump = (table: TableKey, changes: number) => {
     if (changes > 0) report.inserted[table] += 1;
@@ -365,15 +374,14 @@ export function importFixtures(
       accountOf.set(j.id, userId);
       judgeByEmail.set(j.email, userId);
       judgeEmailById.set(j.id, j.email);
-      bump(
-        "userRoles",
-        insertOnce(
-          tx
-            .insert(userRoles)
-            .values({ userId, eventId, role: "judge", createdAt: now })
-            .onConflictDoNothing(),
-        ),
+      const madeJudge = insertOnce(
+        tx
+          .insert(userRoles)
+          .values({ userId, eventId, role: "judge", createdAt: now })
+          .onConflictDoNothing(),
       );
+      bump("userRoles", madeJudge);
+      if (madeJudge) report.added.judges.push(userId);
       for (const trackId of j.tracks) {
         if (!trackIds.has(trackId)) {
           report.skipped.push({
@@ -586,25 +594,26 @@ export function importFixtures(
       const projectId = projectOf.get(s.project)!;
       const assignmentId = `asg_${s.judge}_${projectId}`;
       const scoreId = `scr_${s.judge}_${projectId}`;
-      bump(
-        "assignments",
-        insertOnce(
-          tx
-            .insert(assignments)
-            .values({
-              id: assignmentId,
-              eventId,
-              judgeUserId: accountOf.get(s.judge)!,
-              projectId,
-              runId,
-              batchNo: 1,
-              position,
-              status: complete ? "done" : "pending",
-              createdAt: now,
-            })
-            .onConflictDoNothing(),
-        ),
+      const brought: ImportedReview = { judge: accountOf.get(s.judge)!, project: projectId, finished: complete, values: {} };
+      let broughtAny = false;
+      const newAssignment = insertOnce(
+        tx
+          .insert(assignments)
+          .values({
+            id: assignmentId,
+            eventId,
+            judgeUserId: accountOf.get(s.judge)!,
+            projectId,
+            runId,
+            batchNo: 1,
+            position,
+            status: complete ? "done" : "pending",
+            createdAt: now,
+          })
+          .onConflictDoNothing(),
       );
+      bump("assignments", newAssignment);
+      if (newAssignment) broughtAny = true;
 
       const memberEmails = teamMemberEmails.get(project.team) ?? new Set<string>();
       const conflicted = memberEmails.has(judgeEmail);
@@ -621,32 +630,38 @@ export function importFixtures(
           .onConflictDoNothing(),
       );
       bump("scores", scoreChanges);
+      if (scoreChanges) broughtAny = true;
       if (conflicted && scoreChanges > 0) report.conflicts.push(scoreId);
 
       for (const key of criteriaKeys) {
         const value = s.criteria[key];
         if (typeof value !== "number") continue; // missing or null: not scored, never a zero
-        bump(
-          "scoreItems",
-          insertOnce(
-            tx
-              .insert(scoreItems)
-              .values({ scoreId, criterionId: criterionId(eventId, key), value })
-              .onConflictDoNothing(),
-          ),
+        const item = insertOnce(
+          tx
+            .insert(scoreItems)
+            .values({ scoreId, criterionId: criterionId(eventId, key), value })
+            .onConflictDoNothing(),
         );
+        bump("scoreItems", item);
+        if (item) {
+          brought.values[key] = value;
+          broughtAny = true;
+        }
       }
       if (s.comment) {
-        bump(
-          "scoreComments",
-          insertOnce(
-            tx
-              .insert(scoreComments)
-              .values({ scoreId, feedback: s.comment, privateNote: "" })
-              .onConflictDoNothing(),
-          ),
+        const comment = insertOnce(
+          tx
+            .insert(scoreComments)
+            .values({ scoreId, feedback: s.comment, privateNote: "" })
+            .onConflictDoNothing(),
         );
+        bump("scoreComments", comment);
+        if (comment) {
+          brought.feedback = s.comment;
+          broughtAny = true;
+        }
       }
+      if (broughtAny) report.added.reviews.push(brought);
     }
 
     // One fixture_imports row per call, even when everything was already present
@@ -656,7 +671,8 @@ export function importFixtures(
 
     opts.after?.(tx, report);
 
-    // Exactly one audit row, and only when this import actually inserted something
+    // Exactly one audit row, and only when this import actually inserted something; it lists the judges
+    // and reviews the import added, so the log says who judged what by import, not only how many
     const total = Object.values(report.inserted).reduce((a, b) => a + b, 0);
     if (total > 0) {
       appendAudit(
@@ -668,7 +684,8 @@ export function importFixtures(
           eventId,
           targetType: "event",
           targetId: eventId,
-          after: { source: opts.source, sha256: opts.sha256, inserted: report.inserted },
+          // the judges and reviews by name, not only counted: an import can add both to an event that is judging
+          after: { source: opts.source, sha256: opts.sha256, inserted: report.inserted, judges: report.added.judges, reviews: report.added.reviews },
         },
         now,
       );

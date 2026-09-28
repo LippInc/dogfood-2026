@@ -22,6 +22,9 @@ const { importEventFile } = await import("@/server/dal/imports");
 const { exportFile } = await import("@/server/dal/exports");
 const { claimAccount, countBeyondReach, countWithoutPassword, describeClaim, makeClaimLinks } = await import("@/server/dal/claims");
 const { addOrganizer } = await import("@/server/dal/organizers");
+const { assignByHand } = await import("@/server/dal/assignments");
+const { latestAudit } = await import("@/server/dal/audit-log");
+const { payloadFor } = await import("@/server/webhooks");
 const { signUp } = await import("@/server/dal/accounts");
 const { signInWithPassword } = await import("@/server/dal/auth");
 
@@ -449,6 +452,76 @@ describe("importing onto what this portal already holds", () => {
     expect(countsOf(ha)).toEqual(before);
     expect(nOf(ha, "SELECT count(*) AS n FROM projects WHERE id = 'prj_99'")).toBe(0);
     expect(imports()).toBe(importsBefore + 1); // the passing re-import's row only: the refused one rolled back
+  });
+});
+
+describe("what an import adds to a judged event is named in the log and marked in the exports", () => {
+  type ImportRow = { judges: string[]; reviews: { judge: string; project: string; finished: boolean; values: Record<string, number>; feedback?: string }[] };
+  const importRows = () => auditIn(ha).filter((r) => r.action === "fixtures.import");
+  const csvRows = () => {
+    const [head, ...rows] = exportFile(organizer(), EVENT, "scores.csv").body.trim().split(/\r?\n/);
+    const source = head!.split(",").indexOf("source");
+    // the source is the last column, read from the end so a quoted comma in a title or the feedback cannot shift it;
+    // a row is found by its project (the first column) and its judge's id (a column of its own, never quoted)
+    return {
+      source,
+      rows: rows.map((line) => ({ line, source: line.split(",").at(-1)! })),
+      of: (projectId: string, judgeId: string) => rows.map((line) => ({ line, source: line.split(",").at(-1)! })).find((r) => r.line.startsWith(`${projectId},`) && r.line.includes(`,${judgeId},`))!,
+    };
+  };
+
+  it("the boot's import row lists every judge and review it brought, not only how many", () => {
+    const [boot] = importRows();
+    const after = boot!.after as ImportRow;
+    expect(after.judges).toHaveLength(nOf(ha, "SELECT count(*) AS n FROM user_roles WHERE event_id = ? AND role = 'judge'", EVENT));
+    expect(after.reviews).toHaveLength(nOf(ha, "SELECT count(*) AS n FROM assignments WHERE event_id = ?", EVENT));
+    const r = after.reviews[0]!;
+    const stored = ha.sqlite
+      .prepare("SELECT k.key AS key, i.value AS value FROM score_items i JOIN scores s ON s.id = i.score_id JOIN assignments a ON a.id = s.assignment_id JOIN rubric_criteria k ON k.id = i.criterion_id WHERE a.judge_user_id = ? AND a.project_id = ?")
+      .all(r.judge, r.project) as { key: string; value: number }[];
+    expect(r.values).toEqual(Object.fromEntries(stored.map((x) => [x.key, x.value])));
+  });
+
+  it("an import onto the event while it is judged names the new judge and each review, with the scores, and the sentence says so", () => {
+    const file = JSON.parse(exportFile(organizer(), EVENT, "fixtures.json").body) as FixtureFile;
+    const project = file.projects[0]!;
+    file.judges.push({ id: "jdg_late", name: "Late Judge", email: "late.judge@example.org", tracks: [project.track] });
+    file.scores.push({ judge: "jdg_late", project: project.id, criteria: { functionality: 5, quality: 5, innovation: 5 }, comment: "Brilliant." } as FixtureFile["scores"][number]);
+    const rowsBefore = importRows().length;
+
+    const report = importEventFile(organizer(), file);
+    const rows = importRows();
+    expect(rows).toHaveLength(rowsBefore + 1);
+    const after = rows.at(-1)!.after as ImportRow;
+    const lateId = one<{ id: string }>(ha, "SELECT id FROM users WHERE email = 'late.judge@example.org'").id;
+    expect(after.judges).toEqual([lateId]);
+    expect(after.reviews).toEqual([{ judge: lateId, project: project.id, finished: true, values: { functionality: 5, quality: 5, innovation: 5 }, feedback: "Brilliant." }]);
+    expect(report.added.reviews).toEqual(after.reviews);
+    expect(latestAudit(ha.db, EVENT, 5, ["fixtures.import"])[0]!.parts.map((p) => p.text).join("")).toContain("imported an event file: 1 judge and 1 review (1 finished)");
+    expect(verifyAuditChain(ha.db).ok).toBe(true);
+
+    // a webhook learns that an import happened and how much it added, never the scores it brought
+    const hook = payloadFor("dlv_test", { ...rows.at(-1)!, before: null }, "sample-hack-2026") as { data: { after: Record<string, unknown> } };
+    expect(Object.keys(hook.data.after).sort()).toEqual(["inserted", "sha256", "source"]);
+    expect(JSON.stringify(hook)).not.toContain("Brilliant.");
+  });
+
+  it("scores.csv marks each review that arrived by import; one given out here reads portal (positive control)", () => {
+    const file = JSON.parse(exportFile(organizer(), EVENT, "fixtures.json").body) as FixtureFile;
+    const project = file.projects[0]!;
+    file.judges.push({ id: "jdg_late", name: "Late Judge", email: "late.judge@example.org", tracks: [project.track] });
+    file.scores.push({ judge: "jdg_late", project: project.id, criteria: { functionality: 4, quality: 4, innovation: 4 } } as FixtureFile["scores"][number]);
+    importEventFile(organizer(), file);
+    const lateId = one<{ id: string }>(ha, "SELECT id FROM users WHERE email = 'late.judge@example.org'").id;
+    // a second project for the late judge, given by hand here: its (empty) review is the portal's own
+    const other = file.projects.find((p) => p.track === project.track && p.id !== project.id && !file.teams.some((t) => t.id === p.team && t.members.includes("late.judge@example.org")))!;
+    assignByHand(organizer(), EVENT, { projectId: other.id, judgeUserId: lateId, reason: "one more review for this project" });
+
+    const { source, rows, of } = csvRows();
+    expect(source).toBeGreaterThan(0);
+    expect(of(project.id, lateId).source).toBe("import");
+    expect(of(other.id, lateId).source).toBe("portal");
+    expect(rows.filter((r) => r.source === "import").length).toBe(nOf(ha, "SELECT count(*) AS n FROM assignments WHERE event_id = ? AND run_id LIKE 'run_fixture_%'", EVENT));
   });
 });
 

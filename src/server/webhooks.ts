@@ -45,6 +45,8 @@ const SEALED = new Map<string, readonly string[]>([
   ["review.amend", ["project"]],
   ["pairwise.pick", ["trackId"]],
   ["pairwise.undo", ["trackId"]],
+  // an import names the judges and reviews it added, scores included: the receiver gets the counts
+  ["fixtures.import", ["source", "sha256", "inserted"]],
 ]);
 // A pairwise answer also hides its project: binary insertion asks next about the half the
 // last answer chose, and a tie ends a placement early, so the projects give the answers away.

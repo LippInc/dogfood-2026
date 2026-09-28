@@ -162,8 +162,22 @@ function sentence(r: Row, n: Names): Part[] {
   const voter = (id: unknown): Part => ({ text: n.voter.get(String(id)) ?? String(id), strong: true });
   const target = r.targetId ?? "";
   switch (r.action) {
-    case "fixtures.import":
-      return [actor, t(" imported the fixture file")];
+    case "fixtures.import": {
+      const file = after.source === "upload" ? "an event file" : "the fixture file";
+      // rows from before the import listed what it added carry the counts only
+      if (!Array.isArray(after.reviews) || !Array.isArray(after.judges)) return [actor, t(` imported ${file}`)];
+      const reviews = after.reviews as { finished?: boolean }[];
+      const finished = reviews.filter((x) => x.finished).length;
+      const judges = after.judges.length;
+      return [
+        actor,
+        t(
+          ` imported ${file}: ${judges} ${judges === 1 ? "judge" : "judges"} and ${reviews.length} ${reviews.length === 1 ? "review" : "reviews"}` +
+            (reviews.length ? ` (${finished} finished)` : "") +
+            ", each listed in this entry",
+        ),
+      ];
+    }
     case "checker_sessions.issued":
       return [actor, t(" issued the four checker sessions")];
     case "checker_sessions.removed":

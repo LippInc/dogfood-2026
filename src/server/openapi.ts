@@ -80,7 +80,7 @@ export const OPERATIONS: Operation[] = [
     tag: "Events",
     summary: "Export: scores.csv, projects.csv, normalized.csv, audit.csv, event.json, or fixtures.json (the import format)",
     access: "organizer",
-    note: "Add ?bom=1 to a CSV for a UTF-8 byte-order mark, which Excel needs to read names outside ASCII; the portal's own download buttons do.",
+    note: "Add ?bom=1 to a CSV for a UTF-8 byte-order mark, which Excel needs to read names outside ASCII; the portal's own download buttons do. scores.csv's last column, source, says whether each review arrived by an import (import) or was given out on this portal (portal).",
   },
 
   {
@@ -92,6 +92,7 @@ export const OPERATIONS: Operation[] = [
     body: In.FixtureSchema,
     ok: 201,
     also: [409, 413],
+    note: "The answer's added lists, and the import's audit row keeps, each account made a judge and each review brought in or added to, with its scores.",
   },
   { method: "POST", path: "/api/events/{event}/claims", tag: "Accounts", summary: "Personal links, returned once, for the people in the event without a password who hold no role and no team seat in any event you do not run; elsewhere lists the others, whom only an administrator's reset link reaches", access: "organizer", ok: 201, note: "With email on (SMTP_URL), each link is also mailed as it is made; the answer's mail says to whom and whether it went, and the outbox keeps the message with its link blanked." },
   { method: "GET", path: "/api/claims/{token}", tag: "Accounts", summary: "Whose personal link this is (410 once used or expired)", access: "anyone", also: [410] },
