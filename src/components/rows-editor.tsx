@@ -119,7 +119,7 @@ export function RowsEditor({
                       value={String(row[f.key] ?? "")}
                       disabled={disabled}
                       onChange={(e) => set(i, f.key, e.target.value)}
-                      className="h-8 rounded-sm border border-edge bg-surface px-2 text-14"
+                      className="h-8 rounded-sm border border-edge bg-surface px-2 text-14 disabled:bg-sunken disabled:text-ink-2"
                     >
                       {f.options.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -137,7 +137,7 @@ export function RowsEditor({
                       placeholder={f.type === "text" ? f.placeholder : undefined}
                       disabled={disabled}
                       onChange={(e) => set(i, f.key, f.type === "number" ? e.target.value : e.target.value)}
-                      className="h-8 min-w-0 rounded-sm border border-edge bg-surface px-2 text-14 tnum"
+                      className="h-8 min-w-0 rounded-sm border border-edge bg-surface px-2 text-14 tnum disabled:bg-sunken disabled:text-ink-2"
                     />
                   )}
                 </label>
