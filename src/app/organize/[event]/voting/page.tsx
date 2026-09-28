@@ -38,7 +38,7 @@ function stretch(ms: number): string {
 function MethodOff({ method, then }: { method: string; then: string }) {
   return (
     <p className="mt-3 border-l-[3px] border-flag-bar pl-3 text-13 text-ink-2">
-      <strong className="font-semibold text-ink">{method}</strong> is not ticked under Who may vote, so {then} every vote until you tick it.
+      Tick <strong className="font-semibold text-ink">{method}</strong> under Who may vote: until you do, {then} every vote.
     </p>
   );
 }
