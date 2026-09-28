@@ -89,3 +89,29 @@ describe("the fixture import at start", () => {
     }
   });
 });
+
+describe("a fixture file the start cannot use", () => {
+  it("known-bad: FIXTURES_PATH naming a missing file stops the start with the setting and the path, not a bare ENOENT", () => {
+    const missing = path.join(os.tmpdir(), `no-such-fixtures-${process.pid}.json`);
+    process.env.FIXTURES_PATH = missing;
+    expect(() => bootFixture(h, NOW)).toThrow(/FIXTURES_PATH names .*no-such-fixtures.*, which does not exist: set FIXTURES_PATH to/);
+  });
+
+  it("a file that is not JSON, or not a fixture file, is named with what is wrong", () => {
+    const bad = path.join(os.tmpdir(), `bad-fixtures-${process.pid}.json`);
+    try {
+      fs.writeFileSync(bad, "{ not json");
+      process.env.FIXTURES_PATH = bad;
+      expect(() => bootFixture(h, NOW)).toThrow(/bad-fixtures.*is not valid JSON/);
+      fs.writeFileSync(bad, JSON.stringify({ event: { id: "evt_x", name: "X" } }));
+      expect(() => bootFixture(h, NOW)).toThrow(/is not a fixture file: event\.submissions_close/);
+    } finally {
+      fs.unlinkSync(bad);
+    }
+  });
+
+  it("positive control: the default file needs no setting", () => {
+    delete process.env.FIXTURES_PATH;
+    expect(bootFixture(h, NOW)).toBe("evt_01");
+  });
+});
