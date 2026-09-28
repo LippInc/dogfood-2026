@@ -85,7 +85,7 @@ export default async function ProjectJudgingPage({ params }: PageProps<"/organiz
             <p className="mt-1 text-14 text-ink-2">
               {published
                 ? "Results are published, so the assignments are final."
-                : "Take back a review the judge has not started, for a judge picked by mistake: no run gives it back to them. A started review stays, since it is the judge's work; if the project is not theirs to judge, they declare a conflict in their console. A recusal clicked by mistake can be undone: the review comes back as it was. Each change asks for a reason and goes into the audit log."}
+                : "Take back a review the judge has not started (nothing saved on it, and in pairwise mode no answer about this project), for a judge picked by mistake: no run gives it back to them. A started review stays, since it is the judge's work; if the project is not theirs to judge, they declare a conflict in their console. A recusal clicked by mistake can be undone: the review comes back as it was. Each change asks for a reason and goes into the audit log."}
             </p>
           </div>
           {assignments.length === 0 ? (

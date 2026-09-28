@@ -66,8 +66,23 @@ function organizerCorrection<T>(
 }
 
 /**
+ * The judge|project pairs a judge has answered about in pairwise mode (an answer not taken
+ * back). In pairwise mode the answers are the judge's work, not a scores row: a review whose
+ * project the judge has compared is started, everywhere "started" is decided. DAL-internal.
+ */
+function answeredPairs(tx: DbOrTx, eventId: string, judgeUserId?: string): Set<string> {
+  const rows = tx
+    .select({ judge: comparisons.judgeUserId, left: comparisons.leftProjectId, right: comparisons.rightProjectId })
+    .from(comparisons)
+    .where(and(eq(comparisons.eventId, eventId), isNull(comparisons.voidedAt), judgeUserId ? eq(comparisons.judgeUserId, judgeUserId) : undefined))
+    .all();
+  return new Set(rows.flatMap((r) => [`${r.judge}|${r.left}`, `${r.judge}|${r.right}`]));
+}
+
+/**
  * Take back an assignment nobody has started: the judge has saved nothing on it (a review
- * with even one score or a word of feedback stays, since it is the judge's work; they
+ * with even one score or a word of feedback stays, since it is the judge's work, and so does
+ * one whose project they compared in pairwise mode; they
  * declare a conflict themselves if the project is not theirs). A recusal stays too: it is the
  * record that keeps the engine from giving the project back to that judge. Runs treat a
  * taken-back pair as a conflict from then on; an organizer can still assign it by hand.
@@ -78,10 +93,13 @@ export function removeAssignment(actor: Actor | null, eventIdOrSlug: string, ass
     if (a.status === "recused") {
       throw new ConflictError("recused", "The judge declared a conflict on this project. That stays on record, so no run gives the project back to them.");
     }
-    if (tx.select({ id: scores.id }).from(scores).where(eq(scores.assignmentId, a.id)).get()) {
+    if (
+      tx.select({ id: scores.id }).from(scores).where(eq(scores.assignmentId, a.id)).get() ||
+      answeredPairs(tx, event.id, a.judgeUserId).has(`${a.judgeUserId}|${a.projectId}`)
+    ) {
       throw new ConflictError(
         "review_started",
-        "The judge has already saved part of this review, so it stays in the record. If the project is not theirs to judge, they declare a conflict in their console.",
+        "The judge has already saved part of this review or compared this project, so it stays in the record. If the project is not theirs to judge, they declare a conflict in their console.",
       );
     }
     tx.delete(assignments).where(eq(assignments.id, a.id)).run();
@@ -214,6 +232,7 @@ export function getProjectJudging(actor: Actor | null, eventIdOrSlug: string, pr
           .map((r) => r.judgeId)
       : [],
   );
+  const answered = answeredPairs(db, event.id);
   const recusals = new Map<string, string>();
   const ids = rows.filter((r) => r.status === "recused").map((r) => r.id);
   if (ids.length) {
@@ -237,7 +256,7 @@ export function getProjectJudging(actor: Actor | null, eventIdOrSlug: string, pr
       judge: r.judge,
       email: r.email,
       status: r.status,
-      started: Boolean(r.scoreId),
+      started: Boolean(r.scoreId) || answered.has(`${r.judgeId}|${project.id}`),
       inTracks: inTrack.has(r.judgeId),
       isJudge: isJudgeIn(db, r.judgeId, event.id),
       byHand: Boolean((r.params as { byHand?: unknown } | null)?.byHand),
@@ -298,10 +317,12 @@ export function moveProjectTrack(actor: Actor | null, eventIdOrSlug: string, pro
         .where(eq(assignments.projectId, project.id))
         .orderBy(asc(assignments.id))
         .all();
+      const answered = answeredPairs(tx, event.id);
+      const started = (r: (typeof rows)[number]) => Boolean(r.scoreId) || answered.has(`${r.judgeId}|${project.id}`);
       const leaving = rows.filter((r) => r.status !== "recused" && !inNewTrack.has(r.judgeId));
-      const withdrawn = leaving.filter((r) => r.status === "pending" && !r.scoreId);
+      const withdrawn = leaving.filter((r) => r.status === "pending" && !started(r));
       const finishedKept = leaving.filter((r) => r.status === "done");
-      const startedKept = leaving.filter((r) => r.status === "pending" && r.scoreId);
+      const startedKept = leaving.filter((r) => r.status === "pending" && started(r));
       if (withdrawn.length) tx.delete(assignments).where(inArray(assignments.id, withdrawn.map((r) => r.id))).run();
       tx.update(projects).set({ trackId: track.id }).where(eq(projects.id, project.id)).run();
       return {
@@ -360,13 +381,14 @@ export function removeJudge(actor: Actor | null, eventIdOrSlug: string, judgeUse
         .map((t) => t.id)
         .sort();
       const rows = tx
-        .select({ id: assignments.id, status: assignments.status, scoreId: scores.id })
+        .select({ id: assignments.id, projectId: assignments.projectId, status: assignments.status, scoreId: scores.id })
         .from(assignments)
         .leftJoin(scores, eq(scores.assignmentId, assignments.id))
         .where(and(eq(assignments.eventId, event.id), eq(assignments.judgeUserId, judgeUserId)))
         .orderBy(asc(assignments.id))
         .all();
-      const withdrawn = rows.filter((r) => r.status === "pending" && !r.scoreId);
+      const answered = answeredPairs(tx, event.id, judgeUserId);
+      const withdrawn = rows.filter((r) => r.status === "pending" && !r.scoreId && !answered.has(`${judgeUserId}|${r.projectId}`));
       const kept = rows.filter((r) => !withdrawn.includes(r));
       const answers = tx
         .select({ n: sql<number>`count(*)` })
