@@ -13,7 +13,7 @@ import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
 import { getPublishedResults } from "./normalization";
 import { myTeam, type MyTeam } from "./teams";
 import { issuesOf } from "./parse";
-import { UPLOAD_PATH } from "../uploads";
+import { discardUpload, UPLOAD_PATH } from "../uploads";
 
 // A team's project: created and edited by its members while submissions are open,
 // saved as a draft or submitted. The deadline holds in the backend: after
@@ -208,7 +208,9 @@ const sameField = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray
  */
 export function updateProject(actor: Actor | null, projectId: string, body: unknown) {
   let project: typeof projects.$inferSelect;
-  return mutate({
+  // an uploaded picture the save changes or clears is deleted after the commit, unless another project shows it
+  let dropped: string | null = null;
+  const result = mutate({
     actor,
     action: "project.edit",
     load: (tx) => {
@@ -258,6 +260,11 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
         tags: input.tags,
         status,
       };
+      if (project.thumbnailUrl !== next.thumbnailUrl) {
+        const old = project.thumbnailUrl;
+        const shown = old && tx.select({ id: projects.id }).from(projects).where(and(eq(projects.thumbnailUrl, old), ne(projects.id, project.id))).get();
+        dropped = shown ? null : old;
+      }
       const before: Record<string, unknown> = {};
       const after: Record<string, unknown> = {};
       for (const k of EDITABLE) {
@@ -286,6 +293,8 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
       };
     },
   });
+  discardUpload(dropped);
+  return result;
 }
 
 export type Question = { id: string; label: string; help: string; type: "text" | "longtext" | "url"; required: boolean };

@@ -154,6 +154,25 @@ describe("setProjectImage with the event open", () => {
     expect(auditRows().at(-1)!.action).toBe("project.image");
   });
 
+  it("refuses a signed-in outsider with 403 whatever they send, audits it, and writes no file first", () => {
+    for (const bytes of [SVG, PNG]) expectHttpError(() => setProjectImage(nonMember(), "prj_01", bytes), 403, "not_your_project");
+    expect(files()).toEqual([]);
+    expect(auditRows().at(-1)!.action).toBe("authz.refused");
+  });
+
+  it("clearing or replacing the picture through the project form deletes the uploaded file; saving it unchanged keeps it", () => {
+    const base = { title: "Glass Signal", summary: "s", trackId: "trk_04", repoUrl: "https://example.org/repo/01", status: "submitted" };
+    const url = setProjectImage(member(), "prj_01", PNG).thumbnailUrl;
+    updateProject(member(), "prj_01", { ...base, thumbnailUrl: url });
+    expect(files()).toEqual([url.slice("/uploads/".length)]);
+    updateProject(member(), "prj_01", { ...base, thumbnailUrl: "" });
+    expect(files()).toEqual([]);
+    setProjectImage(member(), "prj_01", JPEG);
+    updateProject(member(), "prj_01", { ...base, thumbnailUrl: "https://example.org/pic.png" });
+    expect(files()).toEqual([]);
+    expect(thumbnailOf("prj_01")).toBe("https://example.org/pic.png");
+  });
+
   it("the project form can send the uploaded picture back unchanged, but no other local path", () => {
     const url = setProjectImage(member(), "prj_01", PNG).thumbnailUrl;
     const base = { title: "Glass Signal", summary: "s", trackId: "trk_04", repoUrl: "https://example.org/repo/01", status: "submitted" };
