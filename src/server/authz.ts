@@ -341,7 +341,7 @@ export function authorize(
 
     case "account.tokens":
       // a leaked token must not be able to mint more tokens or hide itself
-      return actor.sessionKind === "api" ? refuse("token_cannot_manage_tokens", "Sign in to make or revoke API tokens; a token cannot.") : allow;
+      return actor.sessionKind === "api" ? refuse("token_cannot_manage_tokens", "Sign in to list, make or revoke API tokens; a token cannot manage tokens.") : allow;
 
     case "records.issue_all": {
       if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");
