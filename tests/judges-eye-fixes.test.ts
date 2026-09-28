@@ -7,6 +7,7 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { runMigrations } from "@/server/db/migrate";
 import { events } from "@/server/db/schema";
 import { updateEventDetails } from "@/server/dal/organize";
+import { getPairwiseState, pickPairwise, setJudgingMode } from "@/server/dal/pairwise";
 import { getMyWork } from "@/server/dal/projects";
 import { actorForToken } from "@/server/session";
 
@@ -18,7 +19,7 @@ const NOW = "2026-09-27T08:00:00.000Z";
 let h: Handle;
 const saved = { flag: process.env.SEED_CHECKER_SESSIONS };
 
-function checker(label: "organizer" | "participant") {
+function checker(label: "organizer" | "participant" | "judge_a") {
   const seeded = seedCheckerSessions(h.db, "evt_01", NOW);
   if (!seeded.enabled) throw new Error("checker sessions disabled in test");
   return actorForToken(h.db, seeded.identities.find((i) => i.label === label)!.token)!;
@@ -82,6 +83,16 @@ describe("the submission deadline holds once judges have scored", () => {
     expect(h.db.select().from(events).where(eq(events.id, "evt_01")).get()!.submissionsCloseAt).toBe(close);
     const earlier = new Date(Date.parse(close) - 3_600_000).toISOString();
     expect(outcome(() => updateEventDetails(org, "evt_01", body(earlier))).status).toBe(200);
+  });
+
+  it("pairwise answers count as judging started too (reading 6: only saved scores held the deadline)", () => {
+    const org = checker("organizer");
+    h.sqlite.exec("DELETE FROM score_items; DELETE FROM score_comments; DELETE FROM scores;");
+    setJudgingMode(org, "evt_01", { mode: "pairwise", reason: "Trying the better-of-two mode" });
+    const judge = checker("judge_a");
+    const track = getPairwiseState(judge, "evt_01").tracks.find((t) => t.current)!;
+    pickPairwise(judge, "evt_01", { trackId: track.trackId, left: track.current!.left.id, right: track.current!.right.id, outcome: "left" });
+    expect(outcome(() => updateEventDetails(org, "evt_01", body("2099-01-01T18:00:00Z")))).toEqual({ status: 409, code: "judging_started" });
   });
 
   it("positive control: with no review saved yet, the organizer can still move it later", () => {
