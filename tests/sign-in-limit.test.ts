@@ -13,7 +13,12 @@ const { signInWithPassword } = await import("@/server/dal/auth");
 
 let h: Handle;
 
+// The buckets refill as the clock moves (the account-wide one regains a try every 36 s), and
+// these tests run real argon2 checks, 101 in the last one: on a slow or busy machine that
+// takes longer than 36 s and the 101st try gets through. The clock is held still, so the
+// tests count tries whatever the machine's speed; argon2 itself runs for real.
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-09-28T12:00:00.000Z") });
   h = openDatabase(":memory:");
   runMigrations(h, path.join(process.cwd(), "drizzle"));
   setHandleForTests(h);
@@ -21,6 +26,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   setHandleForTests(null);
   h.sqlite.close();
 });
