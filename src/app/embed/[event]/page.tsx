@@ -81,14 +81,13 @@ export default async function EmbedPage({
               rel="noopener"
               className="tile relative flex w-full flex-row rounded-xs border border-rule bg-surface hover:border-edge min-[480px]:flex-col"
             >
-              <span className="relative block w-[112px] shrink-0 overflow-hidden rounded-l-xs min-[480px]:w-full min-[480px]:rounded-l-none min-[480px]:rounded-t-xs">
+              <span className="relative flex w-[112px] shrink-0 items-end overflow-hidden rounded-l-xs bg-face-bg min-[480px]:block min-[480px]:w-full min-[480px]:rounded-l-none min-[480px]:rounded-t-xs">
                 <Face id={p.id} className="block w-full min-[480px]:hidden" cols={28} rows={16} />
                 <Face id={p.id} className="hidden aspect-[16/9] w-full min-[480px]:block" />
                 <span className="absolute left-2 top-2 hidden rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 min-[480px]:block">{p.id}</span>
               </span>
               <span className="crop-marks" aria-hidden="true" />
               <span className="flex min-w-0 flex-col justify-center px-3 py-2 min-[480px]:block min-[480px]:p-3">
-                <span className="font-mono text-12 text-ink-3 min-[480px]:hidden">{p.id}</span>
                 {places.has(p.id) && (
                   <span className="mb-1 inline-block self-start rounded-xs bg-accent-tint px-1.5 py-0.5 font-mono text-12 text-accent-ink">
                     {places.get(p.id)}
