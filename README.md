@@ -20,7 +20,10 @@ was reached.
    Vogel) and a participant.
 
 Next.js prints its own "Ready" a moment earlier, before the database is
-seeded, so wait for the portal's line. The first start imports `fixtures.json`
+seeded, so wait for the portal's line. It comes once the portal is seeded and has
+answered its own gallery and the routes the acceptance checker asks first, so
+the first real request to each is a warm one (a cold first render can take
+seconds on a busy machine); the line says how long that took. The first start imports `fixtures.json`
 and prints four `Cookie: session=...` headers for the acceptance checker; they
 are the same on every start. `docker compose down -v` resets everything. No
 network is needed at run time; the image build downloads npm packages once.
@@ -289,7 +292,8 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 `docker-compose.yml` publishes the portal on `127.0.0.1:8080` only; put it behind
 a reverse proxy that terminates HTTPS, and set `TRUST_PROXY_HOPS` (see the
 next section). `GET /api/health` answers 200 `{"ok":true,"events":<n>}` once the
-database is open and holds an event (at once with `FIXTURES_PATH: "none"`), and
+database is open and holds an event (at once with `FIXTURES_PATH: "none"`) and
+the start-up warm-up is done (the same moment as the `portal ready` line), and
 503 before: the compose healthcheck uses it, and a proxy or a monitor can too.
 
 Back up while it runs, with SQLite's online backup; the copy lands in the volume:

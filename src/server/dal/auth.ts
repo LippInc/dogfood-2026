@@ -5,6 +5,7 @@ import { CHECKER_LABELS, checkerSessionsEnabled, type CheckerLabel } from "../ch
 import { getDb } from "../db/client";
 import { events, judgeTracks, sessions, teamMembers, teams, tracks, userRoles, users } from "../db/schema";
 import { LIMITS, takeAudited } from "../rate-limit";
+import { warmingUp } from "../warmup";
 import { createLoginSession, endSession, setSessionCookie, verifyPassword } from "../session";
 import type { Client } from "./voting";
 
@@ -151,9 +152,11 @@ export function homeFor(userId: string): string {
   return "/";
 }
 
-export function healthCheck(): { ok: boolean; events: number } {
+export function healthCheck(): { ok: boolean; events: number; problem?: string } {
   const row = getDb().select({ n: sql<number>`count(*)` }).from(events).get();
   const n = row?.n ?? 0;
+  // Not before the start-up's warm-up has run (src/server/warmup.ts): ready means the first gallery request is a warm one.
+  if (warmingUp()) return { ok: false, events: n, problem: "warming up" };
   // seeded means ready, unless the portal was asked to start empty (FIXTURES_PATH=none)
   return { ok: n > 0 || process.env.FIXTURES_PATH === "none", events: n };
 }

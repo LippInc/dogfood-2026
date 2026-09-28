@@ -13,6 +13,7 @@ import { settingsProblem } from "./settings";
 import { ensureSigningKey } from "./signing";
 import { startWebhookWorker } from "./webhooks";
 import { nowIso } from "./util";
+import { selfBase, warmUp, warmUpSteps } from "./warmup";
 
 // Runs once per server start, from instrumentation.ts: migrate, re-assert the
 // triggers, import the fixtures (idempotent; FIXTURES_PATH=none skips them), open
@@ -144,8 +145,28 @@ export async function boot(): Promise<void> {
     lines.push(`  and sign up as ${setup.waiting.join(" or ")} (only this link makes an administrator; it works once, and each start prints a new one while a named address has no account)`);
   }
   startWebhookWorker();
-  lines.push(`portal ready: ${event ? `${base}/events/${event.slug}` : `${base}/sign-up`}  (boot took ${Date.now() - started} ms)`);
   console.log(lines.join("\n"));
+  announceWhenWarm(event, event ? `${base}/events/${event.slug}` : `${base}/sign-up`, Date.now() - started);
+}
+
+/**
+ * The "portal ready" line comes after the warm-up (src/server/warmup.ts): the portal has then answered the gallery
+ * and the routes the acceptance checker asks first once, so their first real request is a warm one. Not awaited:
+ * the warm-up's requests are served like any other, which needs register() to have returned.
+ */
+function announceWhenWarm(event: { id: string; slug: string } | null, url: string, bootMs: number): void {
+  const warmStarted = Date.now();
+  void warmUp(selfBase(), warmUpSteps(event), (results) => {
+    const failed = results.filter((r) => r.status === null || r.status >= 500);
+    if (failed.length) {
+      console.warn(
+        `[boot] warm-up: ${failed.map((r) => `${r.method} ${r.path} ${r.status === null ? "did not answer" : `answered ${r.status}`}`).join(", ")}; the first real request there may be slow`,
+      );
+    }
+    const first = results[0];
+    const firstPart = first && first.status !== null ? `, first ${first.path} ${first.ms} ms` : "";
+    console.log(`portal ready: ${url}  (boot took ${bootMs} ms, warm-up ${Date.now() - warmStarted} ms${firstPart})`);
+  });
 }
 
 /**
