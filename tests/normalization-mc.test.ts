@@ -15,7 +15,8 @@ import { normalize, type Obs } from "@/server/judging/normalize";
 // and over all pairs ("pooled"). Three assertions, margins declared before the run
 // (when the engine was chosen), and (1b) and (2b), the same two against the raw mean with the
 // flat judge out, declared 2026-09-27 before their first run; a red one is a
-// stop-and-tell, never a change of engine.
+// stop-and-tell, never a change of engine. (1c), (4) and (5) came later, with margins
+// set after the runs were seen; their comments say so.
 
 const RUNS = 1000;
 const SEED = 20260923;
@@ -195,6 +196,8 @@ const sd = (xs: number[]) => {
   const m = mean(xs);
   return Math.sqrt(xs.reduce((s, x) => s + (x - m) ** 2, 0) / (xs.length - 1));
 };
+/** The 95 % lower bound of a mean over runs. */
+const lowerBound = (xs: number[]) => mean(xs) - (1.96 * sd(xs)) / Math.sqrt(xs.length);
 
 type Taus = { within: number[]; pooled: number[] };
 function run(sc: Scenario, methods: Record<string, Method>, runs = RUNS): Record<string, Taus> {
@@ -211,6 +214,29 @@ function run(sc: Scenario, methods: Record<string, Method>, runs = RUNS): Record
 }
 
 const METHODS = { raw: rawMean, "raw, flat judge out": rawMeanFlatOut, "k = 3": engine(3), engine: engine() };
+type Key = "within" | "pooled";
+/** Per run: a method's tau minus the raw mean's with the flat judge out, so what is left is the leniency correction. */
+const gainOver = (r: Record<string, Taus>, method: string, key: Key) => r[method]![key].map((x, i) => x - r["raw, flat judge out"]![key][i]!);
+
+// (4) and (5), added 2026-09-28 after an outside reading found every assertion above one-sided:
+// the raw mean itself, passed off as the engine, would pass them all. Like (1c), their margins
+// were set after the runs were seen: they state the measurement tightly and fail on a regression,
+// they are not predictions. (4): where judges differ in leniency, the engine is better than the
+// raw mean with the flat judge out, at 95 % confidence, by at least GAIN: about half the gain
+// measured (moderate bias 0.018 within-track and 0.026 pooled, batch confound 0.041 and 0.045),
+// so an engine that loses half its correction fails. With noisy judges the halo swamps the
+// leniency and the gain is about zero, so that scenario has no (4).
+const GAIN: Record<string, Record<Key, number>> = {
+  "moderate bias": { within: 0.008, pooled: 0.012 },
+  "batch confound (known-bad for leniency)": { within: 0.02, pooled: 0.02 },
+};
+const gainHolds = (diff: number[], margin: number) => lowerBound(diff) > margin;
+// (5): every assertion above is a mean over 1,000 runs, which dilutes one disastrous run. In no
+// single run of any scenario may the engine fall more than WORST below the raw mean with the flat
+// judge out. The worst measured is 0.136 below (batch confound, within-track); a run turned
+// upside down falls about 1.6 below.
+const WORST = 0.2;
+const worstHolds = (diff: number[]) => Math.min(...diff) > -WORST;
 const results = new Map<string, Record<string, Taus>>();
 function resultsFor(key: string) {
   if (!results.has(key)) results.set(key, run(SCENARIOS.find((s) => s.key === key)!, METHODS));
@@ -276,7 +302,7 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { tim
     const r = resultsFor("no-bias control");
     for (const key of ["within", "pooled"] as const) {
       const diff = r.engine![key].map((x, i) => x - r["raw, flat judge out"]![key][i]!);
-      const low = mean(diff) - (1.96 * sd(diff)) / Math.sqrt(diff.length);
+      const low = lowerBound(diff);
       console.log(`(1c) ${key}: mean difference ${mean(diff).toFixed(4)}, 95 % lower bound ${low.toFixed(4)}, over ${diff.length} runs`);
       expect(low, `${key}: mean ${mean(diff).toFixed(4)}, 95 % lower bound ${low.toFixed(4)}`).toBeGreaterThan(-0.01);
     }
@@ -292,6 +318,28 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { tim
       const r = resultsFor(key);
       expect(mean(r["k = 3"]!.within) - mean(r.engine!.within), `${key} within`).toBeLessThanOrEqual(0.01);
       expect(mean(r["k = 3"]!.pooled) - mean(r.engine!.pooled), `${key} pooled`).toBeLessThanOrEqual(0.02);
+    }
+  });
+
+  it("(4) moderate bias and batch confound: the engine beats the raw mean with the flat judge out by the margin, 95 % lower bound, within-track and pooled", () => {
+    for (const [key, margin] of Object.entries(GAIN)) {
+      const r = resultsFor(key);
+      for (const k of ["within", "pooled"] as const) {
+        const diff = gainOver(r, "engine", k);
+        console.log(`(4) ${key} ${k}: gain ${mean(diff).toFixed(4)}, 95 % lower bound ${lowerBound(diff).toFixed(4)}, margin ${margin[k]}`);
+        expect(gainHolds(diff, margin[k]), `${key} ${k}: lower bound ${lowerBound(diff).toFixed(4)}`).toBe(true);
+      }
+    }
+  });
+
+  it(`(5) worst single run: in no run of any scenario does the engine fall more than ${WORST} below the raw mean with the flat judge out`, () => {
+    for (const sc of SCENARIOS) {
+      const r = resultsFor(sc.key);
+      for (const k of ["within", "pooled"] as const) {
+        const diff = gainOver(r, "engine", k);
+        console.log(`(5) ${sc.key} ${k}: worst run ${Math.min(...diff).toFixed(4)}, best ${Math.max(...diff).toFixed(4)}`);
+        expect(worstHolds(diff), `${sc.key} ${k}: worst run ${Math.min(...diff).toFixed(4)}`).toBe(true);
+      }
     }
   });
 
@@ -322,5 +370,29 @@ describe("normalization Monte Carlo on the fixture's pairs (decision 11)", { tim
     console.log(`shifted engine, control, 100 runs: mean within diff ${mean(diff).toFixed(3)} (sd ${sd(diff).toFixed(3)})`);
     expect(mean(diff)).toBeLessThan(-sd(diff));
     expect(mean(diff)).toBeCloseTo(-0.961, 3); // the figure JUDGING.md quotes
+  });
+
+  it("known-bad: the engine with its leniency correction switched off (k = 10^9 shrinks every judge's offset to nothing) fails (4)", () => {
+    for (const key of Object.keys(GAIN)) {
+      const r = run(SCENARIOS.find((s) => s.key === key)!, { "raw, flat judge out": rawMeanFlatOut, off: engine(1e9) }, 200);
+      for (const k of ["within", "pooled"] as const) {
+        const diff = gainOver(r, "off", k);
+        console.log(`correction off, ${key} ${k}, 200 runs: gain ${mean(diff).toFixed(4)}, 95 % lower bound ${lowerBound(diff).toFixed(4)}`);
+        expect(gainHolds(diff, GAIN[key]![k])).toBe(false);
+      }
+    }
+  });
+
+  it("known-bad: one run in 1,000 turned upside down still passes (4), and fails (5)", () => {
+    const key = "batch confound (known-bad for leniency)";
+    const r = resultsFor(key);
+    // Reversing an engine's scores negates its tau against the truth exactly, so run 500 is re-scored, not re-run.
+    const upsideDown = { within: r.engine!.within.map((x, i) => (i === 500 ? -x : x)), pooled: r.engine!.pooled.map((x, i) => (i === 500 ? -x : x)) };
+    const withOne = { ...r, upsideDown };
+    for (const k of ["within", "pooled"] as const) {
+      const diff = gainOver(withOne, "upsideDown", k);
+      expect(gainHolds(diff, GAIN[key]![k]), `${k}: the mean dilutes the one bad run`).toBe(true);
+      expect(worstHolds(diff), `${k}: the worst-run bound catches it`).toBe(false);
+    }
   });
 });
