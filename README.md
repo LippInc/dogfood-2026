@@ -238,7 +238,7 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 | `SEED_CHECKER_SESSIONS` | `"true"` seeds the checker's four sessions and the demo sign-in buttons; `"false"` for a real event (boot then removes any left from before) |
 | `DOGFOOD_SEED_SECRET` | Derives the checker sessions, salts the voters' address hashes and seals the signing key in the database; set your own, and keep it: with the default, a portal whose `PUBLIC_URL` is not a local address refuses to start; under a new one the portal starts a new signing key (records signed before still verify) |
 | `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, an exported uploaded picture's address, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser; mailed ones start with `PUBLIC_URL`, so email needs it set |
-| `SMTP_URL`, `MAIL_FROM` | Email, off by default: unset, nothing is mailed and no network is needed. Set (`smtp://user:password@mail.example.org:587`, or `smtps://`) with the address mail comes from, the portal mails each judge invitation that has an address, each listed voter's link, each claim link and each password reset link as it is made; the screen still shows the link once. The outbox (`GET /api/events/{event}/outbox`) keeps each message with its link blanked, so no working key is stored and a mailed link cannot be sent again: make a new one |
+| `SMTP_URL`, `MAIL_FROM` | Email, off by default: unset, nothing is mailed and no network is needed. Set (`smtp://user:password@mail.example.org:587`, or `smtps://`) with the address mail comes from, the portal mails each judge invitation that has an address, each listed voter's link, each claim link and each password reset link as it is made; the screen still shows the link once. The outbox (Integrations page, `GET /api/events/{event}/outbox`) keeps each message with its link blanked, so no working key is stored and a mailed link cannot be sent again: make a new one |
 | `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
 | `TRUST_PROXY_HOPS` | How many reverse proxies stand in front of the portal, each appending to `X-Forwarded-For` (usually `1`). Unset, the client address is the connection's own and any `X-Forwarded-For` a client sends is ignored; set it only when that many proxies really are in front, or a client can name its own address |
 | `WEBHOOKS_ALLOW_PRIVATE` | `"true"` lets webhooks reach private and local addresses; leave it unset unless the receiver is on your own network |
@@ -283,7 +283,7 @@ start, and the fixture import never overwrites what the organizers changed.
   same machine), but a host name whose DNS answer changes between the check and
   the request is not caught. Webhook secrets are kept in the database as they
   are, because the portal signs with them.
-- Email leaves out judges' reminders and the setup link, and the outbox has an API but no page yet.
+- Email leaves out judges' reminders and the administrator's setup link (the link stays in the log).
   Accounts are not email-verified, so an invitation addressed
   to someone who has no account yet can be taken by whoever holds its link and
   signs up with that address first; the Judges page names the account that
