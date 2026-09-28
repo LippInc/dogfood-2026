@@ -158,7 +158,10 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   documented and defended in `JUDGING.md`, and each project's normalized
   score comes with its receipt, judge by judge: the change from the raw mean and
   a ± of one standard error. A judge ledger shows each judge's leniency ± error
-  and, before any override, what leaving that judge out would move.
+  and, before any override, what leaving that judge out would move. Set-up
+  mistakes can be fixed, each with a reason in the audit log: from a project's
+  page (Submissions, its review count) an organizer takes back an assignment
+  nobody started or undoes a recusal clicked by mistake.
 - **Pairwise judging (optional).** An organizer can have judges answer "which
   is better?" instead of scoring: the switch is on Settings, audited, with a
   reason. Judges see two of their own projects at a time, may call it too close,
@@ -341,7 +344,7 @@ removed stands; a changed fixture file imports only its new rows.
 - Organizers are trusted with their own event: nothing stops an organizer from
   also being on a team in it. What the portal does is log every organizer
   decision (a judge left out or reinstated, a merge, a project published as it
-  is, publishing) with its reason, where co-organizers can read it.
+  is, an assignment taken back, a recusal undone, publishing) with its reason, where co-organizers can read it.
 - A team that entered the same project three or more times: the overview merges
   two copies; merge the others over the API (`POST
   /api/events/<event>/duplicates/merge`).

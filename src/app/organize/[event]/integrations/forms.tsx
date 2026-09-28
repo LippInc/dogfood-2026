@@ -12,7 +12,7 @@ const idle: SecretResult = { ok: false, message: null };
 
 export const ACTION_GROUPS: { label: string; actions: string[] }[] = [
   { label: "Teams and projects", actions: ["team.create", "team.join", "project.create", "project.edit"] },
-  { label: "Judging", actions: ["judge.join", "assignment.run", "assignment.by_hand", "review.save", "review.recuse", "pairwise.pick", "pairwise.undo", "event.judging_mode"] },
+  { label: "Judging", actions: ["judge.join", "assignment.run", "assignment.by_hand", "assignment.remove", "assignment.recusal_undone", "review.save", "review.recuse", "pairwise.pick", "pairwise.undo", "event.judging_mode"] },
   { label: "Results", actions: ["judge.override", "project.merge", "project.not_duplicate", "project.accept_under_reviewed", "results.publish"] },
   { label: "Community vote and comments", actions: ["vote.cast", "voter.void", "comment.post", "comment.deleted", "comment.hide", "comment.unhide"] },
   { label: "Records", actions: ["record.issue"] },

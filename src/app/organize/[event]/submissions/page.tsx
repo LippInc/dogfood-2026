@@ -221,16 +221,23 @@ export default async function SubmissionsPage({ params, searchParams }: PageProp
                           </td>
                           <td className="px-3 py-2.5 font-mono text-12 whitespace-nowrap text-ink-2 max-md:hidden">{r.submittedAt ? when(r.submittedAt) : "–"}</td>
                           <td className="px-3 py-2.5 text-right tnum max-md:col-start-3 max-md:row-start-1 max-md:p-0">
-                            {r.reviewsAssigned ? (
-                              <span className="flex items-center justify-end gap-2.5">
-                                <ReviewCells done={r.reviewsDone} assigned={r.reviewsAssigned} />
-                                <span className="whitespace-nowrap">
-                                  {r.reviewsDone} of {r.reviewsAssigned}
-                                </span>
-                              </span>
-                            ) : (
-                              <span className="text-ink-3">–</span>
-                            )}
+                            {/* The count opens the project's judging: who has it, and the organizer's corrections. */}
+                            <Link
+                              href={`/organize/${event.slug}/submissions/${r.id}`}
+                              aria-label={`Judges of ${r.title || "this draft"}: ${r.reviewsAssigned ? `${r.reviewsDone} of ${r.reviewsAssigned} reviews finished` : "none yet"}`}
+                              className="group/reviews inline-flex items-center justify-end gap-2.5 hover:text-ink"
+                            >
+                              {r.reviewsAssigned ? (
+                                <>
+                                  <ReviewCells done={r.reviewsDone} assigned={r.reviewsAssigned} />
+                                  <span className="whitespace-nowrap underline-offset-2 group-hover/reviews:underline">
+                                    {r.reviewsDone} of {r.reviewsAssigned}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-ink-3 underline-offset-2 group-hover/reviews:underline">–</span>
+                              )}
+                            </Link>
                           </td>
                         </tr>
                       </Fragment>

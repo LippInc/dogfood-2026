@@ -5,6 +5,7 @@ import "server-only";
 
 export { SignUp } from "./accounts";
 export { ManualInput, RunInput } from "./assignments";
+export { CorrectionInput } from "./corrections";
 export { CommentInput, HideInput } from "./comments";
 export { InviteInput, RankingInput, TrackIds } from "./judges";
 export { AcceptInput, MergeInput, OverrideInput, PairInput, RevokeInput, UndoPairInput, UnmergeInput } from "./decisions";

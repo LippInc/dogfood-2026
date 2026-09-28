@@ -15,6 +15,7 @@ import { isJudgeIn, judgeRows } from "./judges";
 import { inJudgeTracks, judgeSet } from "./judging";
 import { parse } from "./parse";
 import { shownTitle } from "./project-fields";
+import { takenBackPairs } from "./corrections";
 
 // Assignment runs: the organizer starts a fresh run once,
 // then top-ups as judges join, reviews go missing or a judge is excluded. Every run
@@ -48,7 +49,7 @@ function engineInput(db: DbOrTx, event: EventRow): Omit<AssignInput, keyof impor
     .all();
   const judges = judgeRows(db, event.id).map((j) => ({ id: j.id, trackIds: j.tracks.map((t) => t.id) }));
   const judgeIds = new Set(judges.map((j) => j.id));
-  // A judge on a project's team never reviews it; neither does a judge who recused.
+  // A judge on a project's team never reviews it; neither does a judge who recused, nor one an organizer took the project from.
   const members = db
     .select({ teamId: teamMembers.teamId, userId: teamMembers.userId })
     .from(teamMembers)
@@ -65,6 +66,8 @@ function engineInput(db: DbOrTx, event: EventRow): Omit<AssignInput, keyof impor
   const conflicts = [
     ...projectRows.flatMap((p) => members.filter((m) => m.teamId === p.teamId).map((m) => ({ judgeId: m.userId, projectId: p.id }))),
     ...existing.filter((e) => e.status === "recused").map(({ judgeId, projectId }) => ({ judgeId, projectId })),
+    // a pair an organizer took back stays taken back: only an organizer's hand gives it again
+    ...takenBackPairs(db, event.id),
   ];
   return {
     projects: projectRows.map(({ id, trackId }) => ({ id, trackId })),

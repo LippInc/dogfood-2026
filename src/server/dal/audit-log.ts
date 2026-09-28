@@ -281,6 +281,10 @@ function sentence(r: Row, n: Names): Part[] {
         t(` ran ${after.mode === "fresh" ? "the assignment" : "a top-up"}: ${after.added ?? 0} reviews assigned, seed `),
         { text: String(after.seed ?? ""), mono: true },
       ];
+    case "assignment.remove":
+      return [actor, t(" took "), project(target), t(" back from "), person(after.judgeUserId), t(`: ${quote(after.reason)}`)];
+    case "assignment.recusal_undone":
+      return [actor, t(" gave "), project(after.project), t(" back to "), person(after.judgeUserId), t(`, undoing their recusal: ${quote(after.reason)}`)];
     case "assignment.by_hand":
       return [
         actor,

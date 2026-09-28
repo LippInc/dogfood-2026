@@ -285,6 +285,24 @@ def run_checks(cfg):
     s, body, _ = organizer.request("PUT", ranking_url, {"show": True})
     if expect(c, s == 200, organizer, "PUT", ranking_url, s, "200 (showing what is already shown)"):
         expect(c, as_json(body).get("changed") is False, organizer, "PUT", ranking_url, f"changed {as_json(body).get('changed')!r}", "changed False")
+    held = judge_a_ids[0] if judge_a_ids else "none"
+    remove_url = u(f"/api/events/{EVENT_ID}/assignments/{held}/remove")
+    unrecuse_url = u(f"/api/events/{EVENT_ID}/assignments/{held}/undo-recusal")
+    for url in (remove_url, unrecuse_url):
+        for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403), (judge_b, 403)):
+            s, _, _ = person.request("POST", url, {"reason": "isolation probe"})
+            expect(c, s == wanted, person, "POST", url, s, str(wanted))
+    # the organizer passes the gate: an empty reason is the 422 behind it, and nothing changes
+    s, _, _ = organizer.request("POST", remove_url, {"reason": ""})
+    expect(c, s == 422, organizer, "POST", remove_url, s, "422 (past the gate, no reason given)")
+    s, body, _ = organizer.request("POST", unrecuse_url, {"reason": "isolation probe"})
+    expect(c, s == 200, organizer, "POST", unrecuse_url, s, "200 (a review that is not recused: nothing changes)")
+    judging_url = u(f"/api/events/{EVENT_ID}/projects/prj_01/judging")
+    s, _, _ = organizer.request("GET", judging_url)
+    expect(c, s == 200, organizer, "GET", judging_url, s, "200")
+    for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403)):
+        s, _, _ = person.request("GET", judging_url)
+        expect(c, s == wanted, person, "GET", judging_url, s, str(wanted))
     checks.append(c)
 
     # ================= Section B: T3 community voting & comments =================
