@@ -11,18 +11,20 @@ import { HttpError, RateLimitedError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
 import { sha256 } from "@/server/util";
 import {
-  addListedVoters,
   castBallot,
   enterVoting,
   getBallot,
+  type Client,
+} from "@/server/dal/voting";
+import {
+  addListedVoters,
   getCommunityResults,
   getVotingAdmin,
   makeVotingLink,
   restoreVoter,
   saveVotingSettings,
   voidVoter,
-  type Client,
-} from "@/server/dal/voting";
+} from "@/server/dal/voting-organizer";
 import { auditCsv, getAuditLog } from "@/server/dal/audit-log";
 import { mergeDuplicate, unmergeDuplicate } from "@/server/dal/decisions";
 import { createTeam, joinTeam } from "@/server/dal/teams";

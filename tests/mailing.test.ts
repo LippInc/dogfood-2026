@@ -16,7 +16,7 @@ import { setMailTransportForTests } from "@/server/mail";
 import { BLANKED, mailClaimLinks, mailJudgeInvite, mailPasswordReset, mailVoterLinks } from "@/server/dal/mailing";
 import { listOutbox, listPortalOutbox } from "@/server/dal/outbox";
 import { inviteJudge } from "@/server/dal/judges";
-import { addListedVoters, saveVotingSettings } from "@/server/dal/voting";
+import { addListedVoters, saveVotingSettings } from "@/server/dal/voting-organizer";
 import { makeClaimLinks } from "@/server/dal/claims";
 import { makePasswordReset } from "@/server/dal/password-resets";
 import type { Actor } from "@/server/authz";

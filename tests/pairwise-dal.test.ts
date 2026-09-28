@@ -15,7 +15,7 @@ import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { authorize, type EventFacts } from "@/server/authz";
 import { computePairwise, getPairwiseRanking, getPairwiseState, pickPairwise, pullShare, setJudgingMode, undoPairwise, PAIRWISE_METHOD, PULL_SHOWN_WITHIN } from "@/server/dal/pairwise";
 import { requireEvent } from "@/server/dal/events";
-import { getCommunityResults, saveVotingSettings } from "@/server/dal/voting";
+import { getCommunityResults, saveVotingSettings } from "@/server/dal/voting-organizer";
 import { actorForToken } from "@/server/session";
 
 // Pairwise mode's rules (JUDGING.md "Pairwise mode"): only the event's judges answer,

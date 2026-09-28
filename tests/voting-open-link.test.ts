@@ -12,13 +12,15 @@ import {
   castBallot,
   enterVoting,
   getBallot,
+  type Client,
+} from "@/server/dal/voting";
+import {
   getCommunityResults,
   getVotingAdmin,
   makeVotingLink,
   saveVotingSettings,
   voidVoter,
-  type Client,
-} from "@/server/dal/voting";
+} from "@/server/dal/voting-organizer";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";

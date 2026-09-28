@@ -16,16 +16,14 @@ import { resetRateLimits } from "@/server/rate-limit";
 import { setMailTransportForTests } from "@/server/mail";
 import { mailVoterLinks } from "@/server/dal/mailing";
 import { sha256 } from "@/server/util";
+import { castBallot, enterVoting, type Client } from "@/server/dal/voting";
 import {
   addListedVoters,
-  castBallot,
-  enterVoting,
   newVoterLink,
   restoreVoter,
   saveVotingSettings,
   voidVoter,
-  type Client,
-} from "@/server/dal/voting";
+} from "@/server/dal/voting-organizer";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-28T12:00:00.000Z";

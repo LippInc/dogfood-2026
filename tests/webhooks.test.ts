@@ -12,7 +12,8 @@ import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
 import { hideComment, postComment } from "@/server/dal/comments";
-import { castBallot, enterVoting, makeVotingLink, saveVotingSettings, type Client } from "@/server/dal/voting";
+import { castBallot, enterVoting, type Client } from "@/server/dal/voting";
+import { makeVotingLink, saveVotingSettings } from "@/server/dal/voting-organizer";
 import { getPairwiseState, pickPairwise, setJudgingMode, undoPairwise } from "@/server/dal/pairwise";
 import { saveReview } from "@/server/dal/reviews";
 import {

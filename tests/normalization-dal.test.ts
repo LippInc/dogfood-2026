@@ -24,7 +24,8 @@ import {
 } from "@/server/dal/decisions";
 import { getNormalization, getPublishedResults, publishResults } from "@/server/dal/results";
 import { getSubmissions } from "@/server/dal/submissions";
-import { castBallot, enterVoting, getCommunityResults, makeVotingLink, saveVotingSettings } from "@/server/dal/voting";
+import { castBallot, enterVoting } from "@/server/dal/voting";
+import { getCommunityResults, makeVotingLink, saveVotingSettings } from "@/server/dal/voting-organizer";
 import { getAuditLog } from "@/server/dal/audit-log";
 import { exportFile } from "@/server/dal/exports";
 import type { Actor } from "@/server/authz";

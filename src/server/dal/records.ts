@@ -13,7 +13,7 @@ import { canonicalJson, newId, nowIso } from "../util";
 import { eventFacts, requireEvent, type PublicEvent } from "./events";
 import { getPublishedResults } from "./results";
 import { parse } from "./parse";
-import { getCommunityResults } from "./voting";
+import { getCommunityResults } from "./voting-organizer";
 
 // Signed records: a judge's participation record and a team member's certificate.
 // Each is issued once per person, event and kind, after the results are published,

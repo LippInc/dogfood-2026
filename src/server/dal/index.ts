@@ -88,11 +88,17 @@ export { addOrganizer, listOrganizers, removeOrganizer, type Organizer } from ".
 export { getAuditEntries, getAuditLog, getPortalEntries, getPortalLog, type AuditEntryView, type AuditLine, type Part } from "./audit-log";
 export { getSubmissions, type SubmissionRow } from "./submissions";
 export {
-  addListedVoters,
   castBallot,
   describeVotingCode,
   enterVoting,
   getBallot,
+  voteCookieName,
+  votingState,
+  type BallotView,
+  type Client,
+} from "./voting";
+export {
+  addListedVoters,
   getCommunityResults,
   getVotingAdmin,
   makeVotingLink,
@@ -100,13 +106,9 @@ export {
   restoreVoter,
   saveVotingSettings,
   voidVoter,
-  voteCookieName,
-  votingState,
-  type BallotView,
-  type Client,
   type CommunityResults,
   type Tally,
-} from "./voting";
+} from "./voting-organizer";
 export { hideComment, listComments, postComment, type CommentView } from "./comments";
 export { RateLimitedError } from "../errors";
 export { actionError, json, route, type ActionResult } from "../http";

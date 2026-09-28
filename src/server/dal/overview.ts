@@ -11,7 +11,7 @@ import { judgeRows } from "./judges";
 import { computeNormalization } from "./normalization";
 import { decisions, eventDecisions, type Decision } from "./decisions";
 import { computePairwise, judgingModeOf, pairwiseProgress, pullShare } from "./pairwise";
-import { voteSummary, type VoteSummary } from "./voting";
+import { voteSummary, type VoteSummary } from "./voting-organizer";
 
 // The organizer's overview (DESIGN.md: one focal point, three levels, details on
 // request): the decisions that stand between the scores and the results, the

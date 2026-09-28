@@ -11,7 +11,7 @@ import type { Yardstick } from "../judging/yardstick";
 import { guardRead } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { endVoteForPublish } from "./voting";
+import { endVoteForPublish } from "./voting-organizer";
 import { judgeSet } from "./judging";
 import { computePairwise, judgingModeOf, PAIRWISE_METHOD, storePairwiseRun } from "./pairwise";
 import { METHOD, METHOD_LABEL, type ProjectRow, type Normalized, computeNormalization } from "./normalization";
