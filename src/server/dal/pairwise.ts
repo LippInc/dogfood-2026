@@ -17,6 +17,7 @@ import {
   type PairwiseFit,
   type PickRecord,
 } from "../judging/pairwise";
+import { averageRanks } from "../judging/normalize";
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -666,12 +667,9 @@ export function storePairwiseRun(tx: DbOrTx, event: EventRow, actorId: string, p
     })
     .run();
   const compared = pw.fit.projects.filter((p) => p.comparisons > 0);
-  const rankBy = (value: (p: (typeof compared)[number]) => number) => {
-    const sorted = [...compared].sort((a, b) => value(b) - value(a));
-    return new Map(sorted.map((p, i) => [p.id, i + 1]));
-  };
-  const overall = rankBy((p) => p.winPct);
-  const plain = rankBy((p) => pw.winRate.get(p.id) ?? 0);
+  // Average ranks, as the score engine stores them and the results page shows places: equal values share a place.
+  const overall = averageRanks(new Map(compared.map((p) => [p.id, p.winPct])));
+  const plain = averageRanks(new Map(compared.map((p) => [p.id, pw.winRate.get(p.id) ?? 0])));
   for (const p of pw.fit.projects) {
     const has = p.comparisons > 0;
     tx.insert(normalizedScores)

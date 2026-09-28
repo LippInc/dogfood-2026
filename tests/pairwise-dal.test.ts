@@ -5,7 +5,7 @@ import { ensureDemoOrganizer, seedCheckerSessions } from "@/server/checker";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { runMigrations } from "@/server/db/migrate";
-import { assignments, auditLog, comparisons, judgeTracks } from "@/server/db/schema";
+import { assignments, auditLog, comparisons, judgeTracks, normalizedScores } from "@/server/db/schema";
 import { setJudgeTracks } from "@/server/dal/judges";
 import { recuseAssignment } from "@/server/dal/reviews";
 import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
@@ -16,6 +16,7 @@ import { authorize, type EventFacts } from "@/server/authz";
 import { computePairwise, getPairwiseRanking, getPairwiseState, pickPairwise, pullShare, setJudgingMode, undoPairwise, PAIRWISE_METHOD, PULL_SHOWN_WITHIN } from "@/server/dal/pairwise";
 import { requireEvent } from "@/server/dal/events";
 import { exportFile } from "@/server/dal/exports";
+import { averageRanks } from "@/server/judging/normalize";
 import { getCommunityResults, saveVotingSettings } from "@/server/dal/voting-organizer";
 import { actorForToken } from "@/server/session";
 
@@ -306,6 +307,25 @@ describe("pairwise mode: publishing", () => {
     // win_pct is the fifth column from the end
     for (const l of lines) expect(l.split(",").at(-5), l).toBe(winPct.get(l.split(",")[0]!));
     expect(lines.length).toBe(winPct.size);
+  });
+
+  it("stores ranks that share a place on equal values, as the results page shows them (known-bad: 1, 2, 3 on a tie)", () => {
+    toPairwise();
+    const org = checker("organizer");
+    mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "only one judge compared it" });
+    setJudgeOverride(org, "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "flat scores" });
+    expect(outcome(() => publishResults(org, "evt_01")).status).toBe(200);
+    const runId = requireEvent(h.db, "evt_01").settings.publishedRunId!;
+    const rows = h.db.select().from(normalizedScores).where(eq(normalizedScores.runId, runId)).all().filter((r) => r.rawMean !== null);
+    const plain = averageRanks(new Map(rows.map((r) => [r.projectId, r.rawMean!])));
+    const fitted = averageRanks(new Map(rows.map((r) => [r.projectId, r.normalizedMean!])));
+    // Not vacuous: the plain share of comparisons won ties on the sample event (several projects won exactly half).
+    expect(new Set(rows.map((r) => r.rawMean!.toFixed(9))).size).toBeLessThan(rows.length);
+    for (const r of rows) {
+      expect(r.rankRaw).toBe(plain.get(r.projectId));
+      expect(r.rankNormalized).toBe(fitted.get(r.projectId));
+    }
   });
 
   it("publishing in pairwise mode ends an open community vote too", () => {
