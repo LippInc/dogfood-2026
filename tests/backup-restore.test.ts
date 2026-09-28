@@ -15,7 +15,7 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 let dir: string;
 let dbPath: string;
 
-function run(script: string, args: string[], extra: NodeJS.ProcessEnv = {}): { code: number; out: string } {
+function run(script: string, args: string[], extra: Record<string, string> = {}): { code: number; out: string } {
   try {
     const out = execFileSync(process.execPath, [path.join(process.cwd(), "scripts", script), ...args], {
       env: { ...process.env, DATABASE_PATH: dbPath, PORTAL_HEALTH_URL: "http://127.0.0.1:9/api/health", ...extra },
