@@ -104,7 +104,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             </Link>
           </p>
         ) : null}
-        <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-start md:gap-12">
+        <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_min(40%,460px)] md:items-start md:gap-12 lg:gap-x-16">
           <header className="min-w-0 wrap-anywhere">
             <p className="label-mono text-ink-3">
               {p.id} / {p.track.name}
@@ -207,8 +207,8 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
           </figure>
         </div>
 
-        <div className="mt-12 grid gap-10 border-t border-rule pt-10 md:grid-cols-[minmax(0,680px)_1fr] md:grid-rows-[auto_1fr] md:gap-x-16 md:gap-y-12">
-          <div>
+        <div className="mt-12 grid gap-10 border-t border-rule pt-10 lg:grid-cols-[minmax(0,1fr)_min(40%,460px)] lg:grid-rows-[auto_1fr] lg:gap-x-16 lg:gap-y-12">
+          <div className="min-w-0 lg:max-w-[680px]">
             <h2 className="text-15 font-semibold">About the project</h2>
             {p.description ? (
               <div className="mt-4 space-y-5 font-serif text-17 leading-7 whitespace-pre-line wrap-anywhere">{p.description}</div>
@@ -251,7 +251,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               </section>
             ) : null}
           </div>
-          <aside className="flex flex-col gap-10 text-14 md:col-start-2 md:row-span-2 md:row-start-1">
+          <aside className="flex flex-col gap-10 text-14 md:max-lg:grid md:max-lg:grid-cols-2 md:max-lg:items-start md:max-lg:gap-12 lg:col-start-2 lg:row-span-2 lg:row-start-1">
             {/* The entry's record, in the status strip's mono voice: what it is, where it sits, when it came in. */}
             <section aria-labelledby="entry-title">
               <h2 id="entry-title" className="border-t-2 border-ink pt-2 label-mono text-ink">
@@ -332,7 +332,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               </section>
             ) : null}
           </aside>
-          <section aria-labelledby="comments-title" className="min-w-0 border-t border-rule pt-8 pb-16 md:col-start-1">
+          <section aria-labelledby="comments-title" className="min-w-0 lg:max-w-[680px] border-t border-rule pt-8 pb-16 lg:col-start-1">
             <h2 id="comments-title" className="flex items-baseline gap-2 text-20 font-semibold">
               Comments <span className="font-mono text-13 font-normal text-ink-3 tnum">{comments.filter((c) => !c.hidden).length}</span>
             </h2>
