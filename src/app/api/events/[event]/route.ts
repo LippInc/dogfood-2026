@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: RouteContext<"/api/events/[
   return route(async () => json(getGallery((await params).event).event));
 }
 
-/** PUT /api/events/[event] { name, description, submissionsOpenAt, submissionsCloseAt, judgingCloseAt, maxTeamSize }: save the details. Organizers only. */
+/** PUT /api/events/[event] { name, description, submissionsOpenAt, submissionsCloseAt, judgingCloseAt, maxTeamSize, certificatePlaces? }: save the details. Organizers only. */
 export async function PUT(req: Request, { params }: RouteContext<"/api/events/[event]">) {
   return route(async () => {
     const body: unknown = await req.json().catch(() => null);

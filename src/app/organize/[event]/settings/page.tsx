@@ -95,7 +95,9 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             markUnsaved
             number={num(0)}
             title="Event"
-            description={event.resultsPublishedAt ? "Results are published, so the dates are final; the name, description and team size can still change." : undefined}
+            description={
+              event.resultsPublishedAt ? "Results are published, so the dates and the certificate places are final; the name, description and team size can still change." : undefined
+            }
             action={saveDetailsAction}
             hidden={hidden}
             fieldLabels={{
@@ -105,6 +107,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               submissionsCloseAt: "Submissions close",
               judgingCloseAt: "Judging closes",
               maxTeamSize: "Most people on one team",
+              certificatePlaces: "Places that earn a certificate",
             }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
@@ -123,6 +126,22 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
                 Most people on one team
                 <input type="number" name="maxTeamSize" min={1} max={20} defaultValue={event.settings.maxTeamSize ?? 4} className={input} />
                 <span className="text-12 text-ink-3">1: everyone takes part alone, under their own name, with no team to form or invite to.</span>
+              </label>
+              <label className="flex flex-col gap-1 text-13 text-ink-2">
+                Places in each track that earn a certificate of achievement
+                <input
+                  type="number"
+                  name="certificatePlaces"
+                  min={1}
+                  max={20}
+                  defaultValue={event.settings.certificatePlaces ?? 3}
+                  readOnly={Boolean(event.resultsPublishedAt)}
+                  aria-describedby="certificate-places-help"
+                  className={input}
+                />
+                <span id="certificate-places-help" className="text-12 text-ink-3">
+                  {event.resultsPublishedAt ? "Fixed: certificates are signed from publishing on." : "The rest get a certificate of participation. Fixed once results are published."}
+                </span>
               </label>
             </div>
             <UtcNow />

@@ -43,6 +43,8 @@ export const Details = z
     submissionsCloseAt: utcTime,
     judgingCloseAt: optionalUtc,
     maxTeamSize: z.coerce.number().int().min(1).max(20).default(4),
+    /** places per track that earn a certificate of achievement; left out, it stays as it is (3 for a new event) */
+    certificatePlaces: z.coerce.number().int().min(1).max(20).optional(),
   })
   .superRefine((d, ctx) => {
     if (d.submissionsOpenAt && Date.parse(d.submissionsOpenAt) >= Date.parse(d.submissionsCloseAt)) {
@@ -71,6 +73,9 @@ export const QuestionRows = z
     }),
   )
   .max(20);
+/** Places in each track that earn a certificate of achievement, unless the organizer sets it. */
+export const DEFAULT_CERTIFICATE_PLACES = 3;
+
 /** Criteria in one rubric: room for a detailed rubric; the judge console and the results lay out this many. */
 export const MAX_CRITERIA = 16;
 export const RubricRows = z
@@ -158,7 +163,7 @@ export function createEvent(actor: Actor | null, body: unknown) {
           submissionsOpenAt: d.submissionsOpenAt,
           submissionsCloseAt: d.submissionsCloseAt,
           judgingCloseAt: d.judgingCloseAt,
-          settings: { maxTeamSize: d.maxTeamSize },
+          settings: { maxTeamSize: d.maxTeamSize, ...(d.certificatePlaces ? { certificatePlaces: d.certificatePlaces } : {}) },
           createdAt: now,
         })
         .run();
@@ -265,9 +270,17 @@ export function updateEventDetails(actor: Actor | null, idOrSlug: string, body: 
         before.maxTeamSize = e.settings.maxTeamSize ?? 4;
         after.maxTeamSize = d.maxTeamSize;
       }
+      // Certificates are signed when people ask for them, from publishing on, so the places that earn one are
+      // fixed then: a change afterwards would give two people with the same place different certificates.
+      const places = d.certificatePlaces ?? e.settings.certificatePlaces ?? DEFAULT_CERTIFICATE_PLACES;
+      if ((e.settings.certificatePlaces ?? DEFAULT_CERTIFICATE_PLACES) !== places) {
+        resultsFinal(e, "the places that earn a certificate are");
+        before.certificatePlaces = e.settings.certificatePlaces ?? DEFAULT_CERTIFICATE_PLACES;
+        after.certificatePlaces = places;
+      }
       if (Object.keys(after).length === 0) return { result: { id: e.id }, audit: null };
       tx.update(events)
-        .set({ ...next, settings: { ...e.settings, maxTeamSize: d.maxTeamSize } })
+        .set({ ...next, settings: { ...e.settings, maxTeamSize: d.maxTeamSize, certificatePlaces: places } })
         .where(eq(events.id, e.id))
         .run();
       return { result: { id: e.id }, audit: { action: "event.update", eventId: e.id, targetType: "event", targetId: e.id, before, after } };

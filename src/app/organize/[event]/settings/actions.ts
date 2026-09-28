@@ -50,6 +50,7 @@ export async function saveDetailsAction(_prev: ActionResult, form: FormData): Pr
         submissionsCloseAt: form.get("submissionsCloseAt"),
         judgingCloseAt: form.get("judgingCloseAt"),
         maxTeamSize: form.get("maxTeamSize"),
+        certificatePlaces: form.get("certificatePlaces") ?? undefined,
       }),
     "Saved. The public pages show the new details now.",
   );

@@ -14,6 +14,7 @@ import { getPublishedResults, publishResults } from "@/server/dal/results";
 import { updateEventDetails } from "@/server/dal/organize";
 import { requireEvent } from "@/server/dal/events";
 import { issueAllRecords, issueOwnRecord, issueOwnRecordRequest, getRecord, keysDocument, listRecords, verifyRecord } from "@/server/dal/records";
+import { competitionPlaces } from "@/lib/places";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -243,6 +244,53 @@ describe("signed records and certificates", () => {
     const { id: winnerId } = issueOwnRecord(actorById(member.id), "evt_01", "participant");
     const winnerRecord = getRecord(winnerId).envelope.record as ParticipantRecord;
     expect(winnerRecord.project.awards.some((a) => a.startsWith("1st place") || a.startsWith("Joint 1st place"))).toBe(true);
+  });
+
+  /** A member of the first project that holds the given place (not joint) in some track, once published. */
+  function memberAtPlace(place: number) {
+    const results = getPublishedResults("evt_01");
+    if (!results.published) throw new Error("results should be published");
+    for (const t of results.tracks) {
+      const places = competitionPlaces(t.rows);
+      const i = places.findIndex((p) => p.place === place && !p.joint);
+      if (i < 0) continue;
+      const projectId = t.rows[i]!.projectId;
+      const m = one<{ id: string } | undefined>(
+        "SELECT tm.user_id AS id FROM team_members tm JOIN projects p ON p.team_id = tm.team_id WHERE tm.event_id = 'evt_01' AND p.id = ? LIMIT 1",
+        projectId,
+      );
+      if (m) return { userId: m.id, track: t.name };
+    }
+    throw new Error(`no track has a lone place ${place} with a member`);
+  }
+
+  const details = (extra: Record<string, unknown>) => {
+    const e = one<{ name: string; description: string; s: string; o: string | null; j: string | null }>(
+      "SELECT name, description, submissions_close_at AS s, submissions_open_at AS o, judging_close_at AS j FROM events WHERE id = 'evt_01'",
+    );
+    return { name: e.name, description: e.description, submissionsCloseAt: e.s, submissionsOpenAt: e.o ?? "", judgingCloseAt: e.j ?? "", maxTeamSize: 4, ...extra };
+  };
+
+  it("by default only 1st to 3rd earn a certificate of achievement: a lone 4th place gets none", () => {
+    publish();
+    const fourth = memberAtPlace(4);
+    const { id } = issueOwnRecord(actorById(fourth.userId), "evt_01", "participant");
+    expect((getRecord(id).envelope.record as ParticipantRecord).project.awards).toEqual([]);
+  });
+
+  it("the organizer can set 5 places before publishing (audited): 4th place then earns one; after publishing the number is fixed (409)", () => {
+    updateEventDetails(organizer(), "evt_01", details({ certificatePlaces: 5 }));
+    const row = auditRows().filter((r) => r.action === "event.update").at(-1)!;
+    expect(row.before).toMatchObject({ certificatePlaces: 3 });
+    expect(row.after).toMatchObject({ certificatePlaces: 5 });
+    publish();
+    const fourth = memberAtPlace(4);
+    const { id } = issueOwnRecord(actorById(fourth.userId), "evt_01", "participant");
+    expect((getRecord(id).envelope.record as ParticipantRecord).project.awards).toEqual([`4th place, ${fourth.track}`]);
+    expectHttpError(() => updateEventDetails(organizer(), "evt_01", details({ certificatePlaces: 2 })), 409, "results_published");
+    // the same number, or leaving it out, is no change and still saves the rest
+    expect(() => updateEventDetails(organizer(), "evt_01", details({ certificatePlaces: 5, name: "Sample Hack 2026 (final)" }))).not.toThrow();
+    expect(() => updateEventDetails(organizer(), "evt_01", details({}))).not.toThrow();
   });
 
   it("the organizer issues everyone's records at once, only after publishing, and only the organizer can", () => {

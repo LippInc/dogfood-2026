@@ -15,6 +15,7 @@ import { getPublishedResults } from "./results";
 import { parse } from "./parse";
 import { getCommunityResults } from "./voting-organizer";
 import { shownTitle } from "./project-fields";
+import { DEFAULT_CERTIFICATE_PLACES } from "./organize";
 
 // Signed records: a judge's participation record and a team member's certificate.
 // Each is issued once per person, event and kind, after the results are published,
@@ -63,7 +64,10 @@ function memberFacts(db: DbOrTx, eventId: string, userId: string) {
   return row ?? null;
 }
 
-/** Podium places (1st to 3rd in the project's track) and a community-vote win; nothing below the podium. */
+/**
+ * Places that earn a certificate of achievement (1st to the organizer's certificatePlaces in the project's
+ * track, 3 unless set) and a community-vote win; nothing below them.
+ */
 function awards(event: EventRow, projectId: string): string[] {
   const out: string[] = [];
   const results = getPublishedResults(event.id);
@@ -72,7 +76,7 @@ function awards(event: EventRow, projectId: string): string[] {
       const i = t.rows.findIndex((r) => r.projectId === projectId);
       if (i < 0) continue;
       const p = competitionPlaces(t.rows)[i]!;
-      if (p.place !== null && p.place <= 3) out.push(`${p.joint ? "Joint " : ""}${ordinal(p.place)} place, ${t.name}`);
+      if (p.place !== null && p.place <= (event.settings.certificatePlaces ?? DEFAULT_CERTIFICATE_PLACES)) out.push(`${p.joint ? "Joint " : ""}${ordinal(p.place)} place, ${t.name}`);
     }
   }
   const community = getCommunityResults(event.id);

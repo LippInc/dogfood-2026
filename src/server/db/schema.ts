@@ -103,6 +103,8 @@ export type EventSettings = {
   reviewsPerProject?: number;
   /** Most people on one team (invite links refuse beyond it). Default 4. */
   maxTeamSize?: number;
+  /** Places in each track that earn a certificate of achievement (1st to this). Default 3; fixed once results are published. */
+  certificatePlaces?: number;
   /** The normalization run the published results come from. */
   publishedRunId?: string;
   /** Project pairs the organizer ruled are not duplicates, as "a|b" with the ids sorted. */
