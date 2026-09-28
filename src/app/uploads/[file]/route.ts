@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /uploads/[file]: an uploaded project picture from the data volume. Only names the portal made
- * (random, with the kind read from the bytes at upload) are served, as the image type the name says;
+ * (random, each a WebP the portal drew itself at upload) are served, as the image type the name says;
  * nosniff so no browser reads one as anything else. Anything else is a plain 404.
  */
 export async function GET(_req: Request, { params }: RouteContext<"/uploads/[file]">) {
