@@ -55,7 +55,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const { track } = await searchParams;
   const actor = await currentActor();
   if (!actor) unauthorized();
-  const { event, normalization: n, decisions, notes, crossCheck } = guardPage(() => getNormalization(actor, key));
+  const { event, normalization: n, decisions, notes, crossCheck, published } = guardPage(() => getNormalization(actor, key));
   const tracks = [...new Map(n.projects.map((p) => [p.trackId, p.trackName])).entries()];
   const chosen = typeof track === "string" && tracks.some(([id]) => id === track) ? track : null;
   const rows = n.projects.filter((p) => !chosen || p.trackId === chosen);
@@ -92,8 +92,22 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
     <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Results")} person={actor.name} role="Organizer">
       <div className="flex flex-col gap-8">
         <header className="flex flex-col gap-3">
-          <p className="label-mono text-ink-2">{event.resultsPublishedAt ? "Published run" : "Preview: nothing is public until you publish"}</p>
+          <p className="label-mono text-ink-2">
+            {!event.resultsPublishedAt ? "Preview: nothing is public until you publish" : published?.differs.length ? "Worked out again: not the published ranking" : "Published run"}
+          </p>
           <h1 className="text-24 font-semibold">The ranking and how it is worked out</h1>
+          {published?.differs.length ? (
+            <div role="note" className="max-w-[860px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
+              <p className="font-semibold">
+                This view is worked out again now and differs from the ranking published {formatUtc(published.computedAt)} for {published.differs.length}{" "}
+                {published.differs.length === 1 ? "project" : "projects"}.
+              </p>
+              <p className="mt-1">
+                The published ranking stands: the public results and normalized.csv read the stored run. A difference here means the engine or the stored
+                data changed since publishing.
+              </p>
+            </div>
+          ) : null}
           <ol aria-label="What this run shows, in plain words" className="max-w-[860px] border-b border-rule text-15 wrap-anywhere">
             {summary.map((line, i) => (
               <li key={i} className="grid grid-cols-[36px_minmax(0,1fr)] items-baseline border-t border-rule py-2">

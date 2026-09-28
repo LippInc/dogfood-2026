@@ -201,6 +201,30 @@ describe("the judge ledger", () => {
     }
   });
 
+  it("after publishing, the live view says whether it still matches the published run, and names what differs when it does not", () => {
+    const org = organizer();
+    expect(getNormalization(org, "evt_01").published).toBeNull(); // nothing published yet
+    setJudgeOverride(org, "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    publishResults(org, "evt_01");
+    const same = getNormalization(org, "evt_01").published!;
+    expect(same.runId).toBeTruthy();
+    expect(same.differs).toEqual([]); // positive control: nothing moved since publishing
+
+    // something moves under the published run (a later engine; here a stored score changed past the trigger that
+    // keeps published scores final, which is the only way to move it in a test): the view says so
+    const top = getPublishedResults("evt_01");
+    if (!top.published) throw new Error("expected published results");
+    const first = top.tracks[0]!.rows[0]!.projectId;
+    h.sqlite.exec("DROP TRIGGER score_items_final_update");
+    h.sqlite
+      .prepare("UPDATE score_items SET value = 1 WHERE score_id IN (SELECT s.id FROM scores s JOIN assignments a ON a.id = s.assignment_id WHERE a.project_id = ?)")
+      .run(first);
+    const moved = getNormalization(org, "evt_01").published!;
+    expect(moved.differs.map((d) => d.id)).toContain(first);
+  });
+
   it("the duplicate's ranks and the leniency range, as JUDGING.md states them", () => {
     const org = organizer();
     const before = getNormalization(org, "evt_01").normalization;

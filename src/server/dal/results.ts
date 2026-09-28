@@ -47,6 +47,41 @@ function privateNotes(db: DbOrTx, eventId: string, rows: ProjectRow[]): PrivateN
     .map((n) => ({ ...n, projectId: canonical.get(n.projectId)! }));
 }
 
+/**
+ * After publishing, how the live view (worked out again on every read) stands against the run that was
+ * published (normalized.csv and the public results read that one): the projects whose score or rank differ.
+ * Nothing the ranking reads can change once published, so this is empty unless the engine itself changed
+ * since (a later portal version) or the data was edited outside the portal; the page says so instead of
+ * calling a different ranking the published one. Null before publishing, or for a pairwise run.
+ */
+export type PublishedCheck = { runId: string; computedAt: string; differs: { id: string; title: string; published: number | null; now: number | null }[] };
+
+function publishedCheck(db: DbOrTx, event: EventRow, now: Normalized): PublishedCheck | null {
+  const runId = event.settings.publishedRunId;
+  if (!event.resultsPublishedAt || !runId) return null;
+  const run = db.select({ method: normalizationRuns.method, at: normalizationRuns.computedAt }).from(normalizationRuns).where(eq(normalizationRuns.id, runId)).get();
+  if (!run || run.method !== METHOD) return null;
+  const stored = new Map(
+    db
+      .select({ id: normalizedScores.projectId, score: normalizedScores.normalizedMean, rank: normalizedScores.rankNormalized })
+      .from(normalizedScores)
+      .where(eq(normalizedScores.runId, runId))
+      .all()
+      .map((r) => [r.id, r]),
+  );
+  const live = now.projects.filter((p) => !p.duplicateOf);
+  const close = (a: number | null, b: number | null) => (a === null || b === null ? a === b : Math.abs(a - b) < 1e-9);
+  const differs = live
+    .filter((p) => {
+      const s = stored.get(p.id);
+      return !s || !close(s.score, p.score) || s.rank !== p.rankNormalized;
+    })
+    .map((p) => ({ id: p.id, title: p.title, published: stored.get(p.id)?.rank ?? null, now: p.rankNormalized }));
+  const liveIds = new Set(live.map((p) => p.id));
+  for (const [id, s] of stored) if (!liveIds.has(id)) differs.push({ id, title: id, published: s.rank, now: null });
+  return { runId, computedAt: run.at, differs };
+}
+
 export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
@@ -56,6 +91,7 @@ export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
     event,
     method: METHOD_LABEL,
     normalization: now,
+    published: publishedCheck(db, event, now),
     decisions: decisions(db, event, now),
     notes: privateNotes(db, event.id, now.projects),
     crossCheck: judgingModeOf(event) === "scores" ? crossCheck(db, event, now.projects) : null,
