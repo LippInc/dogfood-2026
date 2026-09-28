@@ -131,6 +131,7 @@ function openB(): Handle {
 
 type FixtureFile = {
   event: { id: string; name: string; submissions_close: string };
+  tracks: { id: string; name: string }[];
   judges: { id: string; name: string; email: string; tracks: string[] }[];
   teams: { id: string; name: string; members: string[] }[];
   projects: { id: string; team: string; track: string; title: string }[];
