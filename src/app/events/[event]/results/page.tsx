@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { LogSeal } from "@/components/results/log-seal";
-import { VoteRuleChanges } from "@/components/results/vote-rule-changes";
+import { VoteCountChanges, VoteRuleChanges } from "@/components/results/vote-rule-changes";
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { PublicShell } from "@/components/shell/public-shell";
 import { YardstickLine } from "@/components/yardstick-line";
@@ -373,6 +373,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             {community.tally ? (voted.length ? "The community's favourites" : "No community favourite this time") : "Hidden until voting closes"}
           </h2>
           <VoteRuleChanges changes={community.ruleChanges} className="mt-4" />
+          <VoteCountChanges changes={community.countChanges} className="mt-4" />
           {community.tally && !voted.length ? (
             <p className="mt-3 text-17 text-ink-2">
               Voting closed{community.closesAt ? ` on ${formatUtc(community.closesAt, { weekday: true })}` : ""} with no votes counted, so no project has a

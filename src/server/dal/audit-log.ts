@@ -6,7 +6,7 @@ import { verifyAuditChain } from "../audit";
 import { getDb, type DbOrTx } from "../db/client";
 import { formatUtc } from "@/lib/format";
 import type { TextEdit } from "@/lib/text-edit";
-import { ruleMoves } from "@/lib/vote-rules";
+import { countMoves, ruleMoves } from "@/lib/vote-rules";
 import { assignments, auditLog, events, projects, rubricCriteria, teams, tracks, users, voters } from "../db/schema";
 import { guardRead } from "../mutate";
 import { toCsv } from "../csv";
@@ -108,6 +108,11 @@ const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${ite
 
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
 const quote = (s: unknown) => `“${String(s ?? "")}”`;
+/** A merge or unmerge after the vote closed that moved the count says so, and how. */
+const countMoved = (change: unknown): Part[] =>
+  change && typeof change === "object" && "moves" in change
+    ? [{ text: ` after voting closed, which moved the final community count (${countMoves(change as Parameters<typeof countMoves>[0])})` }]
+    : [];
 
 /** At most this much of a changed text goes into a sentence; the row itself (the CSV's after column) holds all of it. */
 const CLIP = 160;
@@ -360,9 +365,9 @@ function sentence(r: Row, n: Names): Part[] {
     case "event.organizer_removed":
       return [actor, t(" removed "), person(target), t(" as an organizer")];
     case "project.merge":
-      return [actor, t(" merged "), project(target), { text: ` ${target}`, mono: true }, t(" into "), { text: String(after.into), mono: true }];
+      return [actor, t(" merged "), project(target), { text: ` ${target}`, mono: true }, t(" into "), { text: String(after.into), mono: true }, ...countMoved(after.countChange)];
     case "project.unmerge":
-      return [actor, t(" undid the merge of "), project(target)];
+      return [actor, t(" undid the merge of "), project(target), ...countMoved(after.countChange)];
     case "project.not_duplicate":
       return [actor, t(` ruled ${(after.ids as string[] | undefined)?.join(" and ") ?? target} are different projects: ${quote(after.reason)}`)];
     case "project.not_duplicate_undo":

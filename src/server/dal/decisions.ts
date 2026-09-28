@@ -13,6 +13,7 @@ import { finishedReviews, judgeSet, submittedProjects, type ProjectInfo } from "
 import { computePairwise, judgingModeOf, pairwiseDecisions, type CoinFlipDecision, type PairwiseComputed } from "./pairwise";
 import { parse } from "./parse";
 import { computeNormalization, type Normalized } from "./normalization";
+import { countBeforeChange, recordCountChange } from "./voting-organizer";
 
 // The decisions that stand between an event's scores and published results, and the
 // audited actions that settle them: a judge override (with a required reason), a duplicate
@@ -281,10 +282,12 @@ export function mergeDuplicate(actor: Actor | null, eventIdOrSlug: string, body:
     if (!keep || !dup || keep.status !== "submitted" || dup.status !== "submitted") throw new NotFoundError("Submitted project");
     if (dup.duplicateOf || keep.duplicateOf) throw new ConflictError("already_merged", "One of these copies is already merged.");
     if (rows.some((r) => r.duplicateOf === duplicateId)) throw new ConflictError("already_merged", "Another copy is merged into this one; undo that first.");
+    const count = countBeforeChange(tx, event);
     tx.update(projects).set({ duplicateOf: keepId }).where(eq(projects.id, duplicateId)).run();
+    const countChange = recordCountChange(tx, event, count, { kind: "merge", keepId, duplicateId });
     return {
       result: { keepId, duplicateId },
-      audit: { action: "project.merge", eventId: event.id, targetType: "project", targetId: duplicateId, after: { into: keepId } },
+      audit: { action: "project.merge", eventId: event.id, targetType: "project", targetId: duplicateId, after: { into: keepId, ...(countChange ? { countChange } : {}) } },
     };
   });
 }
@@ -302,10 +305,19 @@ export function unmergeDuplicate(actor: Actor | null, eventIdOrSlug: string, bod
       .get();
     if (!row) throw new NotFoundError("Project");
     if (!row.duplicateOf) return { result: { duplicateId }, audit: null };
+    const count = countBeforeChange(tx, event);
     tx.update(projects).set({ duplicateOf: null }).where(eq(projects.id, duplicateId)).run();
+    const countChange = recordCountChange(tx, event, count, { kind: "unmerge", keepId: row.duplicateOf, duplicateId });
     return {
       result: { duplicateId },
-      audit: { action: "project.unmerge", eventId: event.id, targetType: "project", targetId: duplicateId, before: { into: row.duplicateOf } },
+      audit: {
+        action: "project.unmerge",
+        eventId: event.id,
+        targetType: "project",
+        targetId: duplicateId,
+        before: { into: row.duplicateOf },
+        ...(countChange ? { after: { countChange } } : {}),
+      },
     };
   });
 }

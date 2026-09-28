@@ -120,6 +120,8 @@ export type EventSettings = {
   weightChanges?: WeightChange[];
   /** Changes to who may vote or how many favourites each, made after the first ballot, each with its reason; the count shows them. */
   voteRuleChanges?: VoteRuleChange[];
+  /** Duplicate merges and unmerges made after the voting window closed that moved the final count; the count shows them. */
+  voteCountChanges?: VoteCountChange[];
 };
 
 /** Who may vote and how many favourites each: the community vote's counting rules. */
@@ -127,6 +129,18 @@ export type VoteRules = { modes: ("account" | "listed" | "link")[]; votesPerVote
 
 /** One change to the counting rules after the first ballot: when, why, and the rules before and after. */
 export type VoteRuleChange = { at: string; reason: string; before: VoteRules; after: VoteRules };
+
+/**
+ * A merge or unmerge of a duplicate after the voting window closed that moved the (final, public) count:
+ * when, which copies, and each project whose count moved (null: no row of its own, a merged copy).
+ */
+export type VoteCountChange = {
+  at: string;
+  kind: "merge" | "unmerge";
+  keep: { id: string; title: string };
+  duplicate: { id: string; title: string };
+  moves: { projectId: string; title: string; before: number | null; after: number | null }[];
+};
 
 /** One weight change after judging began: when, why, and the criteria's weights before and after. */
 export type WeightChange = {

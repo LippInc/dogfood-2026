@@ -838,6 +838,54 @@ describe("the count follows merges and team changes", () => {
     expect(votesFor("prj_07")).toBe(2); // y, z
   });
 
+  it("known-bad: a merge or unmerge after the close that moves the final count is recorded beside the count and in its audit row", () => {
+    openVoting();
+    const x = newVoter("usr_vx");
+    const y = newVoter("usr_vy");
+    castBallot(x, "evt_01", null, { projectIds: ["prj_41"] }, CLIENT);
+    castBallot(y, "evt_01", null, { projectIds: ["prj_07", "prj_41"] }, CLIENT);
+    close();
+    expect(votesFor("prj_07")).toBe(1);
+    expect(votesFor("prj_41")).toBe(2);
+    expect(getCommunityResults("evt_01").countChanges).toEqual([]);
+
+    mergeDuplicate(org(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    expect(votesFor("prj_07")).toBe(2); // x through the merge, y once
+    const [merged] = getCommunityResults("evt_01").countChanges;
+    expect(merged).toMatchObject({ kind: "merge", keep: { id: "prj_07" }, duplicate: { id: "prj_41" } });
+    expect(merged!.moves).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ projectId: "prj_07", before: 1, after: 2 }),
+        expect.objectContaining({ projectId: "prj_41", before: 2, after: null }),
+      ]),
+    );
+    expect(getVotingAdmin(org(), "evt_01").settings.countChanges).toHaveLength(1);
+    const mergeRow = auditRows().filter((r) => r.action === "project.merge").at(-1)!;
+    expect(mergeRow.after).toMatchObject({ into: "prj_07", countChange: { kind: "merge" } });
+    const mergeLine = getAuditLog(org(), "evt_01").lines.find((l) => l.action === "project.merge")!;
+    expect(mergeLine.parts.map((p) => p.text).join("")).toContain("after voting closed");
+
+    unmergeDuplicate(org(), "evt_01", { duplicateId: "prj_41" });
+    expect(votesFor("prj_41")).toBe(2);
+    const changes = getCommunityResults("evt_01").countChanges;
+    expect(changes.map((c) => c.kind)).toEqual(["merge", "unmerge"]);
+    expect(changes[1]!.moves).toEqual(expect.arrayContaining([expect.objectContaining({ projectId: "prj_41", before: null, after: 2 })]));
+    expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
+  it("positive controls: a merge while voting is open, or one after the close that moves no vote, adds no note", () => {
+    openVoting();
+    const x = newVoter("usr_vx");
+    castBallot(x, "evt_01", null, { projectIds: ["prj_07"] }, CLIENT);
+    mergeDuplicate(org(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    unmergeDuplicate(org(), "evt_01", { duplicateId: "prj_41" });
+    close();
+    const noVotes = getCommunityResults("evt_01").tally!.filter((t) => t.votes === 0 && t.openLink === 0).map((t) => t.projectId);
+    mergeDuplicate(org(), "evt_01", { keepId: noVotes[0]!, duplicateId: noVotes[1]! });
+    expect(getCommunityResults("evt_01").countChanges).toEqual([]);
+    expect((auditRows().filter((r) => r.action === "project.merge").at(-1)!.after as Record<string, unknown>).countChange).toBeUndefined();
+  });
+
   it("known-bad: refused entries after the close are bounded by the entry limit, so the public link cannot grow the log without end", () => {
     openVoting();
     const { code } = makeVotingLink(org(), "evt_01");

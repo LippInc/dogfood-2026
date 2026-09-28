@@ -3,7 +3,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor, VoterKind } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { events, projects, teamMembers, teams, users, voters, votes, type VoteRuleChange, type VoteRules } from "../db/schema";
+import { events, projects, teamMembers, teams, users, voters, votes, type VoteCountChange, type VoteRuleChange, type VoteRules } from "../db/schema";
 import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { appendAudit } from "../audit";
@@ -349,6 +349,53 @@ function tally(db: DbOrTx, event: EventRow): Tally[] {
   }));
 }
 
+/**
+ * The count is public and final once the window closes, but a duplicate can still be merged or
+ * unmerged until the results are published, and the count follows the merge. So such a change is
+ * never silent: take the count before it (null while the window is not closed); after it,
+ * recordCountChange keeps what moved on the event, shown beside the count, and returns it for the
+ * merge's audit row. Null when no vote moved.
+ */
+export function countBeforeChange(tx: DbOrTx, event: EventRow): Tally[] | null {
+  return votingState(event) === "closed" ? tally(tx, event) : null;
+}
+
+export function recordCountChange(
+  tx: DbOrTx,
+  event: EventRow,
+  before: Tally[] | null,
+  what: { kind: VoteCountChange["kind"]; keepId: string; duplicateId: string },
+): VoteCountChange | null {
+  if (!before) return null;
+  const after = tally(tx, event);
+  const was = new Map(before.map((r) => [r.projectId, r]));
+  const now = new Map(after.map((r) => [r.projectId, r]));
+  const moves = [...new Set([...was.keys(), ...now.keys()])]
+    .map((id) => ({ projectId: id, title: (now.get(id) ?? was.get(id))!.title, before: was.get(id)?.votes ?? null, after: now.get(id)?.votes ?? null }))
+    .filter((m) => m.before !== m.after && ((m.before ?? 0) > 0 || (m.after ?? 0) > 0));
+  if (!moves.length) return null;
+  const titles = new Map(
+    tx
+      .select({ id: projects.id, title: projects.title })
+      .from(projects)
+      .where(inArray(projects.id, [what.keepId, what.duplicateId]))
+      .all()
+      .map((p) => [p.id, p.title]),
+  );
+  const change: VoteCountChange = {
+    at: new Date().toISOString(),
+    kind: what.kind,
+    keep: { id: what.keepId, title: titles.get(what.keepId) ?? what.keepId },
+    duplicate: { id: what.duplicateId, title: titles.get(what.duplicateId) ?? what.duplicateId },
+    moves,
+  };
+  tx.update(events)
+    .set({ settings: { ...event.settings, voteCountChanges: [...(event.settings.voteCountChanges ?? []), change] } })
+    .where(eq(events.id, event.id))
+    .run();
+  return change;
+}
+
 export type DuplicateGroup = { key: string; voters: { id: string; kind: VoterKind; picks: number; createdAt: string; voided: boolean }[] };
 
 export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
@@ -391,6 +438,7 @@ export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
       /** the counting rule is fixed from the first ballot on; from then on the other rules change only with a reason */
       countRuleFixed: anyBallotCast(db, event.id),
       ruleChanges: event.settings.voteRuleChanges ?? [],
+      countChanges: event.settings.voteCountChanges ?? [],
     },
     state,
     turnout: {
@@ -411,9 +459,10 @@ export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
 
 /**
  * countLink: whether the open link's votes add to `votes` (each row shows them apart either way);
- * ruleChanges: changes to who may vote or the favourites per voter made after the first ballot, with their reasons
+ * ruleChanges: changes to who may vote or the favourites per voter made after the first ballot, with their reasons;
+ * countChanges: duplicate merges and unmerges after the close that moved the count
  */
-export type CommunityResults = { state: VotingState; closesAt: string | null; countLink: boolean; ruleChanges: VoteRuleChange[]; tally: Tally[] | null };
+export type CommunityResults = { state: VotingState; closesAt: string | null; countLink: boolean; ruleChanges: VoteRuleChange[]; countChanges: VoteCountChange[]; tally: Tally[] | null };
 
 /** The public community vote: only after the window closes (organizers see it live in getVotingAdmin). */
 export function getCommunityResults(eventIdOrSlug: string): CommunityResults {
@@ -425,6 +474,7 @@ export function getCommunityResults(eventIdOrSlug: string): CommunityResults {
     closesAt: event.votingCloseAt,
     countLink: votingSettings(event).countLink,
     ruleChanges: event.settings.voteRuleChanges ?? [],
+    countChanges: event.settings.voteCountChanges ?? [],
     tally: state === "closed" ? tally(db, event) : null,
   };
 }

@@ -18,3 +18,23 @@ export function ruleMoves(change: { before: Rules; after: Rules }): string {
   if (closed.length) parts.push(`closed to ${andList(closed.map((m) => WAYS[m] ?? m))}`);
   return parts.join("; ");
 }
+
+type CountChange = {
+  kind: "merge" | "unmerge";
+  keep: { title: string };
+  duplicate: { title: string };
+  moves: { title: string; before: number | null; after: number | null }[];
+};
+
+/**
+ * A duplicate merged or unmerged after the vote closed, and how it moved the count, in words:
+ * "“Relay 2” merged into “Relay”: “Relay” 1 → 2 votes, “Relay 2” 2 → merged".
+ */
+export function countMoves(change: CountChange): string {
+  const what =
+    change.kind === "merge"
+      ? `“${change.duplicate.title}” merged into “${change.keep.title}”`
+      : `“${change.duplicate.title}” no longer merged into “${change.keep.title}”`;
+  const moved = change.moves.map((m) => `“${m.title}” ${m.before ?? "merged"} → ${m.after ?? "merged"}`).join(", ");
+  return `${what}: votes ${moved}`;
+}

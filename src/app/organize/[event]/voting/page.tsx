@@ -7,7 +7,7 @@ import { formatUtc } from "@/lib/format";
 import { guardPage, utcInput } from "@/lib/page-guard";
 import { currentActor, emailIsOn, getVotingAdmin } from "@/server/dal";
 import { NewVoterLinkForm, VoidForm, VoterListForm, VotingLinkForm, VotingSettingsForm } from "./forms";
-import { VoteRuleChanges } from "@/components/results/vote-rule-changes";
+import { VoteCountChanges, VoteRuleChanges } from "@/components/results/vote-rule-changes";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Community vote" };
@@ -176,6 +176,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
       </h2>
       {v.state === "open" ? <p className="mt-1 text-14 text-ink-2">Live, and hidden from everyone but organizers until the window closes.</p> : null}
       <VoteRuleChanges changes={v.settings.ruleChanges} className="mt-3" />
+      <VoteCountChanges changes={v.settings.countChanges} className="mt-3" />
       {withLink ? (
         <p className="mt-1 text-14 text-ink-2">
           Open-link ballots are hatched and counted apart, on the right of each row:{" "}
