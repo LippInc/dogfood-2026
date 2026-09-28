@@ -57,23 +57,27 @@ export default async function EmbedPage({
           <PageMark anchor="right" cols={20} rows={4} className="absolute top-0 right-0 @min-[160px]:hidden" />
         </div>
       </div>
-      <ul className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+      {/* Frames are narrow: under 480 px each project is a row (a small face beside its title), so a phone-sized frame
+          shows six projects, not two; wider, a grid of tiles at least 200 px wide (four across a 900 px frame). */}
+      <ul className="mt-4 grid grid-cols-1 gap-2 min-[480px]:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] min-[480px]:gap-4">
         {projects.map((p) => (
           <li key={p.id} className="flex">
             <a
               href={`${origin}/events/${g.event.slug}/projects/${p.id}`}
               target="_blank"
               rel="noopener"
-              className="tile relative flex w-full flex-col rounded-xs border border-rule bg-surface hover:border-edge"
+              className="tile relative flex w-full flex-row rounded-xs border border-rule bg-surface hover:border-edge min-[480px]:flex-col"
             >
-              <span className="relative block overflow-hidden rounded-t-xs">
-                <Face id={p.id} className="block aspect-[16/9] w-full" />
-                <span className="absolute left-2 top-2 rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2">{p.id}</span>
+              <span className="relative block w-[112px] shrink-0 overflow-hidden rounded-l-xs min-[480px]:w-full min-[480px]:rounded-l-none min-[480px]:rounded-t-xs">
+                <Face id={p.id} className="block w-full min-[480px]:hidden" cols={28} rows={16} />
+                <Face id={p.id} className="hidden aspect-[16/9] w-full min-[480px]:block" />
+                <span className="absolute left-2 top-2 hidden rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 min-[480px]:block">{p.id}</span>
               </span>
               <span className="crop-marks" aria-hidden="true" />
-              <span className="block p-3">
-                <span className="block font-display text-17 leading-6">{p.title}</span>
-                <span className="mt-1 block text-13 text-ink-2">
+              <span className="flex min-w-0 flex-col justify-center px-3 py-2 min-[480px]:block min-[480px]:p-3">
+                <span className="font-mono text-12 text-ink-3 min-[480px]:hidden">{p.id}</span>
+                <span className="block font-display text-15 leading-5 min-[480px]:text-17 min-[480px]:leading-6">{p.title}</span>
+                <span className="mt-0.5 block text-13 text-ink-2 min-[480px]:mt-1">
                   {p.teamName} · {p.trackName}
                 </span>
               </span>
