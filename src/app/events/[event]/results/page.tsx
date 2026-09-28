@@ -162,7 +162,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </h2>
                   <p className="text-13 text-ink-3">One per track. Each opens its track below.</p>
                 </div>
-                {/* two to a row even on a phone, the face on top there: the winners read as a podium, not a list of small cards */}
+                {/* two to a row even on a phone, the face on top at every width: the winners read as a podium, not a list of small cards */}
                 <ol className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 lg:grid-cols-4">
                   {winners.map((w) => (
                     <li key={w.track.id} className="reveal" style={{ "--i": w.index } as CSSProperties}>
@@ -171,12 +171,12 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           <span className="font-mono text-12 tnum text-ink-3">{two(w.index + 1)}</span>
                           <span className="truncate">{w.track.name}</span>
                         </span>
-                        <span className="mt-3 grid gap-2 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-start sm:gap-3">
+                        <span className="mt-3 grid gap-2.5">
                           <span className="block overflow-hidden rounded-xs border border-rule">
                             <Face id={w.first.projectId} cols={32} rows={18} />
                           </span>
                           <span className="min-w-0 wrap-anywhere">
-                            <span className="block font-display text-17 leading-tight group-hover:underline">{w.first.title}</span>
+                            <span className="block font-display text-17 leading-tight group-hover:underline lg:text-20">{w.first.title}</span>
                             <span className="mt-0.5 block text-13 text-ink-2">{w.first.teamName}</span>
                             <span className="mt-1.5 block text-13 tnum">
                               <span className="text-15 font-semibold">{fmtScore(w.first.score)}</span> <span className="text-ink-2">{fmtSe(w.first.se)}</span>
