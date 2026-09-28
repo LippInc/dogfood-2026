@@ -171,7 +171,8 @@ function announceWhenWarm(event: { id: string; slug: string } | null, url: strin
 
 /**
  * Exit instead of serving 500s from a half-seeded database: `docker compose up`
- * then shows the crash and its reason, and the container stops.
+ * then shows the crash and its reason (the restart policy tries again, with a
+ * growing delay, so the reason keeps showing until it is fixed).
  */
 export async function bootOrExit(): Promise<void> {
   try {

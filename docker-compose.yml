@@ -4,6 +4,8 @@ services:
   portal:
     build: .
     image: dogfood-portal:local
+    # Comes back after a crash or a reboot of the Docker host; `docker compose stop` or Ctrl-C keeps it stopped.
+    restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"
     environment:

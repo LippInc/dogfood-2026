@@ -9,3 +9,14 @@ coverage
 Dockerfile
 docker-compose.yml
 __pycache__
+# Not needed to build or run the image: tests, the acceptance checker and its config (which holds the public
+# checker session headers), reports, docs and dev tools. The build uses src, public, drizzle, scripts,
+# fixtures.json and the config files at the root.
+tests
+docs
+tools
+*.py
+.dogfood.toml
+acceptance-report.txt
+isolation-report.txt
+*.md
