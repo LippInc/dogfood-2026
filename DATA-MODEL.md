@@ -1,6 +1,6 @@
 # Data model
 
-SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations in `drizzle/` (0000_init through 0010_password_resets) are applied at boot; right after them, the audit-log, score-range and published-results triggers are re-asserted from `src/server/db/triggers.ts`. Published results are final in the database too: `normalization_runs` and `normalized_scores` reject every UPDATE and DELETE; once an event's `results_published_at` is set, UPDATE and DELETE on its `scores`, `score_items`, `score_comments` and `comparisons` are rejected, and neither `results_published_at` nor the published run (`settings.publishedRunId`) can change. New rows after publishing are refused by the app, not by a trigger: the boot import inserts with ON CONFLICT DO NOTHING, which fires BEFORE INSERT triggers even for the rows it skips. All timestamps are ISO 8601 text in UTC, and several carry a `julianday(...) is not null` CHECK so a malformed date cannot be stored. Ids are text: rows created in the app get a prefixed random string (`usr_`, `prj_`, `evt_`, ...), while rows imported from the organizers' fixture keep the fixture's ids (`evt_01`, `trk_03`, `prj_32`); imported team members, who have no id in the fixture, get `usr_` and a hash of their email, so a second import finds the same row. JSON columns hold settings, lists and documents (event settings, gallery and tag lists, rubric anchors, run parameters, audit snapshots, webhook payloads, signed envelopes); every relation is a real table. Enum-like and range columns carry real CHECK constraints (Drizzle's TypeScript-only enums are not trusted).
+SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations in `drizzle/` (0000_init through 0011_outbox) are applied at boot; right after them, the audit-log, score-range and published-results triggers are re-asserted from `src/server/db/triggers.ts`. Published results are final in the database too: `normalization_runs` and `normalized_scores` reject every UPDATE and DELETE; once an event's `results_published_at` is set, UPDATE and DELETE on its `scores`, `score_items`, `score_comments` and `comparisons` are rejected, and neither `results_published_at` nor the published run (`settings.publishedRunId`) can change. New rows after publishing are refused by the app, not by a trigger: the boot import inserts with ON CONFLICT DO NOTHING, which fires BEFORE INSERT triggers even for the rows it skips. All timestamps are ISO 8601 text in UTC, and several carry a `julianday(...) is not null` CHECK so a malformed date cannot be stored. Ids are text: rows created in the app get a prefixed random string (`usr_`, `prj_`, `evt_`, ...), while rows imported from the organizers' fixture keep the fixture's ids (`evt_01`, `trk_03`, `prj_32`); imported team members, who have no id in the fixture, get `usr_` and a hash of their email, so a second import finds the same row. JSON columns hold settings, lists and documents (event settings, gallery and tag lists, rubric anchors, run parameters, audit snapshots, webhook payloads, signed envelopes); every relation is a real table. Enum-like and range columns carry real CHECK constraints (Drizzle's TypeScript-only enums are not trusted).
 
 ## People and sessions
 
@@ -76,6 +76,10 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 **`webhook_deliveries`** — the outbox and delivery log; a row is written in the same transaction as the change it announces, so none is lost or invented. `id`; `webhook_id`; `audit_id` (the audit row it came from); `action`; `payload` json; `status` (`pending` | `delivered` | `failed`); `attempts` (0–20); `next_attempt_at`; `last_attempt_at`; `response_status`; `response_body`; `error`; `created_at`; `delivered_at`.
 
+## Email
+
+**`outbox`** — one row per message the portal mails, or would have mailed while email is off (`SMTP_URL` unset). `id`; `event_id` (null for the portal's own mail: password resets, administrator setup); `kind` (`judge_invite` | `voter_link` | `password_reset` | `claim_link` | `judge_reminder` | `admin_setup`); `to_email` (CHECK: holds an @); `subject` (1–200 characters); `body` (1–20,000 characters); `status` (`sent` | `failed` | `off`); `error`; `created_by` (null: the system, at start); `created_at`; `sent_at` (CHECK: set exactly when `status` is `sent`). An event's organizers read its rows; administrators read the portal's.
+
 ## API tokens and account claims
 
 **`api_tokens`** — one person's named Bearer token for scripts; it acts as its owner with the owner's permissions and cannot make or revoke tokens. `id`; `user_id`; `name` (1–60 characters); `token_hash` unique — only the SHA-256, the token is shown once; `hint` (the first characters, to tell tokens apart); `created_at`; `expires_at` (null or after `created_at`); `last_used_at`; `revoked_at`.
@@ -108,6 +112,7 @@ The chain: each row's `hash` is `sha256(prev_hash + "\n" + canonical JSON of the
 - Normalization run 1—n normalized scores; publishing an event stores which run is published in `events.settings`.
 - Voter 1—n votes; voter is a user, a listed email, or a link holder.
 - Signing key 1—n signed records; webhook 1—n deliveries; delivery references the audit row it came from.
+- Event 1—n outbox messages; a message with no event is the portal's own.
 
 ## Where the fixture lands
 
