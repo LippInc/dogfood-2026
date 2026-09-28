@@ -229,6 +229,8 @@ export const OPERATIONS: Operation[] = [
     access: "organizer",
     body: In.WebhookInput,
     ok: 201,
+    also: [422],
+    note: "A URL that resolves to a private or local address (this machine, the local network) is refused with 422, so a webhook never reaches the portal's own network; the address is checked again before every delivery. WEBHOOKS_ALLOW_PRIVATE=true lets an operator send to a receiver on their own network.",
   },
   { method: "POST", path: "/api/events/{event}/webhooks/{webhook}/disable", tag: "Webhooks", summary: "Turn a webhook off", access: "organizer" },
   { method: "POST", path: "/api/events/{event}/webhooks/{webhook}/enable", tag: "Webhooks", summary: "Turn a webhook back on", access: "organizer" },
