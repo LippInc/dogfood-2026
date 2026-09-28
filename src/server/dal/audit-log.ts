@@ -146,6 +146,8 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" saved a first draft of "), project(target)];
     case "project.update":
       return [actor, t(" edited "), project(target)];
+    case "project.image":
+      return [actor, t(after.thumbnailUrl ? " put up a new picture for " : " took down the picture of "), project(target)];
     case "judge.invite":
       return [actor, t(` made a judge invitation for ${after.name || after.email || "an open link"}`)];
     case "judge.invite_revoke":

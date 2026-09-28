@@ -57,16 +57,19 @@ describe("the API reference matches the route handlers", () => {
     expect(found.noRoute).toEqual(["GET /api/nothing/here"]);
   });
 
-  it("the document is OpenAPI 3.1 with unique operation ids, every path parameter declared, and a JSON schema for every body", () => {
+  it("the document is OpenAPI 3.1 with unique operation ids, every path parameter declared, and a JSON schema for every JSON body", () => {
     const doc = openApiDocument("http://localhost:8080");
     expect(doc.openapi).toBe("3.1.0");
     const ids = OPERATIONS.map(operationId);
     expect(new Set(ids).size).toBe(ids.length);
     for (const [p, methods] of Object.entries(doc.paths)) {
       const names = [...p.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
-      for (const op of Object.values(methods) as { parameters?: { name: string }[]; requestBody?: { content: Record<string, { schema: { type?: string } }> } }[]) {
+      for (const op of Object.values(methods) as { parameters?: { name: string }[]; requestBody?: { content: Record<string, { schema: { type?: string; contentMediaType?: string } }> } }[]) {
         expect((op.parameters ?? []).map((x) => x.name)).toEqual(names);
-        if (op.requestBody) expect(["object", "array"]).toContain(op.requestBody.content["application/json"]!.schema.type);
+        const json = op.requestBody?.content["application/json"];
+        if (json) expect(["object", "array"]).toContain(json.schema.type);
+        // a file body (the project picture) names its media types instead
+        else if (op.requestBody) for (const [type, media] of Object.entries(op.requestBody.content)) expect(media.schema).toEqual({ type: "string", contentMediaType: type });
       }
     }
     expect(() => JSON.stringify(doc)).not.toThrow();

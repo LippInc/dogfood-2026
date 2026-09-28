@@ -13,6 +13,7 @@ import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
 import { getPublishedResults } from "./normalization";
 import { myTeam, type MyTeam } from "./teams";
 import { issuesOf } from "./parse";
+import { UPLOAD_PATH } from "../uploads";
 
 // A team's project: created and edited by its members while submissions are open,
 // saved as a draft or submitted. The deadline holds in the backend: after
@@ -54,8 +55,14 @@ export const ProjectInput = z.object({
   repoUrl: optionalUrl,
   videoUrl: optionalUrl,
   liveUrl: optionalUrl,
-  /** an image on the team's own host, shown on the gallery card; http(s) only */
-  thumbnailUrl: optionalUrl,
+  /** the gallery card's image: one uploaded here (its /uploads/ address, sent back as it is) or on the team's own host, http(s) only */
+  thumbnailUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((v) => v === "" || UPLOAD_PATH.test(v) || webUrl.safeParse(v).success, WEB_URL.message)
+    .optional()
+    .transform((v) => (v ? v : null)),
   galleryUrls: z.array(webUrl).max(MAX_GALLERY_IMAGES, `at most ${MAX_GALLERY_IMAGES} images`).default([]),
   tags: tagList,
   answers: z.record(z.string(), z.string().trim().max(5_000)).default({}),

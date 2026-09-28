@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFormAction } from "@/components/use-form-action";
 import type { ActionResult, Question } from "@/server/dal";
 import { saveProjectAction } from "./actions";
+import { PictureField } from "./picture-field";
 
 /** The labels a refused save names, for the fields a person sees on this form. */
 const LABELS: Record<string, string> = {
@@ -19,7 +20,7 @@ const LABELS: Record<string, string> = {
   repoUrl: "Repository",
   videoUrl: "Demo video",
   liveUrl: "Live demo",
-  thumbnailUrl: "Thumbnail",
+  thumbnailUrl: "Picture",
   tags: "Tech tags",
   galleryUrls: "Image gallery",
 };
@@ -178,9 +179,7 @@ export function ProjectForm({
           </Part>
           <Part no="04" title="Pictures and tags">
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field id="thumbnailUrl" label="Thumbnail" help="The address of one image, shown on your gallery card at 16:9." error={e.thumbnailUrl}>
-                {(a) => <Input {...a} name="thumbnailUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.thumbnailUrl ?? ""} />}
-              </Field>
+              <PictureField projectId={project?.id ?? null} initial={project?.thumbnailUrl ?? null} error={e.thumbnailUrl} />
               <Field id="tags" label="Tech tags" help="Up to 8, separated by commas. Visitors can search for them." error={e.tags}>
                 {(a) => <Input {...a} name="tags" placeholder="rust, webgpu, accessibility" defaultValue={(project?.tags ?? []).join(", ")} />}
               </Field>

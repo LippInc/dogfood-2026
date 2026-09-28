@@ -87,7 +87,7 @@ export type Refusal = { ok: false; status: 401 | 403; code: string; message: str
 export type Decision = { ok: true } | Refusal;
 
 const allow: Decision = { ok: true };
-const unauthenticated: Refusal = {
+export const unauthenticated: Refusal = {
   ok: false,
   status: 401,
   code: "unauthenticated",

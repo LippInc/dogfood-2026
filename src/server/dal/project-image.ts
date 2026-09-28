@@ -1,0 +1,72 @@
+import "server-only";
+import { and, eq } from "drizzle-orm";
+import { unauthenticated, type Actor } from "../authz";
+import type { Tx } from "../db/client";
+import { projects, teamMembers } from "../db/schema";
+import { AuthzError, HttpError, NotFoundError } from "../errors";
+import { mutate } from "../mutate";
+import { discardUpload, MAX_IMAGE_BYTES, sniffImage, storeUpload } from "../uploads";
+import { eventFacts, requireEvent } from "./events";
+
+// A project's picture, uploaded by its team. The same rule as editing the project (project.edit:
+// its team's members, while submissions are open), decided in the one transaction with the change
+// and its audit row. The file is written first, because a file cannot join a SQLite transaction;
+// if the transaction refuses or fails, the file is removed again, so a refused upload leaves nothing.
+// The picture it replaces, when that was an upload too, is removed after the commit.
+
+function teamWork(actor: Actor | null, projectId: string, into: { project?: typeof projects.$inferSelect }) {
+  return (tx: Tx) => {
+    const p = tx.select().from(projects).where(eq(projects.id, projectId)).get();
+    if (!p) throw new NotFoundError("Project");
+    into.project = p;
+    const event = requireEvent(tx, p.eventId);
+    const onTeam = actor
+      ? Boolean(tx.select({ t: teamMembers.teamId }).from(teamMembers).where(and(eq(teamMembers.teamId, p.teamId), eq(teamMembers.userId, actor.userId))).get())
+      : false;
+    return { kind: "team_work" as const, event: eventFacts(event), onTeam };
+  };
+}
+
+function setThumbnail(actor: Actor | null, projectId: string, next: (() => string) | null) {
+  const into: { project?: typeof projects.$inferSelect } = {};
+  let before: string | null = null;
+  const result = mutate({
+    actor,
+    action: "project.edit",
+    load: teamWork(actor, projectId, into),
+    run: (tx) => {
+      const p = into.project!;
+      before = p.thumbnailUrl;
+      const thumbnailUrl = next ? next() : null;
+      const now = new Date().toISOString();
+      tx.update(projects).set({ thumbnailUrl, updatedAt: now }).where(eq(projects.id, p.id)).run();
+      return {
+        result: { id: p.id, thumbnailUrl },
+        audit: { action: "project.image", eventId: p.eventId, targetType: "project", targetId: p.id, before: { thumbnailUrl: before }, after: { thumbnailUrl } },
+      };
+    },
+  });
+  if (before !== result.thumbnailUrl) discardUpload(before);
+  return result;
+}
+
+/** Upload a team's project picture: PNG, JPEG or WebP, told by its bytes, at most 2 MB. */
+export function setProjectImage(actor: Actor | null, projectId: string, bytes: Uint8Array) {
+  // no session is a 401 whatever was sent, before the bytes are looked at (the route reads no body for it)
+  if (!actor) throw new AuthzError(unauthenticated);
+  if (bytes.length > MAX_IMAGE_BYTES) throw new HttpError(413, "image_too_large", "The image is over 2 MB. Save a smaller one (1600 pixels wide is plenty) and try again.");
+  const kind = sniffImage(bytes);
+  if (!kind) throw new HttpError(415, "unsupported_image", "Only PNG, JPEG or WebP images can be uploaded.");
+  const name = storeUpload(bytes, kind);
+  try {
+    return setThumbnail(actor, projectId, () => `/uploads/${name}`) as { id: string; thumbnailUrl: string };
+  } catch (err) {
+    discardUpload(name);
+    throw err;
+  }
+}
+
+/** Take the project's picture away; an uploaded one's file goes with it. */
+export function removeProjectImage(actor: Actor | null, projectId: string) {
+  return setThumbnail(actor, projectId, null);
+}

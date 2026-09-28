@@ -17,6 +17,8 @@ export type Operation = {
   summary: string;
   access: Access;
   body?: z.ZodType;
+  /** a file as the body instead of JSON: the media types it may be */
+  upload?: readonly string[];
   ok?: number;
   /** extra refusals beyond the ones implied by access, path parameters and a body */
   also?: number[];
@@ -107,6 +109,18 @@ export const OPERATIONS: Operation[] = [
     ok: 201,
   },
   { method: "PUT", path: "/api/projects/{project}", tag: "Teams and projects", summary: "Edit your team's project until submissions close", access: "team member", body: In.ProjectInput },
+  {
+    method: "POST",
+    path: "/api/projects/{project}/image",
+    tag: "Teams and projects",
+    summary: "Upload the project's picture, the image file itself as the body; it becomes the gallery card's image",
+    access: "team member",
+    upload: ["image/png", "image/jpeg", "image/webp"],
+    ok: 201,
+    also: [413, 415],
+    note: "PNG, JPEG or WebP, told by the file's first bytes rather than its name or Content-Type, at most 2 MB. It is stored in the data volume and served at the /uploads/ address the answer gives. Until submissions close.",
+  },
+  { method: "DELETE", path: "/api/projects/{project}/image", tag: "Teams and projects", summary: "Take the project's picture down (an uploaded file is deleted)", access: "team member" },
 
   // Judging
   { method: "GET", path: "/api/events/{event}/organizers", tag: "Events", summary: "The event's organizers", access: "organizer" },
@@ -281,6 +295,7 @@ const REFUSAL: Record<number, string> = {
   409: "Not possible in the current state",
   410: "The link was used already or has expired",
   413: "The body is too large",
+  415: "The body is not a kind of file this operation takes",
   422: "The body failed validation; details lists the fields (a body of the wrong shape as a whole under request)",
   429: "Too many requests; wait the Retry-After seconds",
 };
@@ -314,6 +329,9 @@ export function openApiDocument(serverUrl: string) {
       description: `Who may call it: ${WHO[op.access]}${op.note ? ` ${op.note}` : ""}`,
       ...(params.length ? { parameters: params.map((name) => ({ name, in: "path", required: true, schema: { type: "string" } })) } : {}),
       ...(op.body ? { requestBody: { required: true, content: { "application/json": { schema: schemaOf(op.body) } } } } : {}),
+      ...(op.upload
+        ? { requestBody: { required: true, content: Object.fromEntries(op.upload.map((type) => [type, { schema: { type: "string", contentMediaType: type } }])) } }
+        : {}),
       responses: {
         [ok]: { description: ok === 201 ? "Created" : "OK" },
         ...Object.fromEntries(
