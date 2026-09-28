@@ -246,7 +246,9 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 
 `docker-compose.yml` publishes the portal on `127.0.0.1:8080` only; put it behind
 a reverse proxy that terminates HTTPS, and set `TRUST_PROXY_HOPS` (see the
-next section).
+next section). `GET /api/health` answers 200 `{"ok":true,"events":<n>}` once the
+database is open and holds an event (at once with `FIXTURES_PATH: "none"`), and
+503 before: the compose healthcheck uses it, and a proxy or a monitor can too.
 
 Back up while it runs, with SQLite's online backup; the copy lands in the volume:
 
