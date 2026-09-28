@@ -18,7 +18,7 @@ export function YardstickLine({ y, figure = false }: { y: Yardstick; figure?: bo
         yardstick for normalization). Judges with no tilt at all, scoring these same projects, would be about {f2(y.fair.median)} apart by luck alone (90 % of
         the time between {f2(y.fair.low)} and {f2(y.fair.high)}),{" "}
         {lucky ? "so this spread is what luck alone gives" : "so this spread is wider than luck alone gives: some judges are more lenient than others"}. The
-        engine takes out the leniency the projects judges share show, at most {f2(y.largestLeniency)} for any judge, which leaves {f2(y.after)}.
+        engine takes out each judge&rsquo;s leniency, measured on the projects the judges share: at most {f2(y.largestLeniency)} for any judge, which leaves {f2(y.after)}.
       </p>
       {figure ? (
         <>

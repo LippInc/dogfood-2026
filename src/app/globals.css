@@ -166,6 +166,11 @@
   a {
     text-underline-offset: 3px;
   }
+  /* The gallery's search box has its own Clear button; the browser's × beside it made two. */
+  input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
 }
 
 @layer components {

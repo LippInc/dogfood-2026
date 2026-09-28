@@ -8,8 +8,9 @@ export const dynamic = "force-dynamic";
 export async function POST(_req: Request, { params }: RouteContext<"/api/vote/[code]">) {
   return route(async () => {
     const { code } = await params;
-    const entered = enterVoting(code, await clientOf());
-    (await cookies()).set(voteCookieName(entered.eventId), entered.token, {
+    const jar = await cookies();
+    const entered = enterVoting(code, await clientOf(), (eventId) => jar.get(voteCookieName(eventId))?.value);
+    jar.set(voteCookieName(entered.eventId), entered.token, {
       httpOnly: true,
       sameSite: "lax",
       path: "/",

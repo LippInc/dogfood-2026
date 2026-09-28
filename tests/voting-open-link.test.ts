@@ -225,3 +225,52 @@ describe("a voided open-link ballot", () => {
     expect(row()).toMatchObject({ votes: 0, openLink: 1 });
   });
 });
+
+describe("one ballot per browser: the open link hands a browser back the ballot it holds", () => {
+  const linkBallots = () => (h.sqlite.prepare("SELECT COUNT(*) AS n FROM voters WHERE event_id = 'evt_01' AND kind = 'link'").get() as { n: number }).n;
+
+  it("entering again with this event's ballot cookie resumes that ballot: no second ballot, no second join row", () => {
+    openVotingApart();
+    const { code } = makeVotingLink(org(), "evt_01");
+    const first = enterVoting(code, CLIENT).token;
+    castBallot(null, "evt_01", first, { projectIds: ["prj_08"] }, CLIENT);
+
+    const again = enterVoting(code, CLIENT, (eventId) => (eventId === "evt_01" ? first : undefined));
+    expect(again.token).toBe(first);
+    expect(linkBallots()).toBe(1);
+    expect(auditCount("voter.join_link")).toBe(1);
+    expect(getBallot(null, "evt_01", again.token).picks).toEqual(["prj_08"]);
+  });
+
+  it("a browser holding no ballot, or a token that is no ballot of this event, gets a new one (the positive control)", () => {
+    openVotingApart();
+    const { code } = makeVotingLink(org(), "evt_01");
+    const first = enterVoting(code, CLIENT).token;
+    expect(enterVoting(code, CLIENT).token).not.toBe(first); // another browser: no cookie
+    expect(enterVoting(code, CLIENT, () => "no-such-ballot").token).not.toBe(first);
+    expect(linkBallots()).toBe(3);
+    expect(auditCount("voter.join_link")).toBe(3);
+  });
+
+  it("a ballot the organizer set aside stays set aside: entering again resumes it instead of handing out a fresh, counted one", () => {
+    openVotingApart();
+    const { code } = makeVotingLink(org(), "evt_01");
+    const token = enterVoting(code, CLIENT).token;
+    const cast = castBallot(null, "evt_01", token, { projectIds: ["prj_08"] }, CLIENT);
+    voidVoter(org(), "evt_01", { voterId: cast.voterId, reason: "Same browser as another ballot" });
+
+    expect(enterVoting(code, CLIENT, () => token).token).toBe(token);
+    expect(linkBallots()).toBe(1);
+    const row = getVotingAdmin(org(), "evt_01").tally!.find((x) => x.projectId === "prj_08");
+    expect(row?.openLink ?? 0).toBe(0);
+  });
+
+  it("a new open link still resumes the ballot a browser made through the old one", () => {
+    openVotingApart();
+    const old = makeVotingLink(org(), "evt_01").code;
+    const token = enterVoting(old, CLIENT).token;
+    const rotated = makeVotingLink(org(), "evt_01").code;
+    expect(enterVoting(rotated, CLIENT, () => token).token).toBe(token);
+    expect(linkBallots()).toBe(1);
+  });
+});

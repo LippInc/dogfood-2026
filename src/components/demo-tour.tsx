@@ -16,7 +16,7 @@ export const DEMO_STEPS: { label: DemoIdentity["label"]; role: string; what: str
   {
     label: "organizer",
     role: "Organizer",
-    what: "The overview: three decisions stand between the scores and the results. Settle them, publish, and open any score's working.",
+    what: "The overview: three decisions stand between the scores and the results. Settle them, publish, and see how any score was worked out.",
   },
   {
     label: "judge_a",

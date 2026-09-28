@@ -335,7 +335,15 @@ export function castBallot(actor: Actor | null, eventIdOrSlug: string, token: st
  * browser, limited per network address); a personal link is the listed voter's own
  * token. Returns the token for the browser to keep.
  */
-export function enterVoting(code: string, client: Client): { eventSlug: string; eventId: string; token: string } {
+/**
+ * `held` reads the ballot cookie this browser already holds for an event, if any: the open link
+ * promises one ballot per browser, so a browser that holds a ballot in the event gets it back.
+ */
+export function enterVoting(
+  code: string,
+  client: Client,
+  held?: (eventId: string) => string | undefined,
+): { eventSlug: string; eventId: string; token: string } {
   const db = getDb();
   const hash = sha256(code);
   const listed = db.select().from(voters).where(eq(voters.tokenHash, hash)).get();
@@ -372,6 +380,11 @@ export function enterVoting(code: string, client: Client): { eventSlug: string; 
     });
     throw new AuthzError({ ok: false, status: 403, code: "voting_closed", message: `Voting closed at ${formatUtc(event.votingCloseAt)}.` });
   }
+  // One ballot per browser: entering again resumes the ballot this browser holds (set aside or not),
+  // whichever of the event's links made it. Before, every entry handed out a fresh ballot, so one
+  // browser could cast several and a set-aside ballot came back as a new, counted one.
+  const heldToken = held?.(event.id);
+  if (heldToken && voterByToken(db, event.id, heldToken)) return { eventSlug: event.slug, eventId: event.id, token: heldToken };
   const token = newSecret(24);
   const id = newId("vtr");
   db.transaction((tx) => {

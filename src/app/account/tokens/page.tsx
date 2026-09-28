@@ -42,7 +42,7 @@ export default async function TokensPage() {
             API
           </Link>
           : send a token as <code className="font-mono text-13">Authorization: Bearer &lt;token&gt;</code>. It acts as you, {actor.name}, with exactly your
-          permissions, so make one per script and revoke it when the script is gone. A token cannot make or revoke tokens.
+          permissions, so make one per script and revoke it when the script is gone. A token cannot list, make or revoke tokens.
         </p>
         <figure className="min-w-0">
           <figcaption className="label-mono text-ink-3">Fig. 01 — a token at work</figcaption>
