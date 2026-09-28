@@ -3,7 +3,11 @@ import { plainSummary } from "@/app/organize/[event]/results/plain-summary";
 import type { JudgeStanding, Normalized, ProjectRow } from "@/server/dal";
 
 // A results-day organizer met k, β̂² and a permutation share before any plain sentence (round-3 tester).
-// plainSummary says what the run shows in words, one point each, above the statistics.
+// plainSummary says what the run shows in words, one point each, above the statistics. Each point is
+// said once: the first places in one line, the close calls in one line (the first draft gave every
+// track its own line and repeated the margin-of-error clause in seven of them), and the leniency line
+// counts only what evening out leniency moves (the first draft's count also held the moves from leaving
+// a judge out, which Fig. 01 right below counts on its own, so the two numbers disagreed).
 
 function row(o: Partial<ProjectRow> & { id: string; trackId: string }): ProjectRow {
   return {
@@ -34,18 +38,19 @@ function judge(o: Partial<JudgeStanding> & { id: string }): JudgeStanding {
 
 function run(o: Partial<Normalized> = {}): Normalized {
   const projects = [
-    row({ id: "Slow Trail", trackId: "t1", score: 4.3, se: 0.2, trackRank: 1, rankNormalized: 1 }),
-    row({ id: "Open Beacon", trackId: "t1", score: 3.6, se: 0.2, trackRank: 2, rankNormalized: 3 }),
-    row({ id: "Green Lantern", trackId: "t2", score: 4.0, se: 0.25, trackRank: 1, rankNormalized: 2 }),
-    row({ id: "Salt Loom", trackId: "t2", score: 3.9, se: 0.2, trackRank: 2, rankNormalized: 4, n: 1, underReviewed: true }),
+    row({ id: "Slow Trail", trackId: "t1", score: 4.3, se: 0.2, trackRank: 1, rankKept: 1, rankNormalized: 1, rankRaw: 1 }),
+    row({ id: "Open Beacon", trackId: "t1", score: 3.6, se: 0.2, trackRank: 2, rankKept: 2, rankNormalized: 3, rankRaw: 4 }),
+    row({ id: "Green Lantern", trackId: "t2", score: 4.0, se: 0.25, trackRank: 1, rankKept: 3, rankNormalized: 2, rankRaw: 2 }),
+    row({ id: "Salt Loom", trackId: "t2", score: 3.9, se: 0.2, trackRank: 2, rankKept: 4, rankNormalized: 4, rankRaw: 3, n: 1, underReviewed: true }),
   ];
   return {
     variance: { W: 1, beta2: 0.05, sigma2: 0.4, k: 8, measured: true },
     projects,
     judges: [judge({ id: "Ana" }), judge({ id: "Ben", n: 4 }), judge({ id: "Iva Petrova", excluded: true, flag: { judgeId: "Iva Petrova", reviews: 5, vector: [3, 3, 3] } })],
     ranked: 4,
-    moved: 2,
-    biggestMove: { id: "Open Beacon", title: "Open Beacon", from: 2, to: 3 },
+    // raw → normalized, leaving Iva out included: not what the leniency line may count
+    moved: 3,
+    biggestMove: { id: "Open Beacon", title: "Open Beacon", from: 4, to: 3 },
     excluded: ["jdg_iva"],
     signal: null,
     yardstick: null,
@@ -53,70 +58,98 @@ function run(o: Partial<Normalized> = {}): Normalized {
   };
 }
 
+const say = (n: Normalized, open = 0, published = false) => plainSummary(n, { open, published });
+
 describe("plainSummary", () => {
   it("counts what is ranked: projects, tracks, counted reviews and the judges counted", () => {
-    const [first] = plainSummary(run(), { open: 0, published: false });
-    expect(first).toBe("4 projects in 2 tracks are ranked, from 10 counted reviews by 2 judges.");
+    expect(say(run())[0]).toBe("4 projects in 2 tracks are ranked, from 10 counted reviews by 2 judges.");
   });
 
   it("says how many projects have no counted review yet", () => {
     const n = run();
-    n.projects.push(row({ id: "Dry Compass", trackId: "t2", score: null, se: null, n: 0, trackRank: null, rankNormalized: null }));
-    expect(plainSummary(n, { open: 0, published: false })[0]).toMatch(/1 project has no counted review yet, so it is not ranked\.$/);
+    n.projects.push(row({ id: "Dry Compass", trackId: "t2", score: null, se: null, n: 0, trackRank: null, rankKept: null, rankNormalized: null }));
+    expect(say(n)[0]).toMatch(/1 project has no counted review yet, so it is not ranked\.$/);
   });
 
-  it("names each track's first place, and calls a first place inside its margin a close call", () => {
-    const lines = plainSummary(run(), { open: 0, published: false });
-    expect(lines).toContain("First in Developer tools: Slow Trail, 4.30 ± 0.20.");
-    expect(lines).toContain(
-      "First in Climate: Green Lantern, 4.00 ± 0.25, only 0.10 ahead of Salt Loom: a gap inside the margin of error, so read it as a tie.",
-    );
+  it("names every track's first place in one point", () => {
+    expect(say(run())).toContain("First in each track: Slow Trail (Developer tools); Green Lantern (Climate).");
   });
 
-  it("names a shared first place as a tie", () => {
+  it("names a shared first place as tied", () => {
     const n = run();
-    n.projects[0] = { ...n.projects[0], trackRank: 1.5 };
-    n.projects[1] = { ...n.projects[1], trackRank: 1.5, score: 4.3 };
-    expect(plainSummary(n, { open: 0, published: false })).toContain("First in Developer tools: a tie between Slow Trail and Open Beacon, 4.30.");
+    n.projects[0] = { ...n.projects[0]!, trackRank: 1.5 };
+    n.projects[1] = { ...n.projects[1]!, trackRank: 1.5, score: 4.3 };
+    expect(say(n)).toContain("First in each track: Slow Trail and Open Beacon, tied (Developer tools); Green Lantern (Climate).");
   });
 
-  it("says what evening out leniency changed, or that it changed nothing", () => {
-    expect(plainSummary(run(), { open: 0, published: false })).toContain(
+  it("says once which first places lead by less than the margin of error", () => {
+    // Climate: 4.00 ahead of 3.90, inside ± 0.25; Developer tools: 4.30 ahead of 3.60, well clear
+    expect(say(run())).toContain("In Climate, first place leads by less than the margin of error (±), so read that lead as a tie.");
+    const all = run();
+    all.projects[1] = { ...all.projects[1]!, score: 4.25 };
+    expect(say(all)).toContain("In every track first place leads by less than the margin of error (±), so read those leads as ties.");
+    const clear = run();
+    clear.projects[3] = { ...clear.projects[3]!, score: 3.2 };
+    expect(say(clear)).toContain("Every first place leads by more than the margin of error (±).");
+  });
+
+  it("names the close tracks when some but not all are close", () => {
+    const n = run();
+    n.projects.push(
+      row({ id: "Iron Switch", trackId: "t3", trackName: "Security", score: 4.1, se: 0.3, trackRank: 1, rankKept: 5, rankNormalized: 5 }),
+      row({ id: "North Drift", trackId: "t3", trackName: "Security", score: 4.0, se: 0.3, trackRank: 2, rankKept: 6, rankNormalized: 6 }),
+    );
+    expect(say(n)).toContain("In 2 of the 3 tracks first place leads by less than the margin of error (±), so read those leads as ties: Climate and Security.");
+  });
+
+  it("counts what evening out leniency moves, apart from leaving a judge out, which Fig. 01 counts", () => {
+    expect(say(run())).toContain(
       "Evening out each judge's leniency moves 2 of the 4 projects by a place or more in the overall order; the most, Open Beacon, from 2nd to 3rd.",
     );
-    expect(plainSummary(run({ moved: 0, biggestMove: null }), { open: 0, published: false })).toContain(
-      "Evening out each judge's leniency changes no project's place.",
+    const still = run();
+    still.projects = still.projects.map((p) => ({ ...p, rankNormalized: p.rankKept }));
+    expect(say(still)).toContain("Evening out each judge's leniency changes no project's place.");
+    const shared = run();
+    shared.projects[1] = { ...shared.projects[1]!, rankKept: 2.5, rankNormalized: 11 };
+    expect(say(shared)).toContain(
+      "Evening out each judge's leniency moves 2 of the 4 projects by a place or more in the overall order; the most, Open Beacon, from a shared 2nd to 11th.",
     );
-    const shared = plainSummary(run({ moved: 1, biggestMove: { id: "x", title: "Open Beacon", from: 2.5, to: 11 } }), { open: 0, published: false });
-    expect(shared).toContain("Evening out each judge's leniency moves 1 of the 4 projects by a place or more in the overall order; the most, Open Beacon, from a shared 2nd to 11th.");
   });
 
   it("says plainly when leniency could not be measured or was not there", () => {
     const unmeasured = run({ variance: { W: 0, beta2: 0, sigma2: 0, k: null, measured: false } });
-    expect(plainSummary(unmeasured, { open: 0, published: false })).toContain(
-      "No project has two counted reviews yet, so nothing is evened out: places come from the plain averages.",
-    );
+    expect(say(unmeasured)).toContain("No project has two counted reviews yet, so nothing is evened out: places come from the plain averages.");
     const flat = run({ variance: { W: 1, beta2: 0, sigma2: 0.4, k: null, measured: true } });
-    expect(plainSummary(flat, { open: 0, published: false })).toContain("The judges show no steady leniency, so places come from the plain averages.");
+    expect(say(flat)).toContain("The judges show no steady leniency, so places come from the plain averages.");
   });
 
-  it("names the judges left out and the under-reviewed projects", () => {
-    const lines = plainSummary(run(), { open: 0, published: false });
+  it("names the judges left out and why, and the under-reviewed projects", () => {
+    const lines = say(run());
     expect(lines).toContain("Iva Petrova is left out for giving every project the same scores; you can count them again, with a reason, on the overview.");
     expect(lines).toContain("1 ranked project has fewer than two counted reviews and is marked under-reviewed.");
     const n = run();
-    n.judges[1] = { ...n.judges[1], excluded: true, override: { judgeId: "Ben", mode: "exclude", id: "o1", reason: "conflict", createdAt: "", createdBy: "" } };
-    expect(plainSummary(n, { open: 0, published: false })).toContain("Ben is left out by an organizer's decision; the reason is under the method below.");
+    n.judges[1] = { ...n.judges[1]!, excluded: true, override: { judgeId: "Ben", mode: "exclude", id: "o1", reason: "conflict", createdAt: "", createdBy: "" } };
+    expect(say(n)).toContain("Ben is left out by an organizer's decision; the reason is under the method below.");
   });
 
   it("ends with where the results stand: publishable, waiting on decisions (said once, in the header), or published", () => {
-    expect(plainSummary(run(), { open: 0, published: false }).at(-1)).toBe("Nothing waits on you: you can publish from the overview.");
-    expect(plainSummary(run(), { open: 2, published: false }).join(" ")).not.toMatch(/publish from the overview/);
-    expect(plainSummary(run(), { open: 0, published: true }).at(-1)).toBe("These places are published; below is how they were worked out.");
+    expect(say(run()).at(-1)).toBe("Nothing waits on you: you can publish from the overview.");
+    expect(say(run(), 2).join(" ")).not.toMatch(/publish from the overview/);
+    expect(say(run(), 0, true).at(-1)).toBe("These places are published; below is how they were worked out.");
+  });
+
+  it("stays short: one point per kind of fact, however many tracks", () => {
+    const n = run();
+    for (let t = 3; t <= 9; t++)
+      n.projects.push(
+        row({ id: `A${t}`, trackId: `t${t}`, trackName: `Track ${t}`, score: 4, se: 0.3, trackRank: 1, rankKept: 10 + t, rankNormalized: 10 + t }),
+        row({ id: `B${t}`, trackId: `t${t}`, trackName: `Track ${t}`, score: 3.9, se: 0.3, trackRank: 2, rankKept: 30 + t, rankNormalized: 30 + t }),
+      );
+    expect(say(n).length).toBeLessThanOrEqual(7);
   });
 
   it("an event with no reviews at all gets one honest line, not empty sums", () => {
-    const empty = run({ projects: [row({ id: "A", trackId: "t1", score: null, se: null, n: 0, trackRank: null, rankNormalized: null })], ranked: 0, moved: 0, biggestMove: null, judges: [] });
-    expect(plainSummary(empty, { open: 0, published: false })).toEqual(["No project has a counted review yet, so nothing is ranked."]);
+    const empty = run({ projects: [row({ id: "A", trackId: "t1", score: null, se: null, n: 0, trackRank: null, rankKept: null, rankNormalized: null })], ranked: 0, judges: [] });
+    expect(say(empty)).toEqual(["No project has a counted review yet, so nothing is ranked."]);
   });
 });
