@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SectionErrors } from "@/components/section-form";
 
 export type RowField =
@@ -11,11 +11,14 @@ export type RowField =
   | { key: string; label: string; type: "checkbox" };
 
 type Row = Record<string, string | number | boolean | undefined> & { id?: string };
+/** A row with the key React knows it by: a stored row's id, else one given when the row was made, never its place. */
+type Keyed = { k: string; row: Row };
 
 /**
  * An ordered list of small records (tracks, prizes, questions, criteria) that a
  * form submits as one hidden JSON field. Rows keep their ids, so the server can
- * tell a rename from a new row.
+ * tell a rename from a new row. Each row keeps its own key while it moves or its
+ * neighbours go, so the field being typed in and the focused button stay with their row.
  */
 export function RowsEditor({
   name,
@@ -46,20 +49,52 @@ export function RowsEditor({
   /** Optional: told the rows after every change, for a live summary beside the editor. */
   onRowsChange?: (rows: Row[]) => void;
 }) {
-  const [rows, setRows] = useState<Row[]>(initial.length ? initial : [blank]);
+  const made = useRef(0);
+  const [items, setItems] = useState<Keyed[]>(() => (initial.length ? initial : [blank]).map((row, i) => ({ k: row.id ?? `new-${i}`, row })));
+  const rows = useMemo(() => items.map((it) => it.row), [items]);
   useEffect(() => onRowsChange?.(rows), [rows, onRowsChange]);
+  // Keyboard users keep their place: after a move the pressed button stays with its row (or its
+  // twin takes over when the row reaches an end); after a remove the next row's Remove takes focus.
+  const list = useRef<HTMLOListElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const refocus = useRef<{ k: string; button: "up" | "down" | "remove" } | "add" | null>(null);
+  useLayoutEffect(() => {
+    const want = refocus.current;
+    refocus.current = null;
+    if (!want) return;
+    if (want === "add") return addButton.current?.focus();
+    const li = list.current?.querySelector<HTMLElement>(`li[data-row="${CSS.escape(want.k)}"]`);
+    const pick = (b: string) => li?.querySelector<HTMLButtonElement>(`button[data-act="${b}"]`);
+    const target = pick(want.button);
+    if (target && !target.disabled) target.focus();
+    else if (want.button !== "remove") pick(want.button === "up" ? "down" : "up")?.focus();
+  }, [items]);
   // a section's refusal names rows by their place in what was sent (the typed rows), see `typed` below
   const errors = useContext(SectionErrors);
   const set = (i: number, key: string, value: Row[string]) =>
-    setRows((r) => r.map((row, j) => (j === i ? { ...row, [key]: value } : row)));
-  const move = (i: number, d: -1 | 1) =>
-    setRows((r) => {
+    setItems((r) => r.map((it, j) => (j === i ? { ...it, row: { ...it.row, [key]: value } } : it)));
+  const focused = (e: React.MouseEvent<HTMLButtonElement>) => document.activeElement === e.currentTarget;
+  const move = (e: React.MouseEvent<HTMLButtonElement>, i: number, d: -1 | 1) => {
+    const j = i + d;
+    if (j < 0 || j >= items.length) return;
+    if (focused(e)) refocus.current = { k: items[i]!.k, button: d < 0 ? "up" : "down" };
+    setItems((r) => {
       const next = [...r];
-      const j = i + d;
-      if (j < 0 || j >= next.length) return r;
-      [next[i], next[j]] = [next[j], next[i]];
+      [next[i], next[j]] = [next[j]!, next[i]!];
       return next;
     });
+  };
+  const remove = (e: React.MouseEvent<HTMLButtonElement>, i: number) => {
+    if (focused(e)) {
+      const stay = items[i + 1] ?? items[i - 1];
+      refocus.current = stay ? { k: stay.k, button: "remove" } : "add";
+    }
+    setItems((r) => r.filter((_, j) => j !== i));
+  };
+  const add = () => {
+    made.current += 1;
+    setItems((r) => [...r, { k: `added-${made.current}`, row: { ...blank } }]);
+  };
   // A new row nobody typed into is left out, so the blank row the editor starts with
   // never fails validation ("a prize needs a name"); a stored row is always sent.
   const isTyped = (row: Row) => row.id !== undefined || fields.some((f) => f.type === "text" && String(row[f.key] ?? "").trim() !== "");
@@ -81,10 +116,11 @@ export function RowsEditor({
           <span />
         </div>
       ) : null}
-      <ol className={grid ? "flex flex-col divide-y divide-rule rounded-sm border border-rule max-lg:gap-0" : "flex flex-col gap-2"}>
-        {rows.map((row, i) => (
+      <ol ref={list} className={grid ? "flex flex-col divide-y divide-rule rounded-sm border border-rule max-lg:gap-0" : "flex flex-col gap-2"}>
+        {items.map(({ k, row }, i) => (
           <li
-            key={row.id ?? `new-${i}`}
+            key={k}
+            data-row={k}
             data-invalid={rowErrors(i).length ? "" : undefined}
             className={
               grid
@@ -144,15 +180,16 @@ export function RowsEditor({
               );
             })}
             <div className={`ml-auto flex shrink-0 gap-1 ${oneCol ? "" : grid ? "mb-0.5 lg:mb-0" : "mb-0.5"}`}>
-              <button type="button" onClick={() => move(i, -1)} disabled={disabled || i === 0} className="inline-flex size-7 items-center justify-center rounded-sm text-ink-3 hover:bg-raised hover:text-ink disabled:opacity-30" aria-label={`Move row ${i + 1} up`}>
+              <button type="button" data-act="up" onClick={(e) => move(e, i, -1)} disabled={disabled || i === 0} className="inline-flex size-7 items-center justify-center rounded-sm text-ink-3 hover:bg-raised hover:text-ink disabled:opacity-30" aria-label={`Move row ${i + 1} up`}>
                 <ArrowUp className="size-3.5" aria-hidden />
               </button>
-              <button type="button" onClick={() => move(i, 1)} disabled={disabled || i === rows.length - 1} className="inline-flex size-7 items-center justify-center rounded-sm text-ink-3 hover:bg-raised hover:text-ink disabled:opacity-30" aria-label={`Move row ${i + 1} down`}>
+              <button type="button" data-act="down" onClick={(e) => move(e, i, 1)} disabled={disabled || i === rows.length - 1} className="inline-flex size-7 items-center justify-center rounded-sm text-ink-3 hover:bg-raised hover:text-ink disabled:opacity-30" aria-label={`Move row ${i + 1} down`}>
                 <ArrowDown className="size-3.5" aria-hidden />
               </button>
               <button
                 type="button"
-                onClick={() => setRows((r) => r.filter((_, j) => j !== i))}
+                data-act="remove"
+                onClick={(e) => remove(e, i)}
                 disabled={disabled || locked}
                 className="inline-flex size-7 items-center justify-center rounded-sm text-ink-3 hover:bg-raised hover:text-ink disabled:opacity-30"
                 aria-label={`Remove row ${i + 1}`}
@@ -168,8 +205,9 @@ export function RowsEditor({
       </ol>
       <div className="flex items-center gap-3">
         <button
+          ref={addButton}
           type="button"
-          onClick={() => setRows((r) => [...r, { ...blank }])}
+          onClick={add}
           disabled={disabled || locked}
           className={`${grid ? "shrink-0 whitespace-nowrap " : ""}inline-flex h-8 items-center gap-1.5 rounded-sm border border-dashed border-edge px-3 text-13 text-ink-2 hover:bg-raised hover:text-ink disabled:opacity-40`}
         >
