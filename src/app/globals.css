@@ -245,6 +245,26 @@
       linear-gradient(var(--mark), var(--mark)) bottom 12px right 12px / 1px 14px no-repeat,
       var(--surface);
   }
+  /* the viewer's own team in the field: the crop marks' pink corners, always on */
+  .own-marks {
+    position: relative;
+  }
+  .own-marks::after {
+    --mark: var(--accent);
+    content: "";
+    position: absolute;
+    inset: -4px;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--mark), var(--mark)) top left / 8px 2px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top left / 2px 8px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top right / 8px 2px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top right / 2px 8px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom left / 8px 2px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom left / 2px 8px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom right / 8px 2px no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom right / 2px 8px no-repeat;
+  }
   /* crop marks round a tile's face, shown when the tile is pointed at, focused or lit */
   .crop-marks {
     --mark: var(--accent);

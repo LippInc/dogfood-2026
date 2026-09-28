@@ -228,7 +228,7 @@ export function GalleryBrowser({
                     >
                       {ours.title}
                     </Link>
-                    , is outlined.
+                    , has the pink corners.
                   </>
                 ) : null}
               </>
@@ -267,7 +267,7 @@ export function GalleryBrowser({
                       tabIndex={-1}
                       title={i.title}
                       onMouseEnter={() => setPeek(i.id)}
-                      className={`develop block ${peek === i.id ? "lit" : ""} ${i.id === mine ? "outline-2 outline-offset-1 outline-ink" : ""}`}
+                      className={`develop block ${peek === i.id ? "lit" : ""} ${i.id === mine ? "own-marks" : ""}`}
                       style={{ "--i": ti * 2 + k } as CSSProperties}
                     >
                       <div
@@ -306,7 +306,7 @@ export function GalleryBrowser({
                   <div
                     key={i.id}
                     className={`transition-opacity duration-150 motion-reduce:transition-none ${shown.has(i.id) ? "" : "opacity-30"} ${
-                      i.id === mine ? "outline-2 outline-offset-1 outline-ink" : ""
+                      i.id === mine ? "own-marks" : ""
                     }`}
                   >
                     {smallFaces[i.id]}
