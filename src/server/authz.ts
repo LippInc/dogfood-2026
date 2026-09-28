@@ -43,6 +43,7 @@ export type Action =
   | "team.manage"
   | "team.leave"
   | "team.dissolve"
+  | "team.rename"
   | "team.members"
   | "project.create"
   | "project.edit"
@@ -241,6 +242,18 @@ export function authorize(
       if (!resource.isMember) return refuse("not_on_this_team", "You are not on this team.");
       if (!submissionsOpen(resource.event, now)) return windowRefusal(resource.event, now, "Teams can no longer change");
       return allow;
+    }
+
+    // The team's own members rename it while submissions are open. After that the name is on the
+    // judged project, so only an organizer renames it (with a reason, checked in the DAL), until results are published.
+    case "team.rename": {
+      if (resource.kind !== "team") return refuse("bad_resource", "This action needs a team.");
+      if (resource.isMember && submissionsOpen(resource.event, now)) return allow;
+      if (runsEvent(actor, resource.event.id)) {
+        return resource.event.resultsPublishedAt ? refuse("results_published", "Results are published, so the team's name is final.") : allow;
+      }
+      if (!resource.isMember) return refuse("not_on_this_team", "You are not on this team.");
+      return windowRefusal(resource.event, now, "Only the organizers can rename the team now");
     }
 
     case "team.members": {

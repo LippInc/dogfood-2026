@@ -24,7 +24,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 ## Teams and projects
 
-**`teams`** — one team. `id`; `event_id`; `name` (display only, may repeat); `invite_code` unique, the code in `/join/<code>` — rotating it revokes old links; `created_at`. A team is deleted only when its only member dissolves it while submissions are open, and only with no project or a draft (the draft and its `custom_answers` go with it); the `team.dissolved` audit row keeps its name and the draft's id and title.
+**`teams`** — one team. `id`; `event_id`; `name` (display only, may repeat; its members rename it while submissions are open, an organizer with an audited reason until results are published); `invite_code` unique, the code in `/join/<code>` — rotating it revokes old links; `created_at`. A team is deleted only when its only member dissolves it while submissions are open, and only with no project or a draft (the draft and its `custom_answers` go with it); the `team.dissolved` audit row keeps its name and the draft's id and title.
 
 **`team_members`** — one person's membership. `team_id`, `user_id` (pk); `event_id`; `role` (`captain` | `member`); `joined_at`. A composite foreign key (`team_id`, `event_id`) → `teams` pins the row to its own event, and a unique index on (`event_id`, `user_id`) enforces one team per person per event in the database, not only the app.
 

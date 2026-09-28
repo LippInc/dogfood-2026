@@ -20,7 +20,21 @@ export {
 } from "./projects";
 export { removeProjectImage, setProjectImage, takeDownProjectImage } from "./project-image";
 export { MAX_IMAGE_BYTES, readUpload } from "../uploads";
-export { createTeam, dissolveTeam, joinTeam, leaveTeam, makeCaptain, removeMember, rotateInvite, inviteByCode, type InviteView, type MyTeam } from "./teams";
+export {
+  createTeam,
+  dissolveTeam,
+  getTeamForOrganizer,
+  joinTeam,
+  leaveTeam,
+  makeCaptain,
+  removeMember,
+  renameTeam,
+  rotateInvite,
+  inviteByCode,
+  type InviteView,
+  type MyTeam,
+  type OrganizerTeamView,
+} from "./teams";
 export { signUp } from "./accounts";
 export {
   createEvent,

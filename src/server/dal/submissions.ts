@@ -14,6 +14,7 @@ export type SubmissionRow = {
   title: string;
   status: "draft" | "submitted";
   trackName: string;
+  teamId: string;
   teamName: string;
   members: number;
   submittedAt: string | null;
@@ -62,6 +63,7 @@ export function getSubmissions(actor: Actor | null, eventIdOrSlug: string) {
     title: r.title,
     status: r.status,
     trackName: r.trackName,
+    teamId: r.teamId,
     teamName: r.teamName,
     members: r.members,
     submittedAt: r.submittedAt,

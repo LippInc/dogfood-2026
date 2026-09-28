@@ -213,7 +213,10 @@ export default async function SubmissionsPage({ params, searchParams }: PageProp
                             ) : null}
                           </td>
                           <td className="px-3 py-2.5 max-md:col-start-2 max-md:row-start-2 max-md:p-0 max-md:text-13 max-md:text-ink-2">
-                            {r.teamName} <span className="text-13 text-ink-3">· {plural(r.members, "member")}</span>
+                            <Link href={`/organize/${event.slug}/teams/${r.teamId}`} className="underline decoration-edge underline-offset-4 hover:decoration-ink">
+                              {r.teamName}
+                            </Link>{" "}
+                            <span className="text-13 text-ink-3">· {plural(r.members, "member")}</span>
                             {r.submittedAt ? <span className="mt-0.5 block font-mono text-12 text-ink-3 md:hidden">{when(r.submittedAt)}</span> : null}
                           </td>
                           <td className="px-3 py-2.5 font-mono text-12 whitespace-nowrap text-ink-2 max-md:hidden">{r.submittedAt ? when(r.submittedAt) : "–"}</td>

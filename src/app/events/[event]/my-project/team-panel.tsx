@@ -2,12 +2,13 @@
 
 import { Copy, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { useFormAction } from "@/components/use-form-action";
+import { useRescueFocus } from "@/components/use-rescue-focus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionResult, MyTeam } from "@/server/dal";
-import { createTeamAction, rotateInviteAction, teamMemberAction } from "./actions";
+import { createTeamAction, renameTeamAction, rotateInviteAction, teamMemberAction } from "./actions";
 
 const noSubscription = () => () => {};
 
@@ -31,6 +32,17 @@ export function TeamPanel({
 }) {
   const [state, form, pending] = useFormAction<ActionResult>(rotateInviteAction, { ok: false, message: null });
   const [change, changeForm, changing] = useFormAction<ActionResult>(teamMemberAction, { ok: false, message: null });
+  const [rename, renameForm, renamingNow] = useFormAction<ActionResult>(renameTeamAction, { ok: false, message: null });
+  const [renaming, setRenaming] = useState(false);
+  // closing the box (saved or cancelled) removes the focused field: focus goes back to Rename
+  const renameOpener = useRef<HTMLButtonElement>(null);
+  useRescueFocus(() => renameOpener.current, renaming);
+  // a saved name closes the box; the heading shows the new name from the server
+  const [seenRename, setSeenRename] = useState(rename);
+  if (rename !== seenRename) {
+    setSeenRename(rename);
+    if (rename.ok) setRenaming(false);
+  }
   const captain = team.role === "captain";
   // The only member cannot leave (a team is never left with nobody), so they can dissolve it instead,
   // unless its project is submitted: that one is in the gallery and keeps its team.
@@ -45,9 +57,50 @@ export function TeamPanel({
   const link = team.inviteCode && origin ? `${origin}/join/${team.inviteCode}` : null;
   return (
     <section aria-labelledby="team-title">
-      <h2 id="team-title" className="label-mono text-ink-2 wrap-anywhere">
-        {solo ? "Your entry" : `Team ${team.name}`}
-      </h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="team-title" className="label-mono min-w-0 text-ink-2 wrap-anywhere">
+          {solo ? "Your entry" : `Team ${team.name}`}
+        </h2>
+        {open && !renaming ? (
+          <Button ref={renameOpener} type="button" variant="ghost" size="sm" onClick={() => setRenaming(true)} className="-mr-2.5 h-7 shrink-0 text-13">
+            Rename
+          </Button>
+        ) : null}
+      </div>
+      {open && renaming ? (
+        <form {...renameForm} className="mt-3 flex flex-col gap-2">
+          <input type="hidden" name="team" value={team.id} />
+          <input type="hidden" name="event" value={eventSlug} />
+          <label htmlFor="team-rename" className="text-13 text-ink-2">
+            New team name
+          </label>
+          <Input
+            id="team-rename"
+            name="name"
+            defaultValue={team.name}
+            maxLength={60}
+            autoFocus
+            className="h-9"
+            aria-invalid={rename.fieldErrors?.name ? true : undefined}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setRenaming(false);
+            }}
+          />
+          <div className="flex gap-1">
+            <Button size="sm" disabled={renamingNow}>
+              {renamingNow ? "Saving…" : "Save name"}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setRenaming(false)}>
+              Cancel
+            </Button>
+          </div>
+          {rename.message && !rename.ok ? (
+            <p role="status" className="text-13 text-flag">
+              {rename.fieldErrors?.name?.[0] ?? rename.message}
+            </p>
+          ) : null}
+        </form>
+      ) : null}
       <ul className="mt-3 flex flex-col gap-1.5">
         {team.members.map((m) => (
           <li key={m.userId} className="flex flex-col gap-1 text-14">

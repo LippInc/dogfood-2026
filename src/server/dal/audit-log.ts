@@ -163,6 +163,17 @@ function sentence(r: Row, n: Names): Part[] {
         t(draft.id ? `, and its draft “${String(draft.title ?? draft.id)}” with it` : ", which had no project"),
       ];
     }
+    case "team.renamed":
+      return [actor, t(" renamed team "), { text: String(before.name ?? target), strong: true }, t(" to "), { text: String(after.name ?? ""), strong: true }];
+    case "team.renamed_by_organizer":
+      return [
+        actor,
+        t(" renamed team "),
+        { text: String(before.name ?? target), strong: true },
+        t(" to "),
+        { text: String(after.name ?? ""), strong: true },
+        t(` as an organizer: ${quote(after.reason)}`),
+      ];
     case "team.captain_changed":
       return [actor, t(" made "), person(after.captain), t(" captain of "), { text: n.team.get(target) ?? target, strong: true }];
     case "project.submit":
@@ -374,6 +385,18 @@ function lines(db: DbOrTx, eventId: string, rows: Row[]): AuditLine[] {
 export function latestAudit(db: DbOrTx, eventId: string, limit = 4, actions?: string[]): AuditLine[] {
   const where = actions ? and(eq(auditLog.eventId, eventId), inArray(auditLog.action, actions)) : eq(auditLog.eventId, eventId);
   return lines(db, eventId, db.select().from(auditLog).where(where).orderBy(desc(auditLog.id)).limit(limit).all());
+}
+
+/** Everything the log holds about one row (a team, a project), newest first. DAL-internal: callers check the reader first. */
+export function auditOfTarget(db: DbOrTx, eventId: string, targetType: string, targetId: string, limit = 50): AuditLine[] {
+  const rows = db
+    .select()
+    .from(auditLog)
+    .where(and(eq(auditLog.eventId, eventId), eq(auditLog.targetType, targetType), eq(auditLog.targetId, targetId), sql`${auditLog.action} <> 'authz.refused'`))
+    .orderBy(desc(auditLog.id))
+    .limit(limit)
+    .all();
+  return lines(db, eventId, rows);
 }
 
 export function getAuditLog(actor: Actor | null, eventIdOrSlug: string, opts: { limit?: number } = {}) {

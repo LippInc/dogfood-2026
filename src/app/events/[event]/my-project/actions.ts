@@ -10,6 +10,7 @@ import {
   leaveTeam,
   makeCaptain,
   removeMember,
+  renameTeam,
   rotateInvite,
   updateProject,
   type ActionResult,
@@ -25,6 +26,16 @@ export async function createTeamAction(_prev: ActionResult, form: FormData): Pro
   revalidatePath(`/events/${slug}/my-project`);
   const solo = form.get("solo") === "1";
   return { ok: true, message: solo ? "You are in. Your project form is below." : "Team created. Share the invite link with your teammates." };
+}
+
+export async function renameTeamAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  try {
+    renameTeam(await currentActor(), String(form.get("team") ?? ""), { name: form.get("name") });
+  } catch (err) {
+    return actionError(err);
+  }
+  revalidatePath(`/events/${String(form.get("event") ?? "")}/my-project`);
+  return { ok: true, message: "Renamed." };
 }
 
 export async function rotateInviteAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import type { Actor } from "../authz";
+import { runsEvent, submissionsOpen, type Actor } from "../authz";
 import { getDb, type DbOrTx, type Tx } from "../db/client";
 import {
   assignments,
@@ -18,11 +18,12 @@ import {
   votes,
 } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
-import { mutate } from "../mutate";
+import { guardRead, mutate } from "../mutate";
 import { discardUpload } from "../uploads";
 import { newId, newSecret } from "../util";
+import { auditOfTarget, type AuditLine } from "./audit-log";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { issuesOf } from "./parse";
+import { issuesOf, parse } from "./parse";
 
 // Teams form by invite link: a signed-in person creates a team (and becomes its
 // captain), the captain shares /join/<code>, anyone signed in who is not yet on a
@@ -371,6 +372,88 @@ export function makeCaptain(actor: Actor | null, teamId: string, body: unknown) 
       };
     },
   });
+}
+
+/** A reason for an organizer's change to a team, kept in the audit log. */
+export const TeamChangeReason = z.string().trim().min(3, "say why, in a few words").max(300);
+export const RenameInput = z.object({ name: TeamName.shape.name, reason: z.string().trim().max(300).optional() });
+const OrganizerRenameInput = z.object({ name: TeamName.shape.name, reason: TeamChangeReason });
+
+/**
+ * Rename a team. Its members do, while submissions are open (team.renamed). Anyone else allowed
+ * (an organizer: after the close, or on a team they are not on) gives a reason, and the row says
+ * the organizers did it (team.renamed_by_organizer). Until results are published (authorize).
+ */
+export function renameTeam(actor: Actor | null, teamId: string, body: unknown) {
+  let team: { id: string; name: string; eventId: string };
+  let asMember = false;
+  const now = new Date();
+  return mutate({
+    actor,
+    action: "team.rename",
+    now,
+    load: (tx) => {
+      const loaded = loadTeam(tx, actor, teamId);
+      team = loaded.team;
+      asMember = loaded.resource.isMember && submissionsOpen(loaded.resource.event, now);
+      return loaded.resource;
+    },
+    run: (tx) => {
+      const { name, reason } = asMember ? parse(RenameInput, body) : parse(OrganizerRenameInput, body);
+      if (name === team.name) return { result: { teamId: team.id, name }, audit: null };
+      tx.update(teams).set({ name }).where(eq(teams.id, team.id)).run();
+      return {
+        result: { teamId: team.id, name },
+        audit: {
+          action: asMember ? "team.renamed" : "team.renamed_by_organizer",
+          eventId: team.eventId,
+          targetType: "team",
+          targetId: team.id,
+          before: { name: team.name },
+          after: asMember ? { name } : { name, reason },
+        },
+      };
+    },
+  });
+}
+
+export type OrganizerTeamView = {
+  event: { id: string; slug: string; name: string; submissionsCloseAt: string; resultsPublishedAt: string | null };
+  team: { id: string; name: string; createdAt: string };
+  members: { userId: string; name: string; email: string; role: "captain" | "member"; joinedAt: string }[];
+  project: { id: string; title: string; status: "draft" | "submitted" } | null;
+  /** while results are unpublished an organizer of this event may change the team (an administrator only reads) */
+  canChange: boolean;
+  history: AuditLine[];
+};
+
+/** One team as its event's organizers see it: members with their addresses, its project and what happened to it. */
+export function getTeamForOrganizer(actor: Actor | null, eventIdOrSlug: string, teamId: string): OrganizerTeamView {
+  const db = getDb();
+  const event = requireEvent(db, eventIdOrSlug);
+  guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
+  const team = db
+    .select({ id: teams.id, name: teams.name, createdAt: teams.createdAt })
+    .from(teams)
+    .where(and(eq(teams.id, teamId), eq(teams.eventId, event.id)))
+    .get();
+  if (!team) throw new NotFoundError("Team");
+  const members = db
+    .select({ userId: users.id, name: users.name, email: users.email, role: teamMembers.role, joinedAt: teamMembers.joinedAt })
+    .from(teamMembers)
+    .innerJoin(users, eq(users.id, teamMembers.userId))
+    .where(eq(teamMembers.teamId, team.id))
+    .orderBy(sql`${teamMembers.role} = 'member'`, asc(teamMembers.joinedAt))
+    .all();
+  const project = db.select({ id: projects.id, title: projects.title, status: projects.status }).from(projects).where(eq(projects.teamId, team.id)).get() ?? null;
+  return {
+    event: { id: event.id, slug: event.slug, name: event.name, submissionsCloseAt: event.submissionsCloseAt, resultsPublishedAt: event.resultsPublishedAt },
+    team,
+    members,
+    project,
+    canChange: Boolean(actor && runsEvent(actor, event.id) && !event.resultsPublishedAt),
+    history: auditOfTarget(db, event.id, "team", team.id),
+  };
 }
 
 export type MyTeam = {
