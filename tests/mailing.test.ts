@@ -4,7 +4,7 @@
 // offering messages after the first few, reporting the rest as never tried.
 
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
@@ -241,6 +241,25 @@ describe("a judge invitation, sent and recorded", () => {
     const mailed = auditRows().filter((r) => r.action === "mail.sent");
     expect(mailed).toHaveLength(1);
     expect(mailed[0]!.after).toEqual({ kind: "judge_invite", sent: 1, failed: 0 });
+  });
+
+  it("a record that cannot be written is logged, never thrown: the page still gets its answer (the link's only copy)", async () => {
+    const invite = judgeInvite("long@example.org");
+    // an imported event's name is not held to the form's 80 characters; this one pushes the subject past the outbox's 200
+    h.sqlite.prepare("UPDATE events SET name = ? WHERE id = ?").run("N".repeat(250), EVENT);
+    setMailTransportForTests(recordingTransport);
+    sentByTransport.length = 0;
+    const logged: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void logged.push(args.map(String).join(" ")));
+    try {
+      const out = await mailJudgeInvite(organizer(), EVENT, { email: "long@example.org", path: invite.path });
+      expect(out).toEqual({ on: true, mailed: [{ to: "long@example.org", status: "sent" }] });
+      expect(sentByTransport).toHaveLength(1);
+      expect(outboxAll()).toHaveLength(0);
+      expect(logged.some((l) => l.startsWith("[mail] 1 judge_invite message(s) went out unrecorded"))).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("an invitation made without an address mails nothing", async () => {

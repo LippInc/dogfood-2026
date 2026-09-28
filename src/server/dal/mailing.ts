@@ -42,33 +42,41 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, le
   );
   const sent = mailed.filter((m) => m.status === "sent").length;
   const now = nowIso();
-  mutate({
-    actor,
-    action,
-    load: (tx) => (portal ? { kind: "platform" } : { kind: "event", event: eventFacts(requireEvent(tx, scope.eventIdOrSlug)) }),
-    run: (tx) => {
-      const eventId = portal ? null : requireEvent(tx, scope.eventIdOrSlug).id;
-      letters.forEach((l, i) => {
-        const r = results[i]!;
-        tx.insert(outbox)
-          .values({
-            id: newId("mail"),
-            eventId,
-            kind,
-            toEmail: l.to,
-            subject: l.subject,
-            body: l.body(BLANKED),
-            status: r.status === "sent" ? "sent" : "failed",
-            error: r.status === "sent" ? null : mailed[i]!.error!,
-            createdBy: actor?.userId ?? null,
-            createdAt: now,
-            sentAt: r.status === "sent" ? r.sentAt : null,
-          })
-          .run();
-      });
-      return { result: undefined, audit: { action: "mail.sent", eventId, targetType: "outbox", targetId: kind, after: { kind, sent, failed: letters.length - sent } } };
-    },
-  });
+  const record = () =>
+    mutate({
+      actor,
+      action,
+      load: (tx) => (portal ? { kind: "platform" } : { kind: "event", event: eventFacts(requireEvent(tx, scope.eventIdOrSlug)) }),
+      run: (tx) => {
+        const eventId = portal ? null : requireEvent(tx, scope.eventIdOrSlug).id;
+        letters.forEach((l, i) => {
+          const r = results[i]!;
+          tx.insert(outbox)
+            .values({
+              id: newId("mail"),
+              eventId,
+              kind,
+              toEmail: l.to,
+              subject: l.subject,
+              body: l.body(BLANKED),
+              status: r.status === "sent" ? "sent" : "failed",
+              error: r.status === "sent" ? null : mailed[i]!.error!,
+              createdBy: actor?.userId ?? null,
+              createdAt: now,
+              sentAt: r.status === "sent" ? r.sentAt : null,
+            })
+            .run();
+        });
+        return { result: undefined, audit: { action: "mail.sent", eventId, targetType: "outbox", targetId: kind, after: { kind, sent, failed: letters.length - sent } } };
+      },
+    });
+  // The links are made and the mail has gone (or failed) by now: a record that cannot be written is said in the
+  // log, never thrown, so the page that made the links still shows them (their only copy).
+  try {
+    record();
+  } catch (err) {
+    console.error(`[mail] ${letters.length} ${kind} message(s) went out unrecorded: ${err instanceof Error ? err.message : String(err)}`);
+  }
   return { on: true, mailed };
 }
 
