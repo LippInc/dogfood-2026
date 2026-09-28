@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { Face } from "@/components/face";
 import { WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, idLabel, isPast, plural } from "@/lib/format";
-import { currentActor, getOverview, organizedEvents, type Stage } from "@/server/dal";
+import { currentActor, getEventCards, organizedEvents, type Stage } from "@/server/dal";
 import { ImportEventForm } from "./import-form";
 
 export const dynamic = "force-dynamic";
@@ -38,8 +38,9 @@ export default async function OrganizeHome() {
   const actor = await currentActor();
   if (!actor) unauthorized();
   const { canCreate, events } = organizedEvents(actor);
-  // Each card says where its event stands, from the same read the event's overview makes.
-  const cards = events.map((e) => ({ e, o: getOverview(actor, e.id) }));
+  // Each card says where its event stands: the overview's pipeline and decisions, without its summary cards.
+  const status = getEventCards(actor, events.map((e) => e.id));
+  const cards = events.map((e, i) => ({ e, o: status[i]! }));
   return (
     <WorkShell eventName="Dogfood portal" eventHref="/organize" crumb="Your events" person={actor.name} role={actor.isAdmin ? "Administrator" : "Organizer"}>
       <div className="mx-auto max-w-[960px]">

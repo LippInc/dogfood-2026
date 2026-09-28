@@ -188,11 +188,12 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
     }
     const at = new Date().toISOString();
     if (judgingModeOf(event) === "pairwise") {
-      const openPw = eventDecisions(tx, event).filter((d) => !d.resolved);
+      // One fit: the decisions are checked on the run that is then stored.
+      const pw = computePairwise(tx, event);
+      const openPw = eventDecisions(tx, event, { pairwise: pw }).filter((d) => !d.resolved);
       if (openPw.length) {
         throw new ConflictError("decisions_open", `${openPw.length} ${openPw.length === 1 ? "decision is" : "decisions are"} still open. Settle ${openPw.length === 1 ? "it" : "them"} before publishing.`);
       }
-      const pw = computePairwise(tx, event);
       const pwRun = storePairwiseRun(tx, event, actor!.userId, pw, at);
       const vote = endVoteForPublish(tx, event, at);
       tx.update(events)

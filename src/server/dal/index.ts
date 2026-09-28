@@ -117,7 +117,7 @@ export {
   type PrivateNote,
   type PublishedResults,
 } from "./results";
-export { getOverview, type Overview, type Stage } from "./overview";
+export { getEventCards, getOverview, type EventCard, type Overview, type Stage } from "./overview";
 export { addOrganizer, listOrganizers, removeOrganizer, type Organizer } from "./organizers";
 export { getAuditEntries, getAuditLog, getPortalEntries, getPortalLog, type AuditEntryView, type AuditLine, type Part } from "./audit-log";
 export { getSubmissions, type SubmissionRow } from "./submissions";

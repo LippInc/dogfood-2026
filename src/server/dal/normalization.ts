@@ -4,6 +4,7 @@ import type { FlatFlag } from "../judging/flat";
 import { averageRanks, normalize, permutationShare, type Obs, type SignalCheck } from "../judging/normalize";
 import { judgeSpread, type Yardstick } from "../judging/yardstick";
 import type { EventRow } from "./events";
+import { memoByData } from "./memo";
 import { finishedReviews, formerJudges, judgeSet, rubricOf, weightedTotal, type ActiveOverride, judgeNames, submittedProjects, type ProjectInfo } from "./judging";
 
 // Normalization as the organizer sees it: the score engine's run over an event's finished
@@ -201,11 +202,18 @@ function influenceOf(judgeId: string, excluded: Set<string>, allObs: Obs[], cano
   return { change, moved, biggest, unranked, leaders };
 }
 
-export function computeNormalization(
-  db: DbOrTx,
-  event: EventRow,
-  opts: { exclude?: string[]; signal?: boolean; influence?: boolean } = {},
-): Normalized {
+export type NormalizationOptions = { exclude?: string[]; signal?: boolean; influence?: boolean };
+
+/**
+ * The score engine's run over an event's finished reviews. Pure in its rows, so a run is
+ * reused until the data changes (memo.ts); callers treat the result as read-only.
+ */
+export function computeNormalization(db: DbOrTx, event: EventRow, opts: NormalizationOptions = {}): Normalized {
+  const key = `normalization|${event.id}|${opts.exclude ? [...opts.exclude].sort().join(",") : "-"}|${opts.signal ? 1 : 0}|${opts.influence ? 1 : 0}`;
+  return memoByData(db, key, () => normalizationRun(db, event, opts));
+}
+
+function normalizationRun(db: DbOrTx, event: EventRow, opts: NormalizationOptions): Normalized {
   const info = submittedProjects(db, event.id);
   const { obs: allObs, own, reviews } = observations(db, event, info);
   const set = judgeSet(db, event.id, reviews);

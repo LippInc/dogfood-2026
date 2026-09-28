@@ -21,6 +21,7 @@ import { averageRanks } from "../judging/normalize";
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
+import { memoByData } from "./memo";
 import { finishedReviews, formerJudges, inJudgeTracks, judgeNames, judgeSet, rubricOf, submittedProjects, weightedTotal, type ProjectInfo } from "./judging";
 import { parse } from "./parse";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
@@ -374,6 +375,11 @@ export type PairwiseComputed = {
  */
 /** `scoresOnly`: leave the judges' answers out and fit the reviews' orders alone (the scores-mode cross-check). */
 export function computePairwise(db: DbOrTx, event: EventRow, opts: { scoresOnly?: boolean } = {}): PairwiseComputed {
+  // Pure in its rows: reused until the data changes (memo.ts); callers treat it as read-only.
+  return memoByData(db, `pairwise|${event.id}|${opts.scoresOnly ? 1 : 0}`, () => pairwiseRun(db, event, opts));
+}
+
+function pairwiseRun(db: DbOrTx, event: EventRow, opts: { scoresOnly?: boolean }): PairwiseComputed {
   const info = submittedProjects(db, event.id);
   const canonical = new Map(info.map((p) => [p.id, p.duplicateOf ?? p.id]));
   const kept = info.filter((p) => !p.duplicateOf);

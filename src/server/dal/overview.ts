@@ -1,15 +1,15 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
-import { getDb } from "../db/client";
-import { signedRecords, teams } from "../db/schema";
+import { getDb, type Db } from "../db/client";
+import { projects, signedRecords, teams } from "../db/schema";
 import { plural } from "@/lib/format";
 import { guardRead } from "../mutate";
 import { latestAudit, type AuditLine } from "./audit-log";
-import { eventFacts, getGallery, requireEvent, type EventRow } from "./events";
+import { eventFacts, requireEvent, type EventRow } from "./events";
 import { judgeRows } from "./judges";
 import { computeNormalization } from "./normalization";
-import { decisions, eventDecisions, type Decision } from "./decisions";
+import { eventDecisions, type Decision } from "./decisions";
 import { computePairwise, judgingModeOf, pairwiseProgress, pullShare } from "./pairwise";
 import { voteSummary, type VoteSummary } from "./voting-organizer";
 
@@ -56,17 +56,25 @@ export type Overview = {
 
 const STAGE_OF: Record<Decision["kind"], string> = { duplicate: "04", under_reviewed: "06", flat_judge: "07", coin_flip_judge: "07" };
 
-export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overview {
-  const db = getDb();
-  const event = requireEvent(db, eventIdOrSlug);
-  guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
+/**
+ * Where an event stands: its decisions and its ten stages, from one run of each engine
+ * (reused until the data changes). The overview adds its cards to this; the list of an
+ * organizer's events reads only this.
+ */
+function eventStatus(db: Db, event: EventRow) {
   const now = Date.now();
   const n = computeNormalization(db, event);
   const pairwise = judgingModeOf(event) === "pairwise";
   const progress = pairwise ? pairwiseProgress(db, event) : null;
-  const list = pairwise ? eventDecisions(db, event) : decisions(db, event, n);
+  const pw = pairwise ? computePairwise(db, event) : null;
+  const list = eventDecisions(db, event, { normalization: n, pairwise: pw ?? undefined });
   const open = list.filter((d) => !d.resolved);
-  const gallery = getGallery(event.id);
+  const projectCount = db
+    .select({ n: sql<number>`count(*)` })
+    .from(projects)
+    .where(and(eq(projects.eventId, event.id), eq(projects.status, "submitted"), isNull(projects.duplicateOf)))
+    .get()!.n;
+  const gallery = { counts: { projects: projectCount } };
   const judges = judgeRows(db, event.id);
   const teamCount = db.select({ n: sql<number>`count(*)` }).from(teams).where(eq(teams.eventId, event.id)).get()!.n;
   const closed = now >= Date.parse(event.submissionsCloseAt);
@@ -149,8 +157,34 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
     { no: "10", name: "Archive", state: "export any time", open: 0, done: false },
   ];
   const firstUndone = stages.findIndex((s) => s.open > 0 || (!s.done && s.no <= "08"));
-  const pipeline = stages.map((s, i) => ({ ...s, current: i === firstUndone }));
+  const pipeline: Stage[] = stages.map((s, i) => ({ ...s, current: i === firstUndone }));
+  return { n, pw, progress, list, open, closed, judges, assigned, done, pipeline };
+}
 
+export type EventCard = {
+  event: EventRow;
+  pipeline: Stage[];
+  /** decisions still open */
+  open: number;
+  judges: { total: number; reviewsDone: number; reviewsAssigned: number };
+};
+
+/** The cards on an organizer's list of events: where each stands, without the overview's summary cards. */
+export function getEventCards(actor: Actor | null, eventIds: string[]): EventCard[] {
+  const db = getDb();
+  return eventIds.map((id) => {
+    const event = requireEvent(db, id);
+    guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
+    const s = eventStatus(db, event);
+    return { event, pipeline: s.pipeline, open: s.open.length, judges: { total: s.judges.length, reviewsDone: s.done, reviewsAssigned: s.assigned } };
+  });
+}
+
+export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overview {
+  const db = getDb();
+  const event = requireEvent(db, eventIdOrSlug);
+  guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
+  const { n, pw, progress, list, open, closed, judges, assigned, done, pipeline } = eventStatus(db, event);
   const kept = n.judges.filter((j) => !j.excluded && j.n > 0);
   const points = kept.filter((j) => j.tilt !== null).map((j) => ({ name: j.name, n: j.n, tilt: j.tilt!, leniency: j.leniency }));
   const unfinished = judges.filter((j) => j.pending > 0);
@@ -181,12 +215,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       ranked: n.ranked,
     },
     vote: voteSummary(db, event),
-    pairwise: progress
-      ? (() => {
-          const fit = computePairwise(db, event).fit;
-          return { ...progress, left: pullShare(fit.left), fresh: pullShare(fit.fresh) };
-        })()
-      : null,
+    pairwise: progress && pw ? { ...progress, left: pullShare(pw.fit.left), fresh: pullShare(pw.fit.fresh) } : null,
     audit: latestAudit(db, event.id, 4, [
       "review.submit",
       "review.amend",

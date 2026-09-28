@@ -10,9 +10,9 @@ import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { isJudgeIn } from "./judges";
 import { finishedReviews, judgeSet, submittedProjects, type ProjectInfo } from "./judging";
-import { computePairwise, judgingModeOf, pairwiseDecisions, type CoinFlipDecision } from "./pairwise";
+import { computePairwise, judgingModeOf, pairwiseDecisions, type CoinFlipDecision, type PairwiseComputed } from "./pairwise";
 import { parse } from "./parse";
-import { computeNormalization } from "./normalization";
+import { computeNormalization, type Normalized } from "./normalization";
 
 // The decisions that stand between an event's scores and published results, and the
 // audited actions that settle them: a judge override (with a required reason), a duplicate
@@ -72,8 +72,10 @@ export function decisions(db: DbOrTx, event: EventRow, now = computeNormalizatio
     const override = [...set.overrides].reverse().find((o) => o.judgeId === flag.judgeId) ?? null;
     const without = new Set([...now.excluded, flag.judgeId]);
     const withJudge = new Set(now.excluded.filter((id) => id !== flag.judgeId));
-    const a = computeNormalization(db, event, { exclude: [...withJudge] });
-    const b = computeNormalization(db, event, { exclude: [...without] });
+    // One of the two sets is the run in hand (the judge is either in it or out of it): reuse it.
+    const same = (x: Set<string>) => x.size === now.excluded.length && now.excluded.every((id) => x.has(id));
+    const a = same(withJudge) ? now : computeNormalization(db, event, { exclude: [...withJudge] });
+    const b = same(without) ? now : computeNormalization(db, event, { exclude: [...without] });
     // The exclusion's own effect: raw-mean ranks with the judge against without.
     const rankA = new Map(a.projects.map((p) => [p.id, p.rankKept]));
     let moves = 0;
@@ -164,10 +166,15 @@ export function decisions(db: DbOrTx, event: EventRow, now = computeNormalizatio
  * judged: the score engine's list, or in pairwise mode the flagged judges and the
  * projects fewer than two judges compared, plus the duplicates either way.
  */
-export function eventDecisions(db: DbOrTx, event: EventRow): Decision[] {
-  if (judgingModeOf(event) !== "pairwise") return decisions(db, event);
-  const duplicates = decisions(db, event, computeNormalization(db, event)).filter((d) => d.kind === "duplicate");
-  return [...pairwiseDecisions(event, computePairwise(db, event)), ...duplicates];
+export function eventDecisions(
+  db: DbOrTx,
+  event: EventRow,
+  runs: { normalization?: Normalized; pairwise?: PairwiseComputed } = {},
+): Decision[] {
+  const now = runs.normalization ?? computeNormalization(db, event);
+  if (judgingModeOf(event) !== "pairwise") return decisions(db, event, now);
+  const duplicates = decisions(db, event, now).filter((d) => d.kind === "duplicate");
+  return [...pairwiseDecisions(event, runs.pairwise ?? computePairwise(db, event)), ...duplicates];
 }
 
 // ---------------------------------------------------------------------------
