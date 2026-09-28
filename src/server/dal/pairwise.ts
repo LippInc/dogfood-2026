@@ -4,7 +4,7 @@ import { z } from "zod";
 import { authorize, type Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignments, comparisons, events, normalizationRuns, normalizedScores, projects, teams, tracks } from "../db/schema";
-import { ConflictError } from "../errors";
+import { ConflictError, ValidationError } from "../errors";
 import {
   COIN_FLIP_Z,
   fitPairwise,
@@ -571,10 +571,11 @@ export function getPairwiseRanking(actor: Actor | null, eventIdOrSlug: string): 
 
 export const ModeInput = z.object({
   mode: z.enum(["scores", "pairwise"]),
-  reason: z.string().trim().min(3, "say why, in a few words").max(500),
+  /** required when the mode changes; saving the mode the event already has needs none */
+  reason: z.string().trim().max(500).default(""),
 });
 
-/** How the event's judges judge. Organizer only, with a reason, until results are published. */
+/** How the event's judges judge. Organizer only, with a reason when it changes, until results are published. */
 export function setJudgingMode(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   let event: EventRow;
   return mutate({
@@ -589,6 +590,7 @@ export function setJudgingMode(actor: Actor | null, eventIdOrSlug: string, body:
       if (event.resultsPublishedAt) throw new ConflictError("results_published", "Results are published, so how the event was judged is final.");
       const before = judgingModeOf(event);
       if (before === input.mode) return { result: { mode: before, changed: false }, audit: null };
+      if (input.reason.length < 3) throw new ValidationError("Check the highlighted fields.", { reason: ["say why, in a few words"] });
       tx.update(events)
         .set({ settings: { ...event.settings, judgingMode: input.mode } })
         .where(eq(events.id, event.id))

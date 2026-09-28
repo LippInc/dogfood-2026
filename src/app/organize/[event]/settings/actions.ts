@@ -6,8 +6,6 @@ import {
   actionError,
   addOrganizer,
   currentActor,
-  getOrganizerEvent,
-  judgingModeOf,
   removeOrganizer,
   savePrizes,
   saveProjectFields,
@@ -115,11 +113,9 @@ export async function saveJudgingModeAction(_prev: ActionResult, form: FormData)
   const saved = await run(
     form,
     (slug) => {
-      // A switch of mode needs its reason; saving only the ranking choice asks for none. The mode goes
-      // first, so a switch refused for want of a reason saves nothing at all.
-      if (judgingModeOf(getOrganizerEvent(actor, slug).event) !== mode) {
-        changed = setJudgingMode(actor, slug, { mode, reason: form.get("reason") }).changed;
-      }
+      // A switch of mode needs its reason (the DAL asks for it only then); the mode goes first, so a
+      // switch refused for want of a reason saves nothing at all.
+      changed = setJudgingMode(actor, slug, { mode, reason: form.get("reason") ?? "" }).changed;
       rankingChanged = setJudgeRanking(actor, slug, { show }).changed;
     },
     "",
