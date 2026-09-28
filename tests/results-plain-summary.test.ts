@@ -151,6 +151,10 @@ describe("plainSummary", () => {
     expect(say(run()).at(-1)).toBe("Nothing waits on you: you can publish from the overview.");
     expect(say(run(), 2).join(" ")).not.toMatch(/publish from the overview/);
     expect(say(run(), 0, true).at(-1)).toBe("These places are published; below is how they were worked out.");
+    // after publishing, a live view that no longer matches the stored run never calls its places the published ones
+    const drifted = plainSummary(run(), { open: 0, published: true, differs: 3 });
+    expect(drifted.join(" ")).not.toMatch(/These places are published/);
+    expect(drifted.at(-1)).toMatch(/differ from the published ones/);
   });
 
   it("stays short: one point per kind of fact, however many tracks", () => {

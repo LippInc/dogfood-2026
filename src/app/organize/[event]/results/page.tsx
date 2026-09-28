@@ -73,7 +73,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const copies = dup?.kind === "duplicate" ? dup.copies.filter((c) => c.rankRaw !== null).sort((a, b) => a.rankRaw! - b.rankRaw!) : [];
   const records = event.resultsPublishedAt ? listRecords(actor, key) : [];
   // what the run shows in words, before its statistics (a results-day tester met k and β̂² first)
-  const summary = plainSummary(n, { open, published: Boolean(event.resultsPublishedAt) });
+  const summary = plainSummary(n, { open, published: Boolean(event.resultsPublishedAt), differs: published?.differs.length ?? 0 });
 
   if (judgingModeOf(event) === "pairwise") {
     const ranking = guardPage(() => getPairwiseRanking(actor, key));

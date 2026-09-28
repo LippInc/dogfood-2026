@@ -37,7 +37,7 @@ function leaderOf(track: string, rows: ProjectRow[]): Leader | null {
  * the page header. Leaving a judge out is Fig. 01's number, so the leniency point counts only what
  * evening out leniency moves: the kept judges' plain ranking against the adjusted one.
  */
-export function plainSummary(n: Normalized, opts: { open: number; published: boolean }): string[] {
+export function plainSummary(n: Normalized, opts: { open: number; published: boolean; differs?: number }): string[] {
   const ranked = n.projects.filter((p) => p.score !== null);
   if (!ranked.length) return ["No project has a counted review yet, so nothing is ranked."];
   const unranked = n.projects.filter((p) => p.score === null && !p.duplicateOf).length;
@@ -91,7 +91,8 @@ export function plainSummary(n: Normalized, opts: { open: number; published: boo
         : `${thin} ranked projects have fewer than two counted reviews and are marked under-reviewed.`,
     );
 
-  if (opts.published) lines.push("These places are published; below is how they were worked out.");
+  if (opts.published && opts.differs) lines.push("These places are worked out again now and differ from the published ones (see above); below is how.");
+  else if (opts.published) lines.push("These places are published; below is how they were worked out.");
   else if (opts.open === 0) lines.push("Nothing waits on you: you can publish from the overview.");
   return lines;
 }
