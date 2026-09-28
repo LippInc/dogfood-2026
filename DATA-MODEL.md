@@ -78,7 +78,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 ## Email
 
-**`outbox`** — one row per message the portal mails, or would have mailed while email is off (`SMTP_URL` unset). `id`; `event_id` (null for the portal's own mail: password resets, administrator setup); `kind` (`judge_invite` | `voter_link` | `password_reset` | `claim_link` | `judge_reminder` | `admin_setup`); `to_email` (CHECK: holds an @); `subject` (1–200 characters); `body` (1–20,000 characters); `status` (`sent` | `failed` | `off`); `error`; `created_by` (null: the system, at start); `created_at`; `sent_at` (CHECK: set exactly when `status` is `sent`). An event's organizers read its rows; administrators read the portal's.
+**`outbox`** — one row per message the portal mailed or tried to mail (with `SMTP_URL` unset nothing is sent or recorded); the link in it is blanked, so no working key is kept. `id`; `event_id` (null for the portal's own mail: password resets, administrator setup); `kind` (`judge_invite` | `voter_link` | `password_reset` | `claim_link` | `judge_reminder` | `admin_setup`); `to_email` (CHECK: holds an @); `subject` (1–200 characters); `body` (1–20,000 characters); `status` (`sent` | `failed`; `off` is allowed but not written today); `error`; `created_by` (null: the system, at start); `created_at`; `sent_at` (CHECK: set exactly when `status` is `sent`). An event's organizers read its rows; administrators read the portal's.
 
 ## API tokens and account claims
 
