@@ -20,6 +20,23 @@ import { canonicalJson, nowIso, sha256 } from "../util";
 
 export type EventImport = ImportReport & { eventSlug: string };
 
+/**
+ * The largest event file the import takes, in bytes. The portal's own fixtures.json export
+ * of a big event must fit: with every field at its longest (a 4,000-character review note,
+ * 16 criteria, a project's six gallery pictures and eight tags, a team of 20), 64 MB holds an event of
+ * 1,000 projects and 8,000 reviews (tests/import-size.test.ts measures the exporter's
+ * worst case). next.config.ts lets bodies this large through to the import (proxy and
+ * server action limits, a little above it).
+ */
+export const MAX_EVENT_FILE_BYTES = 64_000_000;
+export const EVENT_FILE_TOO_LARGE =
+  "Event files are limited to 64 MB, room for an event of 1,000 projects and 8,000 reviews with every field at its longest; the portal's own export of any event that size fits.";
+
+/** Refuses (and audits) a caller who may not import, before the file is read: nobody else makes the server buffer one. */
+export function guardImport(actor: Actor | null) {
+  guardRead(actor, "event.create", { kind: "platform" });
+}
+
 /** Plain words for an organizer: a file that is no JSON object at all, or the first fields that are wrong. */
 function whatIsWrong(error: z.ZodError): string {
   if (error.issues.some((i) => i.path.length === 0)) return "the file is not a JSON object with an event in it (export fixtures.json from an event to see the format)";

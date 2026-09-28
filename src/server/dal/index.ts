@@ -189,7 +189,7 @@ export { claimAccount, countBeyondReach, countWithoutPassword, describeClaim, ma
 export { describePasswordReset, guardAccounts, makePasswordReset, resetPassword, type ResetLink } from "./password-resets";
 export { listOutbox, listPortalOutbox, type OutboxView } from "./outbox";
 export { emailIsOn, mailClaimLinks, mailJudgeInvite, mailJudgeInvites, mailPasswordReset, mailVoterLinks, type MailReport, type Mailed } from "./mailing";
-export { importEventFile, type EventImport } from "./imports";
+export { EVENT_FILE_TOO_LARGE, guardImport, importEventFile, MAX_EVENT_FILE_BYTES, type EventImport } from "./imports";
 export { createApiToken, listApiTokens, revokeApiToken, type TokenView } from "./tokens";
 export {
   getPairwiseRanking,

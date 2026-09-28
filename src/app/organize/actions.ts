@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { actionError, createEvent, currentActor, importEventFile, type ActionResult } from "@/server/dal";
+import { actionError, createEvent, currentActor, EVENT_FILE_TOO_LARGE, guardImport, importEventFile, MAX_EVENT_FILE_BYTES, type ActionResult } from "@/server/dal";
 
 function rows(form: FormData, name: string): unknown {
   try {
@@ -39,6 +39,12 @@ export type ImportResult = ActionResult & { slug?: string };
 export async function importEventAction(_prev: ImportResult, form: FormData): Promise<ImportResult> {
   const file = form.get("file");
   let body: unknown;
+  try {
+    guardImport(await currentActor());
+    if (file instanceof File && file.size > MAX_EVENT_FILE_BYTES) return { ok: false, message: EVENT_FILE_TOO_LARGE };
+  } catch (err) {
+    return actionError(err);
+  }
   try {
     body = file instanceof File ? JSON.parse(await file.text()) : undefined;
   } catch {

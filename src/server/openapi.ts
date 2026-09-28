@@ -92,7 +92,7 @@ export const OPERATIONS: Operation[] = [
     body: In.FixtureSchema,
     ok: 201,
     also: [409, 413],
-    note: "The answer's added lists, and the import's audit row keeps, each account made a judge and each review brought in or added to, with its scores.",
+    note: "The answer's added lists, and the import's audit row keeps, each account made a judge and each review brought in or added to, with its scores. Files up to 64 MB (413 above it), room for the portal's own export of an event of 1,000 projects and 8,000 reviews with every field at its longest. A caller who may not import is refused before the file is read.",
   },
   { method: "POST", path: "/api/events/{event}/claims", tag: "Accounts", summary: "Personal links, returned once, for the people in the event without a password who hold no role and no team seat in any event you do not run; elsewhere lists the others, whom only an administrator's reset link reaches", access: "organizer", ok: 201, note: "With email on (SMTP_URL), each link is also mailed as it is made; the answer's mail says to whom and whether it went, and the outbox keeps the message with its link blanked." },
   { method: "GET", path: "/api/claims/{token}", tag: "Accounts", summary: "Whose personal link this is (410 once used or expired)", access: "anyone", also: [410] },
