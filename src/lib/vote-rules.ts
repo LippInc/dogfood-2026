@@ -21,20 +21,28 @@ export function ruleMoves(change: { before: Rules; after: Rules }): string {
 
 type CountChange = {
   kind: "merge" | "unmerge";
-  keep: { title: string };
-  duplicate: { title: string };
-  moves: { title: string; before: number | null; after: number | null }[];
+  keep: { id: string; title: string };
+  duplicate: { id: string; title: string };
+  moves: { projectId: string; title: string; before: number | null; after: number | null }[];
 };
 
 /**
- * A duplicate merged or unmerged after the vote closed, and how it moved the count, in words:
- * "“Relay 2” merged into “Relay”: “Relay” 1 → 2 votes, “Relay 2” 2 → merged".
+ * Which copies a merge or unmerge after the vote closed joined or split. The two copies of a duplicate
+ * often share a title, so each is named with its id too: "“Relay” (prj_41) merged into “Relay” (prj_07)".
  */
+export function countCopies(change: CountChange): string {
+  const copy = (p: { id: string; title: string }) => `“${p.title}” (${p.id})`;
+  return change.kind === "merge" ? `${copy(change.duplicate)} merged into ${copy(change.keep)}` : `${copy(change.duplicate)} no longer merged into ${copy(change.keep)}`;
+}
+
+/** How it moved the count, the copy kept first: "the copy kept 2 votes → 4 votes, the other copy 3 votes → merged". */
 export function countMoves(change: CountChange): string {
-  const what =
-    change.kind === "merge"
-      ? `“${change.duplicate.title}” merged into “${change.keep.title}”`
-      : `“${change.duplicate.title}” no longer merged into “${change.keep.title}”`;
-  const moved = change.moves.map((m) => `“${m.title}” ${m.before ?? "merged"} → ${m.after ?? "merged"}`).join(", ");
-  return `${what}: votes ${moved}`;
+  const order = (id: string) => (id === change.keep.id ? 0 : id === change.duplicate.id ? 1 : 2);
+  const name = (m: CountChange["moves"][number]) =>
+    m.projectId === change.keep.id ? "the copy kept" : m.projectId === change.duplicate.id ? "the other copy" : `“${m.title}” (${m.projectId})`;
+  const count = (n: number | null) => (n === null ? "merged" : `${n} ${n === 1 ? "vote" : "votes"}`);
+  return [...change.moves]
+    .sort((a, b) => order(a.projectId) - order(b.projectId))
+    .map((m) => `${name(m)} ${count(m.before)} → ${count(m.after)}`)
+    .join(", ");
 }

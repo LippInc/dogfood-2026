@@ -873,6 +873,7 @@ describe("the count follows merges and team changes", () => {
     expect(mergeRow.after).toMatchObject({ into: "prj_07", countChange: { kind: "merge" } });
     const mergeLine = getAuditLog(org(), "evt_01").lines.find((l) => l.action === "project.merge")!;
     expect(mergeLine.parts.map((p) => p.text).join("")).toContain("after voting closed");
+    expect(mergeLine.parts.map((p) => p.text).join("")).toContain("the copy kept 1 vote → 2 votes, the other copy 2 votes → merged");
 
     unmergeDuplicate(org(), "evt_01", { duplicateId: "prj_41" });
     expect(votesFor("prj_41")).toBe(2);

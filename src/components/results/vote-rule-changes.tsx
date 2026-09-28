@@ -1,5 +1,5 @@
 import { formatUtc } from "@/lib/format";
-import { countMoves, ruleMoves } from "@/lib/vote-rules";
+import { countCopies, countMoves, ruleMoves } from "@/lib/vote-rules";
 
 type Change = { at: string; reason: string; before: { modes: string[]; votesPerVoter: number }; after: { modes: string[]; votesPerVoter: number } };
 
@@ -37,7 +37,7 @@ export function VoteCountChanges({ changes, className = "" }: { changes: CountCh
       <ul className="mt-1.5 flex flex-col gap-1">
         {changes.map((c, i) => (
           <li key={i}>
-            <span className="tnum">{formatUtc(c.at)}</span>: {countMoves(c)}
+            <span className="tnum">{formatUtc(c.at)}</span>: {countCopies(c)}; {countMoves(c)}.
           </li>
         ))}
       </ul>
