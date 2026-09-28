@@ -94,6 +94,10 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
               <Copy aria-hidden />
             </Button>
           </div>
+          {/* A phone cuts the link off inside the box; the whole link, wrapped, so it can be read before it is sent. */}
+          <p aria-hidden className="font-mono text-12 break-all text-ink-2 sm:hidden">
+            {link ?? `/join/${team.inviteCode}`}
+          </p>
           <p aria-live="polite" className="text-12 text-ink-3">
             {copied ? "Copied." : state.message ?? "Anyone with this link can join while submissions are open."}
           </p>
