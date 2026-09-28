@@ -13,6 +13,7 @@ import { requireEvent } from "./dal/events";
 import { mailProblem } from "./mail";
 import { settingsProblem } from "./settings";
 import { ensureSigningKey } from "./signing";
+import { sweepOrphanUploads } from "./uploads";
 import { startWebhookWorker } from "./webhooks";
 import { nowIso } from "./util";
 import { selfBase, warmUp, warmUpSteps } from "./warmup";
@@ -136,6 +137,9 @@ export async function boot(): Promise<void> {
 
   const now = nowIso();
   const eventId = bootFixture(h, now);
+  const swept = sweepOrphanUploads(h.db);
+  if (swept.skipped) console.warn(`[boot] uploads: ${swept.kept} stored pictures, and ${swept.skipped}`);
+  else if (swept.removed) console.log(`[boot] uploads: removed ${swept.removed} stored ${swept.removed === 1 ? "picture" : "pictures"} no project names (${swept.kept} kept)`);
   const key = ensureSigningKey(h.db, now);
   console.log(`[boot] records are signed with Ed25519 key ${key.id}; public key at /.well-known/dogfood-keys.json`);
 

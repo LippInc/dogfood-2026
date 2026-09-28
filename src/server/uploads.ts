@@ -3,7 +3,9 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { databasePath } from "./db/client";
+import { sql } from "drizzle-orm";
+import { databasePath, type Db } from "./db/client";
+import { projects } from "./db/schema";
 
 // Uploaded project pictures: files in the data volume, next to the database, so `docker compose up`
 // needs nothing else and a backup of /data holds them. A file's name is 128 random bits and the
@@ -83,6 +85,40 @@ export function discardUpload(nameOrPath: string | null | undefined): void {
   const name = nameOrPath.startsWith("/uploads/") ? nameOrPath.slice("/uploads/".length) : nameOrPath;
   if (!UPLOAD_NAME.test(name)) return;
   fs.rmSync(path.join(/*turbopackIgnore: true*/ uploadsDir(), name), { force: true });
+}
+
+/**
+ * At start: delete stored pictures no project names any more. A picture's file is written before its row commits
+ * and deleted after the row that named it changes, so a crash between the two leaves a file nothing points to, and
+ * a database restored without its pictures leaves newer ones behind. Only files with an upload's own name are
+ * touched. A database without a single project is left alone (a new or wrong database file next to an old
+ * pictures folder must not empty it). Runs before the portal serves anything, so no upload is on its way.
+ */
+export function sweepOrphanUploads(db: Db, dir = uploadsDir()): { removed: number; kept: number; skipped?: string } {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).filter((n) => UPLOAD_NAME.test(n));
+  } catch {
+    return { removed: 0, kept: 0 };
+  }
+  if (names.length === 0) return { removed: 0, kept: 0 };
+  const projectCount = db.select({ n: sql<number>`count(*)` }).from(projects).get()?.n ?? 0;
+  if (projectCount === 0) return { removed: 0, kept: names.length, skipped: "the database has no project, so none of the pictures was removed" };
+  // every /uploads/ address a project keeps, as its picture or among its links
+  const named = new Set<string>();
+  for (const r of db.select({ thumb: projects.thumbnailUrl, gallery: projects.galleryUrls }).from(projects).all()) {
+    for (const url of [r.thumb ?? "", ...(r.gallery ?? [])]) {
+      const m = /\/uploads\/([A-Za-z0-9_-]{22}\.(?:png|jpg|webp))$/.exec(url);
+      if (m) named.add(m[1]);
+    }
+  }
+  let removed = 0;
+  for (const n of names) {
+    if (named.has(n)) continue;
+    fs.rmSync(path.join(/*turbopackIgnore: true*/ dir, n), { force: true });
+    removed += 1;
+  }
+  return { removed, kept: names.length - removed };
 }
 
 /** A stored file and the type its name says, or null for a malformed name or a missing file. */
