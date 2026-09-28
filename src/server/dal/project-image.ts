@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { unauthenticated, type Actor } from "../authz";
 import type { Tx } from "../db/client";
 import { projects, teamMembers } from "../db/schema";
@@ -30,6 +30,7 @@ function teamWork(actor: Actor | null, projectId: string, into: { project?: type
 function setThumbnail(actor: Actor | null, projectId: string, next: (() => string) | null) {
   const into: { project?: typeof projects.$inferSelect } = {};
   let before: string | null = null;
+  let shared = false;
   const result = mutate({
     actor,
     action: "project.edit",
@@ -37,6 +38,8 @@ function setThumbnail(actor: Actor | null, projectId: string, next: (() => strin
     run: (tx) => {
       const p = into.project!;
       before = p.thumbnailUrl;
+      // a file another project still shows is kept, however that project came to hold its address
+      shared = Boolean(before && tx.select({ id: projects.id }).from(projects).where(and(eq(projects.thumbnailUrl, before), ne(projects.id, p.id))).get());
       const thumbnailUrl = next ? next() : null;
       const now = new Date().toISOString();
       tx.update(projects).set({ thumbnailUrl, updatedAt: now }).where(eq(projects.id, p.id)).run();
@@ -46,7 +49,7 @@ function setThumbnail(actor: Actor | null, projectId: string, next: (() => strin
       };
     },
   });
-  if (before !== result.thumbnailUrl) discardUpload(before);
+  if (before !== result.thumbnailUrl && !shared) discardUpload(before);
   return result;
 }
 

@@ -70,6 +70,12 @@ export const ProjectInput = z.object({
 });
 export type ProjectInput = z.input<typeof ProjectInput>;
 
+// An uploaded picture is set only by uploading it. Its address is public on the gallery card, so a
+// project form that took any /uploads/ address would let a team point its project at another team's
+// file, and then delete that file by replacing or taking down its own picture.
+const typedUpload = () =>
+  new ValidationError("The project is not valid.", { thumbnailUrl: ["Use Upload for a picture: an uploaded picture's address cannot be typed in."] });
+
 export function teamOf(tx: DbOrTx, userId: string, eventId: string) {
   return tx
     .select({ id: teams.id, name: teams.name })
@@ -147,6 +153,7 @@ export function createProject(actor: Actor | null, eventIdOrSlug: string, body: 
     },
     run: (tx) => {
       const input = parse(body);
+      if (input.thumbnailUrl?.startsWith("/uploads/")) throw typedUpload();
       const t = team!;
       const existing = tx.select({ id: projects.id }).from(projects).where(eq(projects.teamId, t.id)).get();
       if (existing) {
@@ -222,6 +229,7 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
     },
     run: (tx) => {
       const input = parse(body);
+      if (input.thumbnailUrl?.startsWith("/uploads/") && input.thumbnailUrl !== project.thumbnailUrl) throw typedUpload();
       requireTrack(tx, input.trackId, project.eventId);
       if (input.trackId !== project.trackId) {
         // Judges assigned in the old track would lose it (a track judge never sees another track).

@@ -12,7 +12,8 @@ import { verifyAuditChain } from "@/server/audit";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { removeProjectImage, setProjectImage } from "@/server/dal/project-image";
-import { updateProject } from "@/server/dal/projects";
+import { createProject, updateProject } from "@/server/dal/projects";
+import { createTeam } from "@/server/dal/teams";
 import { MAX_IMAGE_BYTES, readUpload, sniffImage } from "@/server/uploads";
 import type { Actor } from "@/server/authz";
 
@@ -160,6 +161,37 @@ describe("setProjectImage with the event open", () => {
     expect(thumbnailOf("prj_01")).toBe(url);
     for (const bad of ["/uploads/../portal.db", "/etc/passwd", "/uploads/short.png", "javascript:alert(1)"])
       expectHttpError(() => updateProject(member(), "prj_01", { ...base, thumbnailUrl: bad }), 422, "invalid");
+  });
+});
+
+describe("another team's upload", () => {
+  beforeEach(openEvent);
+  const otherTeam = () => actorById(idByEmail("lena2@example.org")); // on tm_02, the team behind prj_02
+  const prj02 = { title: "p2", summary: "s", trackId: "trk_03", repoUrl: "https://example.org/repo/02", status: "submitted" };
+  const fileOf = (url: string) => url.slice("/uploads/".length);
+
+  it("cannot be taken over by typing its address into your own project, so you cannot delete it either", () => {
+    const theirs = setProjectImage(member(), "prj_01", PNG).thumbnailUrl; // its address shows on the public gallery card
+    expectHttpError(() => updateProject(otherTeam(), "prj_02", { ...prj02, thumbnailUrl: theirs }), 422, "invalid");
+    expect(thumbnailOf("prj_02")).not.toBe(theirs);
+    expect(files()).toContain(fileOf(theirs));
+  });
+
+  it("cannot start a new project either", () => {
+    const theirs = setProjectImage(member(), "prj_01", PNG).thumbnailUrl;
+    const newcomer = actorById(idByEmail("lena2@example.org"));
+    h.sqlite.prepare("DELETE FROM team_members WHERE user_id = ?").run(newcomer.userId); // free to start a team
+    createTeam(newcomer, "evt_01", { name: "Fresh Team" });
+    expectHttpError(() => createProject(newcomer, "evt_01", { ...prj02, thumbnailUrl: theirs }), 422, "invalid");
+  });
+
+  it("is never deleted while another project still shows it", () => {
+    const theirs = setProjectImage(member(), "prj_01", PNG).thumbnailUrl;
+    // however a second project came to hold the same address, taking its picture down keeps the file
+    h.sqlite.prepare("UPDATE projects SET thumbnail_url = ? WHERE id = 'prj_02'").run(theirs);
+    removeProjectImage(otherTeam(), "prj_02");
+    expect(files()).toContain(fileOf(theirs));
+    expect(thumbnailOf("prj_01")).toBe(theirs);
   });
 });
 
