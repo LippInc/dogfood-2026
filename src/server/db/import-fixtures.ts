@@ -13,11 +13,14 @@ import { newSecret, nowIso, sha256, slugify } from "../util";
 import {
   assignmentRuns,
   assignments,
+  customAnswers,
+  customQuestions,
   events,
   fixtureImports,
   judgeTracks,
   projectFields,
   projects,
+  QUESTION_TYPES,
   rubricCriteria,
   scoreComments,
   scoreItems,
@@ -63,11 +66,42 @@ export const FixtureSchema = z.looseObject({
     name: z.string().min(1),
     // stored exactly as given, never reformatted
     submissions_close: dateTime,
+    // Not in the organizers' format: the portal's own export adds it when the event has one.
+    description: z.string().max(20_000).optional().default(""),
   }),
   tracks: z.array(z.looseObject({ id, name: z.string().min(1) })).max(IMPORT_LIMITS.tracks, atMost(IMPORT_LIMITS.tracks, "tracks")),
   // Not in the organizers' format: what teams are asked for each built-in field, as the portal's
   // own export writes it when an event differs from the defaults. A field left out is the default.
   project_fields: z.partialRecord(z.enum(PROJECT_FIELDS), z.enum(FIELD_MODES)).optional(),
+  // Not in the organizers' format either: the rubric as the organizers set it (labels, prompts, weights, level
+  // texts, order), which the portal's export writes when it differs from what the scores' keys alone would give,
+  // and the event's own questions to teams. Without them an event moved between portals would score with every
+  // weight back at 1 and every label a capitalised key, and lose its questions and the teams' answers.
+  rubric: z
+    .array(
+      z.looseObject({
+        key: z.string().min(1).max(80),
+        label: z.string().trim().min(1).max(80),
+        prompt: z.string().max(2_000).optional().default(""),
+        weight: z.number().positive().max(100).optional().default(1),
+        anchors: z.record(z.string(), z.string().max(500)).optional().default({}),
+      }),
+    )
+    .max(20)
+    .optional(),
+  questions: z
+    .array(
+      z.looseObject({
+        id,
+        label: z.string().trim().min(1).max(200),
+        help: z.string().max(1_000).optional().default(""),
+        type: z.enum(QUESTION_TYPES).optional().default("longtext"),
+        required: z.boolean().optional().default(false),
+      }),
+    )
+    .max(30)
+    .optional()
+    .default([]),
   judges: z.array(
     z.looseObject({
       id,
@@ -108,6 +142,11 @@ export const FixtureSchema = z.looseObject({
         .optional()
         .default([]),
       tags: z.array(z.string().trim().min(1).max(MAX_TAG_LENGTH)).max(MAX_TAGS).optional().default([]),
+      description: z.string().max(20_000).optional().default(""),
+      video_url: z.literal("").or(z.string().url({ protocol: /^https?$/, message: "must be a full URL, starting with https://" })).optional().default(""),
+      live_url: z.literal("").or(z.string().url({ protocol: /^https?$/, message: "must be a full URL, starting with https://" })).optional().default(""),
+      /** the team's answers to the event's questions, by question id */
+      answers: z.record(z.string(), z.string().max(5_000)).optional().default({}),
       submitted_at: dateTime,
     }),
   ).max(IMPORT_LIMITS.projects, atMost(IMPORT_LIMITS.projects, "projects")),
@@ -143,7 +182,9 @@ type TableKey =
   | "assignments"
   | "scores"
   | "scoreItems"
-  | "scoreComments";
+  | "scoreComments"
+  | "customQuestions"
+  | "customAnswers";
 
 function emptyCounts(): Record<TableKey, number> {
   return {
@@ -162,6 +203,8 @@ function emptyCounts(): Record<TableKey, number> {
     scores: 0,
     scoreItems: 0,
     scoreComments: 0,
+    customQuestions: 0,
+    customAnswers: 0,
   };
 }
 
@@ -175,7 +218,7 @@ export type ImportReport = {
   /** score ids whose judge is a member of the scored project's team */
   conflicts: string[];
   /** file ids another event already used, and the ids this event's rows got instead */
-  renamed: { kind: "track" | "team" | "project" | "judge"; from: string; to: string }[];
+  renamed: { kind: "track" | "team" | "project" | "judge" | "question"; from: string; to: string }[];
   /** set when the event is new and the web address its name gives was taken by another event */
   slug?: { wanted: string; used: string };
   /**
@@ -201,7 +244,8 @@ function criterionId(eventId: string, key: string): string {
   return `crit_${eventId}_${key}`;
 }
 
-function labelFor(key: string): string {
+/** The label a criterion gets when a file names only its key. */
+export function labelFor(key: string): string {
   return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
@@ -261,6 +305,7 @@ export function importFixtures(
       track: (id: string) => tx.select({ e: tracks.eventId }).from(tracks).where(eq(tracks.id, id)).get()?.e,
       team: (id: string) => tx.select({ e: teams.eventId }).from(teams).where(eq(teams.id, id)).get()?.e,
       project: (id: string) => tx.select({ e: projects.eventId }).from(projects).where(eq(projects.id, id)).get()?.e,
+      question: (id: string) => tx.select({ e: customQuestions.eventId }).from(customQuestions).where(eq(customQuestions.id, id)).get()?.e,
     };
     const own = (kind: keyof typeof holderOf, id: string): string => {
       const holder = holderOf[kind](id);
@@ -277,6 +322,7 @@ export function importFixtures(
     const trackOf = ownIds("track", fixture.tracks.map((t) => t.id));
     const teamOf = ownIds("team", fixture.teams.map((t) => t.id));
     const projectOf = ownIds("project", fixture.projects.map((p) => p.id));
+    const questionOf = ownIds("question", fixture.questions.map((q) => q.id));
 
     // Event. A new event whose name gives a web address another event already has gets the first free one
     // with a number after it (the report says so); an event that is here keeps its own.
@@ -297,6 +343,7 @@ export function importFixtures(
             id: eventId,
             slug,
             name: fixture.event.name,
+            description: fixture.event.description,
             submissionsOpenAt: null,
             submissionsCloseAt: fixture.event.submissions_close,
             createdAt: now,
@@ -338,15 +385,18 @@ export function importFixtures(
       bump("projectFields", insertOnce(tx.insert(projectFields).values({ eventId, field: f, mode }).onConflictDoNothing()));
     }
 
-    // Rubric criteria: one row per distinct key, in first-seen order
-    const criteriaKeys: string[] = [];
+    // Rubric criteria: the file's rubric first, in its order, when it has one; then one row per other key the
+    // scores use, in first-seen order, with the built-in texts and weight 1
+    const given = new Map((fixture.rubric ?? []).map((c) => [c.key, c]));
+    const criteriaKeys: string[] = [...given.keys()];
     for (const s of fixture.scores) {
       for (const key of Object.keys(s.criteria)) {
         if (!criteriaKeys.includes(key)) criteriaKeys.push(key);
       }
     }
     criteriaKeys.forEach((key, position) => {
-      const builtin = BUILTIN_CRITERIA[key] ?? { prompt: "", anchors: {} };
+      const own = given.get(key);
+      const builtin = own ? { prompt: own.prompt, anchors: own.anchors } : (BUILTIN_CRITERIA[key] ?? { prompt: "", anchors: {} });
       bump(
         "rubricCriteria",
         insertOnce(
@@ -356,9 +406,9 @@ export function importFixtures(
               id: criterionId(eventId, key),
               eventId,
               key,
-              label: labelFor(key),
+              label: own?.label ?? labelFor(key),
               prompt: builtin.prompt,
-              weight: 1,
+              weight: own?.weight ?? 1,
               scaleMin: 1,
               scaleMax: 5,
               anchors: builtin.anchors,
@@ -521,6 +571,19 @@ export function importFixtures(
       });
     }
 
+    // The event's questions to teams (answers come with each project)
+    fixture.questions.forEach((q, position) => {
+      bump(
+        "customQuestions",
+        insertOnce(
+          tx
+            .insert(customQuestions)
+            .values({ id: questionOf.get(q.id)!, eventId, label: q.label, help: q.help, type: q.type, required: q.required, position })
+            .onConflictDoNothing(),
+        ),
+      );
+    });
+
     // Projects: both rows of a duplicate submission are imported unchanged
     const projectById = new Map(fixture.projects.map((p) => [p.id, p]));
     const importedProjects = new Set<string>();
@@ -546,6 +609,9 @@ export function importFixtures(
               title: p.title,
               summary: p.summary,
               repoUrl: p.repo_url === "" ? null : p.repo_url,
+              description: p.description,
+              videoUrl: p.video_url === "" ? null : p.video_url,
+              liveUrl: p.live_url === "" ? null : p.live_url,
               thumbnailUrl: p.thumbnail_url === "" ? null : p.thumbnail_url,
               galleryUrls: p.gallery_urls,
               tags: p.tags.filter((t, i) => p.tags.findIndex((u) => u.toLowerCase() === t.toLowerCase()) === i),
@@ -558,6 +624,14 @@ export function importFixtures(
         ),
       );
       importedProjects.add(p.id);
+      for (const [questionId, value] of Object.entries(p.answers)) {
+        const qid = questionOf.get(questionId);
+        if (!qid) {
+          report.skipped.push({ kind: "answer", id: `${p.id}:${questionId}`, reason: `unknown question ${questionId}` });
+          continue;
+        }
+        bump("customAnswers", insertOnce(tx.insert(customAnswers).values({ projectId: projectOf.get(p.id)!, questionId: qid, value }).onConflictDoNothing()));
+      }
     }
 
     // Scores: one assignment run for the whole file, then a row per fixture score

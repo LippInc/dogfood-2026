@@ -134,7 +134,8 @@ export default async function OrganizeHome() {
             </h2>
             <p className="max-w-[680px] text-15 text-ink-2">
               From a file in the organizers&rsquo; fixture format: the <code className="font-mono text-13">fixtures.json</code> any event here
-              exports, or one you wrote. Tracks, judges, teams, projects and scores come in; importing the same file again changes nothing. People
+              exports, or one you wrote. Tracks, judges, teams, projects and scores come in, and from a portal&rsquo;s own export also the rubric,
+              the questions to teams and their answers; importing the same file again changes nothing. People
               who come in this way get into their accounts through personal links, made on the event&rsquo;s Integrations tab.
             </p>
             <ImportEventForm />

@@ -35,6 +35,9 @@ import { averageRanks } from "../judging/normalize";
 import { issuer } from "./records";
 import { reviewsOf } from "./scores";
 import { changedFromDefaults } from "@/lib/project-fields";
+import { labelFor } from "../db/import-fixtures";
+import { BUILTIN_CRITERIA } from "../rubric-defaults";
+import { canonicalJson } from "../util";
 import { fieldModes, shownTitle } from "./project-fields";
 
 // Organizer exports: CSV at every stage, and always a header row, even before
@@ -387,11 +390,39 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
         ...(r.feedback ? { comment: r.feedback } : {}),
       })),
   );
+  // The rubric as set here, written only when it differs from what the importer makes of the scores' keys alone
+  // (labels from the keys, the built-in texts, weight 1, first-seen order), so fixture data still exports as it came.
+  const rubric = db
+    .select({ key: rubricCriteria.key, label: rubricCriteria.label, prompt: rubricCriteria.prompt, weight: rubricCriteria.weight, anchors: rubricCriteria.anchors })
+    .from(rubricCriteria)
+    .where(eq(rubricCriteria.eventId, event.id))
+    .orderBy(asc(rubricCriteria.position), asc(rubricCriteria.key))
+    .all();
+  const seenKeys = [...new Set(scoreRows.flatMap((s) => Object.keys(s.criteria)))];
+  const derived = seenKeys.map((key) => ({
+    key,
+    label: labelFor(key),
+    prompt: BUILTIN_CRITERIA[key]?.prompt ?? "",
+    weight: 1,
+    anchors: BUILTIN_CRITERIA[key]?.anchors ?? {},
+  }));
+  const questionRows = db
+    .select({ id: customQuestions.id, label: customQuestions.label, help: customQuestions.help, type: customQuestions.type, required: customQuestions.required })
+    .from(customQuestions)
+    .where(eq(customQuestions.eventId, event.id))
+    .orderBy(asc(customQuestions.position), asc(customQuestions.id))
+    .all();
+  const answerRows = projectRows.length
+    ? db.select().from(customAnswers).where(inArray(customAnswers.projectId, projectRows.map((p) => p.id))).all()
+    : [];
+  const answersOf = (projectId: string) => Object.fromEntries(answerRows.filter((a) => a.projectId === projectId).map((a) => [a.questionId, a.value]));
   return JSON.stringify(
     {
-      event: { id: event.id, name: event.name, submissions_close: event.submissionsCloseAt },
+      event: { id: event.id, name: event.name, submissions_close: event.submissionsCloseAt, ...(event.description ? { description: event.description } : {}) },
       tracks: db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, event.id)).orderBy(asc(tracks.id)).all(),
       ...(Object.keys(fields).length ? { project_fields: fields } : {}),
+      ...(canonicalJson(rubric) !== canonicalJson(derived) ? { rubric } : {}),
+      ...(questionRows.length ? { questions: questionRows } : {}),
       judges: judgeRows.map((j) => ({ ...j, tracks: judgeTrackRows.filter((t) => t.judgeUserId === j.id).map((t) => t.trackId).sort() })),
       teams: teamRows.map((t) => ({
         ...t,
@@ -410,6 +441,10 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
         ...(p.thumbnailUrl ? { thumbnail_url: p.thumbnailUrl.startsWith("/uploads/") ? `${issuer()}${p.thumbnailUrl}` : p.thumbnailUrl } : {}),
         ...(p.galleryUrls.length ? { gallery_urls: p.galleryUrls } : {}),
         ...(p.tags.length ? { tags: p.tags } : {}),
+        ...(p.description ? { description: p.description } : {}),
+        ...(p.videoUrl ? { video_url: p.videoUrl } : {}),
+        ...(p.liveUrl ? { live_url: p.liveUrl } : {}),
+        ...(answerRows.some((a) => a.projectId === p.id) ? { answers: answersOf(p.id) } : {}),
         submitted_at: p.submittedAt,
       })),
       scores: scoreRows,

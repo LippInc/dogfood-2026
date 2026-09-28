@@ -28,8 +28,8 @@ const EXPORT_HOLDS: Record<string, string> = {
   "normalized.csv": "the normalized ranking",
   "audit.csv": "the audit log",
   "comparisons.csv": "every pairwise answer",
-  "event.json": "the whole event, with settings and decisions",
-  "fixtures.json": "the fixture format, to import elsewhere",
+  "event.json": "the whole event as a record, with settings and decisions",
+  "fixtures.json": "moves the event to another portal",
 };
 
 export default async function IntegrationsPage({ params, searchParams }: PageProps<"/organize/[event]/integrations">) {
@@ -201,10 +201,12 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
             Import and export
             </h2>
             <p className="mt-1 max-w-[760px] text-15 text-ink-2">
-              Take everything out at any stage. <code className="font-mono text-13">fixtures.json</code> is the organizers&rsquo; fixture format:
-              an administrator can import it into another portal (Your events, Import an event) and get the same projects, judges and scores, and the
-              same ranking as before any decision. Settings and your decisions (a merge, a reinstated judge) stay in{" "}
-              <code className="font-mono text-13">event.json</code>.
+              Take everything out at any stage. <code className="font-mono text-13">fixtures.json</code> is the file that moves this event to
+              another portal: the organizers&rsquo; fixture format, with your rubric (labels, prompts, weights), your questions to teams and their
+              answers, and each project&rsquo;s description and links added. An administrator imports it there (Your events, Import an event) and
+              gets the same projects, judges, scores and rubric, and the same ranking as before any decision.{" "}
+              <code className="font-mono text-13">event.json</code> is the whole record, to keep: settings and your decisions (a merge, a
+              reinstated judge) are only in it and do not move.
             </p>
           </div>
           <ul aria-label="Exports" className="grid border-t border-rule md:grid-cols-2 md:gap-x-10">

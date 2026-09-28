@@ -219,10 +219,13 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 - **Import and export.** Every stage exports as CSV (the download buttons add a
   UTF-8 byte-order mark so Excel reads accented names; the API adds it only with
   `?bom=1`), and a whole event as
-  `event.json` or as `fixtures.json`, the organizers' own fixture format, which
-  an administrator can import into another portal to get the same projects,
-  judges and scores, and the same ranking as before any decision (settings and
-  the organizer's decisions stay in `event.json`). Imported people get into their accounts through one-time personal
+  `event.json` or as `fixtures.json`, the organizers' own fixture format with
+  the rubric (labels, prompts, weights), the questions to teams and their
+  answers, and each project's description and links added: the file that moves
+  an event, which an administrator can import into another portal to get the
+  same projects, judges, scores and rubric, and the same ranking as before any
+  decision (settings and the organizer's decisions stay in `event.json`, the
+  record to keep). Imported people get into their accounts through one-time personal
   links the organizer sends.
 - **Audit log.** Every change, and every request refused to someone signed in
   or holding a voting link, is recorded in the same transaction as the change
