@@ -474,6 +474,15 @@ describe("listed voters", () => {
     openVoting();
   });
 
+  it("the audit row names each voter the list gained by voter id, never by address", () => {
+    addListedVoters(org(), "evt_01", { emails: "a@example.org, b@example.org" });
+    addListedVoters(org(), "evt_01", { emails: "b@example.org, c@example.org" });
+    const rows = auditRows().filter((r) => r.action === "voting.voters_added");
+    const ids = (email: string) => (h.sqlite.prepare("SELECT id FROM voters WHERE event_id = 'evt_01' AND email = ?").get(email) as { id: string }).id;
+    expect(rows.map((r) => (r.after as { voterIds?: string[] }).voterIds)).toEqual([[ids("a@example.org"), ids("b@example.org")], [ids("c@example.org")]]);
+    expect(JSON.stringify(rows.map((r) => r.after))).not.toContain("@example.org");
+  });
+
   it("adds each address once (case-insensitive), skips known ones, and their personal links vote as kind listed", () => {
     const first = addListedVoters(org(), "evt_01", { emails: "a@example.org, b@example.org\nA@Example.org" });
     expect(first.links).toHaveLength(2);

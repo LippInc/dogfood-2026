@@ -206,6 +206,7 @@ export function addListedVoters(actor: Actor | null, eventIdOrSlug: string, body
     );
     const now = new Date().toISOString();
     const links: { email: string; path: string }[] = [];
+    const added: string[] = []; // the audit row names them by voter id, never by address
     for (const email of emails) {
       if (existing.has(email)) continue;
       const token = newSecret(24);
@@ -214,11 +215,12 @@ export function addListedVoters(actor: Actor | null, eventIdOrSlug: string, body
         .values({ id, eventId: event.id, kind: "listed", email, tokenHash: sha256(token), orderSeed: parseInt(sha256(`ballot-order:${id}`).slice(0, 8), 16) & 0x7fffffff, createdAt: now })
         .run();
       links.push({ email, path: `/vote/${token}` });
+      added.push(id);
     }
     return {
       result: { links, skipped: emails.length - links.length },
       audit: links.length
-        ? { action: "voting.voters_added", eventId: event.id, targetType: "event", targetId: event.id, after: { added: links.length, skipped: emails.length - links.length } }
+        ? { action: "voting.voters_added", eventId: event.id, targetType: "event", targetId: event.id, after: { added: links.length, skipped: emails.length - links.length, voterIds: added } }
         : null,
     };
   });
