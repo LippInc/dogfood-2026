@@ -8,7 +8,7 @@ import { formatUtc } from "@/lib/format";
 import { competitionPlaces, ordinal } from "@/lib/places";
 import Link from "next/link";
 import { actorNav, currentActor, getGallery, getMyWork, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
-import { CommentForm, DeleteOwnComment, HideForm, UnhideForm } from "./comments";
+import { CommentForm, DeleteOwnComment, ModerateComment } from "./comments";
 import { TakeDownPicture } from "./take-down";
 import { trackMoveWords } from "@/lib/track-move";
 
@@ -381,8 +381,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                         {(c.mine && !c.hidden) || canModerate ? (
                           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
                             {c.mine && !c.hidden ? <DeleteOwnComment commentId={c.id} path={path} /> : null}
-                            {canModerate && !c.hidden ? <HideForm commentId={c.id} path={path} /> : null}
-                            {canModerate && c.hidden ? <UnhideForm commentId={c.id} path={path} /> : null}
+                            {canModerate ? <ModerateComment commentId={c.id} path={path} isHidden={Boolean(c.hidden)} /> : null}
                           </span>
                         ) : null}
                       </p>

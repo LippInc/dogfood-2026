@@ -43,12 +43,28 @@ export function CommentForm({ projectId, path }: { projectId: string; path: stri
   );
 }
 
-export function HideForm({ commentId, path }: { commentId: string; path: string }) {
+/**
+ * An organizer's control on one comment: Hide… while it shows, Unhide while it is hidden. A
+ * successful hide or unhide swaps one for the other and takes the focused control with it, so
+ * focus moves to the new one instead of falling to the page (a keyboard user keeps their place).
+ */
+export function ModerateComment({ commentId, path, isHidden }: { commentId: string; path: string; isHidden: boolean }) {
+  const hideOpener = useRef<HTMLButtonElement>(null);
+  const unhide = useRef<HTMLButtonElement>(null);
+  useRescueFocus(() => (isHidden ? unhide.current : hideOpener.current), isHidden);
+  return isHidden ? (
+    <UnhideForm commentId={commentId} path={path} focusRef={unhide} />
+  ) : (
+    <HideForm commentId={commentId} path={path} focusRef={hideOpener} />
+  );
+}
+
+function HideForm({ commentId, path, focusRef }: { commentId: string; path: string; focusRef: React.Ref<HTMLButtonElement> }) {
   const [open, setOpen] = useState(false);
   const [state, form, pending] = useFormAction(hideCommentAction, idle);
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-13 text-ink-2 underline underline-offset-4 hover:text-ink">
+      <button ref={focusRef} type="button" onClick={() => setOpen(true)} className="text-13 text-ink-2 underline underline-offset-4 hover:text-ink">
         Hide…
       </button>
     );
@@ -118,13 +134,13 @@ export function DeleteOwnComment({ commentId, path }: { commentId: string; path:
 }
 
 /** An organizer shows a hidden comment again. */
-export function UnhideForm({ commentId, path }: { commentId: string; path: string }) {
+function UnhideForm({ commentId, path, focusRef }: { commentId: string; path: string; focusRef: React.Ref<HTMLButtonElement> }) {
   const [state, form, pending] = useFormAction(unhideCommentAction, idle);
   return (
     <form {...form} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="comment" value={commentId} />
       <input type="hidden" name="path" value={path} />
-      <button disabled={pending} className={quiet}>
+      <button ref={focusRef} disabled={pending} className={quiet}>
         {pending ? "Showing…" : "Unhide"}
       </button>
       {state.message && !state.ok ? (
