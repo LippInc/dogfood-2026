@@ -539,28 +539,37 @@ export function JudgeConsoleView({
           </div>
           <Materials
             rows={[
-              ["Repository", p.repoUrl],
-              ["Demo video", p.videoUrl],
-              ["Live demo", p.liveUrl],
+              // a link the organizers did not ask for is not "not submitted": it is left out
+              ...(
+                [
+                  ["Repository", p.repoUrl, data.fields.repoUrl],
+                  ["Demo video", p.videoUrl, data.fields.videoUrl],
+                  ["Live demo", p.liveUrl, data.fields.liveUrl],
+                ] as const
+              )
+                .filter(([, , mode]) => mode !== "hidden")
+                .map(([label, url]): [string, string | null] => [label, url]),
               ...[p.thumbnailUrl, ...p.galleryUrls]
                 .filter((u): u is string => Boolean(u))
                 .map((u, n, all): [string, string] => [all.length === 1 ? "Image" : `Image ${n + 1}`, u]),
             ]}
           />
-          <div className="mt-8 border-t border-rule pt-6">
-            <h2 className="text-14 font-semibold">About the project</h2>
-            {body.length ? (
-              body.map((para, n) => (
-                <p key={n} className="mt-4 font-serif text-17 leading-8">
-                  {para}
+          {data.fields.description !== "hidden" ? (
+            <div className="mt-8 border-t border-rule pt-6">
+              <h2 className="text-14 font-semibold">About the project</h2>
+              {body.length ? (
+                body.map((para, n) => (
+                  <p key={n} className="mt-4 font-serif text-17 leading-8">
+                    {para}
+                  </p>
+                ))
+              ) : (
+                <p className="mt-4 rounded-sm border border-dashed border-edge px-4 py-3 text-15 text-ink-2">
+                  {p.summary ? "The team wrote no longer description; the summary above is all there is." : "The team wrote no description."}
                 </p>
-              ))
-            ) : (
-              <p className="mt-4 rounded-sm border border-dashed border-edge px-4 py-3 text-15 text-ink-2">
-                The team wrote no longer description; the summary above is all there is.
-              </p>
-            )}
-          </div>
+              )}
+            </div>
+          ) : null}
           {p.answers.length ? (
             <div className="mt-10 border-t border-rule pt-6">
               <h2 className="text-14 font-semibold">Organizer&rsquo;s questions</h2>
@@ -842,6 +851,7 @@ export function JudgeConsoleView({
 /** What the team handed in, as one list: every project shows the same rows, so a missing demo is as visible as a present one. */
 function Materials({ rows }: { rows: [string, string | null][] }) {
   const given = rows.filter(([, url]) => url).length;
+  if (rows.length === 0) return null;
   return (
     <section aria-labelledby="materials-title" className="mt-6 rounded-sm border border-rule bg-surface">
       <div className="flex items-baseline justify-between border-b border-rule px-4 py-2">

@@ -96,6 +96,20 @@ def section_c(u, people, cfg):
     expect(c, s == 200, organizer, "PUT", prizes_url, s, f"200 putting the {len(rows)} exported rows back")
     s, _, _ = participant.request("PUT", prizes_url, rows)
     expect(c, s == 403, participant, "PUT", prizes_url, s, "403")
+    # what teams fill in: public to read; put back unchanged by the organizer only
+    fields_url = u(f"/api/events/{EVENT_ID}/project-fields")
+    fields = {}
+    s, body, _ = visitor.request("GET", fields_url)
+    if expect(c, s == 200, visitor, "GET", fields_url, s, "200"):
+        fields = as_json(body).get("fields", {})
+        expect(c, fields.get("trackId") in ("required", "hidden"), visitor, "GET", fields_url,
+               f"trackId {fields.get('trackId')!r}", "a track that is required or hidden")
+    s, _, _ = organizer.request("PUT", fields_url, fields)
+    expect(c, s == 200, organizer, "PUT", fields_url, s, f"200 putting the {len(fields)} fields back")
+    s, _, _ = participant.request("PUT", fields_url, fields)
+    expect(c, s == 403, participant, "PUT", fields_url, s, "403")
+    s, _, _ = visitor.request("PUT", fields_url, fields)
+    expect(c, s == 401, visitor, "PUT", fields_url, s, "401")
     checks.append(c)
 
     # C3 -- webhooks: private target refused, a change queued in the same transaction

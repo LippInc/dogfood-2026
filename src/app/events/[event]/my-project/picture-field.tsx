@@ -16,10 +16,16 @@ export function PictureField({
   initial,
   error,
   face,
+  required = false,
+  onChange,
 }: {
   projectId: string | null;
   initial: string | null;
   error?: string[];
+  /** the organizers ask for a picture before a team can submit */
+  required?: boolean;
+  /** told after an upload or a take-down, which change the picture without a keystroke */
+  onChange?: () => void;
   /** the project's generated face, drawn on the server: shown while there is no picture, or when one does not load */
   face: React.ReactNode;
 }) {
@@ -44,6 +50,7 @@ export function PictureField({
         return;
       }
       setUrl(body?.thumbnailUrl ?? "");
+      onChange?.();
       setNote({ ok: true, text: method === "POST" ? "Uploaded: it is your gallery card's picture now." : "The picture is taken down." });
       router.refresh();
     } catch {
@@ -59,6 +66,7 @@ export function PictureField({
       {/* before the first save there is no file input yet: the label names the address box instead */}
       <label htmlFor={projectId ? "picture-file" : "thumbnailUrl"} className="text-14 font-medium">
         Picture
+        {required ? <span className="text-ink-3"> · required</span> : null}
       </label>
       <p id="picture-help" className="text-13 text-ink-3">
         Shown on your gallery card at 16:9. Upload a PNG, JPEG or WebP up to 8 MB, or give the address of an image.

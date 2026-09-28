@@ -7,6 +7,8 @@ import { DEFAULT_SEED_SECRET } from "../checker";
 import { getDb, type DbOrTx } from "../db/client";
 import { events, projects, teamMembers, teams, tracks, users, voters, votes } from "../db/schema";
 import { formatUtc } from "@/lib/format";
+import { withoutHidden } from "@/lib/project-fields";
+import { fieldModes } from "./project-fields";
 import { AuthzError, ConflictError, NotFoundError, RateLimitedError, ValidationError } from "../errors";
 import { seededRng, shuffle } from "../judging/random";
 import { mutate } from "../mutate";
@@ -94,7 +96,8 @@ function accountSeed(eventId: string, userId: string): number {
 }
 
 function ballotProjects(db: DbOrTx, eventId: string) {
-  return db
+  const modes = fieldModes(db, eventId);
+  const rows = db
     .select({ id: projects.id, title: projects.title, summary: projects.summary, teamName: teams.name, trackName: tracks.name })
     .from(projects)
     .innerJoin(teams, eq(teams.id, projects.teamId))
@@ -102,6 +105,7 @@ function ballotProjects(db: DbOrTx, eventId: string) {
     .where(and(eq(projects.eventId, eventId), eq(projects.status, "submitted"), isNull(projects.duplicateOf)))
     .orderBy(asc(projects.id))
     .all();
+  return rows.map((p) => withoutHidden(p, modes));
 }
 
 /** The event's projects whose team the signed-in person is on: no vote for their own. */

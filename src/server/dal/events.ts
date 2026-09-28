@@ -4,6 +4,8 @@ import type { EventFacts } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { events, prizes, projects, rubricCriteria, teams, tracks, userRoles } from "../db/schema";
 import { NotFoundError } from "../errors";
+import { withoutHidden, type FieldModes } from "@/lib/project-fields";
+import { fieldModes, trackCount } from "./project-fields";
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -157,10 +159,12 @@ export function getGallery(idOrSlug: string): Gallery {
     .where(eq(teams.eventId, event.id))
     .get();
 
+  // what the organizer does not ask for is not shown, even where a team filled it in before
+  const modes = fieldModes(db, event.id);
   return {
     event,
     tracks: trackRows.map((t) => ({ ...t, count: perTrack.get(t.id) ?? 0 })),
-    projects: rows,
+    projects: rows.map((p) => withoutHidden(p, modes)),
     counts: {
       projects: rows.length,
       teams: teamCount?.n ?? 0,
@@ -211,4 +215,14 @@ export function getAbout(idOrSlug: string): About {
 export function eventRef(idOrSlug: string): { id: string; slug: string } {
   const e = requireEvent(getDb(), idOrSlug);
   return { id: e.id, slug: e.slug };
+}
+
+/**
+ * What one event asks teams for each built-in field, and how many tracks it has. Public, like the
+ * About page: it is the shape of the project form, and the gallery shows its effect anyway.
+ */
+export function getProjectFields(idOrSlug: string): { event: { id: string; slug: string }; fields: FieldModes; tracks: number } {
+  const db = getDb();
+  const e = requireEvent(db, idOrSlug);
+  return { event: { id: e.id, slug: e.slug }, fields: fieldModes(db, e.id), tracks: trackCount(db, e.id) };
 }

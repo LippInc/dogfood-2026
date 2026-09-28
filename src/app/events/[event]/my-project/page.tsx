@@ -92,7 +92,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           {project?.title ? (
             <p className="mt-3 font-serif text-24 leading-8">
               {project.title}
-              {project.summary ? <span className="text-ink-2"> — {project.summary}</span> : null}
+              {project.summary && work.fields.summary !== "hidden" ? <span className="text-ink-2"> — {project.summary}</span> : null}
             </p>
           ) : null}
         </div>
@@ -100,7 +100,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           <figure className="min-w-0">
             <figcaption className="label-mono text-ink-3">Fig. 01 — in the gallery</figcaption>
             <div className="lit mt-2 overflow-hidden rounded-xs border border-rule">
-              {project.thumbnailUrl ? (
+              {project.thumbnailUrl && work.fields.thumbnailUrl !== "hidden" ? (
                 <ProjectImage src={project.thumbnailUrl} alt="" fallback={<Face id={project.id} className="block aspect-video w-full" />} />
               ) : (
                 <Face id={project.id} className="block aspect-video w-full" />
@@ -174,6 +174,8 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           open={open}
           tracks={work.tracks}
           questions={work.questions}
+          fields={work.fields}
+          teamName={team.name}
           project={formProject}
           side={side}
           face={<Face id={work.faceId ?? team.id} className="block aspect-video w-full" />}
@@ -186,6 +188,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
             project={formProject}
             trackName={trackName}
             questions={work.questions}
+            fields={work.fields}
           />
           <aside className="flex flex-col gap-8 lg:sticky lg:top-6 lg:self-start">{side}</aside>
         </div>

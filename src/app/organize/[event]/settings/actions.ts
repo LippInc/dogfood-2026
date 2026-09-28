@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { PROJECT_FIELDS } from "@/lib/project-fields";
 import {
   actionError,
   addOrganizer,
   currentActor,
   removeOrganizer,
   savePrizes,
+  saveProjectFields,
   saveQuestions,
   saveRubric,
   saveTracks,
@@ -60,6 +62,15 @@ export async function saveTracksAction(_prev: ActionResult, form: FormData): Pro
 export async function savePrizesAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const actor = await currentActor();
   return run(form, (slug) => savePrizes(actor, slug, rows(form, "prizes")), "Prizes saved.");
+}
+
+/** The project form's built-in fields: one radio group per field, named by the field. */
+export async function saveProjectFieldsAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  const body = Object.fromEntries(PROJECT_FIELDS.flatMap((f) => (form.has(f) ? [[f, String(form.get(f))]] : [])));
+  let changed = true;
+  const saved = await run(form, (slug) => void ({ changed } = saveProjectFields(actor, slug, body)), "Saved. Teams see the new project form now.");
+  return saved.ok && !changed ? { ok: true, message: "Nothing changed, so nothing was logged." } : saved;
 }
 
 export async function saveQuestionsAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {

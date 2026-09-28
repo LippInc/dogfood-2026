@@ -10,6 +10,7 @@ export { InviteInput, TrackIds } from "./judges";
 export { AcceptInput, MergeInput, OverrideInput, PairInput, RevokeInput, UndoPairInput, UnmergeInput } from "./decisions";
 export { Details, NewEvent, PrizeRows, QuestionRows, RubricBody, RubricRows, TrackRows } from "./organize";
 export { ProjectInput } from "./projects";
+export { ProjectFieldsInput } from "./project-fields";
 export { RecordRequest } from "./records";
 export { RecuseInput, ReviewInput } from "./reviews";
 export { CaptainInput, TeamName } from "./teams";

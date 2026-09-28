@@ -125,8 +125,14 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   until the deadline (name,
   tagline, description, repository, demo video and live links, a picture, an
   image gallery, tech tags, the track and the organizer's questions); the server
-  refuses changes after it. The public gallery shows every submitted project,
-  searchable (tags included) and filterable by track.
+  refuses changes after it. The organizer chooses what teams fill in: each of
+  those fields required, optional or hidden (Settings, "What teams fill in"), so
+  an event where everyone builds the same thing can ask for a repository link and
+  nothing else. A project with no title of its own is called by its team's name,
+  a hidden track is the event's one track, and a hidden field is shown nowhere
+  (what a team typed before stays stored and returns if the field comes back).
+  The public gallery shows every submitted project, searchable (tags included)
+  and filterable by track.
 - **Judging.** The organizer invites judges by link (no mail server needed) and
   assigns projects with a seeded, stored assignment run; judges score in a
   keyboard-first console with autosave and see only their own scores. The

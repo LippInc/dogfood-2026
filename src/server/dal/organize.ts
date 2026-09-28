@@ -10,6 +10,7 @@ import {
   events,
   judgeTracks,
   prizes,
+  projectFields,
   projects,
   rubricCriteria,
   scoreItems,
@@ -23,8 +24,10 @@ import { ConflictError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
 import { BUILTIN_CRITERIA, DEFAULT_CRITERIA } from "../rubric-defaults";
 import { newId, slugify } from "../util";
+import { allowedModes, PROJECT_FIELDS, type FieldModes } from "@/lib/project-fields";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { parse, utcTime, utcTimeOrEmpty } from "./parse";
+import { fieldModes, ProjectFieldsInput, trackCount } from "./project-fields";
 
 // The organizer's side of an event: create it, then change its details, tracks,
 // prizes, questions for teams and the rubric. Every change is one audited mutate().
@@ -380,6 +383,56 @@ export function saveQuestions(actor: Actor | null, idOrSlug: string, body: unkno
 }
 
 /**
+ * What a team is asked on the project form: each built-in field required, optional or hidden. A
+ * field the body leaves out keeps its mode. A hidden field's answers stay stored (shown again if
+ * the field is turned back on). Every project keeps a track, so the track is never optional and
+ * is hidden only while the event has one track. The change and its audit row commit together.
+ */
+export function saveProjectFields(actor: Actor | null, idOrSlug: string, body: unknown) {
+  const ref: { event?: EventRow } = {};
+  return mutate({
+    actor,
+    action: "event.manage",
+    load: (tx) => organizerResource(tx, idOrSlug, ref),
+    run: (tx) => {
+      const e = ref.event!;
+      const input = parse(ProjectFieldsInput, body);
+      const current = fieldModes(tx, e.id);
+      const next: FieldModes = { ...current, ...input };
+      const trackTotal = trackCount(tx, e.id);
+      if (!allowedModes("trackId", trackTotal).includes(next.trackId)) {
+        throw new ValidationError("Every project needs a track.", {
+          trackId: [
+            next.trackId === "optional"
+              ? "a track cannot be optional: every project needs one, for judging and the rankings"
+              : `a track can be hidden only while the event has one track (it has ${trackTotal}); with several, each team chooses its own`,
+          ],
+        });
+      }
+      const before: Partial<FieldModes> = {};
+      const after: Partial<FieldModes> = {};
+      for (const f of PROJECT_FIELDS) {
+        if (current[f] !== next[f]) {
+          before[f] = current[f];
+          after[f] = next[f];
+        }
+      }
+      if (Object.keys(after).length === 0) return { result: { fields: next, changed: false }, audit: null };
+      for (const f of PROJECT_FIELDS) {
+        tx.insert(projectFields)
+          .values({ eventId: e.id, field: f, mode: next[f] })
+          .onConflictDoUpdate({ target: [projectFields.eventId, projectFields.field], set: { mode: next[f] } })
+          .run();
+      }
+      return {
+        result: { fields: next, changed: true },
+        audit: { action: "event.project_fields", eventId: e.id, targetType: "event", targetId: e.id, before, after },
+      };
+    },
+  });
+}
+
+/**
  * Labels and prompts can change until the results are published (audited). The set of criteria
  * is fixed once any score exists: removing a criterion would leave reviews half-defined. A
  * weight can still change after the first score, to fix a mistake, but only with a written
@@ -471,6 +524,8 @@ export type OrganizerEvent = {
   prizes: { id: string; name: string; description: string }[];
   questions: { id: string; label: string; help: string; type: "text" | "longtext" | "url"; required: boolean; answers: number }[];
   rubric: { id: string; label: string; prompt: string; weight: number }[];
+  /** what a team is asked on the project form, as in force now */
+  fields: FieldModes;
   scored: boolean;
 };
 
@@ -497,6 +552,7 @@ export function getOrganizerEvent(actor: Actor | null, idOrSlug: string): Organi
       .where(eq(rubricCriteria.eventId, event.id))
       .orderBy(asc(rubricCriteria.position))
       .all(),
+    fields: fieldModes(db, event.id),
     scored:
       db
         .select({ n: sql<number>`count(*)` })

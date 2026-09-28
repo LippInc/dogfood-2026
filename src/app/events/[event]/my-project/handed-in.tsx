@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { formatUtc } from "@/lib/format";
+import type { FieldModes } from "@/lib/project-fields";
 import type { Question } from "@/server/dal";
 import type { FormProject } from "./project-form";
 
@@ -56,7 +57,9 @@ function Part({ no, title, aside, children }: { no: string; title: string; aside
 
 /**
  * After the close the form has nothing left to do: the team sees what it handed in, as the
- * judges read it, with every empty field named as empty instead of an empty locked box.
+ * judges read it, with every empty field named as empty instead of an empty locked box. A field
+ * the organizers did not ask for is left out, as it is for the judges; the parts are numbered as
+ * they show, like the open form's.
  */
 export function HandedIn({
   eventSlug,
@@ -64,20 +67,31 @@ export function HandedIn({
   project,
   trackName,
   questions,
+  fields,
 }: {
   eventSlug: string;
   closedAt: string;
   project: FormProject | null;
   trackName: string | null;
   questions: Question[];
+  fields: FieldModes;
 }) {
+  const shown = (f: keyof FieldModes) => fields[f] !== "hidden";
   const links: [string, string | null][] = project
-    ? [
-        ["Repository", project.repoUrl],
-        ["Demo video", project.videoUrl],
-        ["Live demo", project.liveUrl],
-      ]
+    ? (
+        [
+          ["Repository", project.repoUrl, shown("repoUrl")],
+          ["Demo video", project.videoUrl, shown("videoUrl")],
+          ["Live demo", project.liveUrl, shown("liveUrl")],
+        ] as const
+      )
+        .filter(([, , on]) => on)
+        .map(([label, url]): [string, string | null] => [label, url])
     : [];
+  // each part only when it has something the organizers asked for; numbered as they show
+  let n = 0;
+  const no = () => String(++n).padStart(2, "0");
+  const pictures = shown("thumbnailUrl") || shown("galleryUrls") || shown("tags");
   const given = links.filter(([, url]) => url).length;
   const submitted = project?.status === "submitted";
   const paragraphs = (project?.description ?? "").split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
@@ -106,74 +120,86 @@ export function HandedIn({
         </p>
       ) : (
         <>
-          <Part no="01" title="Name and track">
+          <Part no={no()} title="Name and track">
             <dl className="grid grid-cols-[104px_minmax(0,1fr)] sm:grid-cols-[136px_minmax(0,1fr)]">
               <Row label="Title" first>
                 {project.title ? <span className="font-medium">{project.title}</span> : <Missing>no title</Missing>}
               </Row>
-              <Row label="Summary">{project.summary ? <span className="font-serif text-17 leading-7">{project.summary}</span> : <Missing>no summary</Missing>}</Row>
+              {shown("summary") ? (
+                <Row label="Summary">{project.summary ? <span className="font-serif text-17 leading-7">{project.summary}</span> : <Missing>no summary</Missing>}</Row>
+              ) : null}
               <Row label="Track">{trackName ?? <Missing>no track</Missing>}</Row>
             </dl>
           </Part>
-          <Part no="02" title="The write-up">
-            {paragraphs.length ? (
-              <div className="flex max-w-[640px] flex-col gap-4 font-serif text-17 leading-7">
-                {paragraphs.map((p, i) => (
-                  <p key={i} className="whitespace-pre-line">
-                    {p}
-                  </p>
+          {shown("description") ? (
+            <Part no={no()} title="The write-up">
+              {paragraphs.length ? (
+                <div className="flex max-w-[640px] flex-col gap-4 font-serif text-17 leading-7">
+                  {paragraphs.map((p, i) => (
+                    <p key={i} className="whitespace-pre-line">
+                      {p}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-sm border border-dashed border-edge px-4 py-5 text-14 text-ink-2">No write-up was handed in.</p>
+              )}
+            </Part>
+          ) : null}
+          {links.length ? (
+            <Part no={no()} title={links.length === 1 ? "Link" : "Links"} aside={`${given} of ${links.length}`}>
+              <dl className="grid grid-cols-[104px_minmax(0,1fr)] sm:grid-cols-[136px_minmax(0,1fr)]">
+                {links.map(([label, url], i) => (
+                  <Row key={label} label={label} first={i === 0}>
+                    {url ? <Out url={url} /> : <Missing />}
+                  </Row>
                 ))}
-              </div>
-            ) : (
-              <p className="rounded-sm border border-dashed border-edge px-4 py-5 text-14 text-ink-2">
-                No write-up was handed in.
-              </p>
-            )}
-          </Part>
-          <Part no="03" title="Links" aside={`${given} of ${links.length}`}>
-            <dl className="grid grid-cols-[104px_minmax(0,1fr)] sm:grid-cols-[136px_minmax(0,1fr)]">
-              {links.map(([label, url], n) => (
-                <Row key={label} label={label} first={n === 0}>
-                  {url ? <Out url={url} /> : <Missing />}
-                </Row>
-              ))}
-            </dl>
-          </Part>
-          <Part no="04" title="Pictures and tags">
-            <dl className="grid grid-cols-[104px_minmax(0,1fr)] sm:grid-cols-[136px_minmax(0,1fr)]">
-              <Row label="Thumbnail" first>
-                {project.thumbnailUrl ? <Out url={project.thumbnailUrl} /> : <Missing>none; the gallery shows your generated face</Missing>}
-              </Row>
-              <Row label="Image gallery">
-                {project.galleryUrls.length ? (
-                  <ul className="flex flex-col gap-1">
-                    {project.galleryUrls.map((u) => (
-                      <li key={u} className="min-w-0">
-                        <Out url={u} />
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <Missing>no images</Missing>
-                )}
-              </Row>
-              <Row label="Tech tags">
-                {project.tags.length ? (
-                  <ul className="flex flex-wrap gap-1.5">
-                    {project.tags.map((t) => (
-                      <li key={t} className="rounded-xs border border-rule px-1.5 font-mono text-12 text-ink-2">
-                        {t}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <Missing>no tags</Missing>
-                )}
-              </Row>
-            </dl>
-          </Part>
+              </dl>
+            </Part>
+          ) : null}
+          {pictures ? (
+            <Part no={no()} title={shown("tags") && (shown("thumbnailUrl") || shown("galleryUrls")) ? "Pictures and tags" : shown("tags") ? "Tags" : "Pictures"}>
+              <dl className="grid grid-cols-[104px_minmax(0,1fr)] sm:grid-cols-[136px_minmax(0,1fr)]">
+                {shown("thumbnailUrl") ? (
+                  <Row label="Thumbnail" first>
+                    {project.thumbnailUrl ? <Out url={project.thumbnailUrl} /> : <Missing>none; the gallery shows your generated face</Missing>}
+                  </Row>
+                ) : null}
+                {shown("galleryUrls") ? (
+                  <Row label="Image gallery" first={!shown("thumbnailUrl")}>
+                    {project.galleryUrls.length ? (
+                      <ul className="flex flex-col gap-1">
+                        {project.galleryUrls.map((u) => (
+                          <li key={u} className="min-w-0">
+                            <Out url={u} />
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <Missing>no images</Missing>
+                    )}
+                  </Row>
+                ) : null}
+                {shown("tags") ? (
+                  <Row label="Tech tags" first={!shown("thumbnailUrl") && !shown("galleryUrls")}>
+                    {project.tags.length ? (
+                      <ul className="flex flex-wrap gap-1.5">
+                        {project.tags.map((t) => (
+                          <li key={t} className="rounded-xs border border-rule px-1.5 font-mono text-12 text-ink-2">
+                            {t}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <Missing>no tags</Missing>
+                    )}
+                  </Row>
+                ) : null}
+              </dl>
+            </Part>
+          ) : null}
           {questions.length > 0 ? (
-            <Part no="05" title="The organizers ask">
+            <Part no={no()} title="The organizers ask">
               <dl className="flex flex-col gap-4">
                 {questions.map((q) => (
                   <div key={q.id}>

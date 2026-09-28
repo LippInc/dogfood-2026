@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useFlip } from "@/components/use-flip";
 import type { PairwiseProject, PairwiseState, PairwiseTrackState } from "@/server/dal";
+import type { FieldModes } from "@/lib/project-fields";
 import { Kbd, letters, paragraphs, ProjectLink, RecuseDialog } from "./judge-bits";
 import "./judge.css";
 
@@ -335,6 +336,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                     <div key={p.id} className="min-w-0">
                       <ProjectCard
                         project={p}
+                        fields={data.fields}
                         face={faces[p.id]?.large}
                         note={p.id === placing.id ? "Being placed" : `Number ${track.list.findIndex((x) => x.id === p.id) + 1} in your list`}
                         side={side}
@@ -496,6 +498,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
 
 function ProjectCard({
   project: p,
+  fields,
   face,
   note,
   side,
@@ -505,6 +508,8 @@ function ProjectCard({
   onRecuse,
 }: {
   project: PairwiseProject;
+  /** what teams were asked: a link the organizers hid is not listed as missing */
+  fields: FieldModes;
   face: ReactNode;
   note: string;
   side: "left" | "right";
@@ -555,11 +560,13 @@ function ProjectCard({
             ))}
           </ul>
         ) : null}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <ProjectLink label="Repository" url={p.repoUrl} />
-          <ProjectLink label="Demo video" url={p.videoUrl} />
-          {p.liveUrl ? <ProjectLink label="Live demo" url={p.liveUrl} /> : null}
-        </div>
+        {fields.repoUrl !== "hidden" || fields.videoUrl !== "hidden" || p.liveUrl ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {fields.repoUrl !== "hidden" ? <ProjectLink label="Repository" url={p.repoUrl} /> : null}
+            {fields.videoUrl !== "hidden" ? <ProjectLink label="Demo video" url={p.videoUrl} /> : null}
+            {p.liveUrl ? <ProjectLink label="Live demo" url={p.liveUrl} /> : null}
+          </div>
+        ) : null}
         {body.length ? (
           <details className="mt-4 border-t border-rule pt-3">
             <summary className="cursor-pointer text-14 font-medium">Read the description</summary>

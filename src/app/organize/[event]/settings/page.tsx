@@ -6,18 +6,21 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { UtcNow } from "@/components/utc-now";
 import { guardPage, utcInput } from "@/lib/page-guard";
 import { formatUtc } from "@/lib/format";
+import { FIELD_LABELS, PROJECT_FIELDS } from "@/lib/project-fields";
 import { currentActor, getOrganizerEvent, judgingModeOf, listOrganizers } from "@/server/dal";
 import {
   addOrganizerAction,
   saveDetailsAction,
   saveJudgingModeAction,
   savePrizesAction,
+  saveProjectFieldsAction,
   saveQuestionsAction,
   saveRubricAction,
   saveTracksAction,
 } from "./actions";
 import { RemoveOrganizer } from "./remove-organizer";
 import { DateField } from "./date-field";
+import { ProjectFieldsEditor } from "./project-fields-editor";
 import { RubricEditor } from "./rubric-editor";
 import { type ContentsEntry, SettingsContents } from "./settings-contents";
 
@@ -36,6 +39,7 @@ const SECTIONS: [string, string][] = [
   ["organizers", "Organizers"],
   ["tracks", "Tracks"],
   ["prizes", "Prizes"],
+  ["project-fields", "What teams fill in"],
   ["questions", "Questions for teams"],
   ["judging-mode", "How judges judge"],
   ["rubric", "Scoring rubric"],
@@ -51,12 +55,15 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
   const hidden = { event: event.slug };
   const mode = judgingModeOf(event);
   const count = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "none");
+  const hiddenCount = PROJECT_FIELDS.filter((f) => o.fields[f] === "hidden").length;
   /** What each section holds now, from the saved event: the contents read as an index, not only a list of names. */
   const holds: Record<string, string> = {
     details: event.resultsPublishedAt ? "dates final" : "",
     organizers: String(organizers.length),
     tracks: String(o.tracks.length),
     prizes: o.prizes.length ? String(o.prizes.length) : "none",
+    // how many of the form's own fields a team is asked, as Tracks shows how many tracks
+    "project-fields": String(PROJECT_FIELDS.length - hiddenCount),
     questions: o.questions.length ? String(o.questions.length) : "none",
     "judging-mode": mode === "pairwise" ? "Pairwise" : "Scores",
     rubric: count(o.rubric.length, "criterion", "criteria"),
@@ -191,11 +198,25 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
           </SectionForm>
 
           <SectionForm
-            id="questions"
+            id="project-fields"
             markUnsaved
             number={num(4)}
+            title="What teams fill in"
+            description="The project form's own fields. Required ones must be filled before a team can submit (a required title or track on every save); optional ones may stay empty; hidden ones are not asked and not shown anywhere. Keep only what this event needs: when every team builds the same thing, a repository link may be all you need."
+            action={saveProjectFieldsAction}
+            hidden={hidden}
+            submitLabel="Save the project form"
+            fieldLabels={Object.fromEntries(PROJECT_FIELDS.map((f) => [f, FIELD_LABELS[f]]))}
+          >
+            <ProjectFieldsEditor saved={o.fields} tracks={o.tracks.length} questions={o.questions.length} />
+          </SectionForm>
+
+          <SectionForm
+            id="questions"
+            markUnsaved
+            number={num(5)}
             title="Questions for teams"
-            description="Asked on every team's project form; judges read the answers next to the project. A required question must be answered before a team can submit."
+            description="Your own questions, asked on every team's project form after the fields above; judges read the answers next to the project. A required question must be answered before a team can submit."
             action={saveQuestionsAction}
             hidden={hidden}
             fieldLabels={{ questions: "Questions" }}
@@ -229,7 +250,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
           <SectionForm
             id="judging-mode"
             markUnsaved
-            number={num(5)}
+            number={num(6)}
             title="How judges judge"
             description={
               event.resultsPublishedAt
@@ -267,7 +288,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
           <SectionForm
             id="rubric"
             markUnsaved
-            number={num(6)}
+            number={num(7)}
             title="Scoring rubric"
             description={
               <>

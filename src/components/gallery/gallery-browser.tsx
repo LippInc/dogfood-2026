@@ -165,7 +165,7 @@ export function GalleryBrowser({
           <h3 className="font-display text-20 leading-tight sm:mt-4">
             <Hl text={i.title} words={words} />
           </h3>
-          <p className="mt-1 text-15 text-ink-2">{i.summary}</p>
+          {i.summary ? <p className="mt-1 text-15 text-ink-2">{i.summary}</p> : null}
           <p className="mt-2 text-13 text-ink-3">
             {i.id === mine ? (
               <Badge className="mr-2 border-ink align-[1px] text-ink">Your team</Badge>

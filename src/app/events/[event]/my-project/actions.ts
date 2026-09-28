@@ -70,24 +70,27 @@ export async function saveProjectAction(_prev: ActionResult, form: FormData): Pr
   for (const [key, value] of form.entries()) {
     if (key.startsWith("answer:") && typeof value === "string") answers[key.slice(7)] = value;
   }
+  // a field the organizers hid is not on the form, so it is not sent at all (the server keeps what is stored)
+  const field = (name: string) => form.get(name) ?? undefined;
+  const list = (name: string, by: RegExp) =>
+    form.has(name)
+      ? String(form.get(name))
+          .split(by)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : undefined;
   const body = {
-    title: form.get("title"),
-    summary: form.get("summary"),
-    description: form.get("description"),
-    trackId: form.get("trackId"),
-    repoUrl: form.get("repoUrl"),
-    videoUrl: form.get("videoUrl"),
-    liveUrl: form.get("liveUrl"),
-    thumbnailUrl: form.get("thumbnailUrl"),
+    title: field("title"),
+    summary: field("summary"),
+    description: field("description"),
+    trackId: field("trackId"),
+    repoUrl: field("repoUrl"),
+    videoUrl: field("videoUrl"),
+    liveUrl: field("liveUrl"),
+    thumbnailUrl: field("thumbnailUrl"),
     // one image address per line; tags separated by commas
-    galleryUrls: String(form.get("galleryUrls") ?? "")
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean),
-    tags: String(form.get("tags") ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
+    galleryUrls: list("galleryUrls", /\r?\n/),
+    tags: list("tags", /,/),
     answers,
     status: intent,
   };

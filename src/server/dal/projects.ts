@@ -14,6 +14,8 @@ import { getPublishedResults } from "./results";
 import { myTeam, type MyTeam } from "./teams";
 import { issuesOf } from "./parse";
 import { discardUpload, UPLOAD_PATH } from "../uploads";
+import { DEFAULT_FIELD_MODES, PROJECT_FIELDS, REQUIRED_MESSAGES, withoutHidden, type FieldModes } from "@/lib/project-fields";
+import { fieldModes } from "./project-fields";
 
 // A team's project: created and edited by its members while submissions are open,
 // saved as a draft or submitted. The deadline holds in the backend: after
@@ -47,27 +49,38 @@ const tagList = z
   .transform(distinctTags)
   .pipe(z.array(z.string()).max(MAX_TAGS, `at most ${MAX_TAGS} tags`));
 
-export const ProjectInput = z.object({
-  title: z.string().trim().min(1, "a title is required").max(120),
-  summary: z.string().trim().max(280).default(""),
-  description: z.string().trim().max(20_000).default(""),
-  trackId: z.string().trim().min(1, "choose a track"),
-  repoUrl: optionalUrl,
-  videoUrl: optionalUrl,
-  liveUrl: optionalUrl,
-  /** the gallery card's image: one uploaded here (its /uploads/ address, sent back as it is) or on the team's own host, http(s) only */
-  thumbnailUrl: z
-    .string()
-    .trim()
-    .max(500)
-    .refine((v) => v === "" || UPLOAD_PATH.test(v) || webUrl.safeParse(v).success, WEB_URL.message)
-    .optional()
-    .transform((v) => (v ? v : null)),
-  galleryUrls: z.array(webUrl).max(MAX_GALLERY_IMAGES, `at most ${MAX_GALLERY_IMAGES} images`).default([]),
-  tags: tagList,
-  answers: z.record(z.string(), z.string().trim().max(5_000)).default({}),
-  status: z.enum(["draft", "submitted"]).default("submitted"),
-});
+/**
+ * The project form's body. Which built-in fields must be filled is the organizer's choice
+ * (src/lib/project-fields.ts): a required title or track is needed even for a draft, as always;
+ * the other required fields are checked on submit (assertSubmittable). Optional and hidden ones
+ * may be left out; a hidden one is ignored when sent, and what is stored in it stays.
+ */
+function projectInput(modes: FieldModes) {
+  const needed = (f: "title" | "trackId", s: z.ZodString) => (modes[f] === "required" ? s.min(1, REQUIRED_MESSAGES[f]) : s.default(""));
+  return z.object({
+    title: needed("title", z.string().trim().max(120)),
+    summary: z.string().trim().max(280).default(""),
+    description: z.string().trim().max(20_000).default(""),
+    trackId: needed("trackId", z.string().trim()),
+    repoUrl: optionalUrl,
+    videoUrl: optionalUrl,
+    liveUrl: optionalUrl,
+    /** the gallery card's image: one uploaded here (its /uploads/ address, sent back as it is) or on the team's own host, http(s) only */
+    thumbnailUrl: z
+      .string()
+      .trim()
+      .max(500)
+      .refine((v) => v === "" || UPLOAD_PATH.test(v) || webUrl.safeParse(v).success, WEB_URL.message)
+      .optional()
+      .transform((v) => (v ? v : null)),
+    galleryUrls: z.array(webUrl).max(MAX_GALLERY_IMAGES, `at most ${MAX_GALLERY_IMAGES} images`).default([]),
+    tags: tagList,
+    answers: z.record(z.string(), z.string().trim().max(5_000)).default({}),
+    status: z.enum(["draft", "submitted"]).default("submitted"),
+  });
+}
+/** The body as an event with the default fields takes it (the API reference shows this one). */
+export const ProjectInput = projectInput(DEFAULT_FIELD_MODES);
 export type ProjectInput = z.input<typeof ProjectInput>;
 
 // An uploaded picture is set only by uploading it. Its address is public on the gallery card, so a
@@ -85,22 +98,65 @@ export function teamOf(tx: DbOrTx, userId: string, eventId: string) {
     .get();
 }
 
-function parse(body: unknown) {
-  const parsed = ProjectInput.safeParse(body);
+type Input = z.output<typeof ProjectInput>;
+
+function parse(body: unknown, modes: FieldModes): Input {
+  const parsed = projectInput(modes).safeParse(body);
   if (!parsed.success) throw new ValidationError("The project is not valid.", issuesOf(parsed.error));
   return parsed.data;
 }
 
-/** Checks that only matter for a submission (a draft may be incomplete). */
-function assertSubmittable(tx: Tx, eventId: string, input: z.output<typeof ProjectInput>) {
+/** The built-in fields a save stores. */
+type Values = Pick<
+  typeof projects.$inferSelect,
+  "title" | "summary" | "description" | "trackId" | "repoUrl" | "videoUrl" | "liveUrl" | "thumbnailUrl" | "galleryUrls" | "tags"
+>;
+
+/** A project needs a title everywhere it is shown; one the team does not give is its team's name. */
+const titleFrom = (teamName: string) => teamName.trim() || "Untitled project";
+
+/**
+ * What a save stores in each built-in field: what was sent, except that a hidden field keeps what
+ * is stored (nothing, for a new project), a hidden track is the event's one track, and a title left
+ * empty where it is optional, or never asked, is the team's name.
+ */
+function resolve(tx: Tx, eventId: string, input: Input, modes: FieldModes, stored: Values | null, teamName: string): Values {
+  const pick = <K extends Exclude<keyof Values, "title" | "trackId">>(f: K, empty: Values[K]): Values[K] =>
+    modes[f] === "hidden" ? (stored ? stored[f] : empty) : input[f];
+  const onlyTrack = () => tx.select({ id: tracks.id }).from(tracks).where(eq(tracks.eventId, eventId)).orderBy(asc(tracks.position)).get()?.id ?? "";
+  return {
+    title: modes.title === "hidden" ? (stored?.title ?? titleFrom(teamName)) : input.title || titleFrom(teamName),
+    summary: pick("summary", ""),
+    description: pick("description", ""),
+    trackId: modes.trackId === "hidden" ? (stored?.trackId ?? onlyTrack()) : input.trackId,
+    repoUrl: pick("repoUrl", null),
+    videoUrl: pick("videoUrl", null),
+    liveUrl: pick("liveUrl", null),
+    thumbnailUrl: pick("thumbnailUrl", null),
+    galleryUrls: pick("galleryUrls", []),
+    tags: pick("tags", []),
+  };
+}
+
+const isEmpty = (v: unknown) => (Array.isArray(v) ? v.length === 0 : !v);
+
+/**
+ * Checks that only matter for a submission (a draft may be incomplete): every built-in field the
+ * organizer made required, and every required question. A required title or track is checked on
+ * every save, by the parse.
+ */
+function assertSubmittable(tx: Tx, eventId: string, values: Values, answers: Record<string, string>, modes: FieldModes) {
   const missing: Record<string, string[]> = {};
-  if (!input.summary) missing.summary = ["a one-line summary is required to submit"];
+  for (const f of PROJECT_FIELDS) {
+    if (f === "title" || f === "trackId") continue;
+    if (modes[f] === "required" && isEmpty(values[f])) missing[f] = [REQUIRED_MESSAGES[f]];
+  }
   const required = tx
     .select({ id: customQuestions.id, label: customQuestions.label })
     .from(customQuestions)
     .where(and(eq(customQuestions.eventId, eventId), eq(customQuestions.required, true)))
     .all();
-  for (const q of required) if (!input.answers[q.id]) missing[`answers.${q.id}`] = [`"${q.label}" is required to submit`];
+  for (const q of required) if (!answers[q.id]) missing[`answers.${q.id}`] = [`"${q.label}" is required to submit`];
   if (Object.keys(missing).length) throw new ValidationError("Some fields are needed before submitting.", missing);
 }
 
@@ -161,15 +217,17 @@ export function createProject(actor: Actor | null, eventIdOrSlug: string, body: 
       return { kind: "team_work", event: eventFacts(event), onTeam: Boolean(team) };
     },
     run: (tx) => {
-      const input = parse(body);
-      if (input.thumbnailUrl?.startsWith("/uploads/")) throw typedUpload();
+      const modes = fieldModes(tx, event.id);
+      const input = parse(body, modes);
       const t = team!;
+      const values = resolve(tx, event.id, input, modes, null, t.name);
+      if (values.thumbnailUrl?.startsWith("/uploads/")) throw typedUpload();
       const existing = tx.select({ id: projects.id }).from(projects).where(eq(projects.teamId, t.id)).get();
       if (existing) {
         throw new ConflictError("team_has_project", `Team ${t.name} already has project ${existing.id}; edit it instead.`);
       }
-      requireTrack(tx, input.trackId, event.id);
-      if (input.status === "submitted") assertSubmittable(tx, event.id, input);
+      requireTrack(tx, values.trackId, event.id);
+      if (input.status === "submitted") assertSubmittable(tx, event.id, values, input.answers, modes);
       const now = new Date().toISOString();
       // the id the team's picture was drawn from before this save; a random one only if some row holds it already
       const planned = projectIdFor(t.id);
@@ -178,16 +236,7 @@ export function createProject(actor: Actor | null, eventIdOrSlug: string, body: 
         id: taken ? newId("prj") : planned,
         eventId: event.id,
         teamId: t.id,
-        trackId: input.trackId,
-        title: input.title,
-        summary: input.summary,
-        description: input.description,
-        repoUrl: input.repoUrl,
-        videoUrl: input.videoUrl,
-        liveUrl: input.liveUrl,
-        thumbnailUrl: input.thumbnailUrl,
-        galleryUrls: input.galleryUrls,
-        tags: input.tags,
+        ...values,
         status: input.status,
         submittedAt: input.status === "submitted" ? now : null,
         createdAt: now,
@@ -220,6 +269,7 @@ const sameField = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray
  */
 export function updateProject(actor: Actor | null, projectId: string, body: unknown) {
   let project: typeof projects.$inferSelect;
+  let teamName = "";
   // an uploaded picture the save changes or clears is deleted after the commit, unless another project shows it
   let dropped: string | null = null;
   const result = mutate({
@@ -229,6 +279,7 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
       const p = tx.select().from(projects).where(eq(projects.id, projectId)).get();
       if (!p) throw new NotFoundError("Project");
       project = p;
+      teamName = tx.select({ name: teams.name }).from(teams).where(eq(teams.id, p.teamId)).get()?.name ?? "";
       const event = requireEvent(tx, p.eventId);
       const onTeam = actor
         ? Boolean(
@@ -242,10 +293,12 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
       return { kind: "team_work", event: eventFacts(event), onTeam };
     },
     run: (tx) => {
-      const input = parse(body);
-      if (input.thumbnailUrl?.startsWith("/uploads/") && input.thumbnailUrl !== project.thumbnailUrl) throw typedUpload();
-      requireTrack(tx, input.trackId, project.eventId);
-      if (input.trackId !== project.trackId) {
+      const modes = fieldModes(tx, project.eventId);
+      const input = parse(body, modes);
+      const values = resolve(tx, project.eventId, input, modes, project, teamName);
+      if (values.thumbnailUrl?.startsWith("/uploads/") && values.thumbnailUrl !== project.thumbnailUrl) throw typedUpload();
+      requireTrack(tx, values.trackId, project.eventId);
+      if (values.trackId !== project.trackId) {
         // Judges assigned in the old track would lose it (a track judge never sees another track).
         const assigned = tx
           .select({ id: assignments.id })
@@ -257,21 +310,9 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
         }
       }
       const status = project.status === "submitted" ? "submitted" : input.status;
-      if (status === "submitted") assertSubmittable(tx, project.eventId, input);
+      if (status === "submitted") assertSubmittable(tx, project.eventId, values, input.answers, modes);
       const now = new Date().toISOString();
-      const next = {
-        title: input.title,
-        summary: input.summary,
-        description: input.description,
-        trackId: input.trackId,
-        repoUrl: input.repoUrl,
-        videoUrl: input.videoUrl,
-        liveUrl: input.liveUrl,
-        thumbnailUrl: input.thumbnailUrl,
-        galleryUrls: input.galleryUrls,
-        tags: input.tags,
-        status,
-      };
+      const next = { ...values, status };
       if (project.thumbnailUrl !== next.thumbnailUrl) {
         const old = project.thumbnailUrl;
         const shown = old && tx.select({ id: projects.id }).from(projects).where(and(eq(projects.thumbnailUrl, old), ne(projects.id, project.id))).get();
@@ -316,6 +357,8 @@ export type MyWork = {
   open: boolean;
   tracks: { id: string; name: string }[];
   questions: Question[];
+  /** what the organizer asks for each built-in field: required, optional or hidden */
+  fields: FieldModes;
   team: MyTeam | null;
   project: (typeof projects.$inferSelect & { answers: Record<string, string> }) | null;
   /** what the team's picture is drawn from: its project's id, or before the first save the id the project will get */
@@ -397,6 +440,7 @@ export function getMyWork(actor: Actor, eventIdOrSlug: string): MyWork {
       .orderBy(asc(tracks.position))
       .all(),
     questions: eventQuestions(db, event.id),
+    fields: fieldModes(db, event.id),
     team,
     project: project ? { ...project, answers } : null,
     faceId: project?.id ?? (team ? projectIdFor(team.id) : null),
@@ -438,7 +482,7 @@ export type PublicProject = {
 };
 
 /** One submitted project as the public sees it. Drafts are not public; scores never appear here. */
-export function getPublicProject(eventIdOrSlug: string, projectId: string): { event: EventRow; project: PublicProject } {
+export function getPublicProject(eventIdOrSlug: string, projectId: string): { event: EventRow; project: PublicProject; fields: FieldModes } {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
   const p = db
@@ -476,9 +520,11 @@ export function getPublicProject(eventIdOrSlug: string, projectId: string): { ev
     .orderBy(asc(customQuestions.position))
     .all()
     .filter((a) => a.value);
+  const fields = fieldModes(db, event.id);
   return {
     event,
-    project: {
+    fields,
+    project: withoutHidden({
       id: p.id,
       title: p.title,
       summary: p.summary,
@@ -494,6 +540,6 @@ export function getPublicProject(eventIdOrSlug: string, projectId: string): { ev
       track: { id: p.trackId, name: p.trackName },
       answers,
       duplicateOf: p.duplicateOf,
-    },
+    }, fields),
   };
 }

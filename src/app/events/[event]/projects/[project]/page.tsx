@@ -54,7 +54,12 @@ function LinkButton({ href, icon, label }: { href: string; icon: React.ReactNode
 
 export default async function ProjectPage({ params }: PageProps<"/events/[event]/projects/[project]">) {
   const { event: eventKey, project: projectKey } = await params;
-  const { event, project: p } = load(eventKey, projectKey);
+  const { event, project: p, fields } = load(eventKey, projectKey);
+  // what the organizers did not ask teams for is not shown, and never shown as missing
+  const shown = (f: keyof typeof fields) => fields[f] !== "hidden";
+  const askedLinks = shown("repoUrl") || shown("videoUrl") || shown("liveUrl");
+  // the write-up, its images and the organizers' questions: a column of their own only when there is one of them
+  const about = shown("description") || p.galleryUrls.length > 0 || p.answers.length > 0;
   const actor = await currentActor();
   const comments = listComments(actor, p.id);
   const canModerate = Boolean(actor?.roles.some((r) => r.eventId === event.id && r.role === "organizer"));
@@ -129,12 +134,14 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                 ))}
               </ul>
             ) : null}
-            <div className="mt-6 flex flex-wrap gap-3">
-              {p.repoUrl ? <LinkButton href={p.repoUrl} icon={<FolderGit2 className="size-4" aria-hidden />} label="Repository" /> : null}
-              {p.videoUrl ? <LinkButton href={p.videoUrl} icon={<PlayCircle className="size-4" aria-hidden />} label="Demo video" /> : null}
-              {p.liveUrl ? <LinkButton href={p.liveUrl} icon={<ExternalLink className="size-4" aria-hidden />} label="Live demo" /> : null}
-              {!p.repoUrl && !p.videoUrl && !p.liveUrl ? <p className="text-14 text-ink-3">No links submitted.</p> : null}
-            </div>
+            {askedLinks ? (
+              <div className="mt-6 flex flex-wrap gap-3">
+                {p.repoUrl ? <LinkButton href={p.repoUrl} icon={<FolderGit2 className="size-4" aria-hidden />} label="Repository" /> : null}
+                {p.videoUrl ? <LinkButton href={p.videoUrl} icon={<PlayCircle className="size-4" aria-hidden />} label="Demo video" /> : null}
+                {p.liveUrl ? <LinkButton href={p.liveUrl} icon={<ExternalLink className="size-4" aria-hidden />} label="Live demo" /> : null}
+                {!p.repoUrl && !p.videoUrl && !p.liveUrl ? <p className="text-14 text-ink-3">No links submitted.</p> : null}
+              </div>
+            ) : null}
             {/* Its result, where a visitor looks first: the published place, or a sealed slot until then. */}
             <section aria-labelledby="standing-title" className="mt-10 flex max-w-[560px] items-start gap-5 border-t-2 border-ink pt-4">
               {standing && standing.place.place !== null ? (
@@ -210,49 +217,55 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
         </div>
 
         <div className="mt-12 grid gap-10 border-t border-rule pt-10 lg:grid-cols-[minmax(0,1fr)_min(40%,460px)] lg:grid-rows-[auto_1fr] lg:gap-x-16 lg:gap-y-12">
-          <div className="min-w-0 lg:max-w-[680px]">
-            <h2 className="text-20 font-semibold">About the project</h2>
-            {p.description ? (
-              <div className="mt-4 space-y-5 font-serif text-17 leading-7 whitespace-pre-line wrap-anywhere">{p.description}</div>
-            ) : (
-              <p className="mt-4 text-15 text-ink-3">The team wrote no description beyond the summary.</p>
-            )}
-            {p.galleryUrls.length > 0 ? (
-              <section className="mt-12 border-t border-rule pt-8" aria-labelledby="images-title">
-                <h2 id="images-title" className="text-20 font-semibold">
-                  Images
-                </h2>
-                <ul className="mt-4 grid gap-4 sm:grid-cols-2">
-                  {p.galleryUrls.map((src, n) => (
-                    <li key={src} className="overflow-hidden rounded-xs border border-rule">
-                      <a href={src} target="_blank" rel="noopener noreferrer" className="block">
-                        <ProjectImage
-                          src={src}
-                          alt={`Image ${n + 1} of ${p.galleryUrls.length} from ${p.team.name}`}
-                          fallback={<p className="flex aspect-video items-center justify-center p-4 text-13 text-ink-3">This image did not load. Open it on its own host.</p>}
-                        />
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-            {p.answers.length > 0 ? (
-              <section className="mt-12 border-t border-rule pt-8" aria-labelledby="answers-title">
-                <h2 id="answers-title" className="text-20 font-semibold">
-                  The organizers asked
-                </h2>
-                <dl className="mt-4 flex flex-col gap-6 wrap-anywhere">
-                  {p.answers.map((a) => (
-                    <div key={a.label}>
-                      <dt className="text-14 text-ink-2">{a.label}</dt>
-                      <dd className="mt-1 font-serif text-17 leading-7 whitespace-pre-line">{a.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            ) : null}
-          </div>
+          {about ? (
+            <div className="min-w-0 lg:max-w-[680px] [&>section:first-child]:mt-0 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
+              {shown("description") ? (
+                <>
+                  <h2 className="text-20 font-semibold">About the project</h2>
+                  {p.description ? (
+                    <div className="mt-4 space-y-5 font-serif text-17 leading-7 whitespace-pre-line wrap-anywhere">{p.description}</div>
+                  ) : (
+                    <p className="mt-4 text-15 text-ink-3">{p.summary ? "The team wrote no description beyond the summary." : "The team wrote no description."}</p>
+                  )}
+                </>
+              ) : null}
+              {p.galleryUrls.length > 0 ? (
+                <section className="mt-12 border-t border-rule pt-8" aria-labelledby="images-title">
+                  <h2 id="images-title" className="text-20 font-semibold">
+                    Images
+                  </h2>
+                  <ul className="mt-4 grid gap-4 sm:grid-cols-2">
+                    {p.galleryUrls.map((src, n) => (
+                      <li key={src} className="overflow-hidden rounded-xs border border-rule">
+                        <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+                          <ProjectImage
+                            src={src}
+                            alt={`Image ${n + 1} of ${p.galleryUrls.length} from ${p.team.name}`}
+                            fallback={<p className="flex aspect-video items-center justify-center p-4 text-13 text-ink-3">This image did not load. Open it on its own host.</p>}
+                          />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              {p.answers.length > 0 ? (
+                <section className="mt-12 border-t border-rule pt-8" aria-labelledby="answers-title">
+                  <h2 id="answers-title" className="text-20 font-semibold">
+                    The organizers asked
+                  </h2>
+                  <dl className="mt-4 flex flex-col gap-6 wrap-anywhere">
+                    {p.answers.map((a) => (
+                      <div key={a.label}>
+                        <dt className="text-14 text-ink-2">{a.label}</dt>
+                        <dd className="mt-1 font-serif text-17 leading-7 whitespace-pre-line">{a.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ) : null}
+            </div>
+          ) : null}
           <aside className="flex flex-col gap-10 text-14 md:max-lg:grid md:max-lg:grid-cols-2 md:max-lg:items-start md:max-lg:gap-12 lg:col-start-2 lg:row-span-2 lg:row-start-1">
             {/* The entry's record, in the status strip's mono voice: what it is, where it sits, when it came in. */}
             <section aria-labelledby="entry-title">
@@ -334,7 +347,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               </section>
             ) : null}
           </aside>
-          <section aria-labelledby="comments-title" className="min-w-0 lg:max-w-[680px] border-t border-rule pt-8 pb-16 lg:col-start-1">
+          <section aria-labelledby="comments-title" className={`min-w-0 lg:max-w-[680px] pb-16 lg:col-start-1 ${about ? "border-t border-rule pt-8" : ""}`}>
             <h2 id="comments-title" className="flex items-baseline gap-2 text-20 font-semibold">
               Comments <span className="font-mono text-13 font-normal text-ink-3 tnum">{comments.filter((c) => !c.hidden).length}</span>
             </h2>

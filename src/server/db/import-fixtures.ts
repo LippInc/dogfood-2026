@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Db } from "./client";
 import { appendAudit } from "../audit";
 import { BUILTIN_CRITERIA } from "../rubric-defaults";
+import { allowedModes, FIELD_MODES, PROJECT_FIELDS } from "../../lib/project-fields";
 import { newSecret, nowIso, sha256, slugify } from "../util";
 import {
   assignmentRuns,
@@ -14,6 +15,7 @@ import {
   events,
   fixtureImports,
   judgeTracks,
+  projectFields,
   projects,
   rubricCriteria,
   scoreComments,
@@ -40,6 +42,9 @@ export const FixtureSchema = z.looseObject({
     submissions_close: z.string().min(1),
   }),
   tracks: z.array(z.looseObject({ id, name: z.string().min(1) })),
+  // Not in the organizers' format: what teams are asked for each built-in field, as the portal's
+  // own export writes it when an event differs from the defaults. A field left out is the default.
+  project_fields: z.partialRecord(z.enum(PROJECT_FIELDS), z.enum(FIELD_MODES)).optional(),
   judges: z.array(
     z.looseObject({
       id,
@@ -103,6 +108,7 @@ export type Fixture = z.infer<typeof FixtureSchema>;
 type TableKey =
   | "events"
   | "tracks"
+  | "projectFields"
   | "rubricCriteria"
   | "users"
   | "userRoles"
@@ -120,6 +126,7 @@ function emptyCounts(): Record<TableKey, number> {
   return {
     events: 0,
     tracks: 0,
+    projectFields: 0,
     rubricCriteria: 0,
     users: 0,
     userRoles: 0,
@@ -269,6 +276,24 @@ export function importFixtures(
         ),
       );
     });
+
+    // What teams are asked: one row per field the file names. An organizer's own later choice stays
+    // (insert or ignore, like every row here); a track that could not stay a track is skipped.
+    for (const [field, mode] of Object.entries(fixture.project_fields ?? {})) {
+      const f = field as (typeof PROJECT_FIELDS)[number];
+      if (!mode || !allowedModes(f, fixture.tracks.length).includes(mode)) {
+        report.skipped.push({
+          kind: "projectField",
+          id: f,
+          reason:
+            mode === "optional"
+              ? "a track cannot be optional: every project needs one"
+              : `a track can be hidden only in an event with one track (the file has ${fixture.tracks.length})`,
+        });
+        continue;
+      }
+      bump("projectFields", insertOnce(tx.insert(projectFields).values({ eventId, field: f, mode }).onConflictDoNothing()));
+    }
 
     // Rubric criteria: one row per distinct key, in first-seen order
     const criteriaKeys: string[] = [];

@@ -31,6 +31,8 @@ import { auditCsv } from "./audit-log";
 import { computeNormalization } from "./normalization";
 import { issuer } from "./records";
 import { reviewsOf } from "./scores";
+import { changedFromDefaults } from "@/lib/project-fields";
+import { fieldModes } from "./project-fields";
 
 // Organizer exports: CSV at every stage, and always a header row, even before
 // anything is scored or published (a platform you cannot leave is a trap).
@@ -192,6 +194,8 @@ function eventJson(db: DbOrTx, event: EventRow): string {
       prizes: db.select().from(prizes).where(eq(prizes.eventId, event.id)).all(),
       rubric: db.select().from(rubricCriteria).where(eq(rubricCriteria.eventId, event.id)).all(),
       questions: db.select().from(customQuestions).where(eq(customQuestions.eventId, event.id)).all(),
+      /** what teams are asked for each built-in field: required, optional or hidden */
+      projectFields: fieldModes(db, event.id),
       teams: db.select().from(teams).where(eq(teams.eventId, event.id)).all().map(({ inviteCode: _code, ...t }) => t),
       members: db
         .select({ teamId: teamMembers.teamId, role: teamMembers.role, email: users.email, name: users.name })
@@ -251,6 +255,8 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
     .orderBy(asc(projects.id))
     .all();
   const submitted = new Set(projectRows.map((p) => p.id));
+  // beyond the organizers' format, and only when the event asks for something other than the defaults
+  const fields = changedFromDefaults(fieldModes(db, event.id));
   const scoreRows = judgeRows.flatMap((j) =>
     reviewsOf(db, j.id)
       .filter((r) => r.eventId === event.id && r.status === "done" && submitted.has(r.projectId))
@@ -265,6 +271,7 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
     {
       event: { id: event.id, name: event.name, submissions_close: event.submissionsCloseAt },
       tracks: db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, event.id)).orderBy(asc(tracks.id)).all(),
+      ...(Object.keys(fields).length ? { project_fields: fields } : {}),
       judges: judgeRows.map((j) => ({ ...j, tracks: judgeTrackRows.filter((t) => t.judgeUserId === j.id).map((t) => t.trackId).sort() })),
       teams: teamRows.map((t) => ({
         ...t,

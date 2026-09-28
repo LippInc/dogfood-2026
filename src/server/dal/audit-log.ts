@@ -1,4 +1,5 @@
 import "server-only";
+import { FIELD_LABELS, type ProjectField } from "@/lib/project-fields";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { verifyAuditChain } from "../audit";
@@ -137,6 +138,10 @@ function sentence(r: Row, n: Names): Part[] {
     case "event.questions":
     case "event.rubric":
       return [actor, t(` changed the ${r.action.split(".")[1]}`)];
+    case "event.project_fields": {
+      const changed = Object.entries(after).map(([f, m]) => `${FIELD_LABELS[f as ProjectField] ?? f} ${String(m)}`);
+      return [actor, t(` changed what teams fill in${changed.length ? `: ${andList(changed)}` : ""}`)];
+    }
     case "event.rubric_reweighted":
       return [actor, t(` changed the rubric's weights after judging began: ${quote(after.reason)}`)];
     case "team.create":

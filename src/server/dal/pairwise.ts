@@ -22,6 +22,8 @@ import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { finishedReviews, inJudgeTracks, judgeNames, judgeSet, rubricOf, submittedProjects, weightedTotal, type ProjectInfo } from "./judging";
 import { parse } from "./parse";
+import { withoutHidden, type FieldModes } from "@/lib/project-fields";
+import { fieldModes } from "./project-fields";
 
 // Pairwise mode (JUDGING.md "Pairwise mode"; the engine is src/server/judging/pairwise.ts).
 // A judge's list and next question are replayed from their own answers on every read
@@ -102,9 +104,11 @@ function ownProjects(db: DbOrTx, eventId: string, judgeUserId: string) {
     .orderBy(asc(tracks.position), asc(projects.id))
     .all();
   const byTrack = new Map<string, { trackId: string; trackName: string; projects: PairwiseProject[] }>();
+  // what the organizer does not ask teams for is not shown to judges either
+  const modes = fieldModes(db, eventId);
   for (const { trackId, trackName, trackPosition: _p, ...p } of rows) {
     const t = byTrack.get(trackId) ?? { trackId, trackName, projects: [] };
-    t.projects.push(p);
+    t.projects.push(withoutHidden(p, modes));
     byTrack.set(trackId, t);
   }
   return [...byTrack.values()];
@@ -200,6 +204,8 @@ export type PairwiseState = {
   tracks: PairwiseTrackState[];
   /** why answers cannot change now (judging closed, results published), or null */
   readOnly: string | null;
+  /** what teams were asked: a hidden field is empty on every project and not listed as missing */
+  fields: FieldModes;
 };
 
 /** The session judge's lists and next question in every track. */
@@ -217,6 +223,7 @@ export function getPairwiseState(actor: Actor | null, eventIdOrSlug: string): Pa
     mode,
     tracks: mode === "pairwise" ? trackStates(db, event, judge.userId) : [],
     readOnly,
+    fields: fieldModes(db, event.id),
   };
 }
 

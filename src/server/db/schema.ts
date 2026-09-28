@@ -21,6 +21,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { FIELD_MODES, PROJECT_FIELDS } from "../../lib/project-fields";
 
 const isoTimestamp = (column: unknown) => sql`julianday(${column}) is not null`;
 
@@ -289,6 +290,28 @@ export const customAnswers = sqliteTable(
     value: text("value").notNull(),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.questionId] })],
+);
+
+// What a team is asked on the project form: the organizer's choice per built-in field
+// (src/lib/project-fields.ts holds the names and the defaults). No row: the default, so an
+// event from before this table, or one never changed, behaves as the form always did.
+export const projectFields = sqliteTable(
+  "project_fields",
+  {
+    eventId: text("event_id").notNull().references(() => events.id),
+    field: text("field", { enum: PROJECT_FIELDS }).notNull(),
+    mode: text("mode", { enum: FIELD_MODES }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.eventId, t.field] }),
+    check(
+      "project_fields_field",
+      sql`${t.field} in ('title', 'summary', 'trackId', 'description', 'repoUrl', 'videoUrl', 'liveUrl', 'thumbnailUrl', 'galleryUrls', 'tags')`,
+    ),
+    check("project_fields_mode", sql`${t.mode} in ('required', 'optional', 'hidden')`),
+    // every project keeps a track: required, or hidden while the event has one track (then the team gets it)
+    check("project_fields_track_kept", sql`${t.field} <> 'trackId' or ${t.mode} <> 'optional'`),
+  ],
 );
 
 // ---------------------------------------------------------------------------

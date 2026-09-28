@@ -16,6 +16,8 @@ import {
   tracks,
 } from "../db/schema";
 import { NotFoundError, ValidationError } from "../errors";
+import { withoutHidden, type FieldModes } from "@/lib/project-fields";
+import { fieldModes } from "./project-fields";
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -71,6 +73,8 @@ export type JudgeConsole = {
   /** the judge's own median minutes between finished reviews, when there is enough to say */
   minutesPerReview: number | null;
   showRanking: boolean;
+  /** what teams were asked: a hidden field is empty on every project and not listed as missing */
+  fields: FieldModes;
 };
 
 function assignmentResource(event: EventRow, a: { id: string; judgeUserId: string; status: AssignmentStatus; inJudgeTracks: boolean }): Resource {
@@ -138,6 +142,7 @@ export function getJudgeConsole(actor: Actor | null, eventIdOrSlug: string): Jud
     : [];
   const keyOf = new Map(criteria.map((c) => [c.id, c.key]));
   const now = new Date();
+  const fields = fieldModes(db, event.id);
 
   const consoleItems: ConsoleItem[] = rows.map((r) => {
     const values: Record<string, number | null> = Object.fromEntries(criteria.map((c) => [c.key, null]));
@@ -149,7 +154,7 @@ export function getJudgeConsole(actor: Actor | null, eventIdOrSlug: string): Jud
       position: r.position,
       status: r.status,
       readOnly: decision.ok ? null : decision.message,
-      project: {
+      project: withoutHidden({
         id: r.projectId,
         title: r.title,
         summary: r.summary,
@@ -165,7 +170,7 @@ export function getJudgeConsole(actor: Actor | null, eventIdOrSlug: string): Jud
         trackName: r.trackName,
         submittedAt: r.projectSubmittedAt,
         answers: answers.filter((a) => a.projectId === r.projectId).map(({ label, value }) => ({ label, value })),
-      },
+      }, fields),
       values,
       feedback: r.feedback ?? "",
       privateNote: r.privateNote ?? "",
@@ -188,6 +193,7 @@ export function getJudgeConsole(actor: Actor | null, eventIdOrSlug: string): Jud
     items: consoleItems,
     minutesPerReview: pace(consoleItems.map((i) => i.submittedAt)),
     showRanking: event.settings.judgeRanking !== false,
+    fields,
   };
 }
 

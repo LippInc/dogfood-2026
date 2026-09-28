@@ -7,23 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useFormAction } from "@/components/use-form-action";
+import { FIELD_LABELS, PROJECT_FIELDS, type FieldModes, type ProjectField } from "@/lib/project-fields";
 import type { ActionResult, Question } from "@/server/dal";
 import { saveProjectAction } from "./actions";
 import { PictureField } from "./picture-field";
 
 /** The labels a refused save names, for the fields a person sees on this form. */
-const LABELS: Record<string, string> = {
-  title: "Title",
-  summary: "One-line summary",
-  trackId: "Track",
-  description: "What you built",
-  repoUrl: "Repository",
-  videoUrl: "Demo video",
-  liveUrl: "Live demo",
-  thumbnailUrl: "Picture",
-  tags: "Tech tags",
-  galleryUrls: "Image gallery",
-};
+const LABELS: Record<string, string> = FIELD_LABELS;
 
 export type FormProject = {
   id: string;
@@ -57,29 +47,46 @@ function Part({ no, title, children }: { no: string; title: string; children: Re
   );
 }
 
-function needed(form: HTMLFormElement | null, questions: Question[], initial: FormProject | null): Needed[] {
+/** What each built-in field holds when the form first draws, as the form would send it. */
+function initialValue(field: ProjectField, p: FormProject | null, onlyTrack: string): string {
+  if (field === "trackId") return p?.trackId ?? onlyTrack;
+  if (!p) return "";
+  const v = p[field];
+  return Array.isArray(v) ? v.join(",") : (v ?? "");
+}
+
+/** The fields a submission still needs: the ones the organizers made required, then their required questions. */
+function needed(form: HTMLFormElement | null, questions: Question[], fields: FieldModes, initial: FormProject | null, onlyTrack: string): Needed[] {
   const value = (name: string, fallback: string) =>
-    form ? String((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim() : fallback;
+    form ? String((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim() : fallback.trim();
   return [
-    { key: "title", label: "Title", done: Boolean(value("title", initial?.title ?? "")) },
-    { key: "summary", label: "One-line summary", done: Boolean(value("summary", initial?.summary ?? "")) },
-    { key: "trackId", label: "Track", done: Boolean(value("trackId", initial?.trackId ?? "")) },
+    ...PROJECT_FIELDS.filter((f) => fields[f] === "required").map((f) => ({
+      key: f,
+      label: FIELD_LABELS[f],
+      done: Boolean(value(f, initialValue(f, initial, onlyTrack))),
+    })),
     ...questions
       .filter((q) => q.required)
       .map((q) => ({ key: q.id, label: q.label, done: Boolean(value(`answer:${q.id}`, initial?.answers[q.id] ?? "")) })),
   ];
 }
 
+/** Links side by side on a wide screen, as many columns as there are links. */
+const LINK_COLUMNS = ["", "", "sm:grid-cols-2", "sm:grid-cols-3"];
+
 /**
  * The team's project: a draft until they submit, editable by any member until
  * submissions close. The side column lists what a submission still needs, the
- * deadline in UTC and local time, and the team.
+ * deadline in UTC and local time, and the team. Which built-in fields appear, and which
+ * are required, is the organizers' choice (`fields`); the parts are numbered as they show.
  */
 export function ProjectForm({
   eventSlug,
   open,
   tracks,
   questions,
+  fields,
+  teamName,
   project,
   side,
   face,
@@ -88,6 +95,9 @@ export function ProjectForm({
   open: boolean;
   tracks: { id: string; name: string }[];
   questions: Question[];
+  fields: FieldModes;
+  /** the name a project without a title of its own is called by */
+  teamName: string;
   project: FormProject | null;
   side: React.ReactNode;
   /** the project's generated face, drawn by the page on the server (the face module is server-only) */
@@ -95,7 +105,13 @@ export function ProjectForm({
 }) {
   // Never reset, even after a save: a reset would drop the chosen track and the checklist with it.
   const [state, form, pending] = useFormAction<ActionResult>(saveProjectAction, { ok: false, message: null }, { resetOnSuccess: false });
-  const [checklist, setChecklist] = useState<Needed[]>(() => needed(null, questions, project));
+  // With one track there is nothing to choose: it is filled in already.
+  const onlyTrack = tracks.length === 1 ? tracks[0]!.id : "";
+  const [checklist, setChecklist] = useState<Needed[]>(() => needed(null, questions, fields, project, onlyTrack));
+  const formEl = form.ref;
+  const recheck = (el: HTMLFormElement | null) => setChecklist(needed(el, questions, fields, project, onlyTrack));
+  // An upload or a take-down changes a hidden input, not a typed one: count it once the field has drawn it.
+  const pictureChanged = () => requestAnimationFrame(() => recheck(formEl.current));
   const e = state.fieldErrors ?? {};
   // A refused save names the refused fields and moves focus to the first: the reason sits under its
   // field, often below the fold, and a tester was left guessing field by field from "not valid".
@@ -108,38 +124,40 @@ export function ProjectForm({
   }, [state]);
   const submitted = project?.status === "submitted";
   const ready = checklist.every((n) => n.done);
+  const shown = (f: ProjectField) => fields[f] !== "hidden";
+  const required = (f: ProjectField) => fields[f] === "required";
+  const links = (["repoUrl", "videoUrl", "liveUrl"] as const).filter(shown);
 
-  return (
-    <div className="grid gap-10 lg:grid-cols-[minmax(0,680px)_320px] lg:justify-between">
-      <form
-        {...form}
-        onInput={(ev) => setChecklist(needed(ev.currentTarget, questions, project))}
-        onChange={(ev) => setChecklist(needed(ev.currentTarget, questions, project))}
-        className="flex flex-col gap-6"
-        noValidate
-      >
-        <input type="hidden" name="event" value={eventSlug} />
-        <input type="hidden" name="project" value={project?.id ?? ""} />
-        {!open ? (
-          <p className="flex items-start gap-3 border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-14 text-flag">
-            <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
-            Submissions are closed, so this project is locked: nothing in it can be changed any more, here or through the API.
-          </p>
-        ) : null}
-        <fieldset disabled={!open || pending} className="flex flex-col gap-8 disabled:opacity-100">
-          <Part no="01" title="Name and track">
-            <Field id="title" label="Title" required error={e.title}>
+  // The parts in order, each only when it has a field to show, numbered as they appear.
+  const parts: { title: string; body: React.ReactNode }[] = [];
+  if (shown("title") || shown("summary") || shown("trackId")) {
+    parts.push({
+      title: shown("trackId") ? (shown("title") ? "Name and track" : "Track") : "Name",
+      body: (
+        <>
+          {shown("title") ? (
+            <Field
+              id="title"
+              label="Title"
+              help={required("title") ? undefined : `Leave it empty and the project is called ${teamName}, your team's name.`}
+              required={required("title")}
+              error={e.title}
+            >
               {(a) => <Input {...a} name="title" defaultValue={project?.title ?? ""} maxLength={120} />}
             </Field>
-            <Field id="summary" label="One-line summary" help="Shown under the title in the gallery." required error={e.summary}>
+          ) : null}
+          {shown("summary") ? (
+            <Field id="summary" label="One-line summary" help="Shown under the title in the gallery." required={required("summary")} error={e.summary}>
               {(a) => <Input {...a} name="summary" defaultValue={project?.summary ?? ""} maxLength={280} />}
             </Field>
+          ) : null}
+          {shown("trackId") ? (
             <Field id="trackId" label="Track" required error={e.trackId}>
               {(a) => (
                 <select
                   {...a}
                   name="trackId"
-                  defaultValue={project?.trackId ?? ""}
+                  defaultValue={project?.trackId ?? onlyTrack}
                   className="h-10 w-full rounded-sm border border-edge bg-surface px-3 text-15 aria-invalid:border-l-[3px] aria-invalid:border-flag-bar disabled:bg-sunken"
                 >
                   <option value="" disabled>
@@ -153,59 +171,114 @@ export function ProjectForm({
                 </select>
               )}
             </Field>
-          </Part>
-          <Part no="02" title="The write-up">
-            <Field id="description" label="What you built" help="Judges and visitors read this on your project page." error={e.description}>
-              {(a) => (
-                <Textarea
-                  {...a}
-                  name="description"
-                  rows={10}
-                  defaultValue={project?.description ?? ""}
-                  className="font-serif text-17 leading-7"
-                />
-              )}
+          ) : null}
+        </>
+      ),
+    });
+  }
+  if (shown("description")) {
+    parts.push({
+      title: "The write-up",
+      body: (
+        <Field id="description" label="What you built" help="Judges and visitors read this on your project page." required={required("description")} error={e.description}>
+          {(a) => <Textarea {...a} name="description" rows={10} defaultValue={project?.description ?? ""} className="font-serif text-17 leading-7" />}
+        </Field>
+      ),
+    });
+  }
+  if (links.length) {
+    parts.push({
+      title: links.length === 1 ? "Link" : "Links",
+      body: (
+        <div className={`grid gap-5 ${LINK_COLUMNS[links.length]}`}>
+          {links.map((f) => (
+            <Field key={f} id={f} label={FIELD_LABELS[f]} required={required(f)} error={e[f]}>
+              {(a) => <Input {...a} name={f} type="url" inputMode="url" placeholder="https://" defaultValue={project?.[f] ?? ""} />}
             </Field>
-          </Part>
-          <Part no="03" title="Links">
-            <div className="grid gap-5 sm:grid-cols-3">
-              <Field id="repoUrl" label="Repository" error={e.repoUrl}>
-                {(a) => <Input {...a} name="repoUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.repoUrl ?? ""} />}
-              </Field>
-              <Field id="videoUrl" label="Demo video" error={e.videoUrl}>
-                {(a) => <Input {...a} name="videoUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.videoUrl ?? ""} />}
-              </Field>
-              <Field id="liveUrl" label="Live demo" error={e.liveUrl}>
-                {(a) => <Input {...a} name="liveUrl" type="url" inputMode="url" placeholder="https://" defaultValue={project?.liveUrl ?? ""} />}
-              </Field>
+          ))}
+        </div>
+      ),
+    });
+  }
+  if (shown("thumbnailUrl") || shown("tags") || shown("galleryUrls")) {
+    const pictureAndTags = shown("thumbnailUrl") && shown("tags");
+    parts.push({
+      title: shown("thumbnailUrl") || shown("galleryUrls") ? (shown("tags") ? "Pictures and tags" : "Pictures") : "Tags",
+      body: (
+        <>
+          {shown("thumbnailUrl") || shown("tags") ? (
+            <div className={`grid gap-5 ${pictureAndTags ? "sm:grid-cols-2" : ""}`}>
+              {shown("thumbnailUrl") ? (
+                <PictureField projectId={project?.id ?? null} initial={project?.thumbnailUrl ?? null} error={e.thumbnailUrl} face={face} required={required("thumbnailUrl")} onChange={pictureChanged} />
+              ) : null}
+              {shown("tags") ? (
+                <Field id="tags" label="Tech tags" help="Up to 8, separated by commas. Visitors can search for them." required={required("tags")} error={e.tags}>
+                  {(a) => <Input {...a} name="tags" placeholder="rust, webgpu, accessibility" defaultValue={(project?.tags ?? []).join(", ")} />}
+                </Field>
+              ) : null}
             </div>
-          </Part>
-          <Part no="04" title="Pictures and tags">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <PictureField projectId={project?.id ?? null} initial={project?.thumbnailUrl ?? null} error={e.thumbnailUrl} face={face} />
-              <Field id="tags" label="Tech tags" help="Up to 8, separated by commas. Visitors can search for them." error={e.tags}>
-                {(a) => <Input {...a} name="tags" placeholder="rust, webgpu, accessibility" defaultValue={(project?.tags ?? []).join(", ")} />}
-              </Field>
-            </div>
-            <Field id="galleryUrls" label="Image gallery" help="Up to 6 image addresses, one per line, shown on your project page." error={e.galleryUrls}>
+          ) : null}
+          {shown("galleryUrls") ? (
+            <Field
+              id="galleryUrls"
+              label="Image gallery"
+              help="Up to 6 image addresses, one per line, shown on your project page."
+              required={required("galleryUrls")}
+              error={e.galleryUrls}
+            >
               {(a) => <Textarea {...a} name="galleryUrls" rows={3} placeholder="https://" defaultValue={(project?.galleryUrls ?? []).join("\n")} className="font-mono text-14" />}
             </Field>
-          </Part>
-          {questions.length > 0 ? (
-            <Part no="05" title="The organizers ask">
-              {questions.map((q) => (
-                <Field key={q.id} id={`answer-${q.id}`} label={q.label} help={q.help || undefined} required={q.required} error={e[`answers.${q.id}`]}>
-                  {(a) =>
-                    q.type === "longtext" ? (
-                      <Textarea {...a} name={`answer:${q.id}`} rows={4} defaultValue={project?.answers[q.id] ?? ""} className="font-serif text-17 leading-7" />
-                    ) : (
-                      <Input {...a} name={`answer:${q.id}`} type={q.type === "url" ? "url" : "text"} defaultValue={project?.answers[q.id] ?? ""} />
-                    )
-                  }
-                </Field>
-              ))}
-            </Part>
           ) : null}
+        </>
+      ),
+    });
+  }
+  if (questions.length > 0) {
+    parts.push({
+      title: "The organizers ask",
+      body: questions.map((q) => (
+        <Field key={q.id} id={`answer-${q.id}`} label={q.label} help={q.help || undefined} required={q.required} error={e[`answers.${q.id}`]}>
+          {(a) =>
+            q.type === "longtext" ? (
+              <Textarea {...a} name={`answer:${q.id}`} rows={4} defaultValue={project?.answers[q.id] ?? ""} className="font-serif text-17 leading-7" />
+            ) : (
+              <Input {...a} name={`answer:${q.id}`} type={q.type === "url" ? "url" : "text"} defaultValue={project?.answers[q.id] ?? ""} />
+            )
+          }
+        </Field>
+      )),
+    });
+  }
+
+  return (
+    <div className="grid gap-10 lg:grid-cols-[minmax(0,680px)_320px] lg:justify-between">
+      <form
+        {...form}
+        onInput={(ev) => recheck(ev.currentTarget)}
+        onChange={(ev) => recheck(ev.currentTarget)}
+        className="flex flex-col gap-6"
+        noValidate
+      >
+        <input type="hidden" name="event" value={eventSlug} />
+        <input type="hidden" name="project" value={project?.id ?? ""} />
+        {!open ? (
+          <p className="flex items-start gap-3 border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-14 text-flag">
+            <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
+            Submissions are closed, so this project is locked: nothing in it can be changed any more, here or through the API.
+          </p>
+        ) : null}
+        <fieldset disabled={!open || pending} className="flex flex-col gap-8 disabled:opacity-100">
+          {parts.length ? (
+            parts.map((p, i) => (
+              <Part key={p.title} no={String(i + 1).padStart(2, "0")} title={p.title}>
+                {p.body}
+              </Part>
+            ))
+          ) : (
+            <p className="border-t border-rule pt-5 text-15 text-ink-2">
+              The organizers ask nothing more: submit to enter {teamName}&rsquo;s project.
+            </p>
+          )}
           {open ? (
             <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
               {submitted ? (
@@ -241,25 +314,31 @@ export function ProjectForm({
               {checklist.filter((n) => n.done).length} of {checklist.length}
             </p>
           </div>
-          <ol aria-hidden className="mt-3 flex gap-1">
-            {checklist.map((n) => (
-              <li
-                key={n.key}
-                className={`h-1.5 flex-1 rounded-[1px] border transition-colors duration-200 motion-reduce:transition-none ${
-                  n.done ? (submitted ? "border-ink bg-ink" : "border-accent bg-accent") : "border-edge"
-                }`}
-              />
-            ))}
-          </ol>
-          <ul className="mt-4 flex flex-col gap-2">
-            {checklist.map((n) => (
-              <li key={n.key} className="flex items-center gap-2 text-14">
-                {n.done ? <Check className="size-4 text-ok" aria-hidden /> : <Circle className="size-4 text-ink-3" aria-hidden />}
-                <span className={n.done ? "text-ink" : "text-ink-2"}>{n.label}</span>
-                <span className="sr-only">{n.done ? "done" : "still needed"}</span>
-              </li>
-            ))}
-          </ul>
+          {checklist.length ? (
+            <>
+              <ol aria-hidden className="mt-3 flex gap-1">
+                {checklist.map((n) => (
+                  <li
+                    key={n.key}
+                    className={`h-1.5 flex-1 rounded-[1px] border transition-colors duration-200 motion-reduce:transition-none ${
+                      n.done ? (submitted ? "border-ink bg-ink" : "border-accent bg-accent") : "border-edge"
+                    }`}
+                  />
+                ))}
+              </ol>
+              <ul className="mt-4 flex flex-col gap-2">
+                {checklist.map((n) => (
+                  <li key={n.key} className="flex items-center gap-2 text-14">
+                    {n.done ? <Check className="size-4 text-ok" aria-hidden /> : <Circle className="size-4 text-ink-3" aria-hidden />}
+                    <span className={n.done ? "text-ink" : "text-ink-2"}>{n.label}</span>
+                    <span className="sr-only">{n.done ? "done" : "still needed"}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="mt-3 text-14 text-ink-2">Nothing is required: every field here is up to you.</p>
+          )}
         </section>
         {side}
       </aside>
