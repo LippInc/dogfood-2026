@@ -83,6 +83,7 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
                 <li key={d.label} className="border-b border-rule">
                   <form action={demoSignIn}>
                     <input type="hidden" name="label" value={d.label} />
+                    {next ? <input type="hidden" name="next" value={next} /> : null}
                     <button
                       aria-label={`Sign in as ${d.name}, ${LABEL[d.label]}`}
                       aria-describedby={WHAT[d.label] ? `demo-${d.label}-what` : undefined}
@@ -116,7 +117,6 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
               ))}
             </ul>
             <p className="mt-4 text-13 text-ink-3">
-              {next ? "These land on each role's own start page, not on the page above. " : null}
               Shown because this is a demo portal (<code className="font-mono text-12">SEED_CHECKER_SESSIONS=true</code>); a real
               event turns it off and this panel disappears.
             </p>

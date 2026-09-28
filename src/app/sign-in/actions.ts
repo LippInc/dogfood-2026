@@ -16,5 +16,6 @@ export async function passwordSignIn(_prev: SignInState, form: FormData): Promis
 export async function demoSignIn(form: FormData): Promise<void> {
   const result = await signInAsDemo(String(form.get("label") ?? ""));
   if (!result.ok) redirect("/sign-in?demo=off");
-  redirect(homeFor(result.userId));
+  // Back to the page that sent you here, like a password sign-in; only a path on this site.
+  redirect(safeNext(form.get("next")) ?? homeFor(result.userId));
 }
