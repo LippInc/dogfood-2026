@@ -52,7 +52,7 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
   const cta = voter?.voided
     ? { text: "This ballot is set aside." }
     : state === "upcoming"
-      ? { text: `Voting opens ${formatUtc(ballot.event.votingOpenAt)}.` }
+      ? { text: "Voting has not opened yet." }
       : voter === null && !actor && ballot.modes.includes("account")
         ? { href: signIn, label: "Sign in to vote" }
         : voter === null
@@ -142,7 +142,7 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
         </div>
 
         {state === "not_set" ? null : (
-          <aside aria-label={stubLabel} className="flex gap-5 rounded-sm border border-rule bg-surface p-5 md:flex-col">
+          <aside aria-label={stubLabel} className="flex gap-5 max-md:order-first rounded-sm border border-rule bg-surface p-5 md:flex-col">
             <div className="w-24 shrink-0 self-start overflow-hidden rounded-xs border border-rule md:w-auto md:self-stretch" aria-hidden="true">
               <Face id={`ballot:${event.id}`} cols={32} rows={18} />
             </div>

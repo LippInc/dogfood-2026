@@ -94,7 +94,7 @@ export function Ballot({
           <div className="flex min-w-0 items-center gap-4">
             <p className="label-mono hidden text-ink-3 lg:block">Your ballot</p>
             {/* the ballot's slots: each pick drops its face into the next one */}
-            <ol className="flex gap-1.5" aria-hidden="true">
+            <ol className={`flex gap-1.5 ${!canVote && cta && "href" in cta ? "max-sm:hidden" : ""}`} aria-hidden="true">
               {Array.from({ length: Math.min(max, 10) }, (_, i) => {
                 const id = picks[i];
                 return (
@@ -149,8 +149,7 @@ export function Ballot({
       ) : (
         <ol className="mt-6 grid gap-x-6 sm:grid-cols-2 sm:gap-y-10 lg:grid-cols-3 xl:grid-cols-5">
           {shown.map((p) => {
-            const slot = picks.indexOf(p.id);
-            const chosen = slot >= 0;
+            const chosen = picks.includes(p.id);
             return (
               <li
                 key={p.id}
@@ -160,7 +159,7 @@ export function Ballot({
                   <div className={`overflow-hidden rounded-xs border ${chosen ? "border-accent" : "border-rule"}`}>{faces[p.id]}</div>
                   {chosen ? (
                     <span className="stamp absolute left-2 top-2 hidden items-center gap-1 rounded-xs bg-accent px-1.5 py-0.5 font-mono text-12 text-on-accent sm:inline-flex">
-                      <Check className="size-3" aria-hidden /> Pick {slot + 1}
+                      <Check className="size-3" aria-hidden /> Picked
                     </span>
                   ) : null}
                   <span className="crop-marks" aria-hidden="true" />
