@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: RouteContext<"/api/events/[
   });
 }
 
-/** PUT { votingOpenAt, votingCloseAt ("YYYY-MM-DDTHH:MM", UTC), modes, votesPerVoter }: organizers only. */
+/** PUT { votingOpenAt, votingCloseAt ("YYYY-MM-DDTHH:MM", UTC), modes, votesPerVoter, countLink?, linkPerAddress? }: organizers only. */
 export async function PUT(req: Request, { params }: RouteContext<"/api/events/[event]/voting">) {
   return route(async () => {
     const body: unknown = await req.json().catch(() => null);

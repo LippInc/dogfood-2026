@@ -36,6 +36,7 @@ export function VotingSettingsForm({
   votesPerVoter,
   countLink,
   countRuleFixed,
+  linkPerAddress,
 }: {
   eventSlug: string;
   openAt: string;
@@ -44,6 +45,7 @@ export function VotingSettingsForm({
   votesPerVoter: number;
   countLink: boolean;
   countRuleFixed: boolean;
+  linkPerAddress: number;
 }) {
   const [state, form, pending] = useFormAction(votingSettingsAction, idle);
   // a close time already passed ends the vote the moment it is saved, and the count is then final
@@ -119,6 +121,14 @@ export function VotingSettingsForm({
                 </span>
               </label>
             )}
+            <Field
+              id="linkPerAddress"
+              label="New open-link ballots per network address, per hour"
+              help="A venue or office wifi puts everyone behind one address: set this to the number of people on it. One ballot per browser, the duplicate flags and setting ballots aside still apply."
+              error={e.linkPerAddress}
+            >
+              {(a) => <Input {...a} name="linkPerAddress" type="number" min={1} max={5000} defaultValue={linkPerAddress} className="w-28 bg-surface" />}
+            </Field>
           </div>
         ) : null}
       </fieldset>

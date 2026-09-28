@@ -37,6 +37,8 @@ export async function votingSettingsAction(_prev: ActionResult, form: FormData):
       countLink: form.get("countLinkField") ? form.get("countLink") === "on" : undefined,
       // asked for once ballots are in, when who may vote or the favourites per voter change
       reason: form.get("reason") ?? undefined,
+      // shown only while the open link is ticked; left out, it stays as it is
+      linkPerAddress: form.get("linkPerAddress") ?? undefined,
     });
   } catch (err) {
     return actionError(err);

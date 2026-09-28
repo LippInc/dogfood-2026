@@ -22,7 +22,7 @@ export const LIMITS = {
    * dry, every code from that address waits, known or not, so the answers say nothing.
    */
   voteCodeMiss: { capacity: 30, perSeconds: 600 },
-  /** new open-link voters per network address */
+  /** new open-link voters per network address, per hour: the default; each event's organizer can set it (voting.ts) */
   linkVoter: { capacity: 8, perSeconds: 3600 },
   /**
    * comments per account: roomy enough for someone answering a busy thread (one every

@@ -117,6 +117,8 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
               <>
                 <dt className="text-ink-2">Open-link ballots</dt>
                 <dd>{v.settings.countLink ? "Added to the result" : "Counted apart, changing no place"}</dd>
+                <dt className="text-ink-2">New per network, per hour</dt>
+                <dd className="tnum">{v.settings.linkPerAddress}</dd>
               </>
             ) : null}
           </dl>
@@ -131,6 +133,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             votesPerVoter={v.settings.votesPerVoter}
             countLink={v.settings.countLink}
             countRuleFixed={v.settings.countRuleFixed}
+            linkPerAddress={v.settings.linkPerAddress}
           />
         )}
       </section>
@@ -140,6 +143,13 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             Open voting link
           </h2>
           {closed || over ? <p className="text-14 text-ink-2">{closed ? "Voting has closed; the link only says so." : "No vote to link to."}</p> : <VotingLinkForm eventSlug={event.slug} active={v.settings.linkActive} />}
+          {!final && v.linkTurnedAway.times > 0 ? (
+            <p role="status" className="mt-3 border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-ink">
+              A network ran out of new open-link ballots {v.linkTurnedAway.times === 1 ? "once" : `${v.linkTurnedAway.times} times`}, last at{" "}
+              {formatUtc(v.linkTurnedAway.lastAt)}: its next voters waited. If your voters share one wifi, raise the {v.settings.linkPerAddress} per hour under
+              Window and voters.
+            </p>
+          ) : null}
           {closed || over || v.settings.modes.includes("link") ? null : <MethodOff method="Anyone with the open link" then="the open link refuses" />}
         </section>
         <section aria-labelledby="list-title" className="rounded-sm border border-rule bg-surface p-5">

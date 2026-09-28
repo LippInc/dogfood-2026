@@ -463,6 +463,31 @@ describe("the counting rules once ballots are in", () => {
     expect(getOverview(org(), "evt_01").audit[0]!.action).toBe("voting.rules_changed");
   });
 
+  it("the number per network is an operating knob: after the first ballot it changes without a reason; saved with a rules change, it keeps its own settings row", () => {
+    openVoting();
+    firstBallot();
+    const alone = saveVotingSettings(org(), "evt_01", settings({ linkPerAddress: "50" }));
+    expect(alone.rulesChanged).toBe(false);
+    expect(auditRows().filter((r) => r.action === "voting.settings").at(-1)!.after).toMatchObject({ linkPerAddress: 50 });
+    expect(getVotingAdmin(org(), "evt_01").settings.linkPerAddress).toBe(50);
+    // known-bad: a rules change still needs its reason when the number rides along
+    expectHttpError(() => saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5", linkPerAddress: "60" })), 422, "invalid");
+    expect(getVotingAdmin(org(), "evt_01").settings.linkPerAddress).toBe(50);
+    const settingsRows = auditCount("voting.settings");
+    const both = saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5", linkPerAddress: "60", reason: REASON }));
+    expect(both.rulesChanged).toBe(true);
+    const row = auditRows().filter((r) => r.action === "voting.rules_changed").at(-1)!;
+    expect(row.after).toMatchObject({ votesPerVoter: 5, linkPerAddress: 60, reason: REASON });
+    // the number keeps its own row and sentence, as the window does
+    expect(auditCount("voting.settings")).toBe(settingsRows + 1);
+    expect(auditRows().filter((r) => r.action === "voting.settings").at(-1)!.after).toMatchObject({ linkPerAddress: 60 });
+    const texts = (action: string) => getAuditLog(org(), "evt_01").lines.filter((l) => l.action === action).map((l) => l.parts.map((p) => p.text).join(""));
+    expect(texts("voting.settings").some((t) => t.includes("up to 60 new open-link ballots per network address an hour"))).toBe(true);
+    expect(texts("voting.rules_changed").some((t) => t.includes("network"))).toBe(false);
+    expect(getVotingAdmin(org(), "evt_01").settings.linkPerAddress).toBe(60);
+    expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
   it("known-bad: a participant cannot change them, reason or not — 403", () => {
     openVoting();
     firstBallot();
@@ -791,6 +816,56 @@ describe("rate limits", () => {
       expect(enterVoting(listed, venue).token).toBe(listed);
     }
     expectHttpError(() => describeVotingCode("a-slip-in-the-address-xxxxx", venue), 404, "not_found");
+  });
+
+  it("a venue on one wifi: the organizer sets 50 new open-link ballots per address, 50 browsers get in, the 51st is 429; audited", () => {
+    saveVotingSettings(org(), "evt_01", {
+      votingOpenAt: "2026-01-01T00:00",
+      votingCloseAt: "2999-01-01T00:00",
+      modes: ["account", "listed", "link"],
+      votesPerVoter: "3",
+      linkPerAddress: "50",
+    });
+    const row = auditRows().filter((r) => r.action === "voting.settings").at(-1)!;
+    expect(row.after).toMatchObject({ linkPerAddress: 50 });
+    expect(row.before).toMatchObject({ linkPerAddress: 8 });
+    expect(getVotingAdmin(org(), "evt_01").settings.linkPerAddress).toBe(50);
+    const { code } = makeVotingLink(org(), "evt_01");
+    for (let i = 0; i < 50; i++) enterVoting(code, { ip: "10.9.9.9", agent: `Phone ${i}` });
+    expect(count("SELECT count(*) AS n FROM voters WHERE kind = 'link'")).toBe(50);
+    expectHttpError(() => enterVoting(code, { ip: "10.9.9.9", agent: "Phone 50" }), 429, "rate_limited");
+    // the organizer sees that a network ran out
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway).toMatchObject({ times: 1 });
+  });
+
+  it("raising the number mid-vote lets the voters waiting on a dry address in at once; left out of a save, it stays", () => {
+    const { code } = makeVotingLink(org(), "evt_01");
+    const venue = (i: number): Client => ({ ip: "10.8.8.8", agent: `Laptop ${i}` });
+    for (let i = 0; i < 8; i++) enterVoting(code, venue(i));
+    expectHttpError(() => enterVoting(code, venue(8)), 429, "rate_limited");
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway.times).toBe(1);
+    saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["link"], votesPerVoter: "3", linkPerAddress: "200" });
+    for (let i = 8; i < 30; i++) enterVoting(code, venue(i));
+    expect(count("SELECT count(*) AS n FROM voters WHERE kind = 'link'")).toBe(30);
+    // the raise answers the refusals before it: the note is gone until a network runs out again
+    expect(getVotingAdmin(org(), "evt_01").linkTurnedAway.times).toBe(0);
+    // a save without the field (the form hides it while the open link is unticked) keeps it
+    saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["account"], votesPerVoter: "3" });
+    expect(getVotingAdmin(org(), "evt_01").settings.linkPerAddress).toBe(200);
+  });
+
+  it("known-bad input: 0, 5001 and a fraction per address are 422 on the field, and change nothing", () => {
+    for (const bad of ["0", "5001", "2.5"]) {
+      let caught: unknown;
+      try {
+        saveVotingSettings(org(), "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["link"], votesPerVoter: "3", linkPerAddress: bad });
+      } catch (err) {
+        caught = err;
+      }
+      expect((caught as HttpError).status).toBe(422);
+      expect(Object.keys(((caught as HttpError).details ?? {}) as object)).toContain("linkPerAddress");
+    }
+    expect(getVotingAdmin(org(), "evt_01").settings.linkPerAddress).toBe(8);
   });
 
   it("allows a voter 30 ballot saves; the 31st is 429", () => {

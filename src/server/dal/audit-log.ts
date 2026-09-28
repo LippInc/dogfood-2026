@@ -98,11 +98,14 @@ const MAIL_WORDS: Record<string, [string, string]> = {
 };
 /** How the open link's ballots were set to count; rows written before the rule existed carry no countLink and say nothing. */
 const linkRule = (after: Record<string, unknown>) =>
-  typeof after.countLink !== "boolean" || !((after.modes as string[] | undefined) ?? []).includes("link")
+  (typeof after.countLink !== "boolean" || !((after.modes as string[] | undefined) ?? []).includes("link")
     ? ""
     : after.countLink
       ? "; open-link ballots add to the result"
-      : "; open-link ballots are counted apart";
+      : "; open-link ballots are counted apart") +
+  (typeof after.linkPerAddress === "number" && ((after.modes as string[] | undefined) ?? []).includes("link")
+    ? `; up to ${after.linkPerAddress} new open-link ${after.linkPerAddress === 1 ? "ballot" : "ballots"} per network address an hour`
+    : "");
 const LIMIT_WORDS: Record<string, string> = { ballot: "ballot saves", comment: "comments", "open-link entry": "open-link entries", "sign-in": "sign-in attempts", "voting-code lookup": "unknown voting links" };
 const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 

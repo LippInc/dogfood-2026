@@ -1,9 +1,9 @@
 import "server-only";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor, VoterKind } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { events, projects, teamMembers, teams, users, voters, votes, type VoteCountChange, type VoteRuleChange, type VoteRules } from "../db/schema";
+import { auditLog, events, projects, teamMembers, teams, users, voters, votes, type VoteCountChange, type VoteRuleChange, type VoteRules } from "../db/schema";
 import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { appendAudit } from "../audit";
@@ -11,7 +11,7 @@ import { guardRead, mutate } from "../mutate";
 import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { parse, utcTimeOrEmpty } from "./parse";
-import { votingSettings, anyBallotCast, type VotingState, votingState, keptCopies, type VoterRow } from "./voting";
+import { votingSettings, anyBallotCast, type VotingState, votingState, keptCopies, type VoterRow, MAX_LINK_PER_ADDRESS } from "./voting";
 import { shownTitle } from "./project-fields";
 
 // The organizer's side of the community vote: the window and who may vote, the voter list and its
@@ -28,6 +28,8 @@ export const SettingsInput = z
     countLink: z.boolean().optional(),
     /** why, when who may vote or the favourites per voter change after the first ballot; the count shows it */
     reason: z.string().trim().max(500).optional(),
+    /** new open-link ballots one network address may start per hour; left out, it stays as it is */
+    linkPerAddress: z.coerce.number().int().min(1).max(MAX_LINK_PER_ADDRESS).optional(),
   })
   .refine((v) => (v.votingOpenAt === "") === (v.votingCloseAt === ""), { message: "set both times or neither", path: ["votingCloseAt"] })
   .refine((v) => !v.votingOpenAt || Date.parse(v.votingOpenAt) < Date.parse(v.votingCloseAt), { message: "must be after voting opens", path: ["votingCloseAt"] });
@@ -142,7 +144,9 @@ export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, b
       );
     }
     const before = { votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt, ...current, linkHash: undefined };
-    const voting = { ...current, modes: [...new Set(input.modes)].sort() as VoterKind[], votesPerVoter: input.votesPerVoter, countLink };
+    const linkPerAddress = input.linkPerAddress ?? current.linkPerAddress;
+    // the number per network is an operating knob, not a counting rule: audited, no reason asked (countingRulesHold compares who may vote and the picks only)
+    const voting = { ...current, modes: [...new Set(input.modes)].sort() as VoterKind[], votesPerVoter: input.votesPerVoter, countLink, linkPerAddress };
     const ruleChange = countingRulesHold(tx, event, current, voting, input.reason ?? "");
     const voteRuleChanges = ruleChange ? [...(event.settings.voteRuleChanges ?? []), ruleChange] : event.settings.voteRuleChanges;
     tx.update(events)
@@ -153,10 +157,14 @@ export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, b
       })
       .where(eq(events.id, event.id))
       .run();
-    const after = { votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, modes: voting.modes, votesPerVoter: voting.votesPerVoter, countLink };
+    const after = { votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, modes: voting.modes, votesPerVoter: voting.votesPerVoter, countLink, linkPerAddress };
     // A rule change is audited as voting.rules_changed, whose sentence names the rules and the reason only.
-    // A window moved in the same save keeps its own voting.settings row and sentence, as it would alone.
-    if (ruleChange && (after.votingOpenAt !== before.votingOpenAt || after.votingCloseAt !== before.votingCloseAt)) {
+    // A window moved, or a new number per network, in the same save keeps its own voting.settings row and
+    // sentence, as it would alone.
+    if (
+      ruleChange &&
+      (after.votingOpenAt !== before.votingOpenAt || after.votingCloseAt !== before.votingCloseAt || after.linkPerAddress !== before.linkPerAddress)
+    ) {
       appendAudit(tx, { actorUserId: actor!.userId, actorLabel: actor!.name, action: "voting.settings", eventId: event.id, targetType: "event", targetId: event.id, before, after });
     }
     return {
@@ -400,6 +408,28 @@ export function recordCountChange(
 
 export type DuplicateGroup = { key: string; voters: { id: string; kind: VoterKind; picks: number; createdAt: string; voided: boolean }[] };
 
+/** Counted since the voting settings were last saved: a raise answers the ones before it. */
+function turnedAway(db: DbOrTx, eventId: string): { times: number; lastAt: string | null } {
+  const saved = db
+    .select({ at: sql<string | null>`max(${auditLog.at})` })
+    .from(auditLog)
+    .where(and(eq(auditLog.eventId, eventId), inArray(auditLog.action, ["voting.settings", "voting.rules_changed"])))
+    .get()?.at;
+  const row = db
+    .select({ n: sql<number>`count(*)`, last: sql<string | null>`max(${auditLog.at})` })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.eventId, eventId),
+        eq(auditLog.action, "ratelimit.refused"),
+        eq(auditLog.targetId, "open-link entry"),
+        saved ? gt(auditLog.at, saved) : undefined,
+      ),
+    )
+    .get();
+  return { times: row?.n ?? 0, lastAt: row?.last ?? null };
+}
+
 export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
@@ -441,7 +471,13 @@ export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
       countRuleFixed: anyBallotCast(db, event.id),
       ruleChanges: event.settings.voteRuleChanges ?? [],
       countChanges: event.settings.voteCountChanges ?? [],
+      linkPerAddress: settings.linkPerAddress,
     },
+    /**
+     * Times a network address ran out of new open-link ballots (one audit row each time a
+     * bucket runs dry): at a venue on one wifi, the sign to raise linkPerAddress.
+     */
+    linkTurnedAway: turnedAway(db, event.id),
     state,
     turnout: {
       voters: all.length,

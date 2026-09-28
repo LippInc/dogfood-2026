@@ -337,7 +337,7 @@ removed stands; a changed fixture file imports only its new rows.
   co-organizer follows the same rule, so one event's organizer cannot take
   over accounts that matter in another; anyone else waits for the
   administrator's reset link.
-- The per-address limits (open-link entries; sign-ups and sign-ins) and the
+- The per-address limits (open-link entries, which the organizer can raise for a venue; sign-ups and sign-ins, which the operator can) and the
   duplicate-ballot flags key on the client's network address, so people behind
   one address (an office, a venue's wifi) share a limit.
 - Results cannot be unpublished from the interface.

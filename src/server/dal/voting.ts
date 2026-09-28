@@ -32,13 +32,22 @@ import { parse } from "./parse";
 // This file is the voter's side; the organizer's side is in voting-organizer.ts.
 
 export const DEFAULT_VOTES_PER_VOTER = 3;
+/** New open-link ballots one network address may start per hour, unless the organizer sets it (1 to MAX_LINK_PER_ADDRESS). */
+export const DEFAULT_LINK_PER_ADDRESS = LIMITS.linkVoter.capacity;
+export const MAX_LINK_PER_ADDRESS = 5000;
 
-export type VotingSettings = { modes: VoterKind[]; votesPerVoter: number; linkHash: string | null; countLink: boolean };
+export type VotingSettings = { modes: VoterKind[]; votesPerVoter: number; linkHash: string | null; countLink: boolean; linkPerAddress: number };
 export type Client = { ip: string | null; agent: string | null };
 
 export function votingSettings(event: EventRow): VotingSettings {
   const v = event.settings.voting;
-  return { modes: v?.modes ?? [], votesPerVoter: v?.votesPerVoter ?? DEFAULT_VOTES_PER_VOTER, linkHash: v?.linkHash ?? null, countLink: v?.countLink ?? false };
+  return {
+    modes: v?.modes ?? [],
+    votesPerVoter: v?.votesPerVoter ?? DEFAULT_VOTES_PER_VOTER,
+    linkHash: v?.linkHash ?? null,
+    countLink: v?.countLink ?? false,
+    linkPerAddress: v?.linkPerAddress ?? DEFAULT_LINK_PER_ADDRESS,
+  };
 }
 
 /** Whether anyone has saved picks in this event yet: from the first ballot on, the counting rule is fixed. */
@@ -361,8 +370,17 @@ export function enterVoting(
   );
   // The entry limit comes first, so refused entries after the close cannot grow the log
   // without bound either (the link is public).
+  // The organizer sets how many a network address may start per hour: a venue puts everyone
+  // behind one address. The bucket is keyed by that number, so raising it mid-event lets the
+  // waiting room in at once instead of trickling in at the new rate.
   const ipHash = clientHash(client.ip, event.id);
-  limitOrThrow(`linkvoter:${event.id}:${ipHash ?? "none"}`, LIMITS.linkVoter, { eventId: event.id, label: "anonymous", userId: null, what: "open-link entry" });
+  const perAddress = votingSettings(event).linkPerAddress;
+  limitOrThrow(`linkvoter:${event.id}:${perAddress}:${ipHash ?? "none"}`, { ...LIMITS.linkVoter, capacity: perAddress }, {
+    eventId: event.id,
+    label: "anonymous",
+    userId: null,
+    what: "open-link entry",
+  });
   // after the close nobody new comes in: the same refusal a late ballot gets, logged like every 403
   if (votingState(event) === "closed") {
     db.transaction((tx) => {

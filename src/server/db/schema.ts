@@ -111,9 +111,10 @@ export type EventSettings = {
   acceptedUnderReviewed?: string[];
   /**
    * Community voting (T3): who may vote, how many favourites each, the open link's hash, and
-   * whether open-link ballots add to the result (absent = false; they are always counted apart).
+   * whether open-link ballots add to the result (absent = false; they are always counted apart), and
+   * how many new open-link ballots one network address may start per hour (absent = 8).
    */
-  voting?: { modes: ("account" | "listed" | "link")[]; votesPerVoter: number; linkHash?: string | null; countLink?: boolean };
+  voting?: { modes: ("account" | "listed" | "link")[]; votesPerVoter: number; linkHash?: string | null; countLink?: boolean; linkPerAddress?: number };
   /** How judges judge (decision 18): a rubric per project (the default) or the better of two. */
   judgingMode?: "scores" | "pairwise";
   /** Weight changes made after the first score, each with its reason; the published results show them. */
