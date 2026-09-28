@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor, Resource } from "../authz";
 import { getDb, type Tx } from "../db/client";
@@ -14,6 +14,7 @@ import {
   rubricCriteria,
   scoreItems,
   scores,
+  comparisons,
   tracks,
   userRoles,
 } from "../db/schema";
@@ -196,9 +197,9 @@ function resultsFinal(e: EventRow, what: string) {
 }
 
 /**
- * Deadline gaming: once any judge has saved a review, the submission deadline cannot
- * move later (nor reopen), or teams could change projects judges have already scored.
- * Moving it earlier stays possible.
+ * Deadline gaming: once any judge has saved a review, or answered a pairwise question, the
+ * submission deadline cannot move later (nor reopen), or teams could change projects judges
+ * have already judged. Moving it earlier stays possible.
  */
 function deadlineHolds(tx: Tx, e: EventRow, nextClose: unknown) {
   if (typeof nextClose !== "string" || Date.parse(nextClose) <= Date.parse(e.submissionsCloseAt)) return;
@@ -208,8 +209,13 @@ function deadlineHolds(tx: Tx, e: EventRow, nextClose: unknown) {
     .innerJoin(assignments, eq(assignments.id, scores.assignmentId))
     .where(eq(assignments.eventId, e.id))
     .get();
-  if (scored) {
-    throw new ConflictError("judging_started", "Judges have started scoring, so the submission deadline can no longer move later: teams could change projects judges have already scored.");
+  const compared = tx
+    .select({ id: comparisons.id })
+    .from(comparisons)
+    .where(and(eq(comparisons.eventId, e.id), isNull(comparisons.voidedAt)))
+    .get();
+  if (scored || compared) {
+    throw new ConflictError("judging_started", "Judges have started judging, so the submission deadline can no longer move later: teams could change projects judges have already judged.");
   }
 }
 
