@@ -6,7 +6,9 @@ import {
   assignByHand,
   currentActor,
   inviteJudge,
+  inviteJudges,
   mailJudgeInvite,
+  mailJudgeInvites,
   removeJudge,
   revokeJudgeInvite,
   runAssignment,
@@ -16,6 +18,10 @@ import {
 import { mailNote } from "@/lib/mail-note";
 
 export type InviteResult = ActionResult & { path?: string };
+export type BatchInviteResult = ActionResult & {
+  links?: { name: string; email: string | null; path: string }[];
+  skipped?: { line: number; email: string; reason: string }[];
+};
 export type RunResult = ActionResult & { added?: number; seed?: number; underReviewed?: number };
 
 function refresh(slug: string) {
@@ -121,4 +127,28 @@ export async function removeJudgeAction(_prev: ActionResult, form: FormData): Pr
     ? ` ${out.withdrawn} unstarted ${out.withdrawn === 1 ? "review was" : "reviews were"} withdrawn: a top-up fills ${out.withdrawn === 1 ? "that seat" : "those seats"}.`
     : "";
   return { ok: true, message: `Removed.${out.voided ? " What they saved stays on record, out of the ranking." : ""}${withdrawn}` };
+}
+
+export async function inviteJudgesAction(_prev: BatchInviteResult, form: FormData): Promise<BatchInviteResult> {
+  const actor = await currentActor();
+  const slug = String(form.get("event") ?? "");
+  try {
+    const made = inviteJudges(actor, slug, { lines: String(form.get("lines") ?? ""), trackIds: form.getAll("trackIds").map(String) });
+    refresh(slug);
+    const note = made.invites.length ? mailNote(await mailJudgeInvites(actor, slug, made.invites)) : null;
+    const skipped = made.skipped.length
+      ? ` Skipped ${made.skipped.length === 1 ? "one address that already judges" : `${made.skipped.length} addresses that already judge`} this event: ${made.skipped.map((s) => s.email).join(", ")}.`
+      : "";
+    const count = made.invites.length;
+    return {
+      ok: true,
+      message: count
+        ? `${count === 1 ? "One invitation" : `${count} invitations`} ready.${note ? ` ${note}` : ""} Copy the links now: they are shown only once.${skipped}`
+        : `Nothing to make.${skipped}`,
+      links: made.invites.map((i) => ({ name: i.name, email: i.email, path: i.path })),
+      skipped: made.skipped,
+    };
+  } catch (err) {
+    return actionError(err);
+  }
 }

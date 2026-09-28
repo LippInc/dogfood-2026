@@ -12,7 +12,7 @@ import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/le
 import { currentActor, emailIsOn, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeRow, type JudgeStanding } from "@/server/dal";
 import { removeJudgeAction, revokeInviteAction } from "./actions";
 import { WithReason } from "../decisions";
-import { ByHandForm, CopyButton, InviteForm, RunForm, TracksForm } from "./forms";
+import { BatchInviteForm, ByHandForm, CopyButton, InviteForm, RunForm, TracksForm } from "./forms";
 
 export const dynamic = "force-dynamic";
 
@@ -317,6 +317,10 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
               </h2>
               <p className="mt-1 mb-4 text-14 text-ink-2">The link makes whoever opens it, signed in, a judge for the tracks you tick.</p>
               <InviteForm eventSlug={event.slug} tracks={tracks} />
+              <details className="mt-5 border-t border-rule pt-4">
+                <summary className="cursor-pointer text-14 font-semibold">Invite several at once</summary>
+                <BatchInviteForm eventSlug={event.slug} tracks={tracks} />
+              </details>
               {invites.length ? (
                 <div className="mt-5 border-t border-rule pt-4">
                   <h3 id="invites-title" className="text-14 font-semibold">

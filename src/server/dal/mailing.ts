@@ -82,22 +82,29 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, le
 
 const eventName = (eventIdOrSlug: string) => requireEvent(getDb(), eventIdOrSlug).name;
 
-/** A judge's invitation, to the address the organizer gave (none given: nothing to mail). */
-export function mailJudgeInvite(actor: Actor | null, eventIdOrSlug: string, invite: { email: string | null; path: string }): Promise<MailReport> {
+/** Judges' invitations, each to the address the organizer gave (none given: nothing to mail for that one). */
+export function mailJudgeInvites(actor: Actor | null, eventIdOrSlug: string, invites: { email: string | null; path: string }[]): Promise<MailReport> {
   const name = eventName(eventIdOrSlug);
   const from = actor?.name ?? "The organizers";
-  const letters: Letter[] = invite.email
-    ? [
-        {
-          to: invite.email,
-          subject: `You are invited to judge ${name}`,
-          body: (link) =>
-            `${from} invited you to judge ${name}.\n\nOpen this link to accept the invitation:\n${link}\n\nThe link is yours alone and works once. If it has stopped working, ask ${from} for a new one.\n`,
-          path: invite.path,
-        },
-      ]
-    : [];
+  const letters: Letter[] = invites.flatMap((invite) =>
+    invite.email
+      ? [
+          {
+            to: invite.email,
+            subject: `You are invited to judge ${name}`,
+            body: (link: string) =>
+              `${from} invited you to judge ${name}.\n\nOpen this link to accept the invitation:\n${link}\n\nThe link is yours alone and works once. If it has stopped working, ask ${from} for a new one.\n`,
+            path: invite.path,
+          },
+        ]
+      : [],
+  );
   return mailLetters(actor, { eventIdOrSlug }, "judge_invite", letters);
+}
+
+/** A judge's invitation, to the address the organizer gave (none given: nothing to mail). */
+export function mailJudgeInvite(actor: Actor | null, eventIdOrSlug: string, invite: { email: string | null; path: string }): Promise<MailReport> {
+  return mailJudgeInvites(actor, eventIdOrSlug, [invite]);
 }
 
 /** Each listed voter's personal link. */

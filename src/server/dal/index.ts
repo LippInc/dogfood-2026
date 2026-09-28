@@ -56,10 +56,14 @@ export {
   acceptJudgeInvite,
   getJudges,
   inviteJudge,
+  inviteJudges,
+  MAX_BATCH_INVITES,
   judgeInviteByCode,
   revokeJudgeInvite,
   setJudgeRanking,
   setJudgeTracks,
+  type BatchInvite,
+  type BatchResult,
   type InviteRow,
   type JudgeInviteView,
   type JudgeRow,
@@ -180,7 +184,7 @@ export {
 export { claimAccount, countBeyondReach, countWithoutPassword, describeClaim, makeClaimLinks, type ClaimLink, type ClaimSkip } from "./claims";
 export { describePasswordReset, guardAccounts, makePasswordReset, resetPassword, type ResetLink } from "./password-resets";
 export { listOutbox, listPortalOutbox, type OutboxView } from "./outbox";
-export { emailIsOn, mailClaimLinks, mailJudgeInvite, mailPasswordReset, mailVoterLinks, type MailReport, type Mailed } from "./mailing";
+export { emailIsOn, mailClaimLinks, mailJudgeInvite, mailJudgeInvites, mailPasswordReset, mailVoterLinks, type MailReport, type Mailed } from "./mailing";
 export { importEventFile, type EventImport } from "./imports";
 export { createApiToken, listApiTokens, revokeApiToken, type TokenView } from "./tokens";
 export {

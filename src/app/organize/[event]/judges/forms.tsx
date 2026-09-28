@@ -11,8 +11,10 @@ import type { ActionResult } from "@/server/dal";
 import {
   assignByHandAction,
   inviteJudgeAction,
+  inviteJudgesAction,
   runAssignmentAction,
   setTracksAction,
+  type BatchInviteResult,
   type InviteResult,
   type RunResult,
 } from "./actions";
@@ -86,6 +88,80 @@ export function InviteForm({ eventSlug, tracks }: { eventSlug: string; tracks: T
         <p role="status" className="text-13 text-flag">
           {state.message}
         </p>
+      ) : null}
+    </form>
+  );
+}
+
+/**
+ * Many judges at once: one per line, "name, email" (a column pasted from a spreadsheet works too), with the tracks
+ * ticked for every line that names none of its own. One link each, shown once, as a list to copy.
+ */
+export function BatchInviteForm({ eventSlug, tracks }: { eventSlug: string; tracks: Track[] }) {
+  const [state, form, pending] = useFormAction<BatchInviteResult>(inviteJudgesAction, { ok: false, message: null });
+  const errors = state.fieldErrors?.lines ?? [];
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const links = (state.ok ? (state.links ?? []) : []).map((l) => ({ ...l, url: `${origin}${l.path}` }));
+  const all = links.map((l) => [l.name, l.email ?? "", l.url].filter(Boolean).join(", ")).join("\n");
+  return (
+    <form {...form} className="flex flex-col gap-4 pt-3" noValidate>
+      <input type="hidden" name="event" value={eventSlug} />
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="invite-lines" className="text-14 font-medium">
+          Judges, one per line
+        </label>
+        <Textarea
+          id="invite-lines"
+          name="lines"
+          rows={6}
+          aria-invalid={errors.length > 0}
+          aria-describedby="invite-lines-help"
+          placeholder={"Mira Ek, mira@example.org\nJon Berg, jon@example.org, Security; Health"}
+          className="font-mono text-13"
+        />
+        <p id="invite-lines-help" className="text-13 text-ink-2">
+          Name, then email, separated by a comma or a tab. A line without an address makes a link anyone can use once. After the address, a line can name its
+          own tracks, separated by semicolons.
+        </p>
+      </div>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-14 font-medium">Tracks, for every line that names none</legend>
+        <TrackBoxes tracks={tracks} name="trackIds" />
+      </fieldset>
+      <div className="flex items-center gap-3">
+        <Button disabled={pending}>{pending ? "Making the links…" : "Make the links"}</Button>
+      </div>
+      {errors.length ? (
+        <ul role="alert" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-13 text-flag">
+          {errors.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      ) : null}
+      {state.message ? (
+        <p role="status" className={`text-13 ${state.ok ? "text-ink-2" : "text-flag"}`}>
+          {state.message}
+        </p>
+      ) : null}
+      {links.length ? (
+        <div className="flex flex-col gap-2 rounded-sm border border-rule bg-sunken p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-13 font-medium">{links.length === 1 ? "One link" : `${links.length} links`}</p>
+            <CopyButton text={all} label="Copy all" />
+          </div>
+          <ul className="flex flex-col divide-y divide-rule">
+            {links.map((l) => (
+              <li key={l.path} className="flex flex-col gap-1.5 py-2">
+                <span className="text-13 wrap-anywhere">
+                  <span className="font-medium">{l.name || l.email || "Open link"}</span>
+                  {l.name && l.email ? <span className="text-ink-2"> · {l.email}</span> : null}
+                </span>
+                <span className="font-mono text-12 break-all">{l.url}</span>
+                <CopyButton text={l.url} label="Copy link" />
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
     </form>
   );

@@ -88,6 +88,129 @@ export function inviteJudge(actor: Actor | null, eventIdOrSlug: string, body: un
   });
 }
 
+export const MAX_BATCH_INVITES = 200;
+
+export const BatchInviteInput = z.object({
+  /** one judge per line: "name, email", "email", or "name" alone (an open link); a third field names the line's own tracks, separated by ";" */
+  lines: z.string().max(40_000),
+  /** the tracks of every line that names none of its own */
+  trackIds: z.array(z.string().min(1)).default([]),
+});
+
+export type BatchLine = { line: number; name: string; email: string | null; trackIds: string[] };
+export type BatchInvite = { id: string; code: string; path: string; name: string; email: string | null; line: number };
+export type BatchResult = { invites: BatchInvite[]; skipped: { line: number; email: string; reason: string }[] };
+
+/**
+ * Read a pasted list, one judge per line. Fields are separated by commas or tabs (a column
+ * copied from a spreadsheet works): the field with an @ is the address, the first other field
+ * the name, the next one the line's own tracks by name, separated by ";". Empty lines and
+ * lines starting with # are skipped. Every problem is reported with its line number, and
+ * nothing is made while any line has one.
+ */
+export function parseInviteLines(text: string, tracks: { id: string; name: string }[], defaultTrackIds: string[]): BatchLine[] {
+  const byName = new Map(tracks.map((t) => [t.name.trim().toLowerCase(), t.id]));
+  const known = new Set(tracks.map((t) => t.id));
+  const errors: string[] = [];
+  const out: BatchLine[] = [];
+  const seen = new Map<string, number>();
+  text.split(/\r?\n/).forEach((raw, i) => {
+    const line = i + 1;
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+    const fields = trimmed.split(/[,\t]/).map((f) => f.trim()).filter(Boolean);
+    const at = fields.filter((f) => f.includes("@"));
+    if (at.length > 1) return void errors.push(`line ${line}: two addresses on one line`);
+    const email = at[0]?.toLowerCase() ?? null;
+    const rest = fields.filter((f) => !f.includes("@"));
+    const name = rest[0] ?? "";
+    if (email && !z.email().safeParse(email).success) return void errors.push(`line ${line}: not an email address: ${email}`);
+    if (name.length > 80) return void errors.push(`line ${line}: a name of at most 80 characters`);
+    if (rest.length > 2) return void errors.push(`line ${line}: more fields than a name, an address and tracks (separate tracks with ";")`);
+    let trackIds = defaultTrackIds;
+    if (rest[1]) {
+      const names = rest[1].split(";").map((t) => t.trim()).filter(Boolean);
+      const unknown = names.filter((t) => !byName.has(t.toLowerCase()));
+      if (unknown.length) return void errors.push(`line ${line}: not a track of this event: ${unknown.join(", ")}`);
+      trackIds = names.map((t) => byName.get(t.toLowerCase())!);
+    }
+    trackIds = [...new Set(trackIds)].sort();
+    if (!trackIds.length) return void errors.push(`line ${line}: no tracks: tick the tracks below, or name them after the address`);
+    if (trackIds.some((id) => !known.has(id))) return void errors.push(`line ${line}: a chosen track is not in this event`);
+    if (email) {
+      const first = seen.get(email);
+      if (first) return void errors.push(`line ${line}: ${email} is on line ${first} already`);
+      seen.set(email, line);
+    }
+    out.push({ line, name, email, trackIds });
+  });
+  if (errors.length) throw new ValidationError("Check the list: nothing was made.", { lines: errors.slice(0, 12).concat(errors.length > 12 ? [`and ${errors.length - 12} more`] : []) });
+  if (!out.length) throw new ValidationError("Check the list: nothing was made.", { lines: ["paste at least one judge, one per line"] });
+  if (out.length > MAX_BATCH_INVITES) throw new ValidationError("Check the list: nothing was made.", { lines: [`at most ${MAX_BATCH_INVITES} judges at a time`] });
+  return out;
+}
+
+/**
+ * The organizer invites many judges at once from a pasted list: one link each, returned once,
+ * one audit row each (judge.invite, as for a single invitation). An address that already
+ * judges this event is skipped and reported, never an error; any other problem on any line
+ * stops the whole list with the line numbers.
+ */
+export function inviteJudges(actor: Actor | null, eventIdOrSlug: string, body: unknown): BatchResult {
+  let event: EventRow;
+  return mutate<BatchResult>({
+    actor,
+    action: "event.manage",
+    load: (tx) => {
+      event = requireEvent(tx, eventIdOrSlug);
+      return { kind: "event", event: eventFacts(event) };
+    },
+    run: (tx) => {
+      const input = parse(BatchInviteInput, body);
+      const eventTracks = tx.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, event.id)).all();
+      const lines = parseInviteLines(input.lines, eventTracks, input.trackIds);
+      const emails = lines.flatMap((l) => (l.email ? [l.email] : []));
+      const judging = new Set(
+        emails.length
+          ? tx
+              .select({ email: users.email })
+              .from(users)
+              .innerJoin(userRoles, and(eq(userRoles.userId, users.id), eq(userRoles.eventId, event.id), eq(userRoles.role, "judge")))
+              .where(inArray(users.email, emails))
+              .all()
+              .map((u) => u.email.toLowerCase())
+          : [],
+      );
+      const now = new Date().toISOString();
+      const invites: BatchInvite[] = [];
+      const skipped: BatchResult["skipped"] = [];
+      for (const l of lines) {
+        if (l.email && judging.has(l.email)) {
+          skipped.push({ line: l.line, email: l.email, reason: "already a judge in this event" });
+          continue;
+        }
+        const id = newId("jinv");
+        const code = newSecret(18);
+        tx.insert(judgeInvites)
+          .values({ id, eventId: event.id, codeHash: sha256(code), name: l.name, email: l.email, trackIds: l.trackIds, createdAt: now, createdBy: actor!.userId })
+          .run();
+        invites.push({ id, code, path: `/judge-invite/${code}`, name: l.name, email: l.email, line: l.line });
+      }
+      return {
+        result: { invites, skipped },
+        // One row per invitation, as a single invite writes; the codes are credentials and never logged.
+        audit: invites.map((inv) => ({
+          action: "judge.invite",
+          eventId: event.id,
+          targetType: "judge_invite",
+          targetId: inv.id,
+          after: { name: inv.name, email: inv.email, trackIds: lines.find((l) => l.line === inv.line)!.trackIds, batch: true },
+        })),
+      };
+    },
+  });
+}
+
 export function revokeJudgeInvite(actor: Actor | null, inviteId: string) {
   let invite: typeof judgeInvites.$inferSelect;
   return mutate({

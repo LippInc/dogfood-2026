@@ -21,9 +21,11 @@ export type MutationSpec<T> = {
   load: (tx: Tx) => Resource;
   /**
    * Make the change; return the result and what the audit row should say, or
-   * audit: null when nothing changed (no row is written). Must be synchronous.
+   * audit: null when nothing changed (no row is written). A list writes one row
+   * each, in order, for a change made of several things (a batch of invitations).
+   * Must be synchronous.
    */
-  run: (tx: Tx) => { result: T; audit: AuditDetail | null };
+  run: (tx: Tx) => { result: T; audit: AuditDetail | AuditDetail[] | null };
   now?: Date;
 };
 
@@ -78,8 +80,8 @@ export function mutate<T>(spec: MutationSpec<T>): T {
     }
     if (!who) throw new Error(`authorize() allowed ${spec.action} with nobody to record`);
     const { result, audit } = spec.run(tx);
-    if (audit) {
-      appendAudit(tx, { ...audit, actorUserId: who.userId, actorLabel: who.name, action: audit.action ?? spec.action }, now.toISOString());
+    for (const row of audit === null ? [] : Array.isArray(audit) ? audit : [audit]) {
+      appendAudit(tx, { ...row, actorUserId: who.userId, actorLabel: who.name, action: row.action ?? spec.action }, now.toISOString());
     }
     return { result };
   });
