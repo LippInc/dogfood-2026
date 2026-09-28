@@ -229,7 +229,7 @@ export const OPERATIONS: Operation[] = [
     access: "organizer",
     also: [409],
   },
-  { method: "GET", path: "/api/events/{event}/results", tag: "Results", summary: "The published results per track, or { published: false }", access: "anyone" },
+  { method: "GET", path: "/api/events/{event}/results", tag: "Results", summary: "The published results per track, or { published: false }", access: "anyone", note: "Also lists weightChanges (rubric weights changed after judging began) and trackMoves (projects the organizers moved to another track after judges were assigned: from, to, reason, at), each as the published run recorded it." },
 
   // Community vote
   { method: "GET", path: "/api/events/{event}/voting", tag: "Community vote", summary: "Voting settings, turnout, suspected duplicates and the count, live while the window is open", access: "organizer" },

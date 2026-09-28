@@ -17,6 +17,7 @@ import { computePairwise, judgingModeOf, PAIRWISE_METHOD, storePairwiseRun } fro
 import { METHOD, METHOD_LABEL, type ProjectRow, type Normalized, computeNormalization } from "./normalization";
 import { decisions, eventDecisions, organizerMutation, notPublished } from "./decisions";
 import { shownTitle } from "./project-fields";
+import { projectTrackMoves, type PublishedTrackMove } from "./corrections";
 
 // The organizer's results view (the normalization, its decisions, the judges' private notes
 // and the cross-check between methods), publishing, which stores the run it publishes, and
@@ -138,6 +139,7 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
         flags: set.flags,
         overrides: set.overrides.map((o) => ({ judgeId: o.judgeId, mode: o.mode, reason: o.reason, at: o.createdAt })),
         merges: n.projects.filter((p) => p.duplicateOf).map((p) => ({ duplicate: p.id, into: p.duplicateOf })),
+        trackMoves: projectTrackMoves(tx, event.id),
         judges: n.judges.filter((j) => !j.excluded && j.n > 0).map((j) => ({ id: j.id, n: j.n, leniency: j.leniency })),
         ranked: n.ranked,
         moved: n.moved,
@@ -263,6 +265,8 @@ export type PublishedResults =
       yardstick: Yardstick | null;
       /** weight changes made after judging began, each with its reason; empty when no weight moved after the first score */
       weightChanges: WeightChange[];
+      /** projects the organizers moved to another track after judges were assigned, oldest first, as the run stored them; empty for runs stored before moves were kept */
+      trackMoves: PublishedTrackMove[];
       tracks: {
         id: string;
         name: string;
@@ -332,6 +336,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     k: (run.params as { k?: number | null }).k ?? null,
     yardstick: (run.params as { yardstick?: Yardstick | null }).yardstick ?? null,
     weightChanges: event.settings.weightChanges ?? [],
+    trackMoves: (run.params as { trackMoves?: PublishedTrackMove[] }).trackMoves ?? [],
     tracks: [...byTrack.values()].map((t) => {
       const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
       return {

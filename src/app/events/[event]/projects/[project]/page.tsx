@@ -10,6 +10,7 @@ import Link from "next/link";
 import { actorNav, currentActor, getGallery, getMyWork, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
 import { CommentForm, DeleteOwnComment, HideForm, UnhideForm } from "./comments";
 import { TakeDownPicture } from "./take-down";
+import { trackMoveWords } from "@/lib/track-move";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +84,8 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
     }
     return null;
   })();
+  // A move to another track the published run recorded, shown with the result it may have changed.
+  const moves = results?.published ? results.trackMoves.filter((m) => m.projectId === p.id) : [];
   // FIG. 02: the other projects in its track, so a visitor can walk the track without going back to the gallery.
   // Once published, in the published order with each place; before that, by id (an order that ranks nothing).
   const trackmates: { id: string; title: string; team: string; place: number | null; joint: boolean }[] = (() => {
@@ -177,6 +180,11 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                         : ""}
                       {` · ${standing.row.n} ${standing.pairwise ? (standing.row.n === 1 ? "judge" : "judges") : standing.row.n === 1 ? "review" : "reviews"}`}
                     </p>
+                    {moves.map((m, i) => (
+                      <p key={i} className="mt-1.5 text-13 text-flag wrap-anywhere">
+                        <span className="tnum">{trackMoveWords(m)}</span>. Their reason: &ldquo;{m.reason}&rdquo;
+                      </p>
+                    ))}
                     <Link
                       href={`/events/${event.slug}/results#track-${standing.track.id}`}
                       className="mt-2 inline-block text-14 underline decoration-edge underline-offset-4 hover:decoration-ink"

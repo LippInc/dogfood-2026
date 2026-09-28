@@ -10,6 +10,7 @@ import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line"
 import { PublicShell } from "@/components/shell/public-shell";
 import { YardstickLine } from "@/components/yardstick-line";
 import { weightMoves } from "@/lib/weight-change";
+import { trackMoveWords } from "@/lib/track-move";
 import { formatUtc, plural } from "@/lib/format";
 import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, type Gallery } from "@/server/dal";
 import { competitionPlaces, ordinal } from "@/lib/places";
@@ -59,6 +60,11 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
     return firsts.length ? [{ track: t, index: ti, first: firsts[0], joint: firsts.slice(1) }] : [];
   });
   const placedCount = placed.reduce((n, t) => n + t.rows.length, 0);
+  // Moves the published run recorded, per project: a move can change a track's winner, so each shows next to its project.
+  const trackMoves = results.published ? results.trackMoves : [];
+  const movesOf = new Map<string, typeof trackMoves>();
+  for (const m of trackMoves) movesOf.set(m.projectId, [...(movesOf.get(m.projectId) ?? []), m]);
+  const movedCount = placed.reduce((n, t) => n + t.rows.filter((r) => movesOf.has(r.projectId)).length, 0);
   const underReviewed = placed.some((t) => t.rows.some((r) => r.n < 2));
   // The plain words, one point each; the same sentences the page said as one paragraph.
   const readingPoints: string[] = [
@@ -110,6 +116,14 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                       </li>
                     ))}
                   </ul>
+                </div>
+              ) : null}
+              {movedCount ? (
+                <div className="mt-6 max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
+                  <p className="font-semibold">
+                    The organizers moved {plural(movedCount, "project")} to another track after judges were assigned.
+                  </p>
+                  <p className="mt-1.5">Places compare within a track, so each move is marked on its project below, with the date and their reason.</p>
                 </div>
               ) : null}
             </div>
@@ -274,6 +288,11 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                             {/* the track's heading already says where; the place in words stays for screen readers */}
                             {p.place !== null ? <span className="sr-only">{` · ${ordinal(p.place)} in ${t.name}`}</span> : null}
                           </span>
+                          {movesOf.get(r.projectId)?.map((m, mi) => (
+                            <span key={mi} className="mt-1 block text-13 text-flag wrap-anywhere">
+                              <span className="tnum">{trackMoveWords(m)}</span>. Their reason: &ldquo;{m.reason}&rdquo;
+                            </span>
+                          ))}
                         </span>
                         <span className="col-start-2 col-span-2 row-start-2 max-md:pr-3 md:col-start-4 md:col-span-1 md:row-start-1">
                           <ScoreLine scale={scale} score={r.score} se={r.se} raw={pairwise ? null : r.raw} first={first} index={ti + i} />

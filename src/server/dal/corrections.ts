@@ -159,6 +159,41 @@ export function takenBackPairs(db: DbOrTx, eventId: string): { judgeId: string; 
     });
 }
 
+/** One organizer move of a project to another track, as the published run keeps it. */
+export type PublishedTrackMove = { projectId: string; fromTrackId: string; fromTrack: string; toTrackId: string; toTrack: string; reason: string; at: string };
+
+/**
+ * Every track move of the event, oldest first, from the audit log, with the tracks' names as
+ * they are now: stored with the published run, since the results are grouped by track and a
+ * move can change a track's winner. DAL-internal.
+ */
+export function projectTrackMoves(db: DbOrTx, eventId: string): PublishedTrackMove[] {
+  const names = new Map(db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, eventId)).all().map((t) => [t.id, t.name]));
+  return db
+    .select({ projectId: auditLog.targetId, before: auditLog.before, after: auditLog.after, at: auditLog.at })
+    .from(auditLog)
+    .where(and(eq(auditLog.eventId, eventId), eq(auditLog.action, "project.track_moved")))
+    .orderBy(asc(auditLog.id))
+    .all()
+    .flatMap((r) => {
+      const from = (r.before as { trackId?: unknown } | null)?.trackId;
+      const after = r.after as { trackId?: unknown; reason?: unknown } | null;
+      const to = after?.trackId;
+      if (!r.projectId || typeof from !== "string" || typeof to !== "string") return [];
+      return [
+        {
+          projectId: r.projectId,
+          fromTrackId: from,
+          fromTrack: names.get(from) ?? from,
+          toTrackId: to,
+          toTrack: names.get(to) ?? to,
+          reason: typeof after?.reason === "string" ? after.reason : "",
+          at: r.at,
+        },
+      ];
+    });
+}
+
 export type ProjectAssignment = {
   id: string;
   judgeId: string;

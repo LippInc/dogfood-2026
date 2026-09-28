@@ -24,6 +24,7 @@ import { finishedReviews, formerJudges, inJudgeTracks, judgeNames, judgeSet, rub
 import { parse } from "./parse";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
 import { fieldModes, shownTitle } from "./project-fields";
+import { projectTrackMoves } from "./corrections";
 
 // Pairwise mode (JUDGING.md "Pairwise mode"; the engine is src/server/judging/pairwise.ts).
 // A judge's list and next question are replayed from their own answers on every read
@@ -658,6 +659,7 @@ export function storePairwiseRun(tx: DbOrTx, event: EventRow, actorId: string, p
         flags: pw.flags.map((f) => ({ judgeId: f.judgeId, why: f.why, picks: f.picks, ties: f.ties, z: f.z, resolved: f.resolved })),
         groups: pw.fit.tracks,
         converged: pw.fit.converged,
+        trackMoves: projectTrackMoves(tx, event.id),
       },
       computedAt: at,
       computedBy: actorId,
