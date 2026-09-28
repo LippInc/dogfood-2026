@@ -2,7 +2,7 @@
 //
 // Conventions
 // - Ids are text. Fixture rows keep their fixture ids (evt_01, trk_03, prj_32);
-//   rows created in the app get a prefixed random id (see src/server/ids.ts).
+//   rows created in the app get a prefixed random id (newId in src/server/util.ts).
 // - Timestamps are ISO 8601 text in UTC, compared with Date in code, never as strings.
 // - Enum-like and range columns carry real CHECK constraints (Drizzle's text enum
 //   is TypeScript-only on SQLite). Triggers live in src/server/db/triggers.ts and are
