@@ -78,8 +78,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       {results.published ? (
         <>
-          <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-end lg:gap-16">
-            <div>
+          <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-x-16 lg:gap-y-0">
+            <div className="lg:col-start-1 lg:row-start-1">
               <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
               <p className="label-mono mt-3 tnum text-ink-3">
                 Published {formatUtc(results.publishedAt)} · {plural(placedCount, "place")} in {plural(placed.length, "track")}
@@ -122,50 +122,52 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                 </div>
               </details>
             </div>
+            {/* the seal: beside the title on a wide screen; on a phone after the first places, which a visitor came for */}
             {results.anchor ? (
-              <LogSeal
-                entry={results.anchor.entry}
-                hash={results.anchor.hash}
-                what="These results were published as this entry of the portal’s audit log. A later change to the log up to it would change the hash, and the picture drawn from it."
-              />
-            ) : null}
-          </div>
-
-          {winners.length ? (
-            <section aria-labelledby="firsts-title" className="mt-14 border-t border-rule pt-6">
-              <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-                <h2 id="firsts-title" className="label-mono text-ink">
-                  Fig. 02 — First places
-                </h2>
-                <p className="text-13 text-ink-3">One per track. Each opens its track below.</p>
+              <div className="order-last lg:order-none lg:col-start-2 lg:row-start-1 lg:self-start lg:pt-4">
+                <LogSeal
+                  entry={results.anchor.entry}
+                  hash={results.anchor.hash}
+                  what="These results were published as this entry of the portal’s audit log. A later change to the log up to it would change the hash, and the picture drawn from it."
+                />
               </div>
-              <ol className="mt-6 grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-                {winners.map((w) => (
-                  <li key={w.track.id} className="reveal" style={{ "--i": w.index } as CSSProperties}>
-                    <a href={`#track-${w.track.id}`} className="tile lit group block border-t-2 border-accent pt-2">
-                      <span className="flex items-baseline gap-2 text-13 text-ink-2">
-                        <span className="font-mono text-12 tnum text-ink-3">{two(w.index + 1)}</span>
-                        <span className="truncate">{w.track.name}</span>
-                      </span>
-                      <span className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3">
-                        <span className="block overflow-hidden rounded-xs border border-rule">
-                          <Face id={w.first.projectId} cols={32} rows={18} />
+            ) : null}
+            {winners.length ? (
+              <section aria-labelledby="firsts-title" className="mt-6 border-t border-rule pt-6 lg:col-span-2 lg:mt-14">
+                <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                  <h2 id="firsts-title" className="label-mono text-ink">
+                    Fig. 02 — First places
+                  </h2>
+                  <p className="text-13 text-ink-3">One per track. Each opens its track below.</p>
+                </div>
+                <ol className="mt-6 grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+                  {winners.map((w) => (
+                    <li key={w.track.id} className="reveal" style={{ "--i": w.index } as CSSProperties}>
+                      <a href={`#track-${w.track.id}`} className="tile lit group block border-t-2 border-accent pt-2">
+                        <span className="flex items-baseline gap-2 text-13 text-ink-2">
+                          <span className="font-mono text-12 tnum text-ink-3">{two(w.index + 1)}</span>
+                          <span className="truncate">{w.track.name}</span>
                         </span>
-                        <span className="min-w-0 wrap-anywhere">
-                          <span className="block font-display text-17 leading-tight group-hover:underline">{w.first.title}</span>
-                          <span className="mt-0.5 block text-13 text-ink-2">{w.first.teamName}</span>
-                          <span className="mt-1.5 block text-13 tnum">
-                            <span className="text-15 font-semibold">{fmtScore(w.first.score)}</span> <span className="text-ink-2">{fmtSe(w.first.se)}</span>
+                        <span className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3">
+                          <span className="block overflow-hidden rounded-xs border border-rule">
+                            <Face id={w.first.projectId} cols={32} rows={18} />
+                          </span>
+                          <span className="min-w-0 wrap-anywhere">
+                            <span className="block font-display text-17 leading-tight group-hover:underline">{w.first.title}</span>
+                            <span className="mt-0.5 block text-13 text-ink-2">{w.first.teamName}</span>
+                            <span className="mt-1.5 block text-13 tnum">
+                              <span className="text-15 font-semibold">{fmtScore(w.first.score)}</span> <span className="text-ink-2">{fmtSe(w.first.se)}</span>
+                            </span>
                           </span>
                         </span>
-                      </span>
-                      {w.joint.length ? <span className="mt-2 block text-13 text-ink-2">Joint first with {w.joint.map((j) => j.title).join(", ")}</span> : null}
-                    </a>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          ) : null}
+                        {w.joint.length ? <span className="mt-2 block text-13 text-ink-2">Joint first with {w.joint.map((j) => j.title).join(", ")}</span> : null}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : null}
+          </div>
 
           <section aria-labelledby="scale-title" className="mt-16 border-t border-rule pt-6">
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
