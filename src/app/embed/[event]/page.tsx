@@ -44,6 +44,8 @@ export default async function EmbedPage({
       });
     }
   }
+  // Bold: once the results are out, the placed projects lead the frame, lit as the portal lights a tile it points at.
+  const shown = places.size ? [...projects.filter((p) => places.has(p.id)), ...projects.filter((p) => !places.has(p.id))] : projects;
   return (
     <div className="public min-h-0 p-4 wrap-anywhere">
       <ReportHeight />
@@ -73,13 +75,13 @@ export default async function EmbedPage({
       {/* Frames are narrow: under 480 px each project is a row (a small face beside its title), so a phone-sized frame
           shows six projects, not two; wider, a grid of tiles at least 200 px wide (four across a 900 px frame). */}
       <ul className="mt-4 grid grid-cols-1 gap-2 min-[480px]:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] min-[480px]:gap-4">
-        {projects.map((p) => (
+        {shown.map((p) => (
           <li key={p.id} className="flex">
             <a
               href={`${origin}/events/${g.event.slug}/projects/${p.id}`}
               target="_blank"
               rel="noopener"
-              className="tile relative flex w-full flex-row rounded-xs border border-rule bg-surface hover:border-edge min-[480px]:flex-col"
+              className={`tile ${places.has(p.id) ? "lit" : ""} relative flex w-full flex-row rounded-xs border border-rule bg-surface hover:border-edge min-[480px]:flex-col`}
             >
               <span className="relative flex w-[112px] shrink-0 items-end overflow-hidden rounded-l-xs bg-face-bg min-[480px]:block min-[480px]:w-full min-[480px]:rounded-l-none min-[480px]:rounded-t-xs">
                 <Face id={p.id} className="block w-full min-[480px]:hidden" cols={28} rows={16} />
