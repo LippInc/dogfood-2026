@@ -27,8 +27,9 @@ function load(key: string): Gallery {
 const two = (n: number) => String(n).padStart(2, "0");
 
 // The row grid, shared by the axis above a track and every row in it, so the figure column lines up.
+// On a wide screen the scale takes the room the short titles leave, so a ± bar reads at a glance.
 const ROW =
-  "grid grid-cols-[56px_minmax(0,1fr)_auto] gap-x-4 md:grid-cols-[72px_64px_minmax(0,1fr)_minmax(160px,280px)_112px] lg:grid-cols-[72px_64px_minmax(0,1fr)_minmax(200px,340px)_120px]";
+  "grid grid-cols-[56px_minmax(0,1fr)_auto] gap-x-4 md:grid-cols-[72px_64px_minmax(0,1fr)_minmax(160px,280px)_112px] lg:grid-cols-[72px_64px_minmax(200px,1fr)_minmax(280px,560px)_120px]";
 
 export default async function ResultsPage({ params }: PageProps<"/events/[event]/results">) {
   const { event: key } = await params;
@@ -81,8 +82,9 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       {results.published ? (
         <>
-          <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-x-16 lg:gap-y-0">
-            <div className="lg:col-start-1 lg:row-start-1">
+          {/* wide screen: the plain words on the left; the seal, then the method's fold, beside them, so no dead ground opens up there */}
+          <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:grid-rows-[auto_1fr] lg:gap-x-16 lg:gap-y-0">
+            <div className="lg:col-start-1 lg:row-span-2 lg:row-start-1">
               <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
               <p className="label-mono mt-3 tnum text-ink-3">
                 Published {formatUtc(results.publishedAt)} · {plural(placedCount, "place")} in {plural(placed.length, "track")}
@@ -96,52 +98,52 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </li>
                 ))}
               </ol>
-              <details className="group mt-6 max-w-[760px] rounded-sm border border-rule text-ink-2">
-                <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-15 font-semibold text-ink">How these {pairwise ? "win %" : "scores"} were made</span>
-                    <span className="block text-13 text-ink-3">
-                      {results.yardstick ? "The method in full, the ±, and how far apart the judges were" : "The method in full, and the ±"}
-                    </span>
-                  </span>
-                  <ChevronDown className="size-4 shrink-0 text-ink-2 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
-                </summary>
-                <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
-                  {pairwise ? (
-                    <p>
-                      Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores given before the event switched to that
-                      way of judging count as the order they imply), and each project&rsquo;s win % is its chance to beat an average project of its track,
-                      with the pull of the side a project was shown on and of the project a judge had just opened measured and taken out. The ± is one
-                      standard error: win % closer than about two of them are not told apart.
-                    </p>
-                  ) : (
-                    <p>
-                      Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge proved to be across the
-                      event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. The ± under each score is one standard error: scores closer than
-                      about two of them are not told apart.
-                    </p>
-                  )}
-                  {results.yardstick ? (
-                    // the shared drawing paints its band in --sunken, which all but vanishes on the public dark ground; here it takes the hairline colour
-                    <div className="[&_svg_rect]:fill-rule">
-                      <YardstickLine y={results.yardstick} figure />
-                      {/* the small drawing's key, in the marks it uses */}
-                      <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-13 text-ink-2">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block size-2.5 rounded-full bg-ink" aria-hidden /> the judges&rsquo; spread
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block size-2.5 rounded-full border-[1.5px] border-ink" aria-hidden /> after the engine
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block h-2.5 w-5 bg-rule" aria-hidden /> where luck alone lands, 9 times in 10
-                        </span>
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              </details>
             </div>
+            <details className="group max-w-[760px] self-start rounded-sm border border-rule text-ink-2 lg:col-start-2 lg:row-start-2 lg:mt-6">
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-15 font-semibold text-ink">How these {pairwise ? "win %" : "scores"} were made</span>
+                  <span className="block text-13 text-ink-3">
+                    {results.yardstick ? "The method, the ±, and how far apart the judges were" : "The method in full, and the ±"}
+                  </span>
+                </span>
+                <ChevronDown className="size-4 shrink-0 text-ink-2 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+              </summary>
+              <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
+                {pairwise ? (
+                  <p>
+                    Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores given before the event switched to that
+                    way of judging count as the order they imply), and each project&rsquo;s win % is its chance to beat an average project of its track,
+                    with the pull of the side a project was shown on and of the project a judge had just opened measured and taken out. The ± is one
+                    standard error: win % closer than about two of them are not told apart.
+                  </p>
+                ) : (
+                  <p>
+                    Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge proved to be across the
+                    event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. The ± under each score is one standard error: scores closer than
+                    about two of them are not told apart.
+                  </p>
+                )}
+                {results.yardstick ? (
+                  // the shared drawing paints its band in --sunken, which all but vanishes on the public dark ground; here it takes the hairline colour
+                  <div className="[&_svg_rect]:fill-rule">
+                    <YardstickLine y={results.yardstick} figure />
+                    {/* the small drawing's key, in the marks it uses */}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-13 text-ink-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block size-2.5 rounded-full bg-ink" aria-hidden /> the judges&rsquo; spread
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block size-2.5 rounded-full border-[1.5px] border-ink" aria-hidden /> after the engine
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-2.5 w-5 bg-rule" aria-hidden /> where luck alone lands, 9 times in 10
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </details>
             {/* the seal: beside the title on a wide screen; on a phone after the first places, which a visitor came for */}
             {results.anchor ? (
               <div className="order-last lg:order-none lg:col-start-2 lg:row-start-1 lg:self-start lg:pt-4">
@@ -160,7 +162,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </h2>
                   <p className="text-13 text-ink-3">One per track. Each opens its track below.</p>
                 </div>
-                <ol className="mt-6 grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+                {/* two to a row even on a phone, the face on top at every width: the winners read as a podium, not a list of small cards */}
+                <ol className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 lg:grid-cols-4">
                   {winners.map((w) => (
                     <li key={w.track.id} className="reveal" style={{ "--i": w.index } as CSSProperties}>
                       <a href={`#track-${w.track.id}`} className="tile lit group block border-t-2 border-accent pt-2">
@@ -168,12 +171,12 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           <span className="font-mono text-12 tnum text-ink-3">{two(w.index + 1)}</span>
                           <span className="truncate">{w.track.name}</span>
                         </span>
-                        <span className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3">
+                        <span className="mt-3 grid gap-2.5">
                           <span className="block overflow-hidden rounded-xs border border-rule">
                             <Face id={w.first.projectId} cols={32} rows={18} />
                           </span>
                           <span className="min-w-0 wrap-anywhere">
-                            <span className="block font-display text-17 leading-tight group-hover:underline">{w.first.title}</span>
+                            <span className="block font-display text-17 leading-tight group-hover:underline lg:text-20">{w.first.title}</span>
                             <span className="mt-0.5 block text-13 text-ink-2">{w.first.teamName}</span>
                             <span className="mt-1.5 block text-13 tnum">
                               <span className="text-15 font-semibold">{fmtScore(w.first.score)}</span> <span className="text-ink-2">{fmtSe(w.first.se)}</span>
@@ -227,7 +230,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   <span className="label-mono ml-auto text-ink-3">{plural(t.rows.length, "project")}</span>
                 </div>
                 <div className={`${ROW} pt-3`} aria-hidden="true">
-                  <span className="col-start-2 col-span-2 md:col-start-4 md:col-span-1">
+                  <span className="col-start-2 col-span-2 max-md:pr-3 md:col-start-4 md:col-span-1">
                     <ScaleAxis scale={scale} />
                   </span>
                 </div>
@@ -258,7 +261,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                             {p.place !== null ? <span className="sr-only">{` · ${ordinal(p.place)} in ${t.name}`}</span> : null}
                           </span>
                         </span>
-                        <span className="col-start-2 col-span-2 row-start-2 md:col-start-4 md:col-span-1 md:row-start-1">
+                        <span className="col-start-2 col-span-2 row-start-2 max-md:pr-3 md:col-start-4 md:col-span-1 md:row-start-1">
                           <ScoreLine scale={scale} score={r.score} se={r.se} raw={pairwise ? null : r.raw} first={first} index={ti + i} />
                         </span>
                         <span className="col-start-3 row-start-1 text-right md:col-start-5">
