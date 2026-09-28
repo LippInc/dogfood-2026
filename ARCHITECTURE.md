@@ -13,7 +13,7 @@ Every entry point — a page, a route handler under `src/app/api`, a server acti
 1. It resolves the actor with `currentActor()` (`src/server/session.ts`): the `session` cookie, or an `Authorization: Bearer` token, which may be a login session token or a named API token (`dfk_` prefix). Unknown, expired or revoked means `null`.
 2. It calls a data access function from `src/server/dal/` (the barrel `src/server/dal/index.ts` is the only server import app code may use).
 3. A write goes through `mutate()` (`src/server/mutate.ts`), which opens one synchronous better-sqlite3 transaction: `load(tx)` reads the facts the decision needs, `authorize()` decides from them, and only then `run(tx)` makes the change.
-4. In the same transaction, `appendAudit()` (`src/server/audit.ts`) writes the audit row and queues webhook deliveries for it.
+4. In the same transaction, `appendAudit()` (`src/server/audit.ts`) writes the audit row and queues webhook deliveries for it; a change made of several things (a pasted list of judge invitations) writes one row for each.
 5. The transaction commits: change, audit row and outbox rows together, or nothing.
 6. A refusal is a real response, never a redirect. Route handlers catch `AuthzError` (an `HttpError`, `src/server/errors.ts`) and `route()` (`src/server/http.ts`) turns it into 401/403 JSON. Pages call `guardPage()` (`src/lib/page-guard.ts`), which maps the same errors to Next's `unauthorized()` / `forbidden()` / `notFound()` status pages (`src/app/unauthorized.tsx`, `src/app/forbidden.tsx`). A 403 refusal with an identified actor is itself recorded in the audit log (`refusalAudit`, action `authz.refused`).
 
