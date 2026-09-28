@@ -10,8 +10,8 @@ import { nowIso } from "./util";
 // line break, both refused before nodemailer sees them, so nothing a person typed can add a header
 // or a recipient.
 
-/** The two settings mail reads: process.env at run time, a plain object in tests. */
-export type MailEnv = { SMTP_URL?: string; MAIL_FROM?: string; [name: string]: string | undefined };
+/** The settings mail reads (SMTP_URL, MAIL_FROM, PUBLIC_URL): process.env at run time, a plain object in tests. */
+export type MailEnv = { SMTP_URL?: string; MAIL_FROM?: string; PUBLIC_URL?: string; [name: string]: string | undefined };
 
 export type MailSettings = { on: false } | { on: true; url: string; from: string };
 
@@ -22,7 +22,14 @@ export function mailProblem(env: MailEnv = process.env): string | null {
   if (!/^smtps?:\/\/[^/\s]/i.test(url)) return "SMTP_URL must start with smtp:// or smtps:// and name a mail server, as in smtp://user:password@mail.example.org:587";
   const from = env.MAIL_FROM?.trim();
   if (!from || !from.includes("@") || /[\r\n]/.test(from)) return "MAIL_FROM must be the address the portal mails from, as in portal@example.org, when SMTP_URL is set";
+  // mailed links are built on the server from PUBLIC_URL; the screens use the browser's own address, so only mail would break
+  if (!env.PUBLIC_URL?.trim()) return "PUBLIC_URL must be set when SMTP_URL is: mailed links start with it, and without it they would point at http://localhost:8080";
   return null;
+}
+
+/** The start of every mailed link: PUBLIC_URL without a trailing slash. */
+export function mailBase(env: MailEnv = process.env): string {
+  return (env.PUBLIC_URL?.trim() || "http://localhost:8080").replace(/\/+$/, "");
 }
 
 export function mailSettings(env: MailEnv = process.env): MailSettings {
@@ -32,7 +39,7 @@ export function mailSettings(env: MailEnv = process.env): MailSettings {
   return url ? { on: true, url, from: (env.MAIL_FROM ?? "").trim() } : { on: false };
 }
 
-export type SendResult = { status: "off" } | { status: "sent"; sentAt: string } | { status: "failed"; error: string };
+export type SendResult = { status: "off" } | { status: "sent"; sentAt: string } | { status: "failed"; error: string; code?: string };
 
 type Message = { from: string; to: string; subject: string; text: string };
 type Transport = { sendMail(message: Message): Promise<unknown> };
@@ -72,6 +79,34 @@ export async function sendMail(message: { to: string; subject: string; text: str
     await transportFor(settings.url).sendMail({ from: settings.from, to, subject: message.subject, text: message.text });
     return { status: "sent", sentAt: nowIso() };
   } catch (err) {
-    return { status: "failed", error: err instanceof Error ? err.message : String(err) };
+    const code = (err as { code?: unknown }).code;
+    return { status: "failed", error: err instanceof Error ? err.message : String(err), ...(typeof code === "string" ? { code } : {}) };
   }
+}
+
+/** nodemailer's codes for a server that cannot be used at all (unreachable, silent, refusing the login): the rest would fail too. */
+const SERVER_DOWN = new Set(["ECONNECTION", "ETIMEDOUT", "ESOCKET", "EDNS", "ETLS", "EAUTH"]);
+
+/**
+ * Sends several messages, at most `concurrency` at a time, the results in the same order. Once the server
+ * cannot be used at all, the messages not yet tried fail at once instead of each waiting out the timeouts.
+ */
+export async function sendMany(messages: { to: string; subject: string; text: string }[], env: MailEnv = process.env, concurrency = 4): Promise<SendResult[]> {
+  const results: SendResult[] = new Array(messages.length);
+  let down: string | null = null;
+  let next = 0;
+  const worker = async () => {
+    while (next < messages.length) {
+      const i = next++;
+      if (down) {
+        results[i] = { status: "failed", error: `not tried: ${down}` };
+        continue;
+      }
+      const result = await sendMail(messages[i]!, env);
+      results[i] = result;
+      if (result.status === "failed" && result.code && SERVER_DOWN.has(result.code)) down = result.error;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, messages.length) }, worker));
+  return results;
 }

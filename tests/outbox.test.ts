@@ -13,13 +13,13 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
-import { MAIL_TIMEOUTS, mailProblem, mailSettings, sendMail, setMailTransportForTests } from "@/server/mail";
+import { MAIL_TIMEOUTS, mailBase, mailProblem, mailSettings, sendMail, setMailTransportForTests } from "@/server/mail";
 import { listOutbox, listPortalOutbox, type OutboxView } from "@/server/dal/outbox";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-28T02:00:00.000Z";
 const EVENT = "evt_01";
-const ON_ENV = { SMTP_URL: "smtp://mail.test:25", MAIL_FROM: "portal@mail.test" };
+const ON_ENV = { SMTP_URL: "smtp://mail.test:25", MAIL_FROM: "portal@mail.test", PUBLIC_URL: "https://portal.example.org" };
 
 let h: Handle;
 
@@ -185,6 +185,15 @@ describe("the mail module", () => {
     }
   });
 
+  it("with SMTP_URL set, PUBLIC_URL is required: mailed links start with it, and localhost would reach nobody", () => {
+    const problem = mailProblem({ SMTP_URL: "smtp://mail.test:25", MAIL_FROM: "portal@mail.test" });
+    expect(problem).toMatch(/PUBLIC_URL/);
+    expect(mailProblem({ SMTP_URL: "smtp://mail.test:25", MAIL_FROM: "portal@mail.test", PUBLIC_URL: "  " })).toMatch(/PUBLIC_URL/);
+    expect(mailProblem({ PUBLIC_URL: undefined })).toBeNull(); // email off: PUBLIC_URL may stay unset, as before
+    expect(mailBase({ PUBLIC_URL: "https://portal.example.org//" })).toBe("https://portal.example.org");
+    expect(mailBase({})).toBe("http://localhost:8080");
+  });
+
   it("with the settings on, sendMail hands the transport {from, to, subject, text} and returns an ISO sentAt", async () => {
     expect(mailProblem(ON_ENV)).toBeNull();
     expect(mailSettings(ON_ENV)).toEqual({ on: true, url: "smtp://mail.test:25", from: "portal@mail.test" });
@@ -284,7 +293,7 @@ describe("sending through SMTP", () => {
     try {
       const out = await sendMail(
         { to: "judge@example.org", subject: "You are invited to judge", text: "Open your console:\nhttp://localhost:8080/judge/sample-hack-2026" },
-        { SMTP_URL: smtp.url, MAIL_FROM: "portal@mail.test" },
+        { SMTP_URL: smtp.url, MAIL_FROM: "portal@mail.test", PUBLIC_URL: "https://portal.example.org" },
       );
       expect(out.status).toBe("sent");
       expect(smtp.received).toHaveLength(1);
@@ -302,7 +311,7 @@ describe("sending through SMTP", () => {
     const smtp = await smtpServer();
     const url = smtp.url;
     await smtp.close(); // the port is free again: the connection is refused
-    const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, { SMTP_URL: url, MAIL_FROM: "portal@mail.test" });
+    const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, { SMTP_URL: url, MAIL_FROM: "portal@mail.test", PUBLIC_URL: "https://portal.example.org" });
     if (out.status !== "failed") throw new Error(`expected failed, got ${out.status}`);
     expect(out.error).toMatch(/ECONNREFUSED|connect/i);
   });
@@ -315,7 +324,7 @@ describe("a mail server that never answers", () => {
     const url = `smtp://127.0.0.1:${(silent.address() as net.AddressInfo).port}`;
     try {
       const started = Date.now();
-      const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, { SMTP_URL: url, MAIL_FROM: "portal@mail.test" });
+      const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, { SMTP_URL: url, MAIL_FROM: "portal@mail.test", PUBLIC_URL: "https://portal.example.org" });
       const waited = Date.now() - started;
       if (out.status !== "failed") throw new Error(`expected failed, got ${out.status}`);
       expect(out.error).toMatch(/greeting/i);
