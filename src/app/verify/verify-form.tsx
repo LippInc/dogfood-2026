@@ -116,6 +116,14 @@ function StepMark({ mark }: { mark: Mark }) {
   return <Minus className="size-4 text-ink-3" aria-hidden />;
 }
 
+/**
+ * The line under a step that says how it went. Every step keeps one from the first paint (a quiet "not yet" until
+ * there is something to say), so typing or pasting a record never pushes the steps below it down.
+ */
+function StepNote({ idle = false, children }: { idle?: boolean; children: React.ReactNode }) {
+  return <span className={`mt-1 block text-13 ${idle ? "text-ink-3" : "text-ink-2"}`}>{children}</span>;
+}
+
 type SealState = "unchecked" | "checking" | "valid" | "invalid";
 
 /**
@@ -463,14 +471,16 @@ export function VerifyForm() {
               <span className="font-medium">Read the record.</span>{" "}
               <span className="text-ink-2">Its keys are sorted at every depth and the spaces dropped: those exact bytes were signed.</span>
               {pasted ? (
-                <span className="mt-1 block text-13 text-ink-2">
+                <StepNote>
                   {pastedKind}
                   {typeof pastedName === "string" ? ` for ${pastedName}` : ""}
                   {pastedId ? <span className="font-mono text-12"> · {pastedId}</span> : null}
-                </span>
+                </StepNote>
               ) : parsed === false ? (
-                <span className="mt-1 block text-13 text-ink-2">Not JSON with a record and a signature.</span>
-              ) : null}
+                <StepNote>Not JSON with a record and a signature.</StepNote>
+              ) : (
+                <StepNote idle>Waiting for a record.</StepNote>
+              )}
             </span>
             <StepMark mark={parsed === null ? "idle" : parsed ? "ok" : "bad"} />
           </li>
@@ -486,10 +496,14 @@ export function VerifyForm() {
                 .
               </span>
               {outcome && outcome.browser.at !== "valid" ? (
-                <span className="mt-1 block text-13 text-ink-2">{outcome.browser.at === "checking" ? "Checking." : outcome.browser.why}</span>
+                <StepNote>{outcome.browser.at === "checking" ? "Checking." : outcome.browser.why}</StepNote>
               ) : outcome && outcome.browser.at === "valid" ? (
-                <span className="mt-1 block font-mono text-12 text-ink-2">{outcome.browser.kid}</span>
-              ) : null}
+                <StepNote>
+                  <span className="font-mono text-12">{outcome.browser.kid}</span>
+                </StepNote>
+              ) : (
+                <StepNote idle>{busy ? "Checking." : "Runs when you check."}</StepNote>
+              )}
             </span>
             <StepMark mark={browserMark} />
           </li>
@@ -498,9 +512,13 @@ export function VerifyForm() {
             <span className="min-w-0 flex-1 text-14">
               <span className="font-medium">The portal checks it too.</span>{" "}
               <span className="text-ink-2">The same bytes, the same key, on the server.</span>
-              {outcome && !outcome.portal.valid ? <span className="mt-1 block text-13 text-ink-2">
-                  It says: <span className="font-mono text-12">{outcome.portal.reason}</span>
-                </span> : null}
+              {outcome ? (
+                <StepNote>
+                  It says: <span className="font-mono text-12">{outcome.portal.valid ? "valid" : outcome.portal.reason}</span>
+                </StepNote>
+              ) : (
+                <StepNote idle>{busy ? "Checking." : "Runs when you check."}</StepNote>
+              )}
             </span>
             <StepMark mark={portalMark} />
           </li>
