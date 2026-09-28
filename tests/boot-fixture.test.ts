@@ -67,4 +67,25 @@ describe("the fixture import at start", () => {
       fs.unlinkSync(changed);
     }
   });
+
+  it("known-bad: a changed fixture file adds nothing to an event whose results are published, and the portal still starts", () => {
+    expect(bootFixture(h, NOW)).toBe("evt_01"); // a fresh volume imports the file
+    h.sqlite.prepare("UPDATE events SET results_published_at = ? WHERE id = 'evt_01'").run(NOW);
+    expect(bootFixture(h, NOW)).toBe("evt_01"); // the same file at a later start is skipped, published or not
+    const fixture = JSON.parse(fs.readFileSync(path.join(process.cwd(), "fixtures.json"), "utf8"));
+    fixture.tracks.push({ id: "trk_09", name: "A track added later" });
+    const changed = path.join(os.tmpdir(), `fixtures-published-${process.pid}.json`);
+    fs.writeFileSync(changed, JSON.stringify(fixture));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      process.env.FIXTURES_PATH = changed;
+      expect(bootFixture(h, NOW)).toBe("evt_01");
+      expect(count("SELECT count(*) AS n FROM tracks WHERE name = 'A track added later'")).toBe(0);
+      expect(count("SELECT count(*) AS n FROM fixture_imports")).toBe(1);
+      expect(warn.mock.calls.map((c) => String(c[0])).join("\n")).toContain("published");
+    } finally {
+      warn.mockRestore();
+      fs.unlinkSync(changed);
+    }
+  });
 });

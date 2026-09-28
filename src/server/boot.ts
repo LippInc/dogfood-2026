@@ -2,7 +2,9 @@ import "server-only";
 import path from "node:path";
 import { openAdminSetup } from "./admins";
 import { checkerSessionsEnabled, checkerToml, demoModeRefusal, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, startRefusal, writeCheckerFile, type DemoGrants } from "./checker";
+import { eq } from "drizzle-orm";
 import { databasePath, handle, type Handle } from "./db/client";
+import { events } from "./db/schema";
 import { importedBefore, importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
@@ -33,6 +35,8 @@ export function fixturesPath(): string {
   return process.env.FIXTURES_PATH ?? path.join(process.cwd(), "fixtures.json");
 }
 
+class PublishedEventImport extends Error {}
+
 /**
  * The start-up fixture import (idempotent); returns the fixture event's id, or null
  * when FIXTURES_PATH=none asks for a portal that starts empty.
@@ -50,7 +54,29 @@ export function bootFixture(h: Handle, now: string): string | null {
     console.log(`[boot] fixtures already imported (${path.basename(file)}, sha256 ${sha256.slice(0, 12)}): not imported again, so what the organizers changed or removed stands`);
     return fixture.event.id;
   }
-  const report = importFixtures(h.db, fixture, { source: path.basename(file), sha256, now });
+  // The same guard as an uploaded import (dal/imports.ts): an event whose results are published is final, so a
+  // changed file adds nothing to it. The import rolls back and the portal starts with the event as published.
+  let published = false;
+  let report: ReturnType<typeof importFixtures>;
+  try {
+    report = importFixtures(h.db, fixture, {
+      source: path.basename(file),
+      sha256,
+      now,
+      gate: (tx) => {
+        published = Boolean(tx.select({ at: events.resultsPublishedAt }).from(events).where(eq(events.id, fixture.event.id)).get()?.at);
+      },
+      after: (_tx, r) => {
+        if (published && Object.values(r.inserted).some((n) => n > 0)) throw new PublishedEventImport();
+      },
+    });
+  } catch (err) {
+    if (!(err instanceof PublishedEventImport)) throw err;
+    console.warn(
+      `[boot] fixtures not imported (${path.basename(file)}, sha256 ${sha256.slice(0, 12)}): the file adds to ${fixture.event.id}, whose results are published, so nothing was added. Give the file an event id of its own to import it as a new event.`,
+    );
+    return fixture.event.id;
+  }
   const inserted = Object.values(report.inserted).reduce((a, b) => a + b, 0);
   console.log(
     inserted > 0
