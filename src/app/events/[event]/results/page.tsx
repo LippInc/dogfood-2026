@@ -285,7 +285,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                 <div className="mt-4 grid grid-cols-4 gap-x-3 gap-y-6 xl:grid-cols-8" aria-hidden="true">
                   {galleryTracks.map((t) => (
                     <div key={t.id}>
-                      <p className="truncate border-t-2 border-ink pt-2 text-13 text-ink-2">{t.name}</p>
+                      <p className="line-clamp-2 min-h-12 border-t-2 border-ink pt-2 text-13 leading-5 text-ink-2">{t.name}</p>
                       <div className="mt-2 grid gap-1">
                         {Array.from({ length: t.count }, (_, i) => (
                           <span key={i} className="sealed flex h-5 items-center rounded-xs border border-rule px-1.5 font-mono text-12 leading-none text-ink-3">
