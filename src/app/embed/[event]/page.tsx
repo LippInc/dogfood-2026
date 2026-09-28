@@ -29,16 +29,26 @@ export default async function EmbedPage({
   }
   const origin = process.env.PUBLIC_URL ?? "";
   const projects = typeof track === "string" && track ? g.projects.filter((p) => p.trackId === track || p.trackName === track) : g.projects;
+  // A frame showing one track names it, so a visitor on the host site knows why only some projects are here.
+  const shownTrack = typeof track === "string" && track ? (g.tracks.find((t) => t.id === track || t.name === track) ?? null) : null;
   return (
     <div className="public min-h-0 p-4 wrap-anywhere">
       <ReportHeight />
       <div className="flex items-stretch gap-6">
-        <p className="label-mono flex min-w-0 items-center text-ink-2">
+        <p className="label-mono flex min-w-0 flex-wrap items-center gap-y-1 text-ink-2">
           <span className="mr-3 inline-block size-2 shrink-0 bg-accent" aria-hidden />
           {g.event.name}
           <span className="mx-3 text-ink-3" aria-hidden>
             /
           </span>
+          {shownTrack && (
+            <>
+              <span className="text-ink">{shownTrack.name}</span>
+              <span className="mx-3 text-ink-3" aria-hidden>
+                /
+              </span>
+            </>
+          )}
           {projects.length} {projects.length === 1 ? "project" : "projects"}
         </p>
         {/* the page's mark, as on the portal's own status strip */}
