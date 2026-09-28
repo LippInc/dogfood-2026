@@ -16,6 +16,7 @@ import { issuesOf } from "./parse";
 import { discardUpload, UPLOAD_PATH } from "../uploads";
 import { DEFAULT_FIELD_MODES, PROJECT_FIELDS, REQUIRED_MESSAGES, withoutHidden, type FieldModes } from "@/lib/project-fields";
 import { fieldModes, shownTitle } from "./project-fields";
+import { MAX_GALLERY_IMAGES, MAX_TAGS, MAX_TAG_LENGTH } from "../project-limits";
 
 // A team's project: created and edited by its members while submissions are open,
 // saved as a draft or submitted. The deadline holds in the backend: after
@@ -41,10 +42,9 @@ function distinctTags(tags: string[]): string[] {
     return true;
   });
 }
-export const MAX_GALLERY_IMAGES = 6;
-export const MAX_TAGS = 8;
+export { MAX_GALLERY_IMAGES, MAX_TAGS, MAX_TAG_LENGTH };
 const tagList = z
-  .array(z.string().trim().min(1, "a tag cannot be empty").max(24, "a tag is at most 24 characters"))
+  .array(z.string().trim().min(1, "a tag cannot be empty").max(MAX_TAG_LENGTH, `a tag is at most ${MAX_TAG_LENGTH} characters`))
   .default([])
   .transform(distinctTags)
   .pipe(z.array(z.string()).max(MAX_TAGS, `at most ${MAX_TAGS} tags`));

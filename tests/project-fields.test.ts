@@ -89,7 +89,7 @@ describe("thumbnail, image gallery and tech tags", () => {
       body({ galleryUrls: ["data:image/png;base64,AAAA"] }),
       body({ galleryUrls: Array.from({ length: 7 }, (_, n) => `https://img.example.org/${n}.png`) }),
       body({ tags: Array.from({ length: 9 }, (_, n) => `tag${n}`) }),
-      body({ tags: ["x".repeat(25)] }),
+      body({ tags: ["x".repeat(41)] }),
     ];
     const fields = ["thumbnailUrl", "galleryUrls", "galleryUrls", "tags", "tags"];
     refused.forEach((b, n) => expect(outcome(() => updateProject(participant, "prj_01", b))).toEqual({ status: 422, fields: [fields[n]] }));
@@ -98,13 +98,18 @@ describe("thumbnail, image gallery and tech tags", () => {
     const eight = Array.from({ length: 8 }, (_, n) => `tag${n}`);
     expect(outcome(() => updateProject(participant, "prj_01", body({ tags: [...eight, "TAG0", "Tag1"] }))).status).toBe(200);
     expect(prj01().tags).toEqual(eight);
+
+    // A real tag longer than the old 24-character cap, and one at the new cap of 40, pass.
+    const long = ["human-computer-interaction", "y".repeat(40)];
+    expect(outcome(() => updateProject(participant, "prj_01", body({ tags: long }))).status).toBe(200);
+    expect(prj01().tags).toEqual(long);
   });
 
   it("travel through the fixtures.json export and import, and fixture projects without them export as before", () => {
-    updateProject(checker("participant"), "prj_01", body({ thumbnailUrl: "https://img.example.org/cover.png", galleryUrls: images, tags: ["Rust"] }));
+    updateProject(checker("participant"), "prj_01", body({ thumbnailUrl: "https://img.example.org/cover.png", galleryUrls: images, tags: ["Rust", "human-computer-interaction"] }));
     const exported = JSON.parse(exportFile(checker("organizer"), "evt_01", "fixtures.json").body);
     const p01 = exported.projects.find((p: { id: string }) => p.id === "prj_01");
-    expect(p01).toMatchObject({ thumbnail_url: "https://img.example.org/cover.png", gallery_urls: images, tags: ["Rust"] });
+    expect(p01).toMatchObject({ thumbnail_url: "https://img.example.org/cover.png", gallery_urls: images, tags: ["Rust", "human-computer-interaction"] });
     const p02 = exported.projects.find((p: { id: string }) => p.id === "prj_02");
     expect(Object.keys(p02).sort()).toEqual(["id", "repo_url", "submitted_at", "summary", "team", "title", "track"]);
 
@@ -116,7 +121,7 @@ describe("thumbnail, image gallery and tech tags", () => {
       const { fixture, sha256 } = loadFixtureFile(file);
       importFixtures(fresh.db, fixture, { source: "fixtures.json", sha256, now: NOW });
       const moved = fresh.db.select().from(projects).where(eq(projects.id, "prj_01")).get()!;
-      expect(moved).toMatchObject({ thumbnailUrl: "https://img.example.org/cover.png", galleryUrls: images, tags: ["Rust"] });
+      expect(moved).toMatchObject({ thumbnailUrl: "https://img.example.org/cover.png", galleryUrls: images, tags: ["Rust", "human-computer-interaction"] });
     } finally {
       fresh.sqlite.close();
     }

@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./client";
 import { appendAudit } from "../audit";
+import { MAX_GALLERY_IMAGES, MAX_TAGS, MAX_TAG_LENGTH } from "../project-limits";
 import { BUILTIN_CRITERIA } from "../rubric-defaults";
 import { allowedModes, FIELD_MODES, PROJECT_FIELDS } from "../../lib/project-fields";
 import { newSecret, nowIso, sha256, slugify } from "../util";
@@ -81,10 +82,10 @@ export const FixtureSchema = z.looseObject({
         .default(""),
       gallery_urls: z
         .array(z.string().url({ protocol: /^https?$/, message: "must be a full URL, starting with https://" }))
-        .max(6)
+        .max(MAX_GALLERY_IMAGES)
         .optional()
         .default([]),
-      tags: z.array(z.string().trim().min(1).max(24)).max(8).optional().default([]),
+      tags: z.array(z.string().trim().min(1).max(MAX_TAG_LENGTH)).max(MAX_TAGS).optional().default([]),
       submitted_at: z.string().min(1),
     }),
   ),
