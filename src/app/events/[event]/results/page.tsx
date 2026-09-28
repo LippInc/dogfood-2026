@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { LogSeal } from "@/components/results/log-seal";
@@ -54,36 +55,58 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
     const firsts = t.rows.filter((_, i) => t.places[i]?.place === 1);
     return firsts.length ? [{ track: t, index: ti, first: firsts[0], joint: firsts.slice(1) }] : [];
   });
+  const placedCount = placed.reduce((n, t) => n + t.rows.length, 0);
+  const underReviewed = placed.some((t) => t.rows.some((r) => r.n < 2));
+  // The plain words, one point each; the same sentences the page said as one paragraph.
+  const readingPoints: string[] = [
+    "Places compare within a track.",
+    pairwise
+      ? "Judges compared their own projects two at a time; each project’s win % is its chance to beat an average project of its track."
+      : "Each score is the judges’ weighted rubric average, evened out for judges who score higher or lower than the rest.",
+    "Read gaps smaller than the ± as ties.",
+    ...(underReviewed
+      ? [
+          pairwise
+            ? "A project marked under-compared was compared by fewer than two judges; the organizers chose to publish it as it is."
+            : "A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is.",
+        ]
+      : []),
+  ];
+  // a project with a counted vote (or an open-link one, shown apart) gets a row; the rest are named in one fold
+  const voted = community.tally?.filter((t) => t.votes > 0 || t.openLink > 0) ?? [];
+  const unvoted = community.tally?.filter((t) => t.votes === 0 && t.openLink === 0) ?? [];
   const topVotes = community.tally?.reduce((m, t) => Math.max(m, t.votes), 0) ?? 0;
 
   return (
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       {results.published ? (
         <>
-          <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-end lg:gap-16">
-            <div>
+          <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-x-16 lg:gap-y-0">
+            <div className="lg:col-start-1 lg:row-start-1">
               <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
-              {/* Plain words on top; the method, word for word, one click away (his call, 2026-09-27 21:09 NL). */}
-              {pairwise ? (
-                <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-                  Published {formatUtc(results.publishedAt)}. Places compare within a track. Judges compared their own projects two at a time; each
-                  project&rsquo;s win % is its chance to beat an average project of its track. Read gaps smaller than the ± as ties.
-                  {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
-                    ? " A project marked under-compared was compared by fewer than two judges; the organizers chose to publish it as it is."
-                    : ""}
-                </p>
-              ) : (
-                <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-                  Published {formatUtc(results.publishedAt)}. Places compare within a track. Each score is the judges&rsquo; weighted rubric average, evened
-                  out for judges who score higher or lower than the rest; read gaps smaller than the ± as ties.
-                  {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
-                    ? " A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is."
-                    : ""}
-                </p>
-              )}
-              <details className="mt-4 max-w-[760px] text-ink-2">
-                <summary className="label-mono cursor-pointer text-ink">How these {pairwise ? "win %" : "scores"} were made</summary>
-                <div className="mt-3 flex flex-col gap-3">
+              <p className="label-mono mt-3 tnum text-ink-3">
+                Published {formatUtc(results.publishedAt)} · {plural(placedCount, "place")} in {plural(placed.length, "track")}
+              </p>
+              {/* Plain words on top, one point to a line; the method, word for word, one click away (his call, 2026-09-27 21:09 NL). */}
+              <ol aria-label="How to read these results" className="mt-6 max-w-[760px] border-b border-rule text-17">
+                {readingPoints.map((point, i) => (
+                  <li key={i} className="grid grid-cols-[36px_minmax(0,1fr)] items-baseline border-t border-rule py-2.5">
+                    <span className="font-mono text-12 tnum text-ink-3">{two(i + 1)}</span>
+                    <span className={i === readingPoints.length - 1 && underReviewed ? "text-ink-2" : "text-ink"}>{point}</span>
+                  </li>
+                ))}
+              </ol>
+              <details className="group mt-6 max-w-[760px] rounded-sm border border-rule text-ink-2">
+                <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-15 font-semibold text-ink">How these {pairwise ? "win %" : "scores"} were made</span>
+                    <span className="block text-13 text-ink-3">
+                      {results.yardstick ? "The method in full, the ±, and how far apart the judges were" : "The method in full, and the ±"}
+                    </span>
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 text-ink-2 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+                </summary>
+                <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
                   {pairwise ? (
                     <p>
                       Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores given before the event switched to that
@@ -98,59 +121,78 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                       about two of them are not told apart.
                     </p>
                   )}
-                  {results.yardstick ? <YardstickLine y={results.yardstick} /> : null}
+                  {results.yardstick ? (
+                    // the shared drawing paints its band in --sunken, which all but vanishes on the public dark ground; here it takes the hairline colour
+                    <div className="[&_svg_rect]:fill-rule">
+                      <YardstickLine y={results.yardstick} figure />
+                      {/* the small drawing's key, in the marks it uses */}
+                      <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-13 text-ink-2">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-block size-2.5 rounded-full bg-ink" aria-hidden /> the judges&rsquo; spread
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-block size-2.5 rounded-full border-[1.5px] border-ink" aria-hidden /> after the engine
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-block h-2.5 w-5 bg-rule" aria-hidden /> where luck alone lands, 9 times in 10
+                        </span>
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </details>
             </div>
+            {/* the seal: beside the title on a wide screen; on a phone after the first places, which a visitor came for */}
             {results.anchor ? (
-              <LogSeal
-                entry={results.anchor.entry}
-                hash={results.anchor.hash}
-                what="These results were published as this entry of the portal’s audit log. A later change to the log up to it would change the hash, and the picture drawn from it."
-              />
-            ) : null}
-          </div>
-
-          {winners.length ? (
-            <section aria-labelledby="firsts-title" className="mt-14 border-t border-rule pt-6">
-              <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-                <h2 id="firsts-title" className="label-mono text-ink">
-                  Fig. 02 — First places
-                </h2>
-                <p className="text-13 text-ink-3">One per track. Each opens its track below.</p>
+              <div className="order-last lg:order-none lg:col-start-2 lg:row-start-1 lg:self-start lg:pt-4">
+                <LogSeal
+                  entry={results.anchor.entry}
+                  hash={results.anchor.hash}
+                  what="These results were published as this entry of the portal’s audit log. A later change to the log up to it would change the hash, and the picture drawn from it."
+                />
               </div>
-              <ol className="mt-6 grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-                {winners.map((w) => (
-                  <li key={w.track.id} className="reveal" style={{ "--i": w.index } as CSSProperties}>
-                    <a href={`#track-${w.track.id}`} className="tile lit group block border-t-2 border-accent pt-2">
-                      <span className="flex items-baseline gap-2 text-13 text-ink-2">
-                        <span className="font-mono text-12 tnum text-ink-3">{two(w.index + 1)}</span>
-                        <span className="truncate">{w.track.name}</span>
-                      </span>
-                      <span className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3">
-                        <span className="block overflow-hidden rounded-xs border border-rule">
-                          <Face id={w.first.projectId} cols={32} rows={18} />
+            ) : null}
+            {winners.length ? (
+              <section aria-labelledby="firsts-title" className="mt-6 border-t border-rule pt-6 lg:col-span-2 lg:mt-14">
+                <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                  <h2 id="firsts-title" className="label-mono text-ink">
+                    Fig. 01 — First places
+                  </h2>
+                  <p className="text-13 text-ink-3">One per track. Each opens its track below.</p>
+                </div>
+                <ol className="mt-6 grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+                  {winners.map((w) => (
+                    <li key={w.track.id} className="reveal" style={{ "--i": w.index } as CSSProperties}>
+                      <a href={`#track-${w.track.id}`} className="tile lit group block border-t-2 border-accent pt-2">
+                        <span className="flex items-baseline gap-2 text-13 text-ink-2">
+                          <span className="font-mono text-12 tnum text-ink-3">{two(w.index + 1)}</span>
+                          <span className="truncate">{w.track.name}</span>
                         </span>
-                        <span className="min-w-0 wrap-anywhere">
-                          <span className="block font-display text-17 leading-tight group-hover:underline">{w.first.title}</span>
-                          <span className="mt-0.5 block text-13 text-ink-2">{w.first.teamName}</span>
-                          <span className="mt-1.5 block text-13 tnum">
-                            <span className="text-15 font-semibold">{fmtScore(w.first.score)}</span> <span className="text-ink-2">{fmtSe(w.first.se)}</span>
+                        <span className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3">
+                          <span className="block overflow-hidden rounded-xs border border-rule">
+                            <Face id={w.first.projectId} cols={32} rows={18} />
+                          </span>
+                          <span className="min-w-0 wrap-anywhere">
+                            <span className="block font-display text-17 leading-tight group-hover:underline">{w.first.title}</span>
+                            <span className="mt-0.5 block text-13 text-ink-2">{w.first.teamName}</span>
+                            <span className="mt-1.5 block text-13 tnum">
+                              <span className="text-15 font-semibold">{fmtScore(w.first.score)}</span> <span className="text-ink-2">{fmtSe(w.first.se)}</span>
+                            </span>
                           </span>
                         </span>
-                      </span>
-                      {w.joint.length ? <span className="mt-2 block text-13 text-ink-2">Joint first with {w.joint.map((j) => j.title).join(", ")}</span> : null}
-                    </a>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          ) : null}
+                        {w.joint.length ? <span className="mt-2 block text-13 text-ink-2">Joint first with {w.joint.map((j) => j.title).join(", ")}</span> : null}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : null}
+          </div>
 
           <section aria-labelledby="scale-title" className="mt-16 border-t border-rule pt-6">
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
               <h2 id="scale-title" className="label-mono text-ink">
-                Fig. 03 — Every place, on one scale
+                Fig. 02 — Every place, on one scale
               </h2>
               <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-13 text-ink-2">
                 <span className="inline-flex items-center gap-1.5">
@@ -212,7 +254,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           </Link>
                           <span className="block truncate text-14 text-ink-2">
                             {r.teamName}
-                            {p.place !== null ? ` · ${ordinal(p.place)} in ${t.name}` : ""}
+                            {/* the track's heading already says where; the place in words stays for screen readers */}
+                            {p.place !== null ? <span className="sr-only">{` · ${ordinal(p.place)} in ${t.name}`}</span> : null}
                           </span>
                         </span>
                         <span className="col-start-2 col-span-2 row-start-2 md:col-start-4 md:col-span-1 md:row-start-1">
@@ -254,12 +297,12 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             {galleryTracks.length ? (
               <figure aria-labelledby="sealed-caption">
                 <figcaption id="sealed-caption" className="label-mono text-ink">
-                  Fig. 02 — {plural(counts.projects, "place")}, sealed
+                  Fig. 01 — {plural(counts.projects, "place")}, sealed
                 </figcaption>
                 <div className="mt-4 grid grid-cols-4 gap-x-3 gap-y-6 xl:grid-cols-8" aria-hidden="true">
                   {galleryTracks.map((t) => (
                     <div key={t.id}>
-                      <p className="truncate border-t-2 border-ink pt-2 text-13 text-ink-2">{t.name}</p>
+                      <p className="line-clamp-2 min-h-12 border-t-2 border-ink pt-2 text-13 leading-5 text-ink-2">{t.name}</p>
                       <div className="mt-2 grid gap-1">
                         {Array.from({ length: t.count }, (_, i) => (
                           <span key={i} className="sealed flex h-5 items-center rounded-xs border border-rule px-1.5 font-mono text-12 leading-none text-ink-3">
@@ -279,9 +322,14 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
         <section aria-labelledby="community-title" className="mt-20 max-w-[860px] border-t border-rule pt-8 pb-16">
           <p className="label-mono text-accent-ink">Community vote</p>
           <h2 id="community-title" className="mt-2 text-24 font-semibold">
-            {community.tally ? "The community's favourites" : "Hidden until voting closes"}
+            {community.tally ? (voted.length ? "The community's favourites" : "No community favourite this time") : "Hidden until voting closes"}
           </h2>
-          {community.tally ? (
+          {community.tally && !voted.length ? (
+            <p className="mt-3 text-17 text-ink-2">
+              Voting closed{community.closesAt ? ` on ${formatUtc(community.closesAt, { weekday: true })}` : ""} with no votes counted, so no project has a
+              community place.
+            </p>
+          ) : community.tally ? (
             <>
               {linkVotes ? (
                 <p className="mt-3 text-15 text-ink-2">
@@ -290,7 +338,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                 </p>
               ) : null}
               <ol className="mt-4 divide-y divide-rule border-y border-rule">
-                {community.tally.map((t) => (
+                {voted.map((t) => (
                   <li key={t.projectId} className={`tile grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 py-2.5 sm:grid-cols-[48px_48px_minmax(0,1fr)_minmax(120px,220px)_auto] ${t.place === 1 ? "lit" : ""}`}>
                     <span className={`font-display tnum ${t.place === 1 ? "text-24 text-accent-ink" : "text-20"}`}>{t.place ?? "–"}</span>
                     <span className="max-sm:hidden">
@@ -309,7 +357,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                       />
                     </span>
                     <span className="col-start-3 row-start-1 flex items-baseline justify-end gap-3 sm:col-start-5">
-                      <span className="text-15 font-semibold tnum">
+                      <span className="text-right text-15 font-semibold tnum sm:w-[4.5rem]">
                         {t.votes} {t.votes === 1 ? "vote" : "votes"}
                       </span>
                       {linkVotes ? (
@@ -321,12 +369,39 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </li>
                 ))}
               </ol>
+              {unvoted.length ? (
+                // the projects nobody picked, named in one fold rather than a row of zeros each
+                <details className="group mt-3 text-14 text-ink-2">
+                  <summary className="inline-flex cursor-pointer list-none items-center gap-2 py-1 [&::-webkit-details-marker]:hidden">
+                    {plural(unvoted.length, "more project")} got no votes
+                    <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+                  </summary>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                    {unvoted.map((t) => (
+                      <li key={t.projectId}>
+                        <Link href={`/events/${event.slug}/projects/${t.projectId}`} className="hover:underline">
+                          {t.title}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
             </>
           ) : (
-            <p className="mt-3 text-17 text-ink-2">
-              Voting {community.state === "upcoming" ? "has not opened yet" : "is open"}; only the organizers see the count until it closes
-              {community.closesAt ? ` on ${formatUtc(community.closesAt, { weekday: true })}` : ""}.
-            </p>
+            <>
+              <p className="mt-3 text-17 text-ink-2">
+                Voting {community.state === "upcoming" ? "has not opened yet" : "is open"}; only the organizers see the count until it closes
+                {community.closesAt ? ` on ${formatUtc(community.closesAt, { weekday: true })}` : ""}.
+              </p>
+              {community.state === "open" ? (
+                <p className="mt-4">
+                  <Link href={`/events/${event.slug}/vote`} className="text-15 font-semibold text-ink underline underline-offset-4 hover:text-accent-ink">
+                    Pick your favourites on the ballot
+                  </Link>
+                </p>
+              ) : null}
+            </>
           )}
         </section>
       )}
