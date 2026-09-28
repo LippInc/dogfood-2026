@@ -3,6 +3,7 @@ import { eq, lt } from "drizzle-orm";
 import { appendAudit } from "./audit";
 import { currentHandle, getDb } from "./db/client";
 import { rateBuckets } from "./db/schema";
+import { operatorCount } from "./settings";
 
 // Token buckets in the database (rate_buckets), so a restart keeps them and every
 // process on the same file shares them. Each key holds up to `capacity` tokens and
@@ -32,10 +33,15 @@ export const LIMITS = {
   signInAccount: { capacity: 100, perSeconds: 3600 },
   /**
    * sign-ups and password sign-ins together, per network address: each one costs an
-   * argon2 hash, so this bounds what one address can make the server compute. Roomy
-   * enough for a venue where everyone shares one address.
+   * argon2 hash, so this bounds what one address can make the server compute. A venue
+   * puts everyone behind one address, so the default (300 per 10 minutes, one hash every
+   * two seconds) lets a 100-person kickoff sign up and sign in twice over; the operator
+   * sets SIGN_IN_LIMIT_PER_ADDRESS for a bigger one. Guessing one account's password
+   * stays bounded by signIn and signInAccount, which do not change with it.
    */
-  accountAddress: { capacity: 60, perSeconds: 600 },
+  get accountAddress(): Limit {
+    return { capacity: operatorCount("SIGN_IN_LIMIT_PER_ADDRESS"), perSeconds: 600 };
+  },
   /**
    * refused requests per person (a signed-in account, or a voter holding a link): each
    * 403 writes an audit row, so past this the person is answered 429 and nothing is

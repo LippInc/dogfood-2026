@@ -9,6 +9,7 @@ import { importedBefore, importFixtures, loadFixtureFile } from "./db/import-fix
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
 import { mailProblem } from "./mail";
+import { settingsProblem } from "./settings";
 import { ensureSigningKey } from "./signing";
 import { startWebhookWorker } from "./webhooks";
 import { nowIso } from "./util";
@@ -94,6 +95,8 @@ export async function boot(): Promise<void> {
   if (refused) throw new Error(`refusing to start: ${refused}`);
   const mailRefused = mailProblem();
   if (mailRefused) throw new Error(`refusing to start: ${mailRefused}`);
+  const settingRefused = settingsProblem();
+  if (settingRefused) throw new Error(`refusing to start: ${settingRefused}`);
   const h = handle();
   const triggers = runMigrations(h);
   if (triggers.restored.length > 0) console.warn(`[boot] triggers restored: ${triggers.restored.join(", ")}`);
