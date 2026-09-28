@@ -209,7 +209,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
 
         <div className="mt-12 grid gap-10 border-t border-rule pt-10 lg:grid-cols-[minmax(0,1fr)_min(40%,460px)] lg:grid-rows-[auto_1fr] lg:gap-x-16 lg:gap-y-12">
           <div className="min-w-0 lg:max-w-[680px]">
-            <h2 className="text-15 font-semibold">About the project</h2>
+            <h2 className="text-20 font-semibold">About the project</h2>
             {p.description ? (
               <div className="mt-4 space-y-5 font-serif text-17 leading-7 whitespace-pre-line wrap-anywhere">{p.description}</div>
             ) : (
@@ -217,7 +217,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             )}
             {p.galleryUrls.length > 0 ? (
               <section className="mt-12 border-t border-rule pt-8" aria-labelledby="images-title">
-                <h2 id="images-title" className="text-15 font-semibold">
+                <h2 id="images-title" className="text-20 font-semibold">
                   Images
                 </h2>
                 <ul className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -237,7 +237,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             ) : null}
             {p.answers.length > 0 ? (
               <section className="mt-12 border-t border-rule pt-8" aria-labelledby="answers-title">
-                <h2 id="answers-title" className="text-15 font-semibold">
+                <h2 id="answers-title" className="text-20 font-semibold">
                   The organizers asked
                 </h2>
                 <dl className="mt-4 flex flex-col gap-6 wrap-anywhere">
