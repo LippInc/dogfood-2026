@@ -372,7 +372,8 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                       {String(n + 1).padStart(2, "0")}
                     </span>
                     <div className="min-w-0">
-                      <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      {/* a div, not a p: the delete, hide and unhide controls are forms, which a paragraph may not hold */}
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                         <span className="flex flex-wrap items-baseline gap-x-2">
                           <bdi className="text-14 font-semibold">{c.author}</bdi>
                           {c.mine ? <span className="label-mono text-accent-ink">you</span> : null}
@@ -384,7 +385,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                             {canModerate ? <ModerateComment commentId={c.id} path={path} isHidden={Boolean(c.hidden)} /> : null}
                           </span>
                         ) : null}
-                      </p>
+                      </div>
                       {c.hidden ? (
                         <p className="sealed mt-2 rounded-xs border border-rule px-3 py-2 text-14 text-ink-2">
                           <span className="font-medium text-ink">Hidden by the organizers:</span> {c.hidden.reason}
