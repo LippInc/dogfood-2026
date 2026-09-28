@@ -271,6 +271,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       "results.publish",
       "event.update",
       "voting.settings",
+      "voting.rules_changed",
       "voting.link",
       "voting.voters_added",
       "voter.void",

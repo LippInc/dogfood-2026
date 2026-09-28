@@ -26,6 +26,7 @@ import {
   voidVoter,
 } from "@/server/dal/voting-organizer";
 import { auditCsv, getAuditLog } from "@/server/dal/audit-log";
+import { getOverview } from "@/server/dal/overview";
 import { mergeDuplicate, unmergeDuplicate } from "@/server/dal/decisions";
 import { createTeam, joinTeam } from "@/server/dal/teams";
 import type { Actor } from "@/server/authz";
@@ -451,6 +452,14 @@ describe("the counting rules once ballots are in", () => {
     saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "6", votingCloseAt: "2998-06-01T00:00", reason: REASON }));
     expect(auditCount("voting.rules_changed")).toBe(2);
     expect(auditCount("voting.settings")).toBe(settingsRows + 1);
+  });
+
+  it("the organizer overview's recent activity lists a rule change, as it lists a settings save", () => {
+    openVoting();
+    expect(getOverview(org(), "evt_01").audit.map((l) => l.action)).toContain("voting.settings"); // positive control
+    firstBallot();
+    saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5", reason: REASON }));
+    expect(getOverview(org(), "evt_01").audit[0]!.action).toBe("voting.rules_changed");
   });
 
   it("known-bad: a participant cannot change them, reason or not — 403", () => {

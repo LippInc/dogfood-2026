@@ -81,7 +81,7 @@ The rate limits and the duplicate-ballot flags key on the requester's network ad
 - Add a mutation: a DAL function that calls `mutate()` (`src/server/mutate.ts`) with `load` and `run`; the audit row and webhook queueing follow on their own.
 - Add a table: define it in `src/server/db/schema.ts`, generate the migration into `drizzle/`, and touch it only from a module under `src/server/dal/`.
 - Change or add a trigger: edit `TRIGGERS` in `src/server/db/triggers.ts` and add a migration (`npm run db:generate -- --custom`) that drops and recreates it; `tests/triggers-migration.test.ts` fails until the migrations match the file.
-- Make an action webhook-able: nothing extra. Every audited row that carries an event id can be subscribed to by action name or `*` on the organizer's Integrations tab; platform-wide rows queue nothing.
+- Make an action webhook-able: nothing extra. Every audited row that carries an event id can be subscribed to by action name or `*` on the organizer's Integrations tab; platform-wide rows queue nothing. When a new action takes over part of an old one's job, add it to `ALSO_SUBSCRIBED_AS` in `src/server/webhooks.ts` so the old action's subscribers keep getting it (`voting.rules_changed` goes to `voting.settings` subscribers).
 - Add an export file: `EXPORT_FILES` in `src/server/dal/exports.ts`.
 - Add a rate limit: a key and a `Limit` in `LIMITS` (`src/server/rate-limit.ts`).
 - Change sessions, cookies, API tokens or passwords: `src/server/session.ts`.

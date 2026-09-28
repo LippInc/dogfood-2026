@@ -402,6 +402,32 @@ describe("webhooks", () => {
     expectHttpError(() => retryDelivery(organizer(), "evt_01", hook.id, row.id), 422, "invalid");
   });
 
+  it("a receiver subscribed to voting.settings also gets the rule changes a settings save makes after the first ballot", async () => {
+    process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
+    await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["voting.settings"] });
+    openVoting();
+    expect(allDeliveries().map((d) => d.action)).toEqual(["voting.settings"]); // positive control
+    castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_07"] }, CLIENT);
+    saveVotingSettings(organizer(), "evt_01", {
+      votingOpenAt: "2026-01-01T00:00",
+      votingCloseAt: "2999-01-01T00:00",
+      modes: ["account", "listed", "link"],
+      votesPerVoter: "5",
+      reason: "The announcement said five",
+    });
+    expect(allDeliveries().map((d) => d.action)).toEqual(["voting.settings", "voting.rules_changed"]);
+    // a receiver subscribed to both still gets one delivery per change
+    await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["voting.settings", "voting.rules_changed"] });
+    saveVotingSettings(organizer(), "evt_01", {
+      votingOpenAt: "2026-01-01T00:00",
+      votingCloseAt: "2999-01-01T00:00",
+      modes: ["account", "listed", "link"],
+      votesPerVoter: "6",
+      reason: "Six after all",
+    });
+    expect(allDeliveries().filter((d) => d.action === "voting.rules_changed")).toHaveLength(3);
+  });
+
   it("a sealed ballot goes out with its picks hidden", async () => {
     process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
     await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["vote.cast"] });

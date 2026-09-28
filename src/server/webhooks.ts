@@ -78,7 +78,14 @@ export function payloadFor(deliveryId: string, row: AuditRowForHook, eventSlug: 
   };
 }
 
-/** Queue one delivery per enabled webhook of the row's event that subscribes to its action. */
+// An action that took over part of another one's job also goes to the older action's subscribers,
+// so a receiver set up before the split keeps hearing about the same saves. A voting settings save
+// that changes who may vote or the votes per voter after the first ballot is voting.rules_changed.
+const ALSO_SUBSCRIBED_AS: Record<string, readonly string[]> = {
+  "voting.rules_changed": ["voting.settings"],
+};
+
+/** Queue one delivery per enabled webhook of the row's event that subscribes to its action (or an action it also counts as). */
 export function enqueueForAudit(tx: DbOrTx, row: AuditRowForHook): number {
   if (!row.eventId) return 0;
   const enabled = tx
@@ -90,7 +97,7 @@ export function enqueueForAudit(tx: DbOrTx, row: AuditRowForHook): number {
   const hooks =
     row.action === "webhook.test"
       ? enabled.filter((h) => h.id === row.targetId)
-      : enabled.filter((h) => h.actions.includes("*") || h.actions.includes(row.action));
+      : enabled.filter((h) => h.actions.includes("*") || [row.action, ...(ALSO_SUBSCRIBED_AS[row.action] ?? [])].some((a) => h.actions.includes(a)));
   if (!hooks.length) return 0;
   const slug = tx.select({ slug: events.slug }).from(events).where(eq(events.id, row.eventId)).get()?.slug ?? null;
   for (const h of hooks) {

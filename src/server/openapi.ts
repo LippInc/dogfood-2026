@@ -282,7 +282,7 @@ export const OPERATIONS: Operation[] = [
     body: In.WebhookInput,
     ok: 201,
     also: [422],
-    note: "A URL that resolves to a private or local address (this machine, the local network) is refused with 422, so a webhook never reaches the portal's own network; the address is checked again before every delivery. WEBHOOKS_ALLOW_PRIVATE=true lets an operator send to a receiver on their own network.",
+    note: "A URL that resolves to a private or local address (this machine, the local network) is refused with 422, so a webhook never reaches the portal's own network; the address is checked again before every delivery. WEBHOOKS_ALLOW_PRIVATE=true lets an operator send to a receiver on their own network. A webhook subscribed to voting.settings also receives voting.rules_changed: the settings save that changes who may vote or the votes per voter once ballots are in, with its reason.",
   },
   { method: "POST", path: "/api/events/{event}/webhooks/{webhook}/disable", tag: "Webhooks", summary: "Turn a webhook off", access: "organizer" },
   { method: "POST", path: "/api/events/{event}/webhooks/{webhook}/enable", tag: "Webhooks", summary: "Turn a webhook back on", access: "organizer" },
