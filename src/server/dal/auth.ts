@@ -3,7 +3,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { appendAudit } from "../audit";
 import { CHECKER_LABELS, checkerSessionsEnabled, type CheckerLabel } from "../checker";
 import { getDb } from "../db/client";
-import { events, sessions, teamMembers, teams, userRoles, users } from "../db/schema";
+import { events, judgeTracks, sessions, teamMembers, teams, tracks, userRoles, users } from "../db/schema";
 import { LIMITS, takeAudited } from "../rate-limit";
 import { createLoginSession, endSession, setSessionCookie, verifyPassword } from "../session";
 import type { Client } from "./voting";
@@ -85,10 +85,27 @@ export function demoIdentities(): DemoIdentity[] {
           .map((r) => [r.userId, r.name])
       : [],
   );
+  // A judge's tile names the tracks they judge: the first screen a hackathon judge meets once read "Judge jdg_24".
+  const judgeTrackNames = new Map<string, string[]>();
+  if (ids.length) {
+    const rows = db
+      .select({ userId: judgeTracks.judgeUserId, name: tracks.name })
+      .from(judgeTracks)
+      .innerJoin(tracks, eq(tracks.id, judgeTracks.trackId))
+      .where(inArray(judgeTracks.judgeUserId, ids))
+      .orderBy(tracks.position)
+      .all();
+    for (const r of rows) judgeTrackNames.set(r.userId, [...(judgeTrackNames.get(r.userId) ?? []), r.name]);
+  }
+  const judgeLine = (u: string) => {
+    const names = judgeTrackNames.get(u) ?? [];
+    if (names.length === 0) return "Judge, no track yet";
+    return `Judge for ${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`}`;
+  };
   const detail: Record<CheckerLabel, (userId: string) => string> = {
     organizer: () => "Organizer of every seeded event",
-    judge_a: (u) => `Judge ${u}`,
-    judge_b: (u) => `Judge ${u}`,
+    judge_a: judgeLine,
+    judge_b: judgeLine,
     participant: (u) => `Member of team ${teamNames.get(u) ?? "?"}`,
   };
   return CHECKER_LABELS.flatMap((label) => {
