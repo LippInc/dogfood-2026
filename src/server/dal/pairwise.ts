@@ -282,7 +282,7 @@ export function pickPairwise(actor: Actor | null, eventIdOrSlug: string, body: u
         .run();
       const after = trackStates(tx, event, actor!.userId).find((t) => t.trackId === input.trackId)!;
       return {
-        result: { trackId: input.trackId, placed: after.placed, total: after.total, done: after.current === null },
+        result: { trackId: input.trackId, placed: after.placed, total: after.total, done: after.current === null, repeated: false },
         audit: {
           action: "pairwise.pick",
           eventId: event.id,
