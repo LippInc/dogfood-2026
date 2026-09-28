@@ -1,5 +1,5 @@
 # python tests/isolation_check.py .dogfood.toml, after run.py, on a clean docker compose down -v && up
-# image built from commit 2f81f30; run at 2026-09-28T07:30Z
+# image built from commit a965f49; run at 2026-09-28T11:40Z
 
 DOGFOOD 2026 isolation hand-check
 portal: http://localhost:8080
