@@ -2,26 +2,32 @@
 
 ![Every score shows how it was worked out: the gallery's field of faces, every place on one scale with its margin of error, a signed judging record, the judge console and the phone view](docs/readme-hero.png)
 
-A self-hostable hackathon submission and judging portal, built for Dogfood 2026.
-Every score, average and rank on its screens can be traced to how it was reached.
+A self-hostable hackathon submission and judging portal, built for Dogfood
+2026. Organizers run an event, teams submit projects, judges score them, and
+the community votes. Before anything is ranked, each judge's scores are evened
+out for how lenient that judge is, and every change lands in an append-only
+audit log. Every score, average and rank on its screens can be traced to how it
+was reached.
 
 ## Run it
 
-```bash
-docker compose up
-```
+1. Run `docker compose up`.
+2. Wait for the line
+   `portal ready: http://localhost:8080/events/sample-hack-2026`.
+3. Open `http://localhost:8080/sign-in` and pick a demo identity: while
+   `SEED_CHECKER_SESSIONS=true` it offers one-click sign-ins as the organizer
+   (Demo Organizer), two judges (Judge A, Diego Herrera, and Judge B, Jonas
+   Vogel) and a participant.
 
-Wait for the line `portal ready: http://localhost:8080/events/sample-hack-2026`
-(Next.js prints its own "Ready" a moment earlier, before the database is seeded).
-The first start imports `fixtures.json` and prints four `Cookie: session=...`
-headers for the acceptance checker; they are the same on every start.
-`docker compose down -v` resets everything.
+Next.js prints its own "Ready" a moment earlier, before the database is
+seeded, so wait for the portal's line. The first start imports `fixtures.json`
+and prints four `Cookie: session=...` headers for the acceptance checker; they
+are the same on every start. `docker compose down -v` resets everything. No
+network is needed at run time; the image build downloads npm packages once.
 
-No network is needed at run time. The image build downloads npm packages once.
-
-To look around, open `/sign-in`: while `SEED_CHECKER_SESSIONS=true` it offers
-one-click demo sign-ins as the organizer (Demo Organizer), two judges (Judge A,
-Diego Herrera, and Judge B, Jonas Vogel) and a participant.
+The sample event is the organizers' `fixtures.json`, imported as given, so all
+41 of its projects carry the fixture's placeholder summary "One line of what
+it does."
 
 ### A five-minute tour
 
