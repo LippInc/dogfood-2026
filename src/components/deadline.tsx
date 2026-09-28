@@ -43,11 +43,17 @@ export function Deadline({ iso, utcLabel }: { iso: string; utcLabel: string }) {
     now === null
       ? null
       : new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(at);
+  // Two lines of their own, each holding its room from the first paint (a no-break space keeps an empty line's
+  // height), so nothing below moves when the browser fills them in; as one sentence they wrapped in a narrow column
+  // and pushed the ballot down 36 px after load.
   return (
     <div>
       <p className="text-15 font-medium">{utcLabel}</p>
       <p className="mt-0.5 text-13 text-ink-3" suppressHydrationWarning>
-        {local ? `${local} your time · ${left(at - now!)}` : " "}
+        {local ? `${local} your time` : "\u00a0"}
+      </p>
+      <p className="text-13 text-ink-3 tnum" suppressHydrationWarning>
+        {now === null ? "\u00a0" : left(at - now)}
       </p>
     </div>
   );
