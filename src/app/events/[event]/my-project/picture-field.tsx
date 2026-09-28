@@ -81,7 +81,7 @@ export function PictureField({
                   e.currentTarget.value = "";
                   if (file) void send("POST", file);
                 }}
-                className="max-w-full text-13 text-ink-2 file:mr-3 file:h-8 file:cursor-pointer file:rounded-sm file:border file:border-edge file:bg-surface file:px-3 file:text-13 file:font-medium file:text-ink hover:file:bg-sunken disabled:opacity-60"
+                className="max-w-full text-13 text-ink-2 file:mr-3 file:h-10 sm:file:h-8 file:cursor-pointer file:rounded-sm file:border file:border-edge file:bg-surface file:px-3 file:text-13 file:font-medium file:text-ink hover:file:bg-sunken disabled:opacity-60"
               />
               {url ? (
                 <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void send("DELETE")}>

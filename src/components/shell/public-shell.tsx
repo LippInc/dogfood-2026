@@ -49,7 +49,7 @@ export function PublicShell({
       <header className="border-b border-rule print:hidden">
         <div className="mx-auto flex h-16 max-w-[1440px] items-stretch gap-8 px-4 sm:px-8 xl:px-16">
           <Link href={base} className="flex items-center gap-4 self-center">
-            {idLabel(event.id) ? <span className="label-mono hidden text-ink-3 sm:inline">[ {idLabel(event.id)} ]</span> : null}
+            {idLabel(event.id) ? <span className="label-mono hidden whitespace-nowrap text-ink-3 sm:inline md:hidden lg:inline">[ {idLabel(event.id)} ]</span> : null}
             <span title={event.name} className="line-clamp-2 font-display text-20 leading-none tracking-[0.01em] uppercase wrap-anywhere">
               {event.name}
             </span>

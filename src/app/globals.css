@@ -141,6 +141,16 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
+  /* A control of fixed height never wraps its label: on a squeezed screen a second line
+     pressed against its top and bottom edges (the event bar's Sign in at 768 px). A label
+     that can run long truncates inside; a utility (whitespace-normal) still overrides this. */
+  :where(a, button, summary, label)[class~="h-7"],
+  :where(a, button, summary, label)[class~="h-8"],
+  :where(a, button, summary, label)[class~="h-9"],
+  :where(a, button, summary, label)[class~="h-10"],
+  :where(a, button, summary, label)[class~="h-11"] {
+    white-space: nowrap;
+  }
   body {
     background: #f4f5f9;
     background: light-dark(#f4f5f9, #0b1020);
