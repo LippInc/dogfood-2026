@@ -4,6 +4,7 @@
 // however the transport fails; and an event's organizer can read that event's rows, an
 // administrator the portal's own — nobody else, with every refusal audited.
 
+import net from "node:net";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
@@ -223,6 +224,84 @@ describe("the mail module", () => {
       expect(out.error.length).toBeGreaterThan(0);
     }
     expect(sentByTransport).toHaveLength(0);
+  });
+});
+
+// --- a real SMTP conversation: nodemailer's own transport against a small server in this process ---
+
+type Received = { from: string; to: string[]; data: string };
+
+/** Speaks just enough SMTP for one plain message: greeting, EHLO, MAIL, RCPT, DATA, QUIT. */
+async function smtpServer(): Promise<{ url: string; received: Received[]; close: () => Promise<void> }> {
+  const received: Received[] = [];
+  const server = net.createServer((socket) => {
+    socket.setEncoding("utf8");
+    let buffer = "";
+    let inData = false;
+    let mail: Received = { from: "", to: [], data: "" };
+    socket.write("220 smtp.test ESMTP\r\n");
+    socket.on("data", (chunk: string) => {
+      buffer += chunk;
+      for (let end = buffer.indexOf("\r\n"); end >= 0; end = buffer.indexOf("\r\n")) {
+        const line = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        if (inData) {
+          if (line === ".") {
+            inData = false;
+            received.push(mail);
+            socket.write("250 queued\r\n");
+          } else mail.data += (line.startsWith("..") ? line.slice(1) : line) + "\n";
+          continue;
+        }
+        const verb = line.slice(0, 4).toUpperCase();
+        if (verb === "EHLO" || verb === "HELO") socket.write("250 smtp.test\r\n");
+        else if (verb === "MAIL") {
+          mail = { from: line, to: [], data: "" };
+          socket.write("250 ok\r\n");
+        } else if (verb === "RCPT") {
+          mail.to.push(line);
+          socket.write("250 ok\r\n");
+        } else if (verb === "DATA") {
+          inData = true;
+          socket.write("354 end with a dot\r\n");
+        } else if (verb === "QUIT") {
+          socket.end("221 bye\r\n");
+        } else socket.write("250 ok\r\n");
+      }
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as net.AddressInfo).port;
+  return { url: `smtp://127.0.0.1:${port}`, received, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
+}
+
+describe("sending through SMTP", () => {
+  it("nodemailer's real transport hands the server the message from MAIL_FROM to the one address", async () => {
+    const smtp = await smtpServer();
+    try {
+      const out = await sendMail(
+        { to: "judge@example.org", subject: "You are invited to judge", text: "Open your console:\nhttp://localhost:8080/judge/sample-hack-2026" },
+        { SMTP_URL: smtp.url, MAIL_FROM: "portal@mail.test" },
+      );
+      expect(out.status).toBe("sent");
+      expect(smtp.received).toHaveLength(1);
+      const [mail] = smtp.received;
+      expect(mail!.from).toContain("<portal@mail.test>");
+      expect(mail!.to).toEqual([expect.stringContaining("<judge@example.org>")]);
+      expect(mail!.data).toContain("Subject: You are invited to judge");
+      expect(mail!.data).toContain("http://localhost:8080/judge/sample-hack-2026");
+    } finally {
+      await smtp.close();
+    }
+  });
+
+  it("a server that is not there gives failed with the reason, and nothing is thrown", async () => {
+    const smtp = await smtpServer();
+    const url = smtp.url;
+    await smtp.close(); // the port is free again: the connection is refused
+    const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, { SMTP_URL: url, MAIL_FROM: "portal@mail.test" });
+    if (out.status !== "failed") throw new Error(`expected failed, got ${out.status}`);
+    expect(out.error).toMatch(/ECONNREFUSED|connect/i);
   });
 });
 
