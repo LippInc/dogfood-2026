@@ -96,7 +96,7 @@ Append-only by construction: two triggers reject every UPDATE and DELETE with `R
 
 The chain: each row's `hash` is `sha256(prev_hash + "\n" + canonical JSON of the row's other fields)`, starting from `prev_hash` = 64 zeros. Recomputing the chain from the first row (`verifyAuditChain`) shows any edited, dropped or reordered row: it breaks at that id. What it proves: the log, as stored, is the log that was written, in that order. What it does not: someone holding the database file can rewrite rows and recompute a consistent chain — the triggers only stop edits made through SQLite's SQL layer. Record the chain's head hash elsewhere (it is included in the CSV export) to make tampering detectable. The portal hands such heads out as it goes: every signed record carries, inside its signature, the number and hash of the newest entry when it was signed (its page says whether the log still holds that entry as signed), and the public results page shows the entry that published the results. Whoever holds a record or saved the page holds a copy of that hash, which a rewrite of the log up to that entry would change.
 
-**`fixture_imports`** — one row per import call. `id`; `source`; `sha256` of the imported file; `imported_at`; `counts` json (rows inserted per table).
+**`fixture_imports`** — one row per import call; a start skips a file whose `sha256` is already here. `id`; `source`; `sha256` of the imported file; `imported_at`; `counts` json (rows inserted per table).
 
 ## Rate limits
 
@@ -116,7 +116,7 @@ The chain: each row's `hash` is `sha256(prev_hash + "\n" + canonical JSON of the
 
 ## Where the fixture lands
 
-The import (`src/server/db/import-fixtures.ts`) is idempotent — every insert is INSERT OR IGNORE, so the organizers' later edits survive the next boot — and non-destructive: unknown or conflicting rows are skipped and reported, never thrown away.
+The import (`src/server/db/import-fixtures.ts`) is idempotent — every insert is INSERT OR IGNORE, and a start does not import the same file twice, so the organizers' later edits and removals survive the next boot — and non-destructive: unknown or conflicting rows are skipped and reported, never thrown away.
 
 | Fixture section | Tables |
 |---|---|

@@ -3,7 +3,7 @@ import path from "node:path";
 import { openAdminSetup } from "./admins";
 import { checkerSessionsEnabled, checkerToml, demoModeRefusal, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, startRefusal, writeCheckerFile, type DemoGrants } from "./checker";
 import { databasePath, handle, type Handle } from "./db/client";
-import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
+import { importedBefore, importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
 import { mailProblem } from "./mail";
@@ -44,6 +44,12 @@ export function bootFixture(h: Handle, now: string): string | null {
     return null;
   }
   const { fixture, sha256 } = loadFixtureFile(file);
+  // A file is imported once. Re-running it at every start (insert-or-ignore) kept the organizers' edits but brought
+  // back what they deleted, a judge taken off a track or a member who left a team; a changed file still imports.
+  if (importedBefore(h.db, sha256)) {
+    console.log(`[boot] fixtures already imported (${path.basename(file)}, sha256 ${sha256.slice(0, 12)}): not imported again, so what the organizers changed or removed stands`);
+    return fixture.event.id;
+  }
   const report = importFixtures(h.db, fixture, { source: path.basename(file), sha256, now });
   const inserted = Object.values(report.inserted).reduce((a, b) => a + b, 0);
   console.log(

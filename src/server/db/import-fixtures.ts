@@ -173,6 +173,11 @@ function participantUserId(email: string): string {
 // The import
 // ---------------------------------------------------------------------------
 
+/** Whether a fixture file with this SHA-256 was imported into this database before. */
+export function importedBefore(db: Db, sha256: string): boolean {
+  return db.select({ id: fixtureImports.id }).from(fixtureImports).where(eq(fixtureImports.sha256, sha256)).get() !== undefined;
+}
+
 export function importFixtures(
   db: Db,
   fixture: Fixture,
