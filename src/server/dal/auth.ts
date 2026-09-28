@@ -2,7 +2,7 @@ import "server-only";
 import { eq, inArray, sql } from "drizzle-orm";
 import { appendAudit } from "../audit";
 import { CHECKER_LABELS, checkerSessionsEnabled, type CheckerLabel } from "../checker";
-import { getDb } from "../db/client";
+import { dataFolderProblem, getDb, handle } from "../db/client";
 import { events, judgeTracks, sessions, teamMembers, teams, tracks, userRoles, users } from "../db/schema";
 import { LIMITS, takeAudited } from "../rate-limit";
 import { warmingUp } from "../warmup";
@@ -157,6 +157,9 @@ export function healthCheck(): { ok: boolean; events: number; problem?: string }
   const n = row?.n ?? 0;
   // Not before the start-up's warm-up has run (src/server/warmup.ts): ready means the first gallery request is a warm one.
   if (warmingUp()) return { ok: false, events: n, problem: "warming up" };
+  // Reads keep working on a full or read-only volume while every write fails: not healthy.
+  const problem = dataFolderProblem(handle());
+  if (problem) return { ok: false, events: n, problem };
   // seeded means ready, unless the portal was asked to start empty (FIXTURES_PATH=none)
   return { ok: n > 0 || process.env.FIXTURES_PATH === "none", events: n };
 }

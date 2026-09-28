@@ -294,7 +294,10 @@ a reverse proxy that terminates HTTPS, and set `TRUST_PROXY_HOPS` (see the
 next section). `GET /api/health` answers 200 `{"ok":true,"events":<n>}` once the
 database is open and holds an event (at once with `FIXTURES_PATH: "none"`) and
 the start-up warm-up is done (the same moment as the `portal ready` line), and
-503 before: the compose healthcheck uses it, and a proxy or a monitor can too.
+503 before. It also answers 503, with a `problem` naming the folder, when the
+volume takes no writes (full or read-only; it writes a 4 KB file there at most
+every 30 s): reads would still work while every change failed. The compose
+healthcheck uses it, and a proxy or a monitor can too.
 
 Back up while it runs, with SQLite's online backup; the copy lands in the volume:
 

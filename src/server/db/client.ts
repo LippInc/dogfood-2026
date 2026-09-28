@@ -47,6 +47,39 @@ export function currentHandle(): Handle | null {
   return current;
 }
 
+const probes = new Map<string, { at: number; problem: string | null }>();
+
+/**
+ * Why the folder the database lives in cannot take a write, or null. A full or read-only volume keeps every read
+ * working while every write fails, so the health check writes (and fsyncs) a 4 KB file there and deletes it. The
+ * answer is kept for 30 s (a failure for 5 s, so a fixed volume shows soon), so a monitor polling the health check
+ * costs at most one small write per half minute. An in-memory database has nothing to probe.
+ */
+export function dataFolderProblem(h: Handle, now = Date.now()): string | null {
+  if (h.file === ":memory:") return null;
+  const dir = path.dirname(h.file);
+  const cached = probes.get(dir);
+  if (cached && now - cached.at < (cached.problem ? 5_000 : 30_000)) return cached.problem;
+  const file = path.join(dir, ".health-probe");
+  let problem: string | null = null;
+  try {
+    const fd = fs.openSync(file, "w");
+    try {
+      fs.writeSync(fd, Buffer.alloc(4096));
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.unlinkSync(file);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code ?? "error";
+    const why = code === "ENOSPC" ? "it is full" : code === "EROFS" ? "it is read-only" : code === "EACCES" || code === "EPERM" ? "the portal may not write there" : "a test write failed";
+    problem = `the data folder ${dir} cannot be written (${code}: ${why}); every change would fail`;
+  }
+  probes.set(dir, { at: now, problem });
+  return problem;
+}
+
 /** Tests swap in an in-memory database. */
 export function setHandleForTests(h: Handle | null): void {
   current = h;
