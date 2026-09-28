@@ -156,14 +156,25 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
           </div>
           <div className="rounded-sm border border-rule bg-surface p-5">
             <p className="label-mono mb-4 text-ink-2">Fig. 02 — Leniency</p>
-            <p className="text-38 leading-none font-semibold tnum">±{maxLeniency.toFixed(2)}</p>
-            <p className="mt-2 text-14 text-ink-2">
-              points is the most the engine moves any judge&rsquo;s scores for leniency.{" "}
-              {n.variance.k !== null ? `At k = ${n.variance.k.toFixed(1)} a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.` : ""}
-            </p>
-            <div className="mt-4">
-              <LeniencyStrip points={points} label="Leniency per judge: plain average against what the data supports" clearLabel />
-            </div>
+            {n.variance.leniencyMeasured ? (
+              <>
+                <p className="text-38 leading-none font-semibold tnum">±{maxLeniency.toFixed(2)}</p>
+                <p className="mt-2 text-14 text-ink-2">
+                  points is the most the engine moves any judge&rsquo;s scores for leniency.{" "}
+                  {n.variance.k !== null ? `At k = ${n.variance.k.toFixed(1)} a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.` : ""}
+                </p>
+                <div className="mt-4">
+                  <LeniencyStrip points={points} label="Leniency per judge: plain average against what the data supports" clearLabel />
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-38 leading-none font-semibold tnum">–</p>
+                <p className="mt-2 text-14 text-ink-2">
+                  Too few reviews to estimate how lenient each judge is, so the engine moves no score for leniency: scores are used as given.
+                </p>
+              </>
+            )}
           </div>
           <div className="rounded-sm border border-rule bg-surface p-5">
             <p className="label-mono mb-4 text-ink-2">Fig. 03 — The noise floor</p>

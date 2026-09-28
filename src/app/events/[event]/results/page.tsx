@@ -71,7 +71,9 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
     "Places compare within a track.",
     pairwise
       ? "Judges compared their own projects two at a time; each project’s win % is its chance to beat an average project of its track."
-      : "Each score is the judges’ weighted rubric average, evened out for judges who score higher or lower than the rest.",
+      : results.published && results.k !== null
+        ? "Each score is the judges’ weighted rubric average, evened out for judges who score higher or lower than the rest."
+        : "Each score is the plain average of the judges’ weighted rubric totals: no judge’s leniency was taken out.",
     "Read gaps smaller than the margin of error (±) as ties.",
     ...(underReviewed
       ? [

@@ -366,7 +366,7 @@ export default async function OverviewPage({
                 <>
                   <p className="flex items-baseline gap-2">
                     <span className="text-38 leading-none font-semibold tnum">
-                      {nz.k === null ? "0.00" : `±${nz.maxLeniency.toFixed(2)}`}
+                      {!nz.leniencyMeasured ? "–" : nz.k === null ? "0.00" : `±${nz.maxLeniency.toFixed(2)}`}
                     </span>
                     <span className="text-14 text-ink-2">
                       {!nz.leniencyMeasured
@@ -376,11 +376,13 @@ export default async function OverviewPage({
                         : "the most any judge moves a score"}
                     </span>
                   </p>
-                  <LeniencyStrip
-                    clearLabel
-                    points={nz.points}
-                    label={`Leniency of ${plural(nz.points.length, "judge")}: plain averages against what the data supports`}
-                  />
+                  {nz.leniencyMeasured ? (
+                    <LeniencyStrip
+                      clearLabel
+                      points={nz.points}
+                      label={`Leniency of ${plural(nz.points.length, "judge")}: plain averages against what the data supports`}
+                    />
+                  ) : null}
                   <p className="text-13 leading-5 text-ink-2">
                     {!nz.leniencyMeasured
                       ? "Too few reviews to estimate how lenient each judge is, so scores are used as given: the engine corrects nothing and ranks by the plain mean."
