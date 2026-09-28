@@ -1,6 +1,6 @@
 # Dogfood portal
 
-![Every score shows its working: the gallery's field of faces, every place on one scale with its ±, a signed judging record, the judge console and the phone view](docs/readme-hero.png)
+![Every score shows how it was worked out: the gallery's field of faces, every place on one scale with its margin of error, a signed judging record, the judge console and the phone view](docs/readme-hero.png)
 
 A self-hostable hackathon submission and judging portal, built for Dogfood 2026.
 Every score, average and rank on its screens can be traced to how it was reached.
@@ -30,9 +30,9 @@ Herrera, Jonas Vogel) and a participant.
    scored every project 4 / 4 / 4, a project entered twice, and a project left
    with one counted review. Each shows its evidence and is settled by one
    audited action, with a written reason wherever it overrides a rule.
-2. **Results** shows the ranking and its working: open any project for its
+2. **Results** shows the ranking and how it was worked out: open any project for its
    receipt (each review, the judge's leniency, the arithmetic, the change from
-   the raw mean, the ± of the score). Below it, the **judge ledger** gives every
+   the raw mean, the score's margin of error, ±). Below it, the **judge ledger** gives every
    judge's leniency ± error and what leaving that judge out would move, before
    you decide.
 3. The community vote is open in demo mode, for 30 days from the first start:
