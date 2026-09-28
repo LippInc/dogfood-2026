@@ -117,6 +117,8 @@ export function JudgeConsoleView({
   const [keysOpen, setKeysOpen] = useState(false);
   const [recuseOpen, setRecuseOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  // Save and open next on the last unfinished project stays and says the batch is done (it used to wrap to the first).
+  const [batchDone, setBatchDone] = useState(false);
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
   // Keys that jump into the feedback box put the caret after what is already there.
   const focusFeedback = useCallback(() => {
@@ -250,6 +252,7 @@ export function JudgeConsoleView({
       setIndex(next);
       setFocus(firstOpen(criteria, reviewsRef.current[items[next]!.assignmentId]!.values));
       setNoteOpen(false);
+      setBatchDone(false);
     },
     [criteria, current, flush, items],
   );
@@ -262,6 +265,11 @@ export function JudgeConsoleView({
       const r = reviewsRef.current[i.assignmentId]!;
       return r.status !== "recused" && !r.readOnly && totalOf(criteria, r.values) === null;
     });
+    const here = reviewsRef.current[current.assignmentId]!;
+    if (!next && !here.readOnly && totalOf(criteria, here.values) !== null) {
+      setBatchDone(true);
+      return;
+    }
     go(next ? items.indexOf(next) : index + 1);
   }, [criteria, current, flush, go, index, items]);
 
@@ -789,6 +797,12 @@ export function JudgeConsoleView({
             ) : null}
           </div>
         </div>
+        {batchDone ? (
+          <p role="status" className="flex items-center gap-1.5 border-t border-rule bg-surface px-6 py-2.5 text-13 text-ink max-lg:px-4">
+            <Check className="size-3.5 text-ok" aria-hidden />
+            Every project in your batch is scored. You can still change any score until judging closes.
+          </p>
+        ) : null}
         <div className="flex items-center gap-2 border-t border-rule bg-surface px-6 py-3 max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:px-4">
           <Button size="lg" onClick={saveAndNext} className="flex-1 justify-between">
             {readOnly ? "Open next" : "Save and open next"}
