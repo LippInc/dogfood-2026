@@ -25,8 +25,9 @@ export type EventImport = ImportReport & { eventSlug: string };
  * of a big event must fit: with every field at its longest (a 4,000-character review note,
  * 16 criteria, a project's six gallery pictures and eight tags, a team of 20), 64 MB holds an event of
  * 1,000 projects and 8,000 reviews (tests/import-size.test.ts measures the exporter's
- * worst case). next.config.ts lets bodies this large through to the import (proxy and
- * server action limits, a little above it).
+ * worst case). Only POST /api/imports takes a file this large: the proxy leaves that route
+ * out and it reads the body itself (src/app/api/imports/route.ts), so the global limits on
+ * server actions and the proxy (next.config.ts) stay small.
  */
 export const MAX_EVENT_FILE_BYTES = 64_000_000;
 export const EVENT_FILE_TOO_LARGE =

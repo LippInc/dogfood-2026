@@ -61,19 +61,21 @@ function actorForApiToken(db: DbOrTx, token: string, now: Date): Actor | null {
   return { userId: row.userId, name: row.name, email: row.email, isAdmin: row.isAdmin, roles, sessionKind: "api" };
 }
 
-/** The token a request carries: the session cookie, or an Authorization: Bearer header. */
-export async function requestToken(): Promise<string | null> {
-  const jar = await cookies();
-  const fromCookie = jar.get(SESSION_COOKIE)?.value;
+/**
+ * The token a request carries: the session cookie, or an Authorization: Bearer header. `cookie: false` reads the
+ * header alone, for a route the proxy does not see that must drop a cross-origin write's cookies itself.
+ */
+export async function requestToken({ cookie = true }: { cookie?: boolean } = {}): Promise<string | null> {
+  const fromCookie = cookie ? (await cookies()).get(SESSION_COOKIE)?.value : undefined;
   if (fromCookie) return fromCookie;
   const auth = (await headers()).get("authorization");
   if (auth && /^bearer\s+/i.test(auth)) return auth.replace(/^bearer\s+/i, "").trim() || null;
   return null;
 }
 
-/** The signed-in actor for this request, or null for a visitor. */
-export async function currentActor(): Promise<Actor | null> {
-  const token = await requestToken();
+/** The signed-in actor for this request, or null for a visitor; `cookie: false` as for requestToken(). */
+export async function currentActor({ cookie = true }: { cookie?: boolean } = {}): Promise<Actor | null> {
+  const token = await requestToken({ cookie });
   return token ? actorForToken(getDb(), token) : null;
 }
 

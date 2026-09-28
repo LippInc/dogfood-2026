@@ -10,18 +10,23 @@ import type { Actor } from "@/server/authz";
 // The event import must take the portal's own fixtures.json export of a big event. This
 // measures the exporter's worst case per project and per review (every field at its
 // longest) and checks that MAX_EVENT_FILE_BYTES holds 1,000 projects and 8,000 reviews,
-// the size the refusal message names; then sends a real file over the old 5 MB cap
-// through POST /api/imports.
+// the size the refusal message names; then sends real files over the old 5 MB cap
+// through POST /api/imports. That route is left out of the proxy (src/proxy.ts), so the
+// global body limits stay where they were, and it does the proxy's work for itself.
 
 let bearer: string | null = null;
+let sessionCookie: string | null = null;
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ set: vi.fn(), get: vi.fn(), delete: vi.fn() }),
+  cookies: async () => ({ set: vi.fn(), get: (name: string) => (name === "session" && sessionCookie ? { name, value: sessionCookie } : undefined), delete: vi.fn() }),
   headers: async () => new Headers(bearer ? { authorization: `Bearer ${bearer}` } : {}),
 }));
 
 const { exportFile, MAX_EVENT_FILE_BYTES, EVENT_FILE_TOO_LARGE } = await import("@/server/dal");
 const { createLoginSession } = await import("@/server/session");
 const { POST } = await import("@/app/api/imports/route");
+const { config: proxyConfig } = await import("@/proxy");
+const { unstable_doesMiddlewareMatch } = await import("next/experimental/testing/server");
+const { HSTS_VALUE } = await import("@/lib/hsts");
 
 const NOW = "2026-09-28T12:00:00.000Z";
 const FEEDBACK_MAX = 4000; // reviews.ts: a review's note
@@ -38,11 +43,14 @@ beforeEach(() => {
   runMigrations(h, path.join(process.cwd(), "drizzle"));
   setHandleForTests(h);
   h.db.insert(users).values({ id: "usr_admin", email: "admin@example.org", name: "Admin", isAdmin: true, createdAt: NOW }).run();
+  h.db.insert(users).values({ id: "usr_plain", email: "plain@example.org", name: "Plain", isAdmin: false, createdAt: NOW }).run();
 });
 afterEach(() => {
   setHandleForTests(null);
   h.sqlite.close();
   bearer = null;
+  sessionCookie = null;
+  delete process.env.PUBLIC_URL;
 });
 
 const url = (n: number, tag: string) => {
@@ -130,10 +138,104 @@ describe("the event import's size limit", () => {
     expect(res.status).toBe(401);
   });
 
-  it("next.config lets a body of the import's limit through the proxy and the server action", async () => {
+  it("next.config keeps the global limits where they were: 5 MB for a server action, Next's own 10 MB in the proxy", async () => {
     const text = (await import("node:fs")).readFileSync(path.join(process.cwd(), "next.config.ts"), "utf8");
-    const mb = (key: string) => Number(new RegExp(`${key}:\\s*"(\\d+)mb"`).exec(text)?.[1] ?? 0) * 1024 * 1024;
-    expect(mb("bodySizeLimit")).toBeGreaterThan(MAX_EVENT_FILE_BYTES);
-    expect(mb("proxyClientMaxBodySize")).toBeGreaterThan(MAX_EVENT_FILE_BYTES);
+    const mb = (key: string) => {
+      const m = new RegExp(`${key}:\\s*"(\\d+)mb"`).exec(text);
+      return m ? Number(m[1]) : null;
+    };
+    expect(mb("bodySizeLimit")).toBe(5);
+    // unset is Next's default, 10 MB; any value set must not be above it
+    expect(mb("proxyClientMaxBodySize") ?? 10).toBeLessThanOrEqual(10);
+  });
+});
+
+/** A body sent as a stream in 1 MB pieces, with no length declared, counting the pieces the route pulled. */
+function streamed(megabytes: number) {
+  const piece = new Uint8Array(1_000_000).fill(0x20);
+  const seen = { pulled: 0 };
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (seen.pulled >= megabytes) return controller.close();
+      seen.pulled++;
+      controller.enqueue(piece);
+    },
+  });
+  return { body, seen };
+}
+
+const post = (headers: Record<string, string>, body: BodyInit) =>
+  POST(new Request("http://localhost:8080/api/imports", { method: "POST", headers: { host: "localhost:8080", "content-type": "application/json", ...headers }, body, duplex: "half" } as RequestInit));
+
+describe("POST /api/imports does for itself what the proxy does for the rest of the API", () => {
+  it("is left out of the proxy, so the proxy never holds an event file; every other API route and page stays in", () => {
+    const matches = (url: string) => unstable_doesMiddlewareMatch({ config: proxyConfig, url });
+    expect(matches("/api/imports")).toBe(false);
+    expect(matches("/api/imports/")).toBe(false);
+    // positive controls
+    for (const url of ["/api", "/api/events", "/api/events/evt_01/export", "/api/auth/sign-in", "/api/vote/abc", "/api/projects/prj_01/image", "/api/importsx", "/organize", "/"]) {
+      expect(matches(url), url).toBe(true);
+    }
+  });
+
+  it("a cross-origin write arrives signed out, as the proxy makes it everywhere else: the session cookie is ignored (401), a Bearer token is not", async () => {
+    const file = JSON.stringify(worstFixture("evt_csrf", 1, 1, false));
+    sessionCookie = createLoginSession(h.db, "usr_admin").token;
+    const crossOrigin: Record<string, string>[] = [{ "sec-fetch-site": "cross-site" }, { "sec-fetch-site": "same-site" }, { origin: "http://evil.example" }, { origin: "null" }];
+    for (const cross of crossOrigin) {
+      const res = await post({ cookie: `session=${sessionCookie}`, ...cross }, file);
+      expect(res.status, JSON.stringify(cross)).toBe(401);
+    }
+    expect(h.sqlite.prepare("SELECT count(*) AS n FROM events WHERE id = 'evt_csrf'").get()).toEqual({ n: 0 });
+    // positive controls: the portal's own page (same origin) and a script (no Origin) with the cookie, and a token from anywhere
+    expect((await post({ cookie: `session=${sessionCookie}`, "sec-fetch-site": "same-origin", origin: "http://localhost:8080" }, file)).status).toBe(201);
+    expect((await post({ cookie: `session=${sessionCookie}` }, file)).status).toBe(201);
+    sessionCookie = null;
+    bearer = createLoginSession(h.db, "usr_admin").token;
+    expect((await post({ "sec-fetch-site": "cross-site", authorization: `Bearer ${bearer}` }, file)).status).toBe(201);
+  });
+
+  it("sends Strict-Transport-Security on an https PUBLIC_URL, on the answer and on a refusal alike; none on http", async () => {
+    process.env.PUBLIC_URL = "https://hack.example.org";
+    expect((await post({}, "{}")).headers.get("strict-transport-security")).toBe(HSTS_VALUE); // 401
+    bearer = createLoginSession(h.db, "usr_admin").token;
+    expect((await post({}, JSON.stringify(worstFixture("evt_hsts", 1, 1, false)))).headers.get("strict-transport-security")).toBe(HSTS_VALUE);
+    process.env.PUBLIC_URL = "http://localhost:8080";
+    expect((await post({}, "{}")).headers.get("strict-transport-security")).toBeNull();
+  });
+
+  it("refuses a non-administrator before reading a byte of the body (403), and an administrator's file with no declared length stops being read at 64 MB (413)", async () => {
+    bearer = createLoginSession(h.db, "usr_plain").token;
+    const plain = streamed(70);
+    const refused = await post({}, plain.body);
+    expect(refused.status).toBe(403);
+    expect(plain.seen.pulled).toBeLessThanOrEqual(1); // a stream may hand over its first piece before anyone reads
+
+    bearer = createLoginSession(h.db, "usr_admin").token;
+    const big = streamed(70);
+    const tooBig = await post({}, big.body);
+    expect(tooBig.status).toBe(413);
+    expect(((await tooBig.json()) as { message: string }).message).toBe(EVENT_FILE_TOO_LARGE);
+    // it stopped at the limit instead of holding all 70 MB
+    expect(big.seen.pulled).toBeLessThanOrEqual(Math.ceil(MAX_EVENT_FILE_BYTES / 1_000_000) + 2);
+  });
+
+  it("takes a 53 MB export-sized file, sent as a stream with no declared length", { timeout: 120_000 }, async () => {
+    bearer = createLoginSession(h.db, "usr_admin").token;
+    const text = JSON.stringify(worstFixture("evt_53mb", 64, 200, true));
+    expect(Buffer.byteLength(text)).toBeGreaterThan(53_000_000);
+    expect(Buffer.byteLength(text)).toBeLessThan(MAX_EVENT_FILE_BYTES);
+    const bytes = new TextEncoder().encode(text);
+    let at = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (at >= bytes.length) return controller.close();
+        controller.enqueue(bytes.subarray(at, at + 1_000_000));
+        at += 1_000_000;
+      },
+    });
+    const res = await post({}, body);
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as { inserted: { scores: number } }).inserted.scores).toBe(12_800);
   });
 });

@@ -6,10 +6,11 @@ const nextConfig: NextConfig = {
   // A native module: loaded from node_modules at run time, never bundled.
   serverExternalPackages: ["better-sqlite3"],
   // forbidden() / unauthorized(): designed 403 and 401 pages with real status codes.
-  // Event files (MAX_EVENT_FILE_BYTES, 64 MB, in src/server/dal/imports.ts) come in through a server action on
-  // /organize and POST /api/imports. Both pass the proxy (src/proxy.ts), which otherwise cuts a body at 10 MB
-  // without an error, so both limits sit a little above the import's own, which answers with the plain refusal.
-  experimental: { authInterrupts: true, serverActions: { bodySizeLimit: "66mb" }, proxyClientMaxBodySize: "66mb" },
+  // Server actions take up to 5 MB, and the proxy (src/proxy.ts) holds Next's own 10 MB of a body: both apply to
+  // every action and every matched route, anonymous ones included, so they stay small. Event files (up to 64 MB,
+  // MAX_EVENT_FILE_BYTES in src/server/dal/imports.ts) go to POST /api/imports instead, which the proxy leaves
+  // out and which reads its body itself, after the caller is found to be an administrator.
+  experimental: { authInterrupts: true, serverActions: { bodySizeLimit: "5mb" } },
   poweredByHeader: false,
   async headers() {
     const common = [

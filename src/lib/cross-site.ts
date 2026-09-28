@@ -6,7 +6,7 @@
 // such a page could send a text/plain POST, which needs no CORS preflight, and act
 // with the visitor's session. src/proxy.ts therefore drops the cookies from those
 // writes: they arrive signed out and the data access layer answers them like any
-// anonymous call. Requests with neither Sec-Fetch-Site nor Origin (curl, scripts,
+// anonymous call. POST /api/imports, which the proxy leaves out, does the same itself. Requests with neither Sec-Fetch-Site nor Origin (curl, scripts,
 // the checker) are not from a browser and pass as they are; a Bearer token is never
 // attached by a browser on its own, so it is left alone.
 

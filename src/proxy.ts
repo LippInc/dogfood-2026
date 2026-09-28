@@ -47,5 +47,9 @@ function withTransportSecurity(response: NextResponse): NextResponse {
   return response;
 }
 
-// The API, and every page; not Next's own files or anything with a file extension.
-export const config = { matcher: ["/api/:path*", "/((?!api/|_next/|.*\\.).*)"] };
+/**
+ * The API, and every page; not Next's own files or anything with a file extension. Nor POST /api/imports: the
+ * proxy holds up to 10 MB of a body, and an event file is up to 64 MB, so that route reads its body itself and does
+ * this proxy's work on its own (the cookie rule above and Strict-Transport-Security; src/app/api/imports/route.ts).
+ */
+export const config = { matcher: ["/api", "/api/((?!imports/?$).*)", "/((?!api/|_next/|.*\\.).*)"] };
