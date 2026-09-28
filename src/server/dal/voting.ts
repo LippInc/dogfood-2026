@@ -12,7 +12,7 @@ import { fieldModes, shownTitle } from "./project-fields";
 import { AuthzError, ConflictError, NotFoundError, RateLimitedError, ValidationError } from "../errors";
 import { seededRng, shuffle } from "../judging/random";
 import { mutate } from "../mutate";
-import { LIMITS, peek, takeAudited, type Limit } from "../rate-limit";
+import { LIMITS, takeAudited, type Limit } from "../rate-limit";
 import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { parse } from "./parse";
@@ -431,17 +431,14 @@ export function enterVoting(
 
 /**
  * A voting code looked up from one network address. An unknown code spends one of the
- * address's tries (LIMITS.voteCodeMiss) and answers 404; a known one spends none, so a
- * venue's honest voters never use them up. With no tries left, every code from the address
- * waits (429), known or not, so guessing learns nothing until the bucket refills.
+ * address's tries (LIMITS.voteCodeMiss) and answers 404, or 429 once they are spent. A real
+ * code always goes through, whatever the bucket holds: a venue puts everyone behind one
+ * address, so one person there making up codes must not lock out every voter behind it.
+ * Hiding which codes are real would buy nothing: they are 144-192 random bits.
  */
 function lookedUp<T>(client: Client, found: T | null | undefined): T {
+  if (found) return found;
   const key = `votecode-miss:${client.ip ?? "none"}`;
-  if (found) {
-    const p = peek(key, LIMITS.voteCodeMiss);
-    if (!p.ok) throw new RateLimitedError(p.retryAfter);
-    return found;
-  }
   const t = takeAudited(key, LIMITS.voteCodeMiss, { userId: null, label: "anonymous", what: "voting-code lookup" });
   if (!t.ok) throw new RateLimitedError(t.retryAfter);
   throw new NotFoundError("Voting link");

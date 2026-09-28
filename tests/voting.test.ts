@@ -784,7 +784,7 @@ describe("rate limits", () => {
     expect(count("SELECT count(*) AS n FROM voters WHERE kind = 'link'")).toBe(8);
   });
 
-  it("unknown voting codes cost an address a try: 30 answer 404, then every code from it waits (429), known or not; one audit row", () => {
+  it("unknown voting codes cost an address a try: 30 answer 404, then unknown ones wait (429) while real codes from the same address still go through; one audit row", () => {
     const { code } = makeVotingLink(org(), "evt_01");
     const listed = addListedVoters(org(), "evt_01", { emails: "listed-limit@example.org" }).links[0]!.path.slice("/vote/".length);
     const guesser: Client = { ip: "10.2.2.2", agent: "G" };
@@ -794,18 +794,21 @@ describe("rate limits", () => {
     }
     expect(auditCount("ratelimit.refused")).toBe(0);
     expectHttpError(() => describeVotingCode("guess-30-xxxxxxxxxxxxxxxxxxxx", guesser), 429, "rate_limited");
-    // dry: the answers no longer tell a real code from a guess
-    expectHttpError(() => describeVotingCode(listed, guesser), 429, "rate_limited");
-    expectHttpError(() => enterVoting(listed, guesser), 429, "rate_limited");
-    expectHttpError(() => describeVotingCode(code, guesser), 429, "rate_limited");
-    expectHttpError(() => enterVoting(code, guesser), 429, "rate_limited");
+    expectHttpError(() => enterVoting("guess-31-xxxxxxxxxxxxxxxxxxxx", guesser), 429, "rate_limited");
+    // dry, and still every real code behind that address goes through: one person on a venue's
+    // wifi making up codes cannot lock the venue's voters out (a code is 144-192 random bits,
+    // so hiding which ones are real would buy nothing)
+    expect(describeVotingCode(listed, guesser).kind).toBe("listed");
+    expect(enterVoting(listed, guesser).token).toBe(listed);
+    expect(describeVotingCode(code, guesser).kind).toBe("link");
+    expect(enterVoting(code, guesser).eventId).toBe("evt_01");
+    expect(count("SELECT count(*) AS n FROM voters WHERE kind = 'link'")).toBe(1);
+    // and a guess after the real codes still waits: they refilled nothing
+    expectHttpError(() => describeVotingCode("guess-32-xxxxxxxxxxxxxxxxxxxx", guesser), 429, "rate_limited");
     expect(auditCount("ratelimit.refused")).toBe(1);
-    expect(count("SELECT count(*) AS n FROM voters WHERE kind = 'link'")).toBe(0);
     // positive control: another address is not affected
     const other: Client = { ip: "10.2.2.3", agent: "G" };
-    expect(describeVotingCode(listed, other).kind).toBe("listed");
-    expect(enterVoting(listed, other).token).toBe(listed);
-    expect(describeVotingCode(code, other).kind).toBe("link");
+    expectHttpError(() => describeVotingCode("guess-33-xxxxxxxxxxxxxxxxxxxx", other), 404, "not_found");
   });
 
   it("known codes spend no tries: a venue opening real links 100 times from one address still gets 404 for a slip, not 429", () => {
