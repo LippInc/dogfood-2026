@@ -306,8 +306,9 @@ export function JudgeConsoleView({
         if (value < c.scaleMin || value > c.scaleMax) return;
         e.preventDefault();
         score(focus, value);
+        // After the last criterion focus stays on the scores: moving it into the feedback box made
+        // the next shortcut (J for the next project, or C) type a letter into the team's feedback.
         if (focus < criteria.length - 1) setFocus(focus + 1);
-        else focusFeedback();
         return;
       }
       const key = e.key.toLowerCase();
@@ -571,7 +572,7 @@ export function JudgeConsoleView({
         ref={scorePaneRef}
         tabIndex={-1}
         aria-labelledby="score-title"
-        className="flex flex-col border-t border-rule bg-surface outline-none lg:min-h-0 lg:border-t-0 lg:border-l"
+        className="flex flex-col border-t border-rule bg-surface focus-visible:outline-offset-[-2px] lg:min-h-0 lg:border-t-0 lg:border-l"
       >
         <div className="flex-1 px-6 pt-6 pb-4 lg:overflow-y-auto lg:scroll-pb-12 lg:pb-10 lg:[mask-image:linear-gradient(to_bottom,black_calc(100%_-_2.5rem),transparent)]">
           <div className="flex items-center justify-between">
@@ -930,7 +931,7 @@ function KeysDialog({
       <>
         <Kbd>1</Kbd> to <Kbd>5</Kbd>
       </>,
-      "Score the current criterion and move to the next one; after the last, the feedback box",
+      "Score the current criterion and move to the next one; after the last, C opens the feedback box",
     ],
     [
       <>
