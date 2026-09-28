@@ -15,10 +15,10 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 let dir: string;
 let dbPath: string;
 
-function run(script: string, args: string[]): { code: number; out: string } {
+function run(script: string, args: string[], extra: NodeJS.ProcessEnv = {}): { code: number; out: string } {
   try {
     const out = execFileSync(process.execPath, [path.join(process.cwd(), "scripts", script), ...args], {
-      env: { ...process.env, DATABASE_PATH: dbPath, PORTAL_HEALTH_URL: "http://127.0.0.1:9/api/health" },
+      env: { ...process.env, DATABASE_PATH: dbPath, PORTAL_HEALTH_URL: "http://127.0.0.1:9/api/health", ...extra },
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -59,7 +59,8 @@ describe("backup and restore", { timeout: 30_000 }, () => {
     const users = count(dbPath, "SELECT count(*) AS n FROM users");
     const backup = run("backup.mjs", [path.join(dir, "backups")]);
     expect(backup.code, backup.out).toBe(0);
-    const file = backup.out.trim().split(/\s+/)[0]!;
+    const folder = backup.out.trim().split(/\s+/)[0]!;
+    const file = path.join(folder, "portal.db");
     expect(fs.existsSync(file)).toBe(true);
     expect(backup.out).toContain("integrity ok");
     expect(count(file, "SELECT count(*) AS n FROM users")).toBe(users);
@@ -81,9 +82,65 @@ describe("backup and restore", { timeout: 30_000 }, () => {
     expect(count(naive, "SELECT count(*) AS n FROM users")).toBe(users + 1);
 
     fs.copyFileSync(leftover, `${dbPath}-wal`);
-    const restore = run("restore.mjs", [file]);
+    const restore = run("restore.mjs", [folder]);
     expect(restore.code, restore.out).toBe(0);
     expect(count(dbPath, "SELECT count(*) AS n FROM users")).toBe(users);
+  });
+
+  it("backs the uploaded pictures up with the database, and a restore brings them back and moves the newer ones aside", () => {
+    const uploads = path.join(dir, "uploads");
+    fs.mkdirSync(uploads);
+    const pic = (c: string) => `${c.repeat(22)}.webp`;
+    fs.writeFileSync(path.join(uploads, pic("a")), "picture a");
+    const backup = run("backup.mjs", [path.join(dir, "backups")]);
+    expect(backup.code, backup.out).toBe(0);
+    expect(backup.out).toContain("1 uploaded picture");
+    const folder = backup.out.trim().split(/\s+/)[0]!;
+    expect(fs.readdirSync(path.join(folder, "uploads"))).toEqual([pic("a")]);
+
+    // after the backup: picture a is replaced by b
+    fs.unlinkSync(path.join(uploads, pic("a")));
+    fs.writeFileSync(path.join(uploads, pic("b")), "picture b");
+
+    const restore = run("restore.mjs", [folder]);
+    expect(restore.code, restore.out).toBe(0);
+    expect(fs.readdirSync(uploads)).toEqual([pic("a")]);
+    const aside = fs.readdirSync(dir).find((n) => n.startsWith("uploads-before-restore-"));
+    expect(aside, restore.out).toBeTruthy();
+    expect(fs.readdirSync(path.join(dir, aside!))).toEqual([pic("b")]);
+  });
+
+  it("known-bad: backups no longer pile up in the volume: only the newest BACKUP_KEEP stay", () => {
+    const backups = path.join(dir, "backups");
+    fs.mkdirSync(backups);
+    // three older backups (two folders and one .db file from before backups were folders) and a file that is not one
+    for (const n of ["portal-20260101T000000Z", "portal-20260102T000000Z"]) fs.mkdirSync(path.join(backups, n));
+    fs.writeFileSync(path.join(backups, "portal-20260103T000000Z.db"), "");
+    fs.writeFileSync(path.join(backups, "notes.txt"), "keep me");
+    const backup = run("backup.mjs", [backups], { BACKUP_KEEP: "2" });
+    expect(backup.code, backup.out).toBe(0);
+    expect(backup.out).toContain("2 older backups deleted, 2 kept");
+    const folder = path.basename(backup.out.trim().split(/\s+/)[0]!);
+    expect(fs.readdirSync(backups).sort()).toEqual(["notes.txt", "portal-20260103T000000Z.db", folder].sort());
+  });
+
+  it("known-bad: BACKUP_KEEP that is not a whole number of 1 or more is refused before anything is written", () => {
+    const backup = run("backup.mjs", [path.join(dir, "backups")], { BACKUP_KEEP: "0" });
+    expect(backup.code).toBe(2);
+    expect(fs.existsSync(path.join(dir, "backups"))).toBe(false);
+  });
+
+  it("an older backup, a lone .db file, restores the database and leaves the pictures as they are", () => {
+    const uploads = path.join(dir, "uploads");
+    fs.mkdirSync(uploads);
+    fs.writeFileSync(path.join(uploads, `${"c".repeat(22)}.webp`), "picture c");
+    const backup = run("backup.mjs", [path.join(dir, "backups")]);
+    const lone = path.join(dir, "old-style.db");
+    fs.copyFileSync(path.join(backup.out.trim().split(/\s+/)[0]!, "portal.db"), lone);
+    const restore = run("restore.mjs", [lone]);
+    expect(restore.code, restore.out).toBe(0);
+    expect(restore.out).toContain("were not in this backup");
+    expect(fs.readdirSync(uploads)).toEqual([`${"c".repeat(22)}.webp`]);
   });
 
   it("known-bad: a damaged backup is refused and the database is left as it was", () => {

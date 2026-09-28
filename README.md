@@ -299,24 +299,36 @@ volume takes no writes (full or read-only; it writes a 4 KB file there at most
 every 30 s): reads would still work while every change failed. The compose
 healthcheck uses it, and a proxy or a monitor can too.
 
-Back up while it runs, with SQLite's online backup; the copy lands in the volume:
+Back up while it runs: the database with SQLite's online backup, and the
+uploaded pictures with it, into one folder in the volume:
 
 ```bash
 docker compose exec portal node scripts/backup.mjs
 ```
 
-It prints the file's path, for example `/data/backups/portal-20260927T013000Z.db`;
-`docker compose cp portal:/data/backups/portal-20260927T013000Z.db .` copies it
-out. To restore, stop the portal, put the file back in the volume, and let the
-restore script replace the database and drop the old write-ahead log (copying
-the file over by hand would let SQLite replay that log onto it):
+It prints the folder's path, for example `/data/backups/portal-20260927T013000Z`
+(`portal.db` and `uploads/`). A backup in the volume goes with the volume
+(`docker compose down -v`, a lost disk), so copy each one off the machine:
+`docker compose cp portal:/data/backups/portal-20260927T013000Z .`. Only the
+newest 7 stay in the volume (`BACKUP_KEEP`, for example
+`docker compose exec -e BACKUP_KEEP=14 portal node scripts/backup.mjs`); older
+ones are deleted once the new one checks out. To restore, stop the portal, put
+the folder back in the volume, and let the restore script replace the database,
+drop the old write-ahead log (copying the file over by hand would let SQLite
+replay that log onto it) and bring the pictures back; the pictures in use are
+moved aside to `/data/uploads-before-restore-<time>`, to delete once the portal
+looks right:
 
 ```bash
 docker compose stop
-docker compose cp ./portal-20260927T013000Z.db portal:/data/restore.db
-docker compose run --rm --no-deps portal node scripts/restore.mjs /data/restore.db
+docker compose cp ./portal-20260927T013000Z portal:/data/restore
+docker compose run --rm --no-deps portal node scripts/restore.mjs /data/restore
 docker compose start
 ```
+
+A backup made before backups were folders is a single `.db` file; restoring it
+brings the database back and leaves the pictures as they are (the next start
+deletes the ones no project names).
 
 Run one portal process per data volume: limits such as team size, rate limits
 and accepting an invitation hold because one process makes its changes one at
@@ -332,8 +344,8 @@ removed stands; a changed fixture file imports only its new rows.
 ## What it does not do yet
 
 - Only a project's gallery picture is uploaded (PNG, JPEG or WebP up to 8 MB, redrawn
-  as a WebP without metadata such as a photo's location, in `/data/uploads`, which the
-  backup above does not copy; an organizer can take one down); image galleries are links.
+  as a WebP without metadata such as a photo's location, in `/data/uploads`; an
+  organizer can take one down); image galleries are links.
 - Webhook targets on private or local addresses are refused, when added and at
   every delivery (`WEBHOOKS_ALLOW_PRIVATE=true` lifts that for a receiver on the
   same machine), but a host name whose DNS answer changes between the check and
