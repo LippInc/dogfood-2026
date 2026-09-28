@@ -229,7 +229,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   <span className="label-mono ml-auto text-ink-3">{plural(t.rows.length, "project")}</span>
                 </div>
                 <div className={`${ROW} pt-3`} aria-hidden="true">
-                  <span className="col-start-2 col-span-2 md:col-start-4 md:col-span-1">
+                  <span className="col-start-2 col-span-2 max-md:pr-3 md:col-start-4 md:col-span-1">
                     <ScaleAxis scale={scale} />
                   </span>
                 </div>
@@ -260,7 +260,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                             {p.place !== null ? <span className="sr-only">{` · ${ordinal(p.place)} in ${t.name}`}</span> : null}
                           </span>
                         </span>
-                        <span className="col-start-2 col-span-2 row-start-2 md:col-start-4 md:col-span-1 md:row-start-1">
+                        <span className="col-start-2 col-span-2 row-start-2 max-md:pr-3 md:col-start-4 md:col-span-1 md:row-start-1">
                           <ScoreLine scale={scale} score={r.score} se={r.se} raw={pairwise ? null : r.raw} first={first} index={ti + i} />
                         </span>
                         <span className="col-start-3 row-start-1 text-right md:col-start-5">
