@@ -398,3 +398,12 @@
     }
   }
 }
+
+/* A printed certificate (or any public page) prints on white, not on the page's tinted background,
+   and no longer reserves a screen's height; the certificate designers asked for it. */
+@media print {
+  .public {
+    background: #fff;
+    min-height: 0;
+  }
+}
