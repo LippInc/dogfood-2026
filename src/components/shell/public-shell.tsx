@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Menu } from "lucide-react";
 import { DemoTour } from "@/components/demo-tour";
 import { ModeToggle } from "@/components/mode-toggle";
 import { PageBand, PageMark } from "@/components/page-mark";
+import { PhoneMenu } from "@/components/shell/phone-menu";
 import { eventPhase, idLabel, type EventTimes } from "@/lib/format";
 import type { NavLink } from "@/server/dal";
 
@@ -95,48 +95,42 @@ export function PublicShell({
                 Sign in
               </Link>
             )}
-            <details className="relative md:hidden">
-              <summary className="flex size-11 cursor-pointer list-none items-center justify-center rounded-sm [&::-webkit-details-marker]:hidden">
-                <Menu className="size-5" aria-hidden />
-                <span className="sr-only">Menu</span>
-              </summary>
-              <div className="absolute right-0 z-40 mt-1 w-64 rounded-sm border border-rule bg-surface p-2 shadow-overlay">
-                {SECTIONS.filter((s) => s.key !== "vote" || event.votingOpenAt).map((s) => (
-                  <Link
-                    key={s.key}
-                    href={base + s.path}
-                    aria-current={active === s.key ? "page" : undefined}
-                    className="flex h-11 items-center rounded-sm px-3 text-15 hover:bg-raised aria-[current=page]:font-semibold"
-                  >
-                    {s.label}
-                  </Link>
-                ))}
-                <div className="my-2 border-t border-rule" />
-                {takePart ? (
-                  <Link href={takePart} className="flex h-11 items-center rounded-sm px-3 text-15 font-semibold hover:bg-raised">
-                    Take part
-                  </Link>
-                ) : null}
-                {signedInAs ? (
-                  <>
-                    {links.map((l) => (
-                      <Link key={l.href} href={l.href} className="flex h-11 items-center rounded-sm px-3 text-15 hover:bg-raised">
-                        {l.label}
-                      </Link>
-                    ))}
-                    <form action="/api/auth/sign-out" method="post">
-                      <button className="flex h-11 w-full items-center rounded-sm px-3 text-left text-15 hover:bg-raised">
-                        <span className="truncate">Sign out ({signedInAs})</span>
-                      </button>
-                    </form>
-                  </>
-                ) : (
-                  <Link href={`/sign-in?next=${encodeURIComponent(base)}`} className="flex h-11 items-center rounded-sm px-3 text-15 hover:bg-raised">
-                    Sign in
-                  </Link>
-                )}
-              </div>
-            </details>
+            <PhoneMenu>
+              {SECTIONS.filter((s) => s.key !== "vote" || event.votingOpenAt).map((s) => (
+                <Link
+                  key={s.key}
+                  href={base + s.path}
+                  aria-current={active === s.key ? "page" : undefined}
+                  className="flex h-11 items-center rounded-sm px-3 text-15 hover:bg-raised aria-[current=page]:font-semibold"
+                >
+                  {s.label}
+                </Link>
+              ))}
+              <div className="my-2 border-t border-rule" />
+              {takePart ? (
+                <Link href={takePart} className="flex h-11 items-center rounded-sm px-3 text-15 font-semibold hover:bg-raised">
+                  Take part
+                </Link>
+              ) : null}
+              {signedInAs ? (
+                <>
+                  {links.map((l) => (
+                    <Link key={l.href} href={l.href} className="flex h-11 items-center rounded-sm px-3 text-15 hover:bg-raised">
+                      {l.label}
+                    </Link>
+                  ))}
+                  <form action="/api/auth/sign-out" method="post">
+                    <button className="flex h-11 w-full items-center rounded-sm px-3 text-left text-15 hover:bg-raised">
+                      <span className="truncate">Sign out ({signedInAs})</span>
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <Link href={`/sign-in?next=${encodeURIComponent(base)}`} className="flex h-11 items-center rounded-sm px-3 text-15 hover:bg-raised">
+                  Sign in
+                </Link>
+              )}
+            </PhoneMenu>
           </div>
         </div>
       </header>
