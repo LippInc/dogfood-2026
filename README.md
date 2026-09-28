@@ -282,7 +282,10 @@ start, and the fixture import never overwrites what the organizers changed.
   are, because the portal signs with them.
 - No email: invitations, voter links, personal links for imported people,
   password reset links and reminders are links the organizer or administrator
-  copies and sends. Accounts are not email-verified. A forgotten password is
+  copies and sends. Accounts are not email-verified, so an invitation addressed
+  to someone who has no account yet can be taken by whoever holds its link and
+  signs up with that address first; the Judges page names the account that
+  accepted each invitation. A forgotten password is
   reset only by a portal administrator's one-time link, never by an event's
   organizer. An organizer's personal links for imported people reach only
   people who hold no role and no team seat in any event that organizer does
