@@ -81,8 +81,9 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
       {results.published ? (
         <>
-          <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-x-16 lg:gap-y-0">
-            <div className="lg:col-start-1 lg:row-start-1">
+          {/* wide screen: the plain words on the left; the seal, then the method's fold, beside them, so no dead ground opens up there */}
+          <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:grid-rows-[auto_1fr] lg:gap-x-16 lg:gap-y-0">
+            <div className="lg:col-start-1 lg:row-span-2 lg:row-start-1">
               <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
               <p className="label-mono mt-3 tnum text-ink-3">
                 Published {formatUtc(results.publishedAt)} · {plural(placedCount, "place")} in {plural(placed.length, "track")}
@@ -96,52 +97,52 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </li>
                 ))}
               </ol>
-              <details className="group mt-6 max-w-[760px] rounded-sm border border-rule text-ink-2">
-                <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-15 font-semibold text-ink">How these {pairwise ? "win %" : "scores"} were made</span>
-                    <span className="block text-13 text-ink-3">
-                      {results.yardstick ? "The method in full, the ±, and how far apart the judges were" : "The method in full, and the ±"}
-                    </span>
-                  </span>
-                  <ChevronDown className="size-4 shrink-0 text-ink-2 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
-                </summary>
-                <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
-                  {pairwise ? (
-                    <p>
-                      Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores given before the event switched to that
-                      way of judging count as the order they imply), and each project&rsquo;s win % is its chance to beat an average project of its track,
-                      with the pull of the side a project was shown on and of the project a judge had just opened measured and taken out. The ± is one
-                      standard error: win % closer than about two of them are not told apart.
-                    </p>
-                  ) : (
-                    <p>
-                      Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge proved to be across the
-                      event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. The ± under each score is one standard error: scores closer than
-                      about two of them are not told apart.
-                    </p>
-                  )}
-                  {results.yardstick ? (
-                    // the shared drawing paints its band in --sunken, which all but vanishes on the public dark ground; here it takes the hairline colour
-                    <div className="[&_svg_rect]:fill-rule">
-                      <YardstickLine y={results.yardstick} figure />
-                      {/* the small drawing's key, in the marks it uses */}
-                      <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-13 text-ink-2">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block size-2.5 rounded-full bg-ink" aria-hidden /> the judges&rsquo; spread
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block size-2.5 rounded-full border-[1.5px] border-ink" aria-hidden /> after the engine
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block h-2.5 w-5 bg-rule" aria-hidden /> where luck alone lands, 9 times in 10
-                        </span>
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              </details>
             </div>
+            <details className="group max-w-[760px] self-start rounded-sm border border-rule text-ink-2 lg:col-start-2 lg:row-start-2 lg:mt-6">
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-15 font-semibold text-ink">How these {pairwise ? "win %" : "scores"} were made</span>
+                  <span className="block text-13 text-ink-3">
+                    {results.yardstick ? "The method, the ±, and how far apart the judges were" : "The method in full, and the ±"}
+                  </span>
+                </span>
+                <ChevronDown className="size-4 shrink-0 text-ink-2 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+              </summary>
+              <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
+                {pairwise ? (
+                  <p>
+                    Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores given before the event switched to that
+                    way of judging count as the order they imply), and each project&rsquo;s win % is its chance to beat an average project of its track,
+                    with the pull of the side a project was shown on and of the project a judge had just opened measured and taken out. The ± is one
+                    standard error: win % closer than about two of them are not told apart.
+                  </p>
+                ) : (
+                  <p>
+                    Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge proved to be across the
+                    event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. The ± under each score is one standard error: scores closer than
+                    about two of them are not told apart.
+                  </p>
+                )}
+                {results.yardstick ? (
+                  // the shared drawing paints its band in --sunken, which all but vanishes on the public dark ground; here it takes the hairline colour
+                  <div className="[&_svg_rect]:fill-rule">
+                    <YardstickLine y={results.yardstick} figure />
+                    {/* the small drawing's key, in the marks it uses */}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-13 text-ink-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block size-2.5 rounded-full bg-ink" aria-hidden /> the judges&rsquo; spread
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block size-2.5 rounded-full border-[1.5px] border-ink" aria-hidden /> after the engine
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-2.5 w-5 bg-rule" aria-hidden /> where luck alone lands, 9 times in 10
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </details>
             {/* the seal: beside the title on a wide screen; on a phone after the first places, which a visitor came for */}
             {results.anchor ? (
               <div className="order-last lg:order-none lg:col-start-2 lg:row-start-1 lg:self-start lg:pt-4">
