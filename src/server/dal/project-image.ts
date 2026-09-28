@@ -5,7 +5,7 @@ import type { Tx } from "../db/client";
 import { projects, teamMembers } from "../db/schema";
 import { AuthzError, HttpError, NotFoundError } from "../errors";
 import { mutate } from "../mutate";
-import { discardUpload, MAX_IMAGE_BYTES, sniffImage, storeUpload, stripMetadata } from "../uploads";
+import { discardUpload, MAX_IMAGE_BYTES, redrawImage, sniffImage, storeUpload } from "../uploads";
 import { HideInput } from "./comments";
 import { eventFacts, requireEvent } from "./events";
 import { parse } from "./parse";
@@ -13,9 +13,10 @@ import { parse } from "./parse";
 // A project's picture, uploaded by its team. The same rule as editing the project (project.edit:
 // its team's members, while submissions are open), decided in the one transaction with the change
 // and its audit row. As for every edit, the refusal comes first: only then are the size and the kind
-// checked and the file written, inside the transaction; if anything after the write fails, the file
-// is removed again, so a refused or failed upload leaves nothing. The picture it replaces, when that
-// was an upload too and no other project shows it, is removed after the commit.
+// checked and the picture drawn again (outside any transaction, since drawing it takes a moment), and
+// the rule is checked once more in the transaction that writes the file and the change; if anything
+// after the write fails, the file is removed again, so a refused or failed upload leaves nothing. The
+// picture it replaces, when that was an upload too and no other project shows it, is removed after the commit.
 
 function teamWork(actor: Actor | null, projectId: string, into: { project?: typeof projects.$inferSelect }) {
   return (tx: Tx) => {
@@ -56,20 +57,25 @@ function setThumbnail(actor: Actor | null, projectId: string, next: (() => strin
   return result;
 }
 
-/** Upload a team's project picture: PNG, JPEG or WebP, told by its bytes, at most 2 MB. */
-export function setProjectImage(actor: Actor | null, projectId: string, bytes: Uint8Array) {
+/** Upload a team's project picture: PNG, JPEG or WebP, told by its bytes, at most 8 MB; what is stored is the picture redrawn (redrawImage). */
+export async function setProjectImage(actor: Actor | null, projectId: string, bytes: Uint8Array) {
   // no session is a 401 whatever was sent, before the bytes are looked at (the route does not read a body for it)
   if (!actor) throw new AuthzError(unauthenticated);
+  // the refusal before the bytes are looked at: the write's own check, in a transaction that changes nothing
+  mutate({ actor, action: "project.edit", load: teamWork(actor, projectId, {}), run: () => ({ result: null, audit: null }) });
+  if (bytes.length > MAX_IMAGE_BYTES) throw new HttpError(413, "image_too_large", "The image is over 8 MB. Save a smaller one and try again.");
+  if (!sniffImage(bytes)) throw new HttpError(415, "unsupported_image", "Only PNG, JPEG or WebP images can be uploaded.");
+  // drawn again from its pixels, so nothing else in the file is published (a phone photo would give where it was taken)
+  const drawn = await redrawImage(bytes);
+  if (!drawn.ok) {
+    if (drawn.why === "too_many_pixels") throw new HttpError(413, "image_too_large", "The image is over 50 megapixels. Save a smaller one and try again.");
+    throw new HttpError(415, "unsupported_image", "The image file is damaged. Save it again as PNG, JPEG or WebP and try again.");
+  }
   let stored: string | null = null;
   try {
+    // checked again with the write: submissions may have closed while the picture was drawn
     return setThumbnail(actor, projectId, () => {
-      if (bytes.length > MAX_IMAGE_BYTES) throw new HttpError(413, "image_too_large", "The image is over 2 MB. Save a smaller one (1600 pixels wide is plenty) and try again.");
-      const kind = sniffImage(bytes);
-      if (!kind) throw new HttpError(415, "unsupported_image", "Only PNG, JPEG or WebP images can be uploaded.");
-      // stored without its metadata: a phone photo would publish where it was taken
-      const clean = stripMetadata(bytes, kind);
-      if (!clean) throw new HttpError(415, "unsupported_image", "The image file is damaged. Save it again as PNG, JPEG or WebP and try again.");
-      stored = storeUpload(clean, kind);
+      stored = storeUpload(drawn.bytes, "webp");
       return `/uploads/${stored}`;
     }) as { id: string; thumbnailUrl: string };
   } catch (err) {

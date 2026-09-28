@@ -118,7 +118,7 @@ export const OPERATIONS: Operation[] = [
     upload: ["image/png", "image/jpeg", "image/webp"],
     ok: 201,
     also: [413, 415],
-    note: "PNG, JPEG or WebP, told by the file's first bytes rather than its name or Content-Type, at most 2 MB. It is stored in the data volume and served at the /uploads/ address the answer gives. Until submissions close.",
+    note: "PNG, JPEG or WebP, told by the file's first bytes rather than its name or Content-Type, at most 8 MB and 50 megapixels. It is drawn again from its pixels (upright, at most 1600 pixels a side, a WebP with no metadata), stored in the data volume and served at the /uploads/ address the answer gives. Until submissions close.",
   },
   { method: "DELETE", path: "/api/projects/{project}/image", tag: "Teams and projects", summary: "Take the project's picture down (an uploaded file is deleted)", access: "team member" },
   { method: "POST", path: "/api/projects/{project}/take-down-picture", tag: "Teams and projects", summary: "Take a project's picture down, uploaded or linked, with a reason for the audit log; at any time", access: "organizer", body: In.HideInput },

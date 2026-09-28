@@ -61,7 +61,7 @@ export function PictureField({
         Picture
       </label>
       <p id="picture-help" className="text-13 text-ink-3">
-        Shown on your gallery card at 16:9. Upload a PNG, JPEG or WebP up to 2 MB, or give the address of an image.
+        Shown on your gallery card at 16:9. Upload a PNG, JPEG or WebP up to 8 MB, or give the address of an image.
       </p>
       <div className="mt-1 grid gap-4 sm:grid-cols-[208px_minmax(0,1fr)] sm:items-start">
         <div className="overflow-hidden rounded-xs border border-rule">
