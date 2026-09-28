@@ -51,6 +51,9 @@ export function TeamPanel({
   // Leaving and removing ask once more: one click used to drop a teammate, or yourself, from the
   // team and its project at once (a tester left by accident).
   const [confirming, setConfirming] = useState<string | null>(null);
+  // "Keep the team" removes the question: focus goes back to Dissolve team
+  const dissolveOpener = useRef<HTMLButtonElement>(null);
+  useRescueFocus(() => dissolveOpener.current, confirming === "dissolve");
   // The full link needs this page's address, which only the browser knows: the server
   // renders the short path and the browser fills in the rest after hydration.
   const origin = useSyncExternalStore(noSubscription, () => window.location.origin, () => null);
@@ -179,13 +182,14 @@ export function TeamPanel({
                 <Button variant="ghost" size="sm" name="do" value="dissolve" disabled={changing} className="-ml-2.5 text-flag">
                   {project ? "Yes, dissolve and delete the draft" : "Yes, dissolve"}
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(null)}>
+                {/* the question replaces the focused button: focus lands on the safe answer, never on the deletion */}
+                <Button type="button" variant="ghost" size="sm" autoFocus onClick={() => setConfirming(null)}>
                   Keep the team
                 </Button>
               </div>
             </div>
           ) : (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming("dissolve")} className="-ml-2.5">
+            <Button ref={dissolveOpener} type="button" variant="ghost" size="sm" onClick={() => setConfirming("dissolve")} className="-ml-2.5">
               Dissolve team
             </Button>
           )}

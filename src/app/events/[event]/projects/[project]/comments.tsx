@@ -77,10 +77,11 @@ export function DeleteOwnComment({ commentId, path }: { commentId: string; path:
       <input type="hidden" name="comment" value={commentId} />
       <input type="hidden" name="path" value={path} />
       <span className="text-13 text-ink-2">Delete your comment for good?</span>
-      <button disabled={pending} autoFocus className="text-13 font-medium text-flag underline underline-offset-4">
+      <button disabled={pending} className="text-13 font-medium text-flag underline underline-offset-4">
         {pending ? "Deleting…" : "Yes, delete"}
       </button>
-      <button type="button" onClick={() => setAsking(false)} className={quiet}>
+      {/* the question replaces the focused button: focus lands on the safe answer */}
+      <button type="button" autoFocus onClick={() => setAsking(false)} className={quiet}>
         Keep
       </button>
       {state.message && !state.ok ? <span className="text-13 text-flag">{state.message}</span> : null}
