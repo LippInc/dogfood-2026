@@ -64,7 +64,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 **`votes`** — one ballot entry. `voter_id`, `project_id` (pk); `created_at`.
 
-**`comments`** — one signed-in person's comment on a project. `id`; `event_id`; `project_id`; `user_id`; `body` (1 to 2,000 characters once trimmed); `created_at`; `hidden_at`, `hidden_by`, `hidden_reason` — an organizer's hide, whose reason stays in place.
+**`comments`** — one signed-in person's comment on a project. `id`; `event_id`; `project_id`; `user_id`; `body` (1 to 2,000 characters once trimmed); `created_at`; `hidden_at`, `hidden_by`, `hidden_reason` — an organizer's hide, whose reason stays in place; unhiding clears all three (the `comment.unhide` audit row keeps the reason). Its author can delete a row that is not hidden; the `comment.deleted` audit row keeps its id and length, not its words.
 
 ## Signed records and keys
 

@@ -326,6 +326,10 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" commented on "), project(target)];
     case "project.image_taken_down":
       return [actor, t(" took down the picture of "), project(target), t(`: ${quote(after.reason)}`)];
+    case "comment.deleted":
+      return [actor, t(" deleted their comment on "), project(target)];
+    case "comment.unhide":
+      return [actor, t(" showed a hidden comment on "), project(target), t(` again (it was hidden: ${quote(before.reason)})`)];
     case "comment.hide":
       return [actor, t(" hid a comment on "), project(target), t(`: ${quote(after.reason)}`)];
     case "record.issue": {

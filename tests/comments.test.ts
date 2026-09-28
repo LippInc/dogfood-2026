@@ -8,7 +8,8 @@ import { auditLog, userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
-import { hideComment, listComments, postComment } from "@/server/dal/comments";
+import { deleteComment, hideComment, listComments, postComment, unhideComment } from "@/server/dal/comments";
+import { verifyAuditChain } from "@/server/audit";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -159,5 +160,76 @@ describe("hideComment", () => {
     const { id } = postComment(author, "prj_01", { body: "Nice work" });
     hideComment(org(), id, { reason: "Personal attack" });
     expect(JSON.stringify(listComments(null, "prj_01"))).not.toContain("Nice work");
+  });
+});
+
+describe("deleteComment: the author takes their own comment back", () => {
+  const exists = (id: string) => count(`SELECT count(*) AS n FROM comments WHERE id = '${id}'`);
+
+  it("the author deletes it for good: gone from the list and the table, one comment.deleted row without the words", () => {
+    const author = addUser("usr_author", "author@example.org", "Author");
+    const { id } = postComment(author, "prj_01", { body: "Posted on the wrong project" });
+
+    expect(deleteComment(author, id)).toEqual({ id, deleted: true });
+
+    expect(exists(id)).toBe(0);
+    expect(listComments(null, "prj_01").find((c) => c.id === id)).toBeUndefined();
+    const row = auditRows().at(-1)!;
+    expect(row).toMatchObject({ action: "comment.deleted", actorUserId: author.userId, targetId: "prj_01", before: { comment: id, chars: 27 } });
+    expect(JSON.stringify(row)).not.toContain("wrong project");
+  });
+
+  it("known-bad: someone else, even an organizer, is 403 not_your_comment (one refusal row naming the comment); no session is 401; the comment stays", () => {
+    const author = addUser("usr_author", "author@example.org", "Author");
+    const { id } = postComment(author, "prj_01", { body: "Mine" });
+    const other = addUser("usr_other", "other@example.org", "Other");
+    expectHttpError(() => deleteComment(other, id), 403, "not_your_comment");
+    expect(auditRows().at(-1)).toMatchObject({ action: "authz.refused", targetType: "comment", targetId: id });
+    expectHttpError(() => deleteComment(org(), id), 403, "not_your_comment");
+    expectHttpError(() => deleteComment(null, id), 401, "unauthenticated");
+    expectHttpError(() => deleteComment(author, "cmt_nope"), 404, "not_found");
+    expect(exists(id)).toBe(1);
+  });
+
+  it("known-bad: a comment the organizers hid stays (403 comment_hidden); once they unhide it, its author can delete it", () => {
+    const author = addUser("usr_author", "author@example.org", "Author");
+    const { id } = postComment(author, "prj_01", { body: "Rude words" });
+    hideComment(org(), id, { reason: "Personal attack" });
+    expectHttpError(() => deleteComment(author, id), 403, "comment_hidden");
+    expect(exists(id)).toBe(1);
+    unhideComment(org(), id);
+    deleteComment(author, id);
+    expect(exists(id)).toBe(0);
+  });
+});
+
+describe("unhideComment: an organizer shows a hidden comment again", () => {
+  it("the body comes back, one comment.unhide row keeps the old reason; unhiding a shown comment writes nothing; it can be hidden again", () => {
+    const author = addUser("usr_author", "author@example.org", "Author");
+    const { id } = postComment(author, "prj_01", { body: "Fair point after all" });
+    hideComment(org(), id, { reason: "Looked like spam" });
+
+    unhideComment(org(), id);
+
+    const shown = listComments(null, "prj_01").find((c) => c.id === id);
+    expect(shown?.hidden).toBeNull();
+    expect(shown?.body).toBe("Fair point after all");
+    expect(auditRows().at(-1)).toMatchObject({ action: "comment.unhide", targetId: "prj_01", before: { comment: id, reason: "Looked like spam" } });
+    const rows = auditRows().length;
+    unhideComment(org(), id);
+    expect(auditRows().length).toBe(rows);
+    hideComment(org(), id, { reason: "Spam after all" });
+    expect(listComments(null, "prj_01").find((c) => c.id === id)?.hidden).toEqual({ reason: "Spam after all" });
+    expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
+  it("known-bad: a participant, and the comment's own author, are 403 not_an_organizer; no session is 401; the comment stays hidden", () => {
+    const author = addUser("usr_author", "author@example.org", "Author");
+    const { id } = postComment(author, "prj_01", { body: "Rude words" });
+    hideComment(org(), id, { reason: "Personal attack" });
+    expectHttpError(() => unhideComment(participant(), id), 403, "not_an_organizer");
+    expectHttpError(() => unhideComment(actorById(author.userId), id), 403, "not_an_organizer");
+    expectHttpError(() => unhideComment(null, id), 401, "unauthenticated");
+    expect(listComments(null, "prj_01").find((c) => c.id === id)?.hidden).toEqual({ reason: "Personal attack" });
   });
 });

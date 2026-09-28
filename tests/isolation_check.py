@@ -441,7 +441,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B8 -- comments and moderation
-    c = Check("B", "comments: post, hide, and the reason stays")
+    c = Check("B", "comments: post, hide, the reason stays, unhide, and only the author deletes")
     comments_url = u("/api/projects/prj_01/comments")
     s, _, _ = visitor.request("POST", comments_url, {"body": "isolation check: no session"})
     expect(c, s == 401, visitor, "POST", comments_url, s, "401")
@@ -468,6 +468,28 @@ def run_checks(cfg):
             expect(c, (row.get("hidden") or {}).get("reason") == "isolation check", participant,
                    "GET", comments_url, f"hidden {row.get('hidden')!r}",
                    "hidden.reason 'isolation check'")
+        # a hidden comment stays until the organizers unhide it; then only its author deletes it
+        delete_url = u(f"/api/comments/{comment_id}")
+        s, body, _ = participant.request("DELETE", delete_url)
+        expect(c, s == 403 and error_code(body) == "comment_hidden", participant, "DELETE", delete_url,
+               f"{s} {error_code(body)}", "403 comment_hidden")
+        unhide_url = u(f"/api/comments/{comment_id}/unhide")
+        s, _, _ = participant.request("POST", unhide_url)
+        expect(c, s == 403, participant, "POST", unhide_url, s, "403")
+        s, _, _ = organizer.request("POST", unhide_url)
+        expect(c, s == 200, organizer, "POST", unhide_url, s, "200")
+        s, _, _ = visitor.request("DELETE", delete_url)
+        expect(c, s == 401, visitor, "DELETE", delete_url, s, "401")
+        s, body, _ = judge_a.request("DELETE", delete_url)
+        expect(c, s == 403 and error_code(body) == "not_your_comment", judge_a, "DELETE", delete_url,
+               f"{s} {error_code(body)}", "403 not_your_comment")
+        s, _, _ = participant.request("DELETE", delete_url)
+        expect(c, s == 200, participant, "DELETE", delete_url, s, "200")
+        s, body, _ = participant.request("GET", comments_url)
+        if expect(c, s == 200, participant, "GET", comments_url, s, "200"):
+            gone = all(x.get("id") != comment_id for x in as_json(body).get("comments", []))
+            expect(c, gone, participant, "GET", comments_url, f"comment {comment_id} still listed",
+                   "the deleted comment gone")
     checks.append(c)
 
     # B9 -- the rate limits bite, say when to come back, and ignore the address a client claims
@@ -561,6 +583,7 @@ def run_checks(cfg):
         wanted = {
             "voting.settings": 2, "voting.link": 1, "voter.join_link": 2, "voting.voters_added": 1,
             "vote.cast": 4, "voter.void": 1, "comment.post": 2, "comment.hide": 1,
+            "comment.unhide": 1, "comment.deleted": 1,
         }
         for action, n in wanted.items():
             got = len(seen.get(action, []))

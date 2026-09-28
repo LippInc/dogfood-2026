@@ -257,6 +257,8 @@ export const OPERATIONS: Operation[] = [
   // Comments
   { method: "GET", path: "/api/projects/{project}/comments", tag: "Comments", summary: "A project's comments; hidden ones keep their place and reason", access: "anyone" },
   { method: "POST", path: "/api/projects/{project}/comments", tag: "Comments", summary: "Comment on a submitted project", access: "signed in", body: In.CommentInput, ok: 201, also: [429] },
+  { method: "DELETE", path: "/api/comments/{comment}", tag: "Comments", summary: "Delete your own comment, for good (the audit log keeps that it was, not its words)", access: "signed in", note: "403 not_your_comment for anyone but its author; 403 comment_hidden while the organizers keep it hidden." },
+  { method: "POST", path: "/api/comments/{comment}/unhide", tag: "Comments", summary: "Show a hidden comment again", access: "organizer" },
   { method: "POST", path: "/api/comments/{comment}/hide", tag: "Comments", summary: "Hide a comment, with a reason shown in its place", access: "organizer", body: In.HideInput },
 
   // Webhooks

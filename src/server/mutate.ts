@@ -49,7 +49,9 @@ export function refusalAudit(actor: Who, action: Action, resource: Resource, ref
             ? (resource.voter?.id ?? eventId)
             : resource.kind === "project_comments"
               ? resource.projectId
-              : eventId,
+              : resource.kind === "comment"
+                ? resource.commentId
+                : eventId,
     after: { attempted: action, status: refusal.status, code: refusal.code },
   };
 }

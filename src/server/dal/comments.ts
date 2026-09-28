@@ -12,8 +12,10 @@ import { eventFacts, requireEvent } from "./events";
 import { parse } from "./parse";
 
 // Comments on a submitted project: anyone signed in may write one, a few per ten
-// minutes; an organizer can hide one with a reason, which stays visible in its place
-// ("hidden by the organizers: ...") so nothing disappears silently.
+// minutes, and delete their own; an organizer can hide one with a reason, which stays
+// visible in its place ("hidden by the organizers: ...") so nothing disappears silently,
+// and unhide it again. A hidden comment stays until the organizers unhide it: its author
+// cannot delete it from under their reason.
 
 export type CommentView = {
   id: string;
@@ -104,6 +106,51 @@ export function hideComment(actor: Actor | null, commentId: string, body: unknow
       return {
         result: { id: comment.id },
         audit: { action: "comment.hide", eventId: comment.eventId, targetType: "project", targetId: comment.projectId, after: { comment: comment.id, reason } },
+      };
+    },
+  });
+}
+
+/** The author deletes their own comment, for good; the audit row keeps its id and length, not its words. */
+export function deleteComment(actor: Actor | null, commentId: string) {
+  let comment: typeof comments.$inferSelect;
+  return mutate({
+    actor,
+    action: "comment.delete",
+    load: (tx) => {
+      const c = tx.select().from(comments).where(eq(comments.id, commentId)).get();
+      if (!c) throw new NotFoundError("Comment");
+      comment = c;
+      return { kind: "comment", event: eventFacts(requireEvent(tx, c.eventId)), commentId: c.id, authorId: c.userId, hidden: Boolean(c.hiddenAt) };
+    },
+    run: (tx) => {
+      tx.delete(comments).where(eq(comments.id, comment.id)).run();
+      return {
+        result: { id: comment.id, deleted: true },
+        audit: { action: "comment.deleted", eventId: comment.eventId, targetType: "project", targetId: comment.projectId, before: { comment: comment.id, chars: comment.body.length } },
+      };
+    },
+  });
+}
+
+/** An organizer shows a hidden comment again; the row keeps the reason it was hidden with. */
+export function unhideComment(actor: Actor | null, commentId: string) {
+  let comment: typeof comments.$inferSelect;
+  return mutate({
+    actor,
+    action: "event.manage",
+    load: (tx) => {
+      const c = tx.select().from(comments).where(eq(comments.id, commentId)).get();
+      if (!c) throw new NotFoundError("Comment");
+      comment = c;
+      return { kind: "event", event: eventFacts(requireEvent(tx, c.eventId)) };
+    },
+    run: (tx) => {
+      if (!comment.hiddenAt) return { result: { id: comment.id }, audit: null };
+      tx.update(comments).set({ hiddenAt: null, hiddenBy: null, hiddenReason: null }).where(eq(comments.id, comment.id)).run();
+      return {
+        result: { id: comment.id },
+        audit: { action: "comment.unhide", eventId: comment.eventId, targetType: "project", targetId: comment.projectId, before: { comment: comment.id, reason: comment.hiddenReason } },
       };
     },
   });

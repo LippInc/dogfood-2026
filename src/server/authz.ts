@@ -57,6 +57,7 @@ export type Action =
   | "pairwise.pick"
   | "vote.cast"
   | "comment.post"
+  | "comment.delete"
   | "record.issue_own"
   | "records.issue_all"
   | "account.tokens";
@@ -83,6 +84,8 @@ export type Resource =
   | { kind: "ballot"; event: EventFacts; modes: VoterKind[]; voter: { id: string; kind: VoterKind; voided: boolean } | null }
   /** comments on one project */
   | { kind: "project_comments"; event: EventFacts; projectId: string; submitted: boolean }
+  /** one comment: who wrote it, and whether the organizers hid it */
+  | { kind: "comment"; event: EventFacts; commentId: string; authorId: string; hidden: boolean }
   /** the actor's own signed record: finishedReviews, answers (pairwise) and onSubmittedTeam are the actor's, in this event */
   | { kind: "record_subject"; event: EventFacts; recordKind: "judge" | "participant"; finishedReviews: number; answers: number; onSubmittedTeam: boolean };
 
@@ -351,6 +354,14 @@ export function authorize(
     case "comment.post": {
       if (resource.kind !== "project_comments") return refuse("bad_resource", "This action needs a project.");
       return resource.submitted ? allow : refuse("not_submitted", "Comments open once a project is submitted.");
+    }
+
+    // An author takes back their own comment. One the organizers hid stays, with their reason, until they unhide it.
+    case "comment.delete": {
+      if (resource.kind !== "comment") return refuse("bad_resource", "This action needs a comment.");
+      if (resource.authorId !== actor.userId) return refuse("not_your_comment", "Only the person who wrote a comment can delete it.");
+      if (resource.hidden) return refuse("comment_hidden", "The organizers hid this comment, so it stays in place with their reason. Ask them if it should go.");
+      return allow;
     }
 
     case "record.issue_own": {

@@ -8,7 +8,7 @@ import { formatUtc } from "@/lib/format";
 import { competitionPlaces, ordinal } from "@/lib/places";
 import Link from "next/link";
 import { actorNav, currentActor, getGallery, getMyWork, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
-import { CommentForm, HideForm } from "./comments";
+import { CommentForm, DeleteOwnComment, HideForm, UnhideForm } from "./comments";
 import { TakeDownPicture } from "./take-down";
 
 export const dynamic = "force-dynamic";
@@ -370,7 +370,13 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                           {c.mine ? <span className="label-mono text-accent-ink">you</span> : null}
                           <span className="font-mono text-12 text-ink-3">{formatUtc(c.createdAt)}</span>
                         </span>
-                        {canModerate && !c.hidden ? <HideForm commentId={c.id} path={path} /> : null}
+                        {(c.mine && !c.hidden) || canModerate ? (
+                          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                            {c.mine && !c.hidden ? <DeleteOwnComment commentId={c.id} path={path} /> : null}
+                            {canModerate && !c.hidden ? <HideForm commentId={c.id} path={path} /> : null}
+                            {canModerate && c.hidden ? <UnhideForm commentId={c.id} path={path} /> : null}
+                          </span>
+                        ) : null}
                       </p>
                       {c.hidden ? (
                         <p className="sealed mt-2 rounded-xs border border-rule px-3 py-2 text-14 text-ink-2">

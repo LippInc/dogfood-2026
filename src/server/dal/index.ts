@@ -126,7 +126,7 @@ export {
   type CommunityResults,
   type Tally,
 } from "./voting-organizer";
-export { hideComment, listComments, postComment, type CommentView } from "./comments";
+export { deleteComment, hideComment, listComments, postComment, unhideComment, type CommentView } from "./comments";
 export { RateLimitedError } from "../errors";
 export { actionError, json, route, type ActionResult } from "../http";
 export { actorNav, type NavLink } from "./nav";
