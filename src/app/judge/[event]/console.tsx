@@ -369,7 +369,12 @@ export function JudgeConsoleView({
     return out;
   }, [criteria, current, items, reviews]);
   const usedBefore = Object.values(usage).some((counts) => counts.some((n) => n > 0));
-  const rankingRef = useFlip<HTMLOListElement>(ranking);
+  // useFlip's layout effect should only re-measure and slide rows when the order or membership
+  // actually changes. `ranking` is a fresh array on every keystroke in the feedback box (it is
+  // derived from `reviews`, which edit() touches for any field, not just scores), so passing it
+  // straight through re-ran the effect on every keystroke for no reason. A row order signature
+  // changes only when scoring actually reorders the list, matching the pattern in compare.tsx.
+  const rankingRef = useFlip<HTMLOListElement>(ranking.map((r) => r.id).join(","));
 
   if (!current || !review) {
     return (
