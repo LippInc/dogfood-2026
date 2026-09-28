@@ -32,13 +32,15 @@ export function ModeToggle({ className = "" }: { className?: string }) {
     document.documentElement.dataset.mode = next;
     document.cookie = `mode=${next}; path=/; max-age=31536000; samesite=lax`;
   };
+  // Named for what pressing does, like its icon (a sun in dark mode): "Dark mode, not pressed"
+  // left a listener to work out which mode the page was in and what a press would change.
+  const name = dark ? "Switch to light mode" : "Switch to dark mode";
   return (
     <button
       type="button"
       onClick={toggle}
-      aria-pressed={dark}
-      aria-label="Dark mode"
-      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={name}
+      title={name}
       className={`inline-flex size-9 items-center justify-center rounded-sm border border-transparent text-ink-2 hover:border-rule hover:text-ink ${className}`}
     >
       {dark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
