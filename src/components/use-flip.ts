@@ -15,11 +15,13 @@ export function useFlip<T extends HTMLElement>(change: unknown) {
     const list = ref.current;
     if (!list) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const origin = list.getBoundingClientRect().top;
     const next = new Map<string, number>();
     for (const child of list.querySelectorAll<HTMLElement>("[data-flip]")) {
       const key = child.dataset.flip!;
-      const top = child.getBoundingClientRect().top - origin;
+      // Where the row sits in the layout, not where a slide still running from the last change has drawn it:
+      // measured mid-slide, the moved box read as a new move and restarted the slide on every re-render (the judge
+      // console's ranking shook while a judge typed feedback, 2026-09-28).
+      const top = child.offsetTop - (child.offsetParent === list ? 0 : list.offsetTop);
       next.set(key, top);
       const before = last.current?.get(key);
       if (reduce || !last.current || typeof child.animate !== "function") continue;
