@@ -6,6 +6,7 @@ import { databasePath, handle, type Handle } from "./db/client";
 import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
+import { mailProblem } from "./mail";
 import { ensureSigningKey } from "./signing";
 import { startWebhookWorker } from "./webhooks";
 import { nowIso } from "./util";
@@ -59,6 +60,8 @@ export async function boot(): Promise<void> {
   // before the database is opened: a portal others can reach never runs on the public default secret
   const refused = startRefusal();
   if (refused) throw new Error(`refusing to start: ${refused}`);
+  const mailRefused = mailProblem();
+  if (mailRefused) throw new Error(`refusing to start: ${mailRefused}`);
   const h = handle();
   const triggers = runMigrations(h);
   if (triggers.restored.length > 0) console.warn(`[boot] triggers restored: ${triggers.restored.join(", ")}`);
