@@ -2,8 +2,9 @@
 
 import { Check } from "lucide-react";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { castAction } from "./actions";
+import { BallotSaver, type SaverView } from "./ballot-saver";
 
 type Project = { id: string; title: string; summary: string; teamName: string; trackName: string; own: boolean };
 
@@ -35,41 +36,63 @@ export function Ballot({
   /** small faces for the ballot slots in the sticky bar */
   slotFaces: Record<string, React.ReactNode>;
 }) {
-  const [picks, setPicks] = useState<string[]>(initialPicks);
-  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
-  const [pending, startTransition] = useTransition();
+  // What the page draws comes from the saver: a pick shows at once, saves one at a time in order,
+  // and a lost connection or a refusal says so on the status line (see ballot-saver.ts).
+  const [view, setView] = useState<SaverView>({ phase: "idle", picks: initialPicks });
+  const [saver] = useState(() => new BallotSaver((next) => castAction(eventId, next), setView, initialPicks));
+  // a note that is not about saving ("you have used all your votes"), until the next pick
+  const [note, setNote] = useState<string | null>(null);
   const [show, setShow] = useState<string>("all");
+  const picks = view.picks;
   const left = max - picks.length;
   const titles = Object.fromEntries(projects.map((p) => [p.id, p.title]));
   const tracks = [...new Set(projects.map((p) => p.trackName))].sort();
   const shown = projects.filter((p) => (show === "all" ? true : show === "picks" ? picks.includes(p.id) : p.trackName === show));
 
+  useEffect(() => {
+    // back online: send a waiting save now instead of at the next retry
+    const online = () => saver.retryNow();
+    // leaving with a pick the server does not hold yet: the browser asks first
+    const leave = (e: BeforeUnloadEvent) => {
+      if (saver.unsaved()) e.preventDefault();
+    };
+    window.addEventListener("online", online);
+    window.addEventListener("beforeunload", leave);
+    return () => {
+      window.removeEventListener("online", online);
+      window.removeEventListener("beforeunload", leave);
+      saver.stop();
+    };
+  }, [saver]);
+
   function toggle(id: string) {
     if (!canVote) return;
     const chosen = picks.includes(id);
     if (!chosen && left === 0) {
-      setStatus({ ok: false, text: max === 1 ? "You have used your vote. Take it back to choose another." : `You have used all ${max} votes. Take one back to choose another.` });
+      setNote(max === 1 ? "You have used your vote. Take it back to choose another." : `You have used all ${max} votes. Take one back to choose another.`);
       return;
     }
-    const next = chosen ? picks.filter((p) => p !== id) : [...picks, id];
-    const before = picks;
-    setPicks(next);
-    setStatus(null);
-    startTransition(async () => {
-      const res = await castAction(eventId, next);
-      if (res.ok) {
-        const saved = res.picks ?? next;
-        setPicks(saved);
-        setStatus({
-          ok: true,
-          text: saved.length === max ? "Ballot complete and saved. You can still change it until voting closes." : "Saved. You can change your picks until voting closes.",
-        });
-      } else {
-        setPicks(before);
-        setStatus({ ok: false, text: res.message ?? "Not saved." });
-      }
-    });
+    setNote(null);
+    saver.want(chosen ? picks.filter((p) => p !== id) : [...picks, id]);
   }
+
+  const status: { ok: boolean; text: string } | null = note
+    ? { ok: false, text: note }
+    : view.phase === "saving"
+      ? { ok: true, text: "Saving…" }
+      : view.phase === "offline"
+        ? { ok: false, text: "Not saved yet: the connection dropped. Trying again…" }
+        : view.phase === "refused"
+          ? { ok: false, text: view.message }
+          : view.phase === "saved"
+            ? {
+                ok: true,
+                text:
+                  picks.length === max
+                    ? "Ballot complete and saved. You can still change it until voting closes."
+                    : "Saved. You can change your picks until voting closes.",
+              }
+            : null;
 
   const chip = (key: string, label: string, n: number) => (
     <button
@@ -117,8 +140,8 @@ export function Ballot({
             </p>
           </div>
           {canVote || !cta ? (
-            <p role="status" aria-live="polite" className={`text-14 ${status ? (status.ok ? "text-ok" : "text-flag") : "text-ink-2"}`}>
-              {pending ? "Saving…" : (status?.text ?? "")}
+            <p role="status" aria-live="polite" className={`text-14 ${status && view.phase !== "saving" ? (status.ok ? "text-ok" : "text-flag") : "text-ink-2"}`}>
+              {status?.text ?? ""}
             </p>
           ) : "href" in cta ? (
             <Link
@@ -179,10 +202,9 @@ export function Ballot({
                   <button
                     type="button"
                     onClick={() => toggle(p.id)}
-                    disabled={pending}
                     aria-pressed={chosen}
                     aria-label={`${chosen ? "Take back your vote for" : "Vote for"} ${p.title}`}
-                    className="inline-flex h-11 w-[88px] items-center justify-center gap-1.5 rounded-sm border border-edge text-15 font-medium hover:bg-raised aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent disabled:cursor-progress sm:mt-4 sm:w-auto"
+                    className="inline-flex h-11 w-[88px] items-center justify-center gap-1.5 rounded-sm border border-edge text-15 font-medium hover:bg-raised aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent sm:mt-4 sm:w-auto"
                   >
                     {chosen ? (
                       <>
