@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { ModeToggle } from "@/components/mode-toggle";
+import { PageMark } from "@/components/page-mark";
 
 export type WorkTab = { href: string; label: string; active?: boolean };
 
 /**
  * The work side's frame (judges, organizers): quiet surfaces, navy ink, the event
  * marked by one pink square. Pages pass their tabs and a slot for the top bar's
- * right-hand tools.
+ * right-hand tools. The page's mark closes the bar on the right, in whatever room the
+ * bar leaves (none, no mark); on a phone, where the bar wraps, it closes the brand row.
  */
 export function WorkShell({
   eventName,
@@ -29,6 +31,8 @@ export function WorkShell({
   children: React.ReactNode;
   flush?: boolean;
 }) {
+  // on the judge console the mark is the judge's own
+  const markExtra = role === "Judge" ? person : undefined;
   return (
     <div className="work min-h-dvh">
       <a
@@ -37,13 +41,16 @@ export function WorkShell({
       >
         Skip to content
       </a>
-      <header className="border-b border-rule bg-surface">
-        {/* On a phone the header wraps: brand and controls on the first row, the tabs on a
-            scrolling row of their own, so Sign out and the mode toggle never sit off-screen. */}
+      <header className="relative border-b border-rule bg-surface">
+        {/* on a phone the bar wraps, and the mark sits in the brand row's right-hand corner */}
+        <PageMark anchor="right" cols={12} rows={11} extra={markExtra} className="absolute top-0 right-4 sm:hidden" />
+        {/* On a phone the header wraps: the brand on the first row (beside the page's mark), the
+            controls on the next, the tabs on a scrolling row of their own, so Sign out and the
+            mode toggle never sit off-screen or under the mark. */}
         <div className="flex flex-wrap items-stretch gap-x-6 px-4 sm:h-12 sm:flex-nowrap sm:overflow-x-auto lg:px-8">
-          <Link href={eventHref} className="flex shrink-0 items-center gap-3 self-center py-3 sm:py-0">
-            <span className="size-3 bg-accent" aria-hidden />
-            <span title={eventName} className="max-w-[20rem] truncate text-15 font-semibold sm:max-w-[28rem]">
+          <Link href={eventHref} className="flex shrink-0 items-center gap-3 self-center py-3 max-sm:basis-full max-sm:pr-16 sm:py-0">
+            <span className="size-3 shrink-0 bg-accent" aria-hidden />
+            <span title={eventName} className="max-w-[20rem] min-w-0 truncate text-15 font-semibold sm:max-w-[28rem]">
               {eventName}
             </span>
             {crumb ? (
@@ -76,6 +83,11 @@ export function WorkShell({
             <form action="/api/auth/sign-out" method="post">
               <button className="h-8 rounded-sm px-2 text-13 text-ink-2 hover:bg-raised hover:text-ink">Sign out</button>
             </form>
+          </div>
+          {/* the page's mark closes the bar on the right, only in room the bar does not use */}
+          <div className="@container relative hidden max-w-[80px] min-w-0 flex-1 overflow-hidden sm:block" aria-hidden="true">
+            <PageMark anchor="right" cols={20} rows={12} extra={markExtra} className="absolute top-0 right-0 hidden @min-[80px]:block" />
+            <PageMark anchor="right" cols={10} rows={12} extra={markExtra} className="absolute top-0 right-0 @min-[80px]:hidden" />
           </div>
         </div>
       </header>

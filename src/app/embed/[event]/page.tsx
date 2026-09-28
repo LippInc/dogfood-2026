@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
+import { PageMark } from "@/components/page-mark";
 import { getGallery, NotFoundError, type Gallery } from "@/server/dal";
 import { ReportHeight } from "./height";
 
@@ -31,14 +32,21 @@ export default async function EmbedPage({
   return (
     <div className="public min-h-0 p-4 wrap-anywhere">
       <ReportHeight />
-      <p className="label-mono flex items-center text-ink-2">
-        <span className="mr-3 inline-block size-2 bg-accent" aria-hidden />
-        {g.event.name}
-        <span className="mx-3 text-ink-3" aria-hidden>
-          /
-        </span>
-        {projects.length} {projects.length === 1 ? "project" : "projects"}
-      </p>
+      <div className="flex items-stretch gap-6">
+        <p className="label-mono flex min-w-0 items-center text-ink-2">
+          <span className="mr-3 inline-block size-2 shrink-0 bg-accent" aria-hidden />
+          {g.event.name}
+          <span className="mx-3 text-ink-3" aria-hidden>
+            /
+          </span>
+          {projects.length} {projects.length === 1 ? "project" : "projects"}
+        </p>
+        {/* the page's mark, as on the portal's own status strip */}
+        <div className="@container relative ml-auto max-w-[160px] min-w-0 flex-1 overflow-hidden" aria-hidden="true">
+          <PageMark anchor="right" cols={40} rows={4} className="absolute top-0 right-0 hidden @min-[160px]:block" />
+          <PageMark anchor="right" cols={20} rows={4} className="absolute top-0 right-0 @min-[160px]:hidden" />
+        </div>
+      </div>
       <ul className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
         {projects.map((p) => (
           <li key={p.id} className="flex">

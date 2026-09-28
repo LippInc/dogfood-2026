@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { StatusFigure } from "@/components/refusal";
-import { PlainShell } from "@/components/shell/plain-shell";
+import { StatusFigure } from "@/components/status-figure";
+import { PlainFrame } from "@/components/shell/plain-frame";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
  */
 export default function ErrorPage({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   return (
-    <PlainShell width="max-w-[1120px]">
+    <PlainFrame width="max-w-[1120px]">
       <div className="grid items-center gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:gap-20">
         <div>
           <p className="label-mono text-accent-ink">500 · Something broke</p>
@@ -41,6 +41,6 @@ export default function ErrorPage({ error, retry }: { error: Error & { digest?: 
           <StatusFigure status="500" />
         </div>
       </div>
-    </PlainShell>
+    </PlainFrame>
   );
 }
