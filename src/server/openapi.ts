@@ -227,7 +227,9 @@ export const OPERATIONS: Operation[] = [
     tag: "Results",
     summary: "Publish the results (409 while submissions or decisions are open); an open community vote closes with it",
     access: "organizer",
-    also: [409],
+    body: In.PublishInput,
+    also: [409, 422],
+    note: "No body is needed. In pairwise mode, a ranking fit that stopped at its step limit before settling is refused (409 fit_not_settled) unless the body gives { reason }; the reason is stored with the run and shown on the results.",
   },
   { method: "GET", path: "/api/events/{event}/results", tag: "Results", summary: "The published results per track, or { published: false }", access: "anyone", note: "Also lists weightChanges (rubric weights changed after judging began) and trackMoves (projects the organizers moved to another track after judges were assigned: from, to, reason, at), each as the published run recorded it." },
 

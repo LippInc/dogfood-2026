@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { getDb, type Db } from "../db/client";
-import { projects, signedRecords, teams } from "../db/schema";
+import { normalizationRuns, projects, signedRecords, teams } from "../db/schema";
 import { plural } from "@/lib/format";
 import { guardRead } from "../mutate";
 import { latestAudit, type AuditLine } from "./audit-log";
@@ -10,7 +10,7 @@ import { eventFacts, requireEvent, type EventRow } from "./events";
 import { judgeRows } from "./judges";
 import { computeNormalization } from "./normalization";
 import { eventDecisions, type Decision } from "./decisions";
-import { computePairwise, judgingModeOf, pairwiseProgress, pullShare } from "./pairwise";
+import { computePairwise, judgingModeOf, pairwiseProgress, pullShare, type Unsettled } from "./pairwise";
 import { voteSummary, type VoteSummary } from "./voting-organizer";
 
 // The organizer's overview (DESIGN.md: one focal point, three levels, details on
@@ -52,9 +52,27 @@ export type Overview = {
   /** the community vote, for the publish panel: publishing closes an open vote and calls off one not yet open */
   vote: VoteSummary;
   /** in pairwise mode: the answers so far and the two pulls the fit measured, as "wins X %" shares; null in scores mode */
-  pairwise: { answers: number; placed: number; total: number; left: ReturnType<typeof pullShare>; fresh: ReturnType<typeof pullShare> } | null;
+  pairwise: {
+    answers: number;
+    placed: number;
+    total: number;
+    left: ReturnType<typeof pullShare>;
+    fresh: ReturnType<typeof pullShare>;
+    /** the live fit stopped at its step limit before settling: publishing needs a reason */
+    unsettled: { iterations: number } | null;
+    /** the published run had not settled: its steps and the organizer's reason */
+    publishedUnsettled: Unsettled | null;
+  } | null;
   audit: AuditLine[];
 };
+
+/** The reason a published pairwise run was published before its fit settled, as stored with the run. */
+function publishedUnsettled(db: Db, event: EventRow): Unsettled | null {
+  const runId = event.settings.publishedRunId;
+  if (!event.resultsPublishedAt || !runId) return null;
+  const run = db.select({ params: normalizationRuns.params }).from(normalizationRuns).where(eq(normalizationRuns.id, runId)).get();
+  return (run?.params as { unsettled?: Unsettled } | undefined)?.unsettled ?? null;
+}
 
 const STAGE_OF: Record<Decision["kind"], string> = { duplicate: "04", under_reviewed: "06", flat_judge: "07", coin_flip_judge: "07" };
 
@@ -220,7 +238,16 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       ranked: n.ranked,
     },
     vote: voteSummary(db, event),
-    pairwise: progress && pw ? { ...progress, left: pullShare(pw.fit.left), fresh: pullShare(pw.fit.fresh) } : null,
+    pairwise:
+      progress && pw
+        ? {
+            ...progress,
+            left: pullShare(pw.fit.left),
+            fresh: pullShare(pw.fit.fresh),
+            unsettled: pw.fit.converged ? null : { iterations: pw.fit.iterations },
+            publishedUnsettled: publishedUnsettled(db, event),
+          }
+        : null,
     audit: latestAudit(db, event.id, 4, [
       "review.submit",
       "review.amend",

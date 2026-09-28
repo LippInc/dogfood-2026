@@ -106,6 +106,15 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </li>
                 ))}
               </ol>
+              {results.unsettled ? (
+                <div className="mt-6 max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
+                  <p className="font-semibold">The ranking fit had not settled when these results were published.</p>
+                  <p className="mt-1.5">
+                    It stopped after {results.unsettled.iterations} steps, so the win % could still have moved. The organizers published it anyway. Their
+                    reason: &ldquo;{results.unsettled.reason}&rdquo;
+                  </p>
+                </div>
+              ) : null}
               {results.weightChanges.length ? (
                 <div className="mt-6 max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
                   <p className="font-semibold">The organizers changed the rubric&rsquo;s weights after judging began.</p>

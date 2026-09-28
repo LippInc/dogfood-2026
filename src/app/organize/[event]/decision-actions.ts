@@ -112,5 +112,6 @@ export async function topUpAction(_prev: ActionResult, form: FormData): Promise<
 export async function publishAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const actor = await currentActor();
   if (form.get("confirm") !== "yes") return { ok: false, message: "Tick the box to confirm." };
-  return settle(form, (slug) => publishResults(actor, slug), "Published.");
+  const reason = form.get("reason");
+  return settle(form, (slug) => publishResults(actor, slug, typeof reason === "string" && reason.trim() ? { reason } : {}), "Published.");
 }

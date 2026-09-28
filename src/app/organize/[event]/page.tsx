@@ -198,6 +198,14 @@ export default async function OverviewPage({
             ? `${o.pairwise.placed} of ${o.pairwise.total} placed, ${plural(o.pairwise.answers, "answer")}`
             : `${plural(nz.ranked, "project")}, ${!nz.leniencyMeasured ? "too few reviews to measure leniency" : nz.k === null ? "no leniency found" : `k = ${nz.k.toFixed(1)}`}`,
         },
+        ...(o.pairwise?.publishedUnsettled
+          ? [
+              {
+                label: "Ranking fit",
+                value: `had not settled within ${o.pairwise.publishedUnsettled.iterations} steps; published because “${o.pairwise.publishedUnsettled.reason}”`,
+              },
+            ]
+          : []),
         {
           label: "Decisions",
           value: o.decisions.length
@@ -256,6 +264,7 @@ export default async function OverviewPage({
               publishedAt={event.resultsPublishedAt}
               submissionsCloseAt={o.submissionsOpenUntil}
               pairwise={o.pairwise !== null}
+              unsettled={o.pairwise?.unsettled ?? null}
               vote={o.vote}
               receipt={receipt}
             />

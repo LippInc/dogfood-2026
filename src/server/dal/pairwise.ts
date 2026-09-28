@@ -516,6 +516,9 @@ function pairwiseRun(db: DbOrTx, event: EventRow, opts: { scoresOnly?: boolean }
 export type PairwiseRanking = {
   mode: JudgingMode;
   method: string;
+  /** false when the fit stopped at its step limit before settling: the win % may still move */
+  converged: boolean;
+  iterations: number;
   counts: PairwiseComputed["counts"];
   left: PairwiseFit["left"];
   fresh: PairwiseFit["fresh"];
@@ -555,6 +558,8 @@ export function getPairwiseRanking(actor: Actor | null, eventIdOrSlug: string): 
   return {
     mode: judgingModeOf(event),
     method: PAIRWISE_METHOD_LABEL,
+    converged: pw.fit.converged,
+    iterations: pw.fit.iterations,
     counts: pw.counts,
     left: pw.fit.left,
     fresh: pw.fit.fresh,
@@ -661,8 +666,11 @@ export function pairwiseDecisions(event: EventRow, pw: PairwiseComputed): (CoinF
   ];
 }
 
+/** A fit that did not settle, published anyway: how many steps it took and the organizer's reason. */
+export type Unsettled = { iterations: number; reason: string };
+
 /** Store the ranking a pairwise event publishes, in the same tables as a score run, so results, records and exports read it the same way. */
-export function storePairwiseRun(tx: DbOrTx, event: EventRow, actorId: string, pw: PairwiseComputed, at: string): string {
+export function storePairwiseRun(tx: DbOrTx, event: EventRow, actorId: string, pw: PairwiseComputed, at: string, unsettled: Unsettled | null = null): string {
   const id = newId("nrm");
   tx.insert(normalizationRuns)
     .values({
@@ -678,6 +686,8 @@ export function storePairwiseRun(tx: DbOrTx, event: EventRow, actorId: string, p
         groups: pw.fit.tracks,
         converged: pw.fit.converged,
         trackMoves: projectTrackMoves(tx, event.id),
+        iterations: pw.fit.iterations,
+        ...(unsettled ? { unsettled } : {}),
       },
       computedAt: at,
       computedBy: actorId,

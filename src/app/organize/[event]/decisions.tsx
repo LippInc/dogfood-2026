@@ -554,6 +554,7 @@ export function PublishPanel({
   publishedAt,
   submissionsCloseAt,
   pairwise = false,
+  unsettled = null,
   vote = null,
   receipt = [],
 }: {
@@ -563,6 +564,8 @@ export function PublishPanel({
   publishedAt: string | null;
   /** the event is judged pairwise: publishing stores a pairwise run */
   pairwise?: boolean;
+  /** a pairwise ranking fit that stopped at its step limit before settling: publishing then needs a reason */
+  unsettled?: { iterations: number } | null;
   /** set while submissions are still open: publishing waits for the close */
   submissionsCloseAt: string | null;
   /** the community vote: publishing closes an open one and calls off one not yet open */
@@ -666,6 +669,18 @@ export function PublishPanel({
                   ? `The community vote is open until ${formatUtc(vote.closesAt)}, with ${vote.ballots} ${vote.ballots === 1 ? "ballot" : "ballots"}. Publishing closes it: its count becomes final and public with the results, so nobody votes with the ranking in view.`
                   : `A community vote is set to open ${formatUtc(vote.opensAt)}. Publishing calls it off, so nobody votes with the ranking in view.`}
               </p>
+            ) : null}
+            {unsettled && !open && !submissionsCloseAt ? (
+              <div className="flex flex-col gap-2 rounded-sm border border-rule border-l-[3px] border-l-flag-bar p-3 text-14">
+                <p>
+                  The ranking fit did not settle within {unsettled.iterations} steps, so its win % may still move. More comparisons usually settle it: ask
+                  the judges to finish placing their projects. To publish it as it is, say why; the reason goes on the published results.
+                </p>
+                <label className="text-13 font-medium" htmlFor="publish-reason">
+                  Reason, for the results and the audit log
+                </label>
+                <Textarea id="publish-reason" name="reason" rows={2} aria-invalid={Boolean(state.fieldErrors?.reason)} />
+              </div>
             ) : null}
             {open || submissionsCloseAt ? null : (
               <label className="flex items-start gap-2 text-14">

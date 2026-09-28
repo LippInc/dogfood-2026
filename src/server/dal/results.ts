@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignments, auditLog, events, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, users, type WeightChange } from "../db/schema";
@@ -13,7 +14,8 @@ import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { endVoteForPublish } from "./voting-organizer";
 import { judgeSet } from "./judging";
-import { computePairwise, judgingModeOf, PAIRWISE_METHOD, storePairwiseRun } from "./pairwise";
+import { computePairwise, judgingModeOf, PAIRWISE_METHOD, storePairwiseRun, type Unsettled } from "./pairwise";
+import { parse } from "./parse";
 import { METHOD, METHOD_LABEL, type ProjectRow, type Normalized, computeNormalization } from "./normalization";
 import { decisions, eventDecisions, organizerMutation, notPublished } from "./decisions";
 import { shownTitle } from "./project-fields";
@@ -171,13 +173,25 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
   return id;
 }
 
+export const PublishInput = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(3, "say why, in a few words")
+    .max(500)
+    .optional()
+    .describe("needed only when a pairwise ranking fit did not settle (409 fit_not_settled without it); stored with the run and shown on the results"),
+});
+
 /**
  * Publish results: only when every decision is settled. Stores the normalization
- * run it publishes, so the results page shows exactly what was decided.
+ * run it publishes, so the results page shows exactly what was decided. A pairwise
+ * fit that stopped before settling is published only with a written reason.
  */
-export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
+export function publishResults(actor: Actor | null, eventIdOrSlug: string, body: unknown = {}) {
   return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     notPublished(event);
+    const input = parse(PublishInput, body ?? {});
     // A project sent after publishing would be missing from the published results, and
     // the dates are final from then on, so the window could no longer be closed early.
     if (Date.now() < Date.parse(event.submissionsCloseAt)) {
@@ -194,7 +208,17 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
       if (openPw.length) {
         throw new ConflictError("decisions_open", `${openPw.length} ${openPw.length === 1 ? "decision is" : "decisions are"} still open. Settle ${openPw.length === 1 ? "it" : "them"} before publishing.`);
       }
-      const pwRun = storePairwiseRun(tx, event, actor!.userId, pw, at);
+      let unsettled: Unsettled | null = null;
+      if (!pw.fit.converged) {
+        if (!input.reason) {
+          throw new ConflictError(
+            "fit_not_settled",
+            `The ranking fit did not settle within ${pw.fit.iterations} steps, so its win % may still move. More comparisons usually settle it; to publish it as it is, give a reason.`,
+          );
+        }
+        unsettled = { iterations: pw.fit.iterations, reason: input.reason };
+      }
+      const pwRun = storePairwiseRun(tx, event, actor!.userId, pw, at, unsettled);
       const vote = endVoteForPublish(tx, event, at);
       tx.update(events)
         .set({ resultsPublishedAt: at, settings: { ...event.settings, publishedRunId: pwRun } })
@@ -214,6 +238,8 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string) {
             left: pw.fit.left,
             fresh: pw.fit.fresh,
             excluded: pw.excluded,
+            converged: pw.fit.converged,
+            ...(unsettled ? { unsettled } : {}),
             ...(vote ? { voteEnded: vote.ended, voting: vote.after } : {}),
           },
         },
@@ -268,6 +294,8 @@ export type PublishedResults =
       weightChanges: WeightChange[];
       /** projects the organizers moved to another track after judges were assigned, oldest first, as the run stored them; empty for runs stored before moves were kept */
       trackMoves: PublishedTrackMove[];
+      /** a pairwise fit that had not settled when it was published, with the organizer's reason; null otherwise */
+      unsettled: Unsettled | null;
       tracks: {
         id: string;
         name: string;
@@ -338,6 +366,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     yardstick: (run.params as { yardstick?: Yardstick | null }).yardstick ?? null,
     weightChanges: event.settings.weightChanges ?? [],
     trackMoves: (run.params as { trackMoves?: PublishedTrackMove[] }).trackMoves ?? [],
+    unsettled: (run.params as { unsettled?: Unsettled }).unsettled ?? null,
     tracks: [...byTrack.values()].map((t) => {
       const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
       return {

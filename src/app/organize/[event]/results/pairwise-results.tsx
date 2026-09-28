@@ -83,6 +83,15 @@ export function PairwiseResults({
             ))}
           </ul>
         ) : null}
+        {r.converged ? null : (
+          <p className="max-w-[860px] border-l-[3px] border-flag-bar py-1 pl-3 text-14">
+            <span className="font-medium">The ranking fit did not settle within {r.iterations} steps, so these win % may still move.</span> More comparisons
+            usually settle it: ask the judges to finish placing their projects.{" "}
+            {published
+              ? "It was published with a reason, which the public results show."
+              : "Publishing it as it is needs a written reason, which goes on the published results."}
+          </p>
+        )}
       </header>
 
       <section aria-label="Findings" className="grid gap-6 wrap-anywhere lg:grid-cols-3">
