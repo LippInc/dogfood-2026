@@ -50,7 +50,7 @@ export function PlainFrame({
         </div>
       </header>
       {mark ? (
-        <div className="relative mx-auto max-w-[1440px] print:hidden" aria-hidden="true">
+        <div className="relative mx-auto w-full max-w-[1440px] print:hidden" aria-hidden="true">
           {mark}
         </div>
       ) : null}
