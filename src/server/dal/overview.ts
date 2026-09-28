@@ -203,6 +203,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       "assignment.run",
       "assignment.by_hand",
       "assignment.remove",
+      "project.track_moved",
       "assignment.recusal_undone",
       "event.judging_mode",
       "results.publish",

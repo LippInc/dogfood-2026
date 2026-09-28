@@ -4,14 +4,15 @@ import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignmentRuns, assignments, auditLog, judgeTracks, projects, scores, teams, tracks, users } from "../db/schema";
-import { ConflictError, NotFoundError } from "../errors";
+import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { guardRead, mutate, type MutationSpec } from "../mutate";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { isJudgeIn } from "./judges";
 import { parse } from "./parse";
 
 // The organizer's audited corrections to the judging set-up: taking back an assignment
-// nobody has started, and undoing a recusal clicked by mistake. Each asks for a reason,
+// nobody has started, undoing a recusal clicked by mistake, and moving a project to another
+// track after judges were assigned. Each asks for a reason,
 // writes its audit row in the same transaction, and stops once the results are published,
 // when the assignments are final. None of them touches a saved score.
 
@@ -242,4 +243,83 @@ export function getProjectJudging(actor: Actor | null, eventIdOrSlug: string, pr
       recuseReason: recusals.get(r.id) ?? null,
     })),
   };
+}
+
+export const MoveInput = z.object({ trackId: z.string().min(1, "choose a track"), reason: Reason });
+
+export type TrackMove = { moved: boolean; trackId: string; withdrawn: number; finishedKept: number; startedKept: number };
+
+/**
+ * Move a project to another track, for a team that picked the wrong one after judges were
+ * assigned (the team itself can change it only until then). What happens to its reviews:
+ * an open one nobody started, by a judge who does not judge the new track, is withdrawn (it
+ * holds nothing); a judge who judges both tracks keeps theirs; a finished review stays and
+ * keeps counting, since the rubric is the event's; a started, unfinished one stays in the
+ * record but leaves its judge's console. The next top-up gives the project judges from its
+ * new track. In pairwise judging, answers that compared it with its old track stop counting.
+ */
+export function moveProjectTrack(actor: Actor | null, eventIdOrSlug: string, projectId: string, body: unknown): TrackMove {
+  let event: EventRow;
+  return mutate<TrackMove>({
+    actor,
+    action: "event.manage",
+    load: (tx) => {
+      event = requireEvent(tx, eventIdOrSlug);
+      return { kind: "event", event: eventFacts(event) };
+    },
+    run: (tx) => {
+      correctionsOpen(event);
+      const input = parse(MoveInput, body);
+      const project = tx
+        .select({ id: projects.id, trackId: projects.trackId, duplicateOf: projects.duplicateOf })
+        .from(projects)
+        .where(and(eq(projects.id, projectId), eq(projects.eventId, event.id)))
+        .get();
+      if (!project) throw new NotFoundError("Project");
+      const track = tx.select({ id: tracks.id }).from(tracks).where(and(eq(tracks.id, input.trackId), eq(tracks.eventId, event.id))).get();
+      if (!track) throw new ValidationError("Check the highlighted fields.", { trackId: ["not a track of this event"] });
+      if (project.trackId === track.id) return { result: { moved: false, trackId: track.id, withdrawn: 0, finishedKept: 0, startedKept: 0 }, audit: null };
+      if (project.duplicateOf) {
+        throw new ConflictError("merged_copy", `This copy is merged into ${project.duplicateOf}, which carries its reviews: move that one instead.`);
+      }
+      const inNewTrack = new Set(
+        tx
+          .select({ judgeId: judgeTracks.judgeUserId })
+          .from(judgeTracks)
+          .where(and(eq(judgeTracks.eventId, event.id), eq(judgeTracks.trackId, track.id)))
+          .all()
+          .map((r) => r.judgeId),
+      );
+      const rows = tx
+        .select({ id: assignments.id, judgeId: assignments.judgeUserId, status: assignments.status, scoreId: scores.id })
+        .from(assignments)
+        .leftJoin(scores, eq(scores.assignmentId, assignments.id))
+        .where(eq(assignments.projectId, project.id))
+        .orderBy(asc(assignments.id))
+        .all();
+      const leaving = rows.filter((r) => r.status !== "recused" && !inNewTrack.has(r.judgeId));
+      const withdrawn = leaving.filter((r) => r.status === "pending" && !r.scoreId);
+      const finishedKept = leaving.filter((r) => r.status === "done");
+      const startedKept = leaving.filter((r) => r.status === "pending" && r.scoreId);
+      if (withdrawn.length) tx.delete(assignments).where(inArray(assignments.id, withdrawn.map((r) => r.id))).run();
+      tx.update(projects).set({ trackId: track.id }).where(eq(projects.id, project.id)).run();
+      return {
+        result: { moved: true, trackId: track.id, withdrawn: withdrawn.length, finishedKept: finishedKept.length, startedKept: startedKept.length },
+        audit: {
+          action: "project.track_moved",
+          eventId: event.id,
+          targetType: "project",
+          targetId: project.id,
+          before: { trackId: project.trackId },
+          after: {
+            trackId: track.id,
+            reason: input.reason,
+            withdrawn: withdrawn.map((r) => ({ assignment: r.id, judgeUserId: r.judgeId })),
+            finishedKept: finishedKept.map((r) => r.id),
+            startedKept: startedKept.map((r) => r.id),
+          },
+        },
+      };
+    },
+  });
 }

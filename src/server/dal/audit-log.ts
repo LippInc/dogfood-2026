@@ -281,6 +281,17 @@ function sentence(r: Row, n: Names): Part[] {
         t(` ran ${after.mode === "fresh" ? "the assignment" : "a top-up"}: ${after.added ?? 0} reviews assigned, seed `),
         { text: String(after.seed ?? ""), mono: true },
       ];
+    case "project.track_moved": {
+      const gone = Array.isArray(after.withdrawn) ? after.withdrawn.length : 0;
+      return [
+        actor,
+        t(" moved "),
+        project(target),
+        t(` from ${n.track.get(String(before.trackId)) ?? before.trackId} to ${n.track.get(String(after.trackId)) ?? after.trackId}`),
+        t(gone ? `, withdrawing ${gone} unstarted ${gone === 1 ? "review" : "reviews"}` : ""),
+        t(`: ${quote(after.reason)}`),
+      ];
+    }
     case "assignment.remove":
       return [actor, t(" took "), project(target), t(" back from "), person(after.judgeUserId), t(`: ${quote(after.reason)}`)];
     case "assignment.recusal_undone":

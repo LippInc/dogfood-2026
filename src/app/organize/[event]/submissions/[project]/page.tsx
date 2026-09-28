@@ -8,6 +8,7 @@ import { guardPage } from "@/lib/page-guard";
 import { currentActor, getProjectJudging, type ProjectAssignment } from "@/server/dal";
 import { WithReason } from "../../decisions";
 import { removeAssignmentAction, undoRecusalAction } from "./actions";
+import { MoveTrackForm } from "./move-form";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Project judging" };
@@ -35,7 +36,7 @@ export default async function ProjectJudgingPage({ params }: PageProps<"/organiz
   const { event: key, project: projectId } = await params;
   const actor = await currentActor();
   if (!actor) unauthorized();
-  const { event, project, assignments } = guardPage(() => getProjectJudging(actor, key, projectId));
+  const { event, project, assignments, tracks } = guardPage(() => getProjectJudging(actor, key, projectId));
   const published = Boolean(event.resultsPublishedAt);
   const counted = assignments.filter((a) => a.status !== "recused");
   const finished = assignments.filter((a) => a.status === "done").length;
@@ -69,7 +70,8 @@ export default async function ProjectJudgingPage({ params }: PageProps<"/organiz
           </div>
         </header>
 
-        <section aria-labelledby="judges-title" className="flex max-w-[880px] flex-col gap-3">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <section aria-labelledby="judges-title" className="flex min-w-0 flex-col gap-3">
           <div>
             <h2 id="judges-title" className="text-17 font-semibold">
               Judges of this project
@@ -128,6 +130,32 @@ export default async function ProjectJudgingPage({ params }: PageProps<"/organiz
             </ul>
           )}
         </section>
+
+        <aside>
+          <section aria-labelledby="track-title" className="rounded-sm border border-rule bg-surface p-5">
+            <h2 id="track-title" className="text-17 font-semibold">
+              Track
+            </h2>
+            <p className="mt-1 text-15">{project.trackName}</p>
+            {published ? (
+              <p className="mt-3 text-14 text-ink-2">Results are published, so the track is final.</p>
+            ) : project.duplicateOf ? (
+              <p className="mt-3 text-14 text-ink-2">This copy is merged into {project.duplicateOf}, which carries its reviews: move that one instead.</p>
+            ) : tracks.length < 2 ? (
+              <p className="mt-3 text-14 text-ink-2">This event has one track.</p>
+            ) : (
+              <>
+                <p className="mt-3 mb-4 text-14 text-ink-2">
+                  For a team that chose the wrong track after judges were assigned. Moving it withdraws the reviews nobody has started by judges who do not judge
+                  the new track; a finished review stays and keeps counting; a started one stays in the record but leaves its judge&apos;s list. Then a top-up on
+                  the Judges page gives it judges from its new track.
+                </p>
+                <MoveTrackForm eventSlug={event.slug} projectId={project.id} current={project.trackId} tracks={tracks} />
+              </>
+            )}
+          </section>
+        </aside>
+        </div>
       </div>
     </WorkShell>
   );

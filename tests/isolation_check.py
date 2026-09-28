@@ -297,6 +297,12 @@ def run_checks(cfg):
     expect(c, s == 422, organizer, "POST", remove_url, s, "422 (past the gate, no reason given)")
     s, body, _ = organizer.request("POST", unrecuse_url, {"reason": "isolation probe"})
     expect(c, s == 200, organizer, "POST", unrecuse_url, s, "200 (a review that is not recused: nothing changes)")
+    move_url = u(f"/api/events/{EVENT_ID}/projects/prj_01/track")
+    for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403)):
+        s, _, _ = person.request("POST", move_url, {"trackId": "trk_02", "reason": "isolation probe"})
+        expect(c, s == wanted, person, "POST", move_url, s, str(wanted))
+    s, _, _ = organizer.request("POST", move_url, {"trackId": "trk_02", "reason": ""})
+    expect(c, s == 422, organizer, "POST", move_url, s, "422 (past the gate, no reason given)")
     judging_url = u(f"/api/events/{EVENT_ID}/projects/prj_01/judging")
     s, _, _ = organizer.request("GET", judging_url)
     expect(c, s == 200, organizer, "GET", judging_url, s, "200")

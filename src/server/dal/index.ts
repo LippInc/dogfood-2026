@@ -65,7 +65,7 @@ export {
   type JudgeRow,
 } from "./judges";
 export { assignByHand, getAssignments, runAssignment, type RunRow, type RunSummary } from "./assignments";
-export { getProjectJudging, removeAssignment, undoRecusal, type ProjectAssignment, type ProjectJudging } from "./corrections";
+export { getProjectJudging, moveProjectTrack, removeAssignment, undoRecusal, type ProjectAssignment, type ProjectJudging, type TrackMove } from "./corrections";
 export {
   getJudgeConsole,
   recuseAssignment,
