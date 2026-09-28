@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FieldError } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -131,8 +132,15 @@ export function RecuseDialog({
         <label htmlFor="recuse-reason" className="text-14 font-medium">
           Why, in a few words
         </label>
-        <Textarea id="recuse-reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={Boolean(error)} />
-        {error ? <p className="text-13 text-flag">{error}</p> : null}
+        <Textarea
+          id="recuse-reason"
+          rows={3}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "recuse-reason-error" : undefined}
+        />
+        <FieldError id="recuse-reason-error" message={error} />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel

@@ -3,7 +3,7 @@
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { useFormAction } from "@/components/use-form-action";
-import { Field } from "@/components/field";
+import { Field, FieldError } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,10 +70,13 @@ export function InviteForm({ eventSlug, tracks }: { eventSlug: string; tracks: T
       <Field id="invite-email" label="Email" help="Only this address can use the link. Leave empty for a link anyone can use once." error={e.email}>
         {(a) => <Input {...a} name="email" type="email" inputMode="email" />}
       </Field>
-      <fieldset className="flex flex-col gap-2">
+      <fieldset
+        className="flex flex-col gap-2"
+        aria-describedby={e.trackIds ? "invite-tracks-error" : undefined}
+      >
         <legend className="text-14 font-medium">Tracks they judge</legend>
         <TrackBoxes tracks={tracks} name="trackIds" />
-        {e.trackIds ? <p className="text-13 text-flag">{e.trackIds[0]}</p> : null}
+        <FieldError id="invite-tracks-error" message={e.trackIds} />
       </fieldset>
       <div className="flex items-center gap-3">
         <Button disabled={pending}>{pending ? "Making the link…" : "Make invitation link"}</Button>
@@ -248,8 +251,14 @@ export function ByHandForm({
       <label className="text-14 font-medium" htmlFor={`reason-${projectId}`}>
         Reason, for the audit log
       </label>
-      <Textarea id={`reason-${projectId}`} name="reason" rows={2} aria-invalid={Boolean(e.reason)} />
-      {e.reason ? <p className="text-13 text-flag">{e.reason[0]}</p> : null}
+      <Textarea
+        id={`reason-${projectId}`}
+        name="reason"
+        rows={2}
+        aria-invalid={e.reason ? true : undefined}
+        aria-describedby={e.reason ? `reason-${projectId}-error` : undefined}
+      />
+      <FieldError id={`reason-${projectId}-error`} message={e.reason} />
       <div className="flex items-center gap-3">
         <Button size="sm" disabled={pending}>
           Assign by hand

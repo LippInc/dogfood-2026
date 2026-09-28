@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useFormAction } from "@/components/use-form-action";
-import { Field } from "@/components/field";
+import { Field, FieldError } from "@/components/field";
 import { UtcNow } from "@/components/utc-now";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -187,8 +187,14 @@ export function VoterListForm({ eventSlug }: { eventSlug: string }) {
       <label htmlFor="emails" className="text-14 font-medium">
         Email addresses, one per line or separated by commas
       </label>
-      <Textarea id="emails" name="emails" rows={4} aria-invalid={Boolean(state.fieldErrors?.emails)} />
-      {state.fieldErrors?.emails ? <p className="text-13 text-flag">{state.fieldErrors.emails[0]}</p> : null}
+      <Textarea
+        id="emails"
+        name="emails"
+        rows={4}
+        aria-invalid={state.fieldErrors?.emails ? true : undefined}
+        aria-describedby={state.fieldErrors?.emails ? "emails-error" : undefined}
+      />
+      <FieldError id="emails-error" message={state.fieldErrors?.emails} />
       <div>
         <Button variant="outline" disabled={pending}>
           Make personal links
@@ -270,12 +276,13 @@ export function VoidForm({ eventSlug, voterId, voided }: { eventSlug: string; vo
         className="w-64"
         aria-label="Reason"
         aria-invalid={state.fieldErrors?.reason ? true : undefined}
+        aria-describedby={state.fieldErrors?.reason ? `void-${voterId}-error` : undefined}
         autoFocus
       />
       <Button size="sm" disabled={pending}>
         Set aside
       </Button>
-      {state.fieldErrors?.reason ? <p className="text-13 text-flag">{state.fieldErrors.reason[0]}</p> : <Status state={state} />}
+      {state.fieldErrors?.reason ? <FieldError id={`void-${voterId}-error`} message={state.fieldErrors.reason} /> : <Status state={state} />}
     </form>
   );
 }

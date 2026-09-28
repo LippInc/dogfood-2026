@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { FieldError } from "@/components/field";
 import { useFormAction } from "@/components/use-form-action";
 import { useRescueFocus } from "@/components/use-rescue-focus";
 import { Button } from "@/components/ui/button";
@@ -20,12 +21,21 @@ export function CommentForm({ projectId, path }: { projectId: string; path: stri
       <label htmlFor="comment-body" className="text-14 font-medium">
         Add a comment
       </label>
-      <Textarea id="comment-body" name="body" rows={3} maxLength={2000} className="font-serif text-17 leading-7" aria-invalid={Boolean(state.fieldErrors?.body)} />
+      <Textarea
+        id="comment-body"
+        name="body"
+        rows={3}
+        maxLength={2000}
+        className="font-serif text-17 leading-7"
+        aria-invalid={state.fieldErrors?.body ? true : undefined}
+        aria-describedby={state.fieldErrors?.body ? "comment-body-error" : undefined}
+      />
+      <FieldError id="comment-body-error" message={state.fieldErrors?.body} />
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={pending}>{pending ? "Posting…" : "Post comment"}</Button>
-        {state.message ? (
-          <span role="status" className={`text-13 ${state.ok ? "text-ok" : "text-flag"}`}>
-            {state.fieldErrors?.body?.[0] ?? state.message}
+        {state.message && !state.fieldErrors?.body ? (
+          <span role={state.ok ? "status" : "alert"} className={`text-13 ${state.ok ? "text-ok" : "text-flag"}`}>
+            {state.message}
           </span>
         ) : null}
       </div>
@@ -47,11 +57,25 @@ export function HideForm({ commentId, path }: { commentId: string; path: string 
     <form {...form} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="comment" value={commentId} />
       <input type="hidden" name="path" value={path} />
-      <Input name="reason" placeholder="Reason, shown in its place" className="w-64" aria-label="Reason" autoFocus />
+      <Input
+        name="reason"
+        placeholder="Reason, shown in its place"
+        className="w-64"
+        aria-label="Reason"
+        aria-invalid={state.fieldErrors?.reason ? true : undefined}
+        aria-describedby={state.fieldErrors?.reason ? `hide-${commentId}-error` : undefined}
+        autoFocus
+      />
       <Button size="sm" disabled={pending}>
         Hide
       </Button>
-      {state.message && !state.ok ? <span className="text-13 text-flag">{state.fieldErrors?.reason?.[0] ?? state.message}</span> : null}
+      {state.fieldErrors?.reason ? (
+        <FieldError id={`hide-${commentId}-error`} message={state.fieldErrors.reason} />
+      ) : state.message && !state.ok ? (
+        <span role="alert" className="text-13 text-flag">
+          {state.message}
+        </span>
+      ) : null}
     </form>
   );
 }
@@ -84,7 +108,11 @@ export function DeleteOwnComment({ commentId, path }: { commentId: string; path:
       <button type="button" autoFocus onClick={() => setAsking(false)} className={quiet}>
         Keep
       </button>
-      {state.message && !state.ok ? <span className="text-13 text-flag">{state.message}</span> : null}
+      {state.message && !state.ok ? (
+        <span role="alert" className="text-13 text-flag">
+          {state.message}
+        </span>
+      ) : null}
     </form>
   );
 }
@@ -99,7 +127,11 @@ export function UnhideForm({ commentId, path }: { commentId: string; path: strin
       <button disabled={pending} className={quiet}>
         {pending ? "Showing…" : "Unhide"}
       </button>
-      {state.message && !state.ok ? <span className="text-13 text-flag">{state.message}</span> : null}
+      {state.message && !state.ok ? (
+        <span role="alert" className="text-13 text-flag">
+          {state.message}
+        </span>
+      ) : null}
     </form>
   );
 }
