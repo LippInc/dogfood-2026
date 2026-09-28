@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Sign in" };
 
 const WHAT: Record<string, string> = {
   ...Object.fromEntries(DEMO_STEPS.map((s) => [s.label, s.what])),
-  judge_b: "A second judge on other projects: the same console, and a 403 if it asks for Judge A's scores.",
+  judge_b: "A second judge on other projects: the same console, refused (403) if it asks for Judge A's scores.",
 };
 
 /** Where a ?next= path leads, in words; the path itself is shown under it. */
@@ -117,8 +117,8 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
             </ul>
             <p className="mt-4 text-13 text-ink-3">
               {next ? "These land on each role's own start page, not on the page above. " : null}
-              Shown because the portal runs with <code className="font-mono text-12">SEED_CHECKER_SESSIONS=true</code>, the
-              setting for demos and judging; production turns it off and this panel disappears.
+              Shown because this is a demo portal (<code className="font-mono text-12">SEED_CHECKER_SESSIONS=true</code>); a real
+              event turns it off and this panel disappears.
             </p>
           </section>
         ) : null}

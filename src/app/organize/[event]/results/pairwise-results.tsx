@@ -53,7 +53,7 @@ export function PairwiseResults({
     <>
       <header className="flex flex-col gap-3">
         <p className="label-mono text-ink-2">{published ? "Published run" : "Preview: nothing is public until you publish"}</p>
-        <h1 className="text-24 font-semibold">The ranking and its working</h1>
+        <h1 className="text-24 font-semibold">The ranking and how it is worked out</h1>
         <p className="max-w-[860px] text-15 leading-6 wrap-anywhere">
           <strong>Pairwise: {r.method}.</strong> {plural(r.counts.picks, "answer")} from judges, plus {plural(r.counts.fromScores, "pair")} implied by
           scores given before the switch (a judge&rsquo;s scores in a track count as k − 1 answers together, and drop out for the pairs that judge has

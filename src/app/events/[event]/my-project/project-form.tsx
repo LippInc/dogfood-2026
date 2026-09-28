@@ -96,7 +96,7 @@ export function ProjectForm({
         {!open ? (
           <p className="flex items-start gap-3 border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-14 text-flag">
             <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
-            Submissions are closed, so this project is locked. The server refuses every edit, not only this page.
+            Submissions are closed, so this project is locked: nothing in it can be changed any more, here or through the API.
           </p>
         ) : null}
         <fieldset disabled={!open || pending} className="flex flex-col gap-8 disabled:opacity-100">

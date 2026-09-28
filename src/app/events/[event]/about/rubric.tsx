@@ -75,8 +75,8 @@ export function Rubric({ rubric, shares, resultsHref }: { rubric: Criterion[]; s
           </ol>
         </div>
         <p className="mt-6 text-15 text-ink-2">
-          Before ranking, the portal evens out judges who score harshly or generously, and shows its working next to every
-          result.
+          Before ranking, the portal evens out judges who score harshly or generously, and shows next to every
+          result how it was worked out.
         </p>
         <Link href={resultsHref} className="mt-3 inline-flex items-center gap-1.5 text-15 font-medium underline decoration-edge hover:decoration-ink">
           How the results are shown <span aria-hidden>→</span>

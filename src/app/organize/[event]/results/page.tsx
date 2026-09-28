@@ -90,7 +90,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
       <div className="flex flex-col gap-8">
         <header className="flex flex-col gap-3">
           <p className="label-mono text-ink-2">{event.resultsPublishedAt ? "Published run" : "Preview: nothing is public until you publish"}</p>
-          <h1 className="text-24 font-semibold">The ranking and its working</h1>
+          <h1 className="text-24 font-semibold">The ranking and how it is worked out</h1>
           <p className="max-w-[860px] text-15 leading-6 wrap-anywhere">
             <strong>{METHOD_LABEL}.</strong>{" "}
             {!n.variance.measured

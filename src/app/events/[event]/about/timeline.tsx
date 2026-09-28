@@ -53,7 +53,7 @@ export function stagesOf(e: PublicEvent, now: number = Date.now()): Stage[] {
     {
       name: "Results",
       when: e.resultsPublishedAt ? `Published ${formatUtc(e.resultsPublishedAt, { weekday: true })}` : "Not yet published",
-      detail: "Every score with its working, track by track",
+      detail: "Every score and how it was worked out, track by track",
       state: published ? "done" : "next",
       at: Number.MAX_SAFE_INTEGER,
     },

@@ -264,7 +264,7 @@ function ScoreFigure({ feedback, pairwise }: { feedback: TeamFeedback; pairwise:
     : `score ${score.toFixed(2)}${se !== null ? ` ± ${se.toFixed(2)}` : ""}`;
   return (
     <figure className="min-w-0">
-      <figcaption className="label-mono text-ink-3">Fig. 02 — {pairwise ? "your win %" : "your score"}, with its ±</figcaption>
+      <figcaption className="label-mono text-ink-3">Fig. 02 — {pairwise ? "your win %" : "your score"}, with its margin of error (±)</figcaption>
       <svg viewBox={`0 0 ${W} 58`} className="mt-3 block h-auto w-full max-w-[420px]" role="img" aria-label={text}>
         <line x1={pad} x2={W - pad} y1={30} y2={30} stroke="var(--edge)" strokeWidth={1} />
         {ticks.map((t) => (

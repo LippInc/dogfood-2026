@@ -691,7 +691,7 @@ export function PublishPanel({
             href={`/organize/${eventSlug}/results`}
             className="text-14 underline underline-offset-4"
           >
-            Preview the ranking and its working
+            Preview the ranking and how it is worked out
           </Link>
         </>
       )}

@@ -217,7 +217,7 @@ export function GalleryBrowser({
               </>
             ) : (
               <>
-                Every project, by track, each face drawn from its id. Choose a track to filter.
+                Every project, by track, each face a pattern drawn from its id. Choose a track to filter.
                 {ours ? (
                   <>
                     {" "}

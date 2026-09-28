@@ -94,7 +94,7 @@ export function HandedIn({
         <Lock className="mt-0.5 size-4 shrink-0 text-ink-3" aria-hidden />
         <span>
           {submitted
-            ? `Locked when submissions closed, ${formatUtc(closedAt)}. This is what the judges read; the server refuses every edit, not only this page.`
+            ? `Locked when submissions closed, ${formatUtc(closedAt)}. This is what the judges read; nothing in it can be changed any more, here or through the API.`
             : project
               ? `Locked as a draft when submissions closed, ${formatUtc(closedAt)}. It was never submitted, so it is not judged.`
               : `Submissions closed ${formatUtc(closedAt)}.`}

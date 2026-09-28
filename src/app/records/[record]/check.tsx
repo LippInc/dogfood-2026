@@ -121,7 +121,7 @@ export function LiveSeal({ signature }: { signature: string }) {
         <SignatureBits signature={signature} lit={state.at === "valid"} />
       </div>
       <figcaption className="flex flex-col gap-0.5">
-        <span className="label-mono text-ink-3">Signature · every bit</span>
+        <span className="label-mono text-ink-3">Signature, bit by bit</span>
         <span className="flex min-h-5 items-center gap-1.5 text-13">
           {state.at === "checking" ? (
             <span className="text-ink-2">Checking in your browser…</span>

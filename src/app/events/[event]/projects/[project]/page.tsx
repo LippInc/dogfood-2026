@@ -173,7 +173,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                       href={`/events/${event.slug}/results#track-${standing.track.id}`}
                       className="mt-2 inline-block text-14 underline decoration-edge underline-offset-4 hover:decoration-ink"
                     >
-                      See it among its track, with the working
+                      See how it was worked out, among its track
                     </Link>
                   </>
                 ) : event.resultsPublishedAt ? (
