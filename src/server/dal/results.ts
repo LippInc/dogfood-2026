@@ -7,14 +7,15 @@ import { assignments, auditLog, events, normalizationRuns, normalizedScores, pro
 import type { ChainAnchor } from "../audit";
 import { formatUtc } from "@/lib/format";
 import { ConflictError } from "../errors";
-import { averageRanks } from "../judging/normalize";
+import { averageRanks, type SignalCheck } from "../judging/normalize";
+import type { Bias } from "../judging/pairwise";
 import type { Yardstick } from "../judging/yardstick";
 import { guardRead } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { endVoteForPublish } from "./voting-organizer";
 import { judgeSet } from "./judging";
-import { computePairwise, judgingModeOf, PAIRWISE_METHOD, storePairwiseRun, type Unsettled } from "./pairwise";
+import { computePairwise, judgingModeOf, PAIRWISE_METHOD, pullShare, storePairwiseRun, type Unsettled } from "./pairwise";
 import { parse } from "./parse";
 import { METHOD, METHOD_LABEL, type ProjectRow, type Normalized, computeNormalization } from "./normalization";
 import { decisions, eventDecisions, organizerMutation, notPublished } from "./decisions";
@@ -332,6 +333,8 @@ export type PublishedResults =
       trackMoves: PublishedTrackMove[];
       /** a pairwise fit that had not settled when it was published, with the organizer's reason; null otherwise */
       unsettled: Unsettled | null;
+      /** how the ranking was reached, in aggregate numbers only: never a judge's id, name or own figure */
+      evidence: RankingEvidence;
       tracks: {
         id: string;
         name: string;
@@ -349,6 +352,99 @@ export type PublishedResults =
         }[];
       }[];
     };
+
+/** A pull the pairwise fit took out, as the share of wins it gives between two equal projects; null until it is measured. */
+type Pull = { share: number; pm: number } | null;
+
+/**
+ * The public "how this ranking was reached" numbers. Every one is read from the stored run or
+ * counted over the published rows; none identifies a judge. `moved` compares each project's place
+ * in its track with its place by the plain figure beside it (every review's plain average, or
+ * the plain share of wins), so it says how much the method changed the order.
+ */
+export type RankingEvidence = {
+  /** projects with a published score, and how many of them the method put at a different place in their track than the plain figure does */
+  placed: number;
+  moved: number;
+  /** judges the method left out as a whole (the flat-judge or coin-flip rule, or an organizer's decision) */
+  excluded: number;
+} & (
+  | {
+      kind: "scores";
+      /** null when the judges show no steady leniency: nothing is corrected */
+      k: number | null;
+      /** counted judges, those corrected by at least CORRECTED_FROM, and the largest and median correction in size; null in runs stored before the judges were */
+      judges: { counted: number; corrected: number; largest: number; median: number } | null;
+      /** the permutation signal check as stored; null when it did not run */
+      signal: { share: number; trials: number } | null;
+    }
+  | {
+      kind: "pairwise";
+      answers: number;
+      fromScores: number;
+      judges: number;
+      left: Pull;
+      fresh: Pull;
+    }
+);
+
+/** A leniency that rounds to 0.00 on the page is not called a correction. */
+export const CORRECTED_FROM = 0.005;
+
+function median(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+}
+
+type EvidenceRow = { projectId: string; score: number | null; raw: number | null };
+
+function evidenceOf(method: string, params: Record<string, unknown>, tracksRows: EvidenceRow[][]): RankingEvidence {
+  let placed = 0;
+  let moved = 0;
+  for (const rows of tracksRows) {
+    const both = rows.filter((r) => r.score !== null && r.raw !== null);
+    placed += rows.filter((r) => r.score !== null).length;
+    const byScore = averageRanks(new Map(both.map((r) => [r.projectId, r.score!])));
+    const byRaw = averageRanks(new Map(both.map((r) => [r.projectId, r.raw!])));
+    for (const r of both) if (Math.abs(byScore.get(r.projectId)! - byRaw.get(r.projectId)!) >= 1) moved++;
+  }
+  const excluded = Array.isArray(params.excluded) ? params.excluded.length : 0;
+  if (method === PAIRWISE_METHOD) {
+    const counts = (params.counts ?? {}) as { picks?: number; fromScores?: number; judges?: number };
+    const pull = (b: unknown): Pull => {
+      const p = pullShare((b ?? null) as Bias);
+      return p?.measured ? { share: p.share, pm: p.pm } : null;
+    };
+    return {
+      kind: "pairwise",
+      placed,
+      moved,
+      excluded,
+      answers: counts.picks ?? 0,
+      fromScores: counts.fromScores ?? 0,
+      judges: counts.judges ?? 0,
+      left: pull(params.left),
+      fresh: pull(params.fresh),
+    };
+  }
+  const k = typeof params.k === "number" ? params.k : null;
+  const stored = Array.isArray(params.judges) ? (params.judges as { leniency: number }[]) : null;
+  // with no steady leniency (k is null) the engine takes nothing off anyone
+  const sizes = stored?.map((j) => (k === null ? 0 : Math.abs(j.leniency))) ?? [];
+  const signal = (params.signal ?? null) as SignalCheck | null;
+  return {
+    kind: "scores",
+    placed,
+    moved,
+    excluded,
+    k,
+    judges: sizes.length
+      ? { counted: sizes.length, corrected: sizes.filter((x) => x >= CORRECTED_FROM).length, largest: Math.max(...sizes), median: median(sizes) }
+      : null,
+    signal: signal ? { share: signal.share, trials: signal.trials } : null,
+  };
+}
 
 /** The published ranking, per track, from the stored run. Public. */
 export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
@@ -403,6 +499,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     weightChanges: event.settings.weightChanges ?? [],
     trackMoves: (run.params as { trackMoves?: PublishedTrackMove[] }).trackMoves ?? [],
     unsettled: (run.params as { unsettled?: Unsettled }).unsettled ?? null,
+    evidence: evidenceOf(run.method, run.params as Record<string, unknown>, [...byTrack.values()].map((t) => t.rows)),
     tracks: [...byTrack.values()].map((t) => {
       const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
       return {

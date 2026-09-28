@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { LogSeal } from "@/components/results/log-seal";
+import { RankingEvidence } from "@/components/results/ranking-evidence";
 import { VoteCountChanges, VoteRuleChanges } from "@/components/results/vote-rule-changes";
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { PublicShell } from "@/components/shell/public-shell";
@@ -97,7 +98,10 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             <div className="lg:col-start-1 lg:row-span-2 lg:row-start-1">
               <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
               <p className="label-mono mt-3 tnum text-ink-3">
-                Published {formatUtc(results.publishedAt)} · {plural(placedCount, "place")} in {plural(placed.length, "track")}
+                Published {formatUtc(results.publishedAt)} · {plural(placedCount, "place")} in {plural(placed.length, "track")} ·{" "}
+                <a href="#how-reached" className="underline underline-offset-4 hover:text-accent-ink">
+                  How this ranking was reached
+                </a>
               </p>
               {/* Plain words on top, one point to a line; the method, word for word, one click away (decided 2026-09-27 21:09 NL). */}
               <ol aria-label="How to read these results" className="mt-6 max-w-[760px] border-b border-rule text-17">
@@ -324,6 +328,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
               </section>
             ))}
           </div>
+          <RankingEvidence results={results} />
         </>
       ) : (
         <>

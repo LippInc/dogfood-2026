@@ -113,10 +113,12 @@ export {
 } from "./decisions";
 export {
   getNormalization,
+  CORRECTED_FROM,
   getPublishedResults,
   publishResults,
   type PrivateNote,
   type PublishedResults,
+  type RankingEvidence,
 } from "./results";
 export { getEventCards, getOverview, type EventCard, type Overview, type Stage } from "./overview";
 export { addOrganizer, listOrganizers, removeOrganizer, type Organizer } from "./organizers";
