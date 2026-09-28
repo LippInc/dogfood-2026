@@ -13,9 +13,9 @@ import { eventFacts, requireEvent } from "./events";
 import { parse } from "./parse";
 
 // Personal links for people who have an account but no password: everyone who came
-// in through an import (fixtures, or an event file). The portal sends no mail, so
-// the organizer gets each link once and sends it; opening it lets that one person
-// set a password. A link lasts 14 days and works once; a new one replaces it.
+// in through an import (fixtures, or an event file). The organizer gets each link
+// once and sends it (with email on, the portal mails it too: mailing.ts); opening
+// it lets that one person set a password. A link lasts 14 days and works once; a new one replaces it.
 
 export const CLAIM_DAYS = 14;
 

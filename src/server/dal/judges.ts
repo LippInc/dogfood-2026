@@ -13,9 +13,10 @@ import { judgeSet, type ActiveOverride } from "./judging";
 import { parse } from "./parse";
 
 // Judges join an event by invitation link: the organizer names the tracks, shares
-// the link (there is no mail server), and whoever opens it signed in becomes a
-// judge for those tracks. A link made for an email address only works for that
-// address. Links are single-use; only their SHA-256 is stored.
+// the link (the portal mails it too when email is on and the invitation names an
+// address), and whoever opens it signed in becomes a judge for those tracks. A
+// link made for an email address only works for that address. Links are
+// single-use; only their SHA-256 is stored.
 
 export const InviteInput = z.object({
   name: z.string().trim().max(80).default(""),

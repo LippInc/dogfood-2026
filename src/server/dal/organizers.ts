@@ -10,8 +10,8 @@ import { eventFacts, requireEvent, type EventRow } from "./events";
 import { parse } from "./parse";
 
 // Co-organizers. The account that creates or imports an event organizes it; an
-// organizer adds others by the email of their account (they sign up first: the
-// portal sends no mail) and can remove any organizer but the last. Audited.
+// organizer adds others by the email of their account (they sign up first: adding
+// an organizer mails nothing) and can remove any organizer but the last. Audited.
 
 export type Organizer = { userId: string; name: string; email: string; since: string };
 

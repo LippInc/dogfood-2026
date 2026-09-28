@@ -99,7 +99,7 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
 
 | Tier | Bullet | Status | Where | Hand check |
 |---|---|---|---|---|
-| T3 | Community voting: email gated, link based or authenticated | Built | Organizer: Voting tab. Voters: `/events/sample-hack-2026/vote`, `/vote/<code>` | `isolation_check.py` B1, B3, B4, B6. In demo mode the sample event's vote is open from the first start (tour step 3). Email gated means a voter list by address with one personal link each; the portal sends no mail, the organizer sends the links |
+| T3 | Community voting: email gated, link based or authenticated | Built | Organizer: Voting tab. Voters: `/events/sample-hack-2026/vote`, `/vote/<code>` | `isolation_check.py` B1, B3, B4, B6. In demo mode the sample event's vote is open from the first start (tour step 3). Email gated means a voter list by address with one personal link each; with `SMTP_URL` set the portal mails each link as it is made, otherwise the organizer sends them |
 | T3 | Project comments | Built | Each project page; `GET/POST /api/projects/<id>/comments` | B8: post, organizer hides with a reason, the reason stays in place |
 | T3 | Results hidden during the voting window | Built | `GET /api/events/evt_01/community`, `GET /api/events/evt_01/voting` | B2, B5: while the window is open the public count is `null` for everyone and live only for organizers (403 for a participant); B10 after. The judged results never show during the vote either: publishing closes it (vitest, `publishing ends the community vote`) |
 | T3 | Randomized project ordering on ballots | Built | Each voter's ballot, seeded per voter | B4: two ballots, two different orders |
