@@ -318,6 +318,13 @@ docker compose run --rm --no-deps portal node scripts/restore.mjs /data/restore.
 docker compose start
 ```
 
+Run one portal process per data volume: limits such as team size, rate limits
+and accepting an invitation hold because one process makes its changes one at
+a time. The portal keeps `portal.lock` next to the database while it runs, and
+a second process on the same volume refuses to start and names the first; a
+lock left by a process that died is taken over 20 seconds after its last
+refresh (at once by the same container restarting), and a clean stop removes it.
+
 Upgrading is `git pull` and `docker compose up --build`: migrations run at every
 start, and a fixture file is imported once, so what the organizers changed or
 removed stands; a changed fixture file imports only its new rows.

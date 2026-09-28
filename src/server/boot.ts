@@ -7,6 +7,7 @@ import { z } from "zod";
 import { databasePath, handle, type Handle } from "./db/client";
 import { events } from "./db/schema";
 import { importedBefore, importFixtures, loadFixtureFile } from "./db/import-fixtures";
+import { claimDataFolder } from "./instance-lock";
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
 import { mailProblem } from "./mail";
@@ -123,6 +124,12 @@ export async function boot(): Promise<void> {
   if (mailRefused) throw new Error(`refusing to start: ${mailRefused}`);
   const settingRefused = settingsProblem();
   if (settingRefused) throw new Error(`refusing to start: ${settingRefused}`);
+  // one portal process per data volume (src/server/instance-lock.ts)
+  const dbFile = databasePath();
+  if (dbFile !== ":memory:") {
+    const busy = claimDataFolder(path.dirname(dbFile));
+    if (busy) throw new Error(`refusing to start: ${busy}`);
+  }
   const h = handle();
   const triggers = runMigrations(h);
   if (triggers.restored.length > 0) console.warn(`[boot] triggers restored: ${triggers.restored.join(", ")}`);
