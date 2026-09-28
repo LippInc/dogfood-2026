@@ -2,7 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { accountClaims, apiTokens, assignments, events, judgeInvites, judgeTracks, passwordResets, sessions, teamMembers, teams, userRoles, users, webhooks } from "./db/schema";
 import { appendAudit } from "./audit";
@@ -93,34 +93,16 @@ export type CheckerIdentity = { label: CheckerLabel; userId: string; name: strin
 
 /**
  * Pick the four identities from what is in the database, the same way every boot:
- * judge_a is the judge with the most reviews (ties: lowest id), judge_b the judge
- * with the most reviews among those sharing a track with judge_a, and the
- * participant is the first member of the first team who holds no judge role.
+ * only people who hold the judge role with at least one track are candidates (a removed
+ * judge's kept reviews still count as assignments, so the busiest assignee may no longer be
+ * a judge). judge_a is the candidate with the most reviews (ties: lowest id) among those who
+ * share a track with another candidate, judge_b the candidate with the most reviews among
+ * those sharing a track with judge_a, and the participant is the first member of the first
+ * team who holds no judge role. On the fixture that is always jdg_24 and jdg_26. A label no
+ * one fits is skipped with the reason: the organizers can remove or move judges, and that
+ * must never stop the portal from starting.
  */
-export function chooseCheckerUsers(db: Db, eventId: string): Record<CheckerLabel, string> {
-  const load = db
-    .select({ judge: assignments.judgeUserId, n: sql<number>`count(*)` })
-    .from(assignments)
-    .where(eq(assignments.eventId, eventId))
-    .groupBy(assignments.judgeUserId)
-    .orderBy(desc(sql`count(*)`), assignments.judgeUserId)
-    .all();
-  if (load.length === 0) throw new Error("checker sessions: the event has no judge with a review");
-  const judgeA = load[0].judge;
-
-  const tracksOf = (judge: string) =>
-    new Set(
-      db
-        .select({ t: judgeTracks.trackId })
-        .from(judgeTracks)
-        .where(and(eq(judgeTracks.judgeUserId, judge), eq(judgeTracks.eventId, eventId)))
-        .all()
-        .map((r) => r.t),
-    );
-  const aTracks = tracksOf(judgeA);
-  const judgeB = load.find((r) => r.judge !== judgeA && [...tracksOf(r.judge)].some((t) => aTracks.has(t)))?.judge;
-  if (!judgeB) throw new Error("checker sessions: no second judge shares a track with judge_a");
-
+export function chooseCheckerUsers(db: Db, eventId: string): { chosen: Partial<Record<CheckerLabel, string>>; skipped: CheckerSkip[] } {
   const judges = new Set(
     db
       .select({ u: userRoles.userId })
@@ -129,6 +111,33 @@ export function chooseCheckerUsers(db: Db, eventId: string): Record<CheckerLabel
       .all()
       .map((r) => r.u),
   );
+  const tracksOf = new Map<string, Set<string>>();
+  for (const r of db.select({ u: judgeTracks.judgeUserId, t: judgeTracks.trackId }).from(judgeTracks).where(eq(judgeTracks.eventId, eventId)).all()) {
+    if (!judges.has(r.u)) continue;
+    tracksOf.set(r.u, (tracksOf.get(r.u) ?? new Set<string>()).add(r.t));
+  }
+  const load = new Map(
+    db
+      .select({ judge: assignments.judgeUserId, n: sql<number>`count(*)` })
+      .from(assignments)
+      .where(eq(assignments.eventId, eventId))
+      .groupBy(assignments.judgeUserId)
+      .all()
+      .map((r) => [r.judge, r.n]),
+  );
+  // Busiest first, then lowest id: the same order every boot.
+  const candidates = [...tracksOf.keys()].sort((x, y) => (load.get(y) ?? 0) - (load.get(x) ?? 0) || (x < y ? -1 : x > y ? 1 : 0));
+  const shares = (x: string, y: string) => x !== y && [...tracksOf.get(x)!].some((t) => tracksOf.get(y)!.has(t));
+  const skipped: CheckerSkip[] = [];
+  const chosen: Partial<Record<CheckerLabel, string>> = { organizer: DEMO_ORGANIZER.id };
+
+  const judgeA = candidates.find((a) => candidates.some((b) => shares(a, b))) ?? candidates[0];
+  const judgeB = judgeA ? candidates.find((b) => shares(judgeA, b)) : undefined;
+  if (judgeA) chosen.judge_a = judgeA;
+  else skipped.push({ label: "judge_a", why: "the event has no judge with a track" });
+  if (judgeB) chosen.judge_b = judgeB;
+  else skipped.push({ label: "judge_b", why: judgeA ? "no second judge shares a track with judge_a" : "the event has no judge with a track" });
+
   const members = db
     .select({ userId: teamMembers.userId, role: teamMembers.role })
     .from(teamMembers)
@@ -137,10 +146,14 @@ export function chooseCheckerUsers(db: Db, eventId: string): Record<CheckerLabel
     .orderBy(teams.id, sql`${teamMembers.role} = 'member'`, teamMembers.joinedAt, teamMembers.userId)
     .all();
   const participant = members.find((m) => !judges.has(m.userId))?.userId;
-  if (!participant) throw new Error("checker sessions: no team member without a judge role");
+  if (participant) chosen.participant = participant;
+  else skipped.push({ label: "participant", why: "no team member without a judge role" });
 
-  return { organizer: DEMO_ORGANIZER.id, judge_a: judgeA, judge_b: judgeB, participant };
+  return { chosen, skipped };
 }
+
+/** A checker label left without a session this boot, and why. */
+export type CheckerSkip = { label: CheckerLabel; why: string };
 
 /** Create the demo organizer (admin, organizer of the event), or make it admin again. Idempotent. */
 export function ensureDemoOrganizer(db: Db, eventId: string, now: string): void {
@@ -155,7 +168,7 @@ export function ensureDemoOrganizer(db: Db, eventId: string, now: string): void 
 }
 
 export type CheckerSeedResult =
-  | { enabled: true; identities: CheckerIdentity[]; changed: CheckerLabel[] }
+  | { enabled: true; identities: CheckerIdentity[]; changed: CheckerLabel[]; skipped: CheckerSkip[] }
   | { enabled: false; removed: number; signedOut: number; demoted: boolean; revoked: DemoGrants };
 
 /** What the demo identities handed out that outlives a session, ended when demo mode goes off. */
@@ -194,7 +207,7 @@ export function seedCheckerSessions(db: Db, eventId: string, now: string): Check
       }
       return { enabled: false as const, removed, signedOut, demoted, revoked };
     }
-    const chosen = chooseCheckerUsers(tx as unknown as Db, eventId);
+    const { chosen, skipped } = chooseCheckerUsers(tx as unknown as Db, eventId);
     const identities: CheckerIdentity[] = [];
     const changed: CheckerLabel[] = [];
     for (const label of CHECKER_LABELS) {
@@ -202,6 +215,15 @@ export function seedCheckerSessions(db: Db, eventId: string, now: string): Check
       const tokenHash = sha256(token);
       const userId = chosen[label];
       const before = tx.select().from(sessions).where(eq(sessions.label, label)).get();
+      if (!userId) {
+        // Skipped this boot: an earlier boot's session for the label goes, so its public token
+        // opens nothing rather than an account that is no longer, say, a judge.
+        if (before) {
+          tx.delete(sessions).where(eq(sessions.label, label)).run();
+          changed.push(label);
+        }
+        continue;
+      }
       if (!before || before.tokenHash !== tokenHash || before.userId !== userId) changed.push(label);
       tx.insert(sessions)
         .values({ tokenHash, userId, kind: "checker", label, createdAt: now, expiresAt: NEVER })
@@ -218,12 +240,12 @@ export function seedCheckerSessions(db: Db, eventId: string, now: string): Check
           actorLabel: "system",
           action: "checker_sessions.issued",
           eventId,
-          after: Object.fromEntries(identities.map((i) => [i.label, i.userId])),
+          after: { ...Object.fromEntries(identities.map((i) => [i.label, i.userId])), ...(skipped.length ? { skipped } : {}) },
         },
         now,
       );
     }
-    return { enabled: true as const, identities, changed };
+    return { enabled: true as const, identities, changed, skipped };
   });
 }
 
@@ -280,7 +302,7 @@ export function seedDemoVote(db: Db, eventId: string, now: string): { opened: bo
 
 /** The [auth] and [routes] blocks of .dogfood.toml, ready to paste. */
 export function checkerToml(identities: CheckerIdentity[], event: { id: string; slug: string }): string {
-  const judgeA = identities.find((i) => i.label === "judge_a")!;
+  const judgeA = identities.find((i) => i.label === "judge_a");
   const pad = (s: string) => s.padEnd(11);
   return [
     "[auth]",
@@ -290,7 +312,7 @@ export function checkerToml(identities: CheckerIdentity[], event: { id: string; 
     `gallery      = "/events/${event.slug}"`,
     `submit       = "/api/events/${event.id}/projects"`,
     `judge_scores = "/api/judge/scores"`,
-    `peer_scores  = "/api/judge/scores?judge=${judgeA.userId}"`,
+    judgeA ? `peer_scores  = "/api/judge/scores?judge=${judgeA.userId}"` : "# peer_scores: no judge_a this boot (see the boot log)",
     `csv_export   = "/api/events/${event.id}/export/scores.csv"`,
     "",
   ].join("\n");

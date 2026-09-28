@@ -90,6 +90,13 @@ export async function boot(): Promise<void> {
       for (const i of seeded.identities) lines.push(`  ${i.label.padEnd(12)} Cookie: session=${i.token}`);
       lines.push(`  (who: ${seeded.identities.map((i) => `${i.label} = ${i.name}`).join(", ")})`);
       lines.push(`  the [auth] and [routes] blocks for .dogfood.toml are in ${written}`);
+      if (seeded.skipped.length) {
+        // The organizers removed judges or changed their tracks since the fixture: the portal starts anyway.
+        const it = seeded.skipped.length === 1 ? "it" : "them";
+        console.warn(
+          `[boot] WARNING: no checker session for ${seeded.skipped.map((s) => `${s.label} (${s.why})`).join(", ")}; the portal starts without ${it}, and the acceptance checks that need ${it} fail until a fitting judge exists (each start picks again)`,
+        );
+      }
     }
     const vote = seedDemoVote(h.db, eventId, now);
     if (vote.code && vote.closesAt && Date.parse(vote.closesAt) > Date.now()) {
