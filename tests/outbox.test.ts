@@ -214,6 +214,9 @@ describe("the mail module", () => {
     sentByTransport.length = 0;
     for (const message of [
       { to: "not-an-address", subject: "Fine", text: "Body" },
+      { to: "victim@example.org,attacker", subject: "Fine", text: "Body" }, // a second recipient
+      { to: "victim@example.org;attacker@evil.test", subject: "Fine", text: "Body" },
+      { to: "Someone <attacker@evil.test>", subject: "Fine", text: "Body" },
       { to: "judge\r@example.org", subject: "Fine", text: "Body" },
       { to: "judge\n@example.org", subject: "Fine", text: "Body" },
       { to: "judge@example.org", subject: "Bad\r\nsubject", text: "Body" },

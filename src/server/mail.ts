@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer from "nodemailer";
+import { z } from "zod";
 import { nowIso } from "./util";
 
 // Email, off by default: with SMTP_URL unset the portal mails nothing and `docker compose up` stays
@@ -63,7 +64,8 @@ export async function sendMail(message: { to: string; subject: string; text: str
   }
   if (!settings.on) return { status: "off" };
   const to = message.to.trim();
-  if (!/^[^\s@]+@[^\s@]+$/.test(to)) return { status: "failed", error: "that is not an email address" };
+  // the portal's one email rule (as the screens check it): one plain address, so no comma or bracket can add a recipient
+  if (!z.email().safeParse(to).success) return { status: "failed", error: "that is not an email address" };
   if (/[\r\n]/.test(message.subject)) return { status: "failed", error: "a subject cannot hold a line break" };
   try {
     await transportFor(settings.url).sendMail({ from: settings.from, to, subject: message.subject, text: message.text });
