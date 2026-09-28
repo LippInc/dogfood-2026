@@ -131,32 +131,47 @@ export default async function Home() {
         </div>
       ) : null}
       {events.length === 0 ? (
-        actor?.isAdmin ? (
-          <div className="mt-6 flex flex-col gap-4">
-            <p className="text-17 text-ink-2">No events yet. You administer this portal: create the first event, or import one from a file in the organizers&rsquo; fixture format.</p>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/organize/new" className={buttonVariants({ size: "lg" })}>
-                Create an event
-              </Link>
-              <Link href="/organize" className={buttonVariants({ variant: "outline", size: "lg" })}>
-                Import an event
-              </Link>
-            </div>
+        // No event yet: the sheet a first event will fill, drawn empty (a blank plate inside
+        // corner marks), with the one way on for whoever can take it.
+        <div className="mt-8 grid rounded-sm border border-dashed border-edge md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" data-empty="events">
+          <div className="corner-marks flex aspect-[16/7] items-center justify-center rounded-t-sm md:aspect-auto md:rounded-l-sm md:rounded-tr-none">
+            <span className="label-mono text-ink-3">No events yet</span>
           </div>
-        ) : (
-          <p className="mt-6 text-17 text-ink-2">
-            No events yet. An administrator of this portal creates the first one
-            {actor ? "." : (
+          <div className="flex flex-col gap-4 p-5 md:px-8 md:py-7">
+            {actor?.isAdmin ? (
               <>
-                ; if that is you,{" "}
-                <Link href="/sign-in" className="underline underline-offset-4">
-                  sign in
-                </Link>
-                .
+                <h2 className="font-display text-24 md:text-38">The first event starts here</h2>
+                <p className="text-17 text-ink-2">
+                  You administer this portal: create the first event, or import one from a file in the organizers&rsquo; fixture format.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  <Link href="/organize/new" className={buttonVariants({ size: "lg" })}>
+                    Create an event
+                  </Link>
+                  <Link href="/organize#import-title" className={buttonVariants({ variant: "outline", size: "lg" })}>
+                    Import an event
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="font-display text-24 md:text-38">Nothing on yet</h2>
+                <p className="text-17 text-ink-2">
+                  An administrator of this portal creates the first event
+                  {actor ? "; it shows up here when they do." : (
+                    <>
+                      ; if that is you,{" "}
+                      <Link href="/sign-in" className="underline underline-offset-4">
+                        sign in
+                      </Link>
+                      .
+                    </>
+                  )}
+                </p>
               </>
             )}
-          </p>
-        )
+          </div>
+        </div>
       ) : (
         <ul className="mt-8 flex flex-col gap-5">
           {rows.map((r) => (
