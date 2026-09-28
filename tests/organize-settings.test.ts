@@ -8,7 +8,8 @@ import { auditLog, userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { requireEvent } from "@/server/dal/events";
-import { saveRubric, updateEventDetails } from "@/server/dal/organize";
+import { saveRubric, saveTracks, updateEventDetails } from "@/server/dal/organize";
+import { latestAudit } from "@/server/dal/audit-log";
 import { acceptUnderReviewed, dismissDuplicate, setJudgeOverride } from "@/server/dal/decisions";
 import { getPublishedResults, publishResults } from "@/server/dal/results";
 import type { Actor } from "@/server/authz";
@@ -177,5 +178,67 @@ describe("the event's details", () => {
   it("an API caller's full ISO time is taken as sent (positive control)", () => {
     updateEventDetails(organizer(), "evt_01", detailsAsSent({ judgingCloseAt: "2026-04-01T18:00:00.000Z" }));
     expect(requireEvent(h.db, "evt_01").judgingCloseAt).toBe("2026-04-01T18:00:00.000Z");
+  });
+});
+
+describe("the tracks", () => {
+  const tracks = () =>
+    h.sqlite.prepare("SELECT id, name, position FROM tracks WHERE event_id = 'evt_01' ORDER BY position").all() as { id: string; name: string; position: number }[];
+  const sent = () => tracks().map(({ id, name }) => ({ id, name }));
+  const renamed = () => sent().map((t, i) => (i === 0 ? { ...t, name: "Dev tools" } : t));
+  const swapped = () => {
+    const rows = sent();
+    [rows[0], rows[1]] = [rows[1]!, rows[0]!];
+    return rows;
+  };
+  const publishedOrder = () => {
+    const r = getPublishedResults("evt_01");
+    return r.published ? r.tracks.map((t) => t.name) : [];
+  };
+
+  it("known-bad: once the results are published, a rename, a new order or a new track is refused — 409 results_published, nothing changes", () => {
+    publish();
+    const before = tracks();
+    const order = publishedOrder();
+    expect(order.length).toBeGreaterThan(1);
+    expectHttpError(() => saveTracks(organizer(), "evt_01", renamed()), 409, "results_published");
+    expectHttpError(() => saveTracks(organizer(), "evt_01", swapped()), 409, "results_published");
+    expectHttpError(() => saveTracks(organizer(), "evt_01", [...sent(), { name: "Late track" }]), 409, "results_published");
+    expect(tracks()).toEqual(before);
+    expect(publishedOrder()).toEqual(order);
+    expect(auditOf("event.tracks")).toHaveLength(0);
+  });
+
+  it("after publishing, sending the tracks back unchanged is fine and writes no row (positive control)", () => {
+    publish();
+    expect(saveTracks(organizer(), "evt_01", sent())).toEqual({ count: 8 });
+    expect(auditOf("event.tracks")).toHaveLength(0);
+  });
+
+  it("before publishing, a rename and a new order are saved, and the row keeps each track's id, name and position (positive control)", () => {
+    const [first, second] = tracks();
+    saveTracks(organizer(), "evt_01", renamed());
+    saveTracks(organizer(), "evt_01", swapped());
+    expect(tracks().slice(0, 2)).toEqual([
+      { id: second!.id, name: second!.name, position: 0 },
+      { id: first!.id, name: "Dev tools", position: 1 },
+    ]);
+    const rows = auditOf("event.tracks");
+    expect(rows).toHaveLength(2);
+    expect((rows[0]!.before as unknown[])[0]).toEqual({ id: first!.id, name: first!.name, position: 0 });
+    expect((rows[0]!.after as unknown[])[0]).toEqual({ id: first!.id, name: "Dev tools", position: 0 });
+    expect((rows[1]!.after as unknown[]).slice(0, 2)).toEqual([
+      { id: second!.id, name: second!.name, position: 0 },
+      { id: first!.id, name: "Dev tools", position: 1 },
+    ]);
+    const words = latestAudit(h.db, "evt_01", 2, ["event.tracks"]).map((l) => l.parts.map((p) => p.text).join(""));
+    expect(words[1]).toContain(`renamed “${first!.name}” to “Dev tools”`);
+    expect(words[0]).toContain(`put them in the order “${second!.name}”, “Dev tools”`);
+  });
+
+  it("known-bad: a judge cannot change them — 403, nothing changes", () => {
+    const before = tracks();
+    expectHttpError(() => saveTracks(judge(), "evt_01", renamed()), 403, "not_an_organizer");
+    expect(tracks()).toEqual(before);
   });
 });

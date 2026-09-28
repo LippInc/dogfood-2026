@@ -107,6 +107,27 @@ const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${ite
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
 const quote = (s: unknown) => `“${String(s ?? "")}”`;
 
+type TrackRow = { id: string; name: string };
+const trackRows = (v: unknown): TrackRow[] | null =>
+  Array.isArray(v) && v.every((x) => x && typeof x === "object" && typeof (x as TrackRow).id === "string") ? (v as TrackRow[]) : null;
+
+/** What a tracks save did, in words, from rows that keep each track's id; null for the rows written before they did (names only). */
+function trackChange(before: unknown, after: unknown): string | null {
+  const was = trackRows(before);
+  const now = trackRows(after);
+  if (!was || !now) return null;
+  const parts: string[] = [];
+  for (const n of now) {
+    const o = was.find((x) => x.id === n.id);
+    if (!o) parts.push(`added ${quote(n.name)}`);
+    else if (o.name !== n.name) parts.push(`renamed ${quote(o.name)} to ${quote(n.name)}`);
+  }
+  for (const o of was) if (!now.some((n) => n.id === o.id)) parts.push(`removed ${quote(o.name)}`);
+  const order = (rows: TrackRow[], other: TrackRow[]) => rows.filter((r) => other.some((x) => x.id === r.id)).map((r) => r.id).join(" ");
+  if (order(was, now) !== order(now, was)) parts.push(`put them in the order ${now.map((n) => quote(n.name)).join(", ")}`);
+  return parts.length ? parts.join("; ") : null;
+}
+
 function sentence(r: Row, n: Names): Part[] {
   const label = r.actorUserId ? (n.user.get(r.actorUserId) ?? r.actorLabel) : r.actorLabel;
   const actor: Part = { text: label.charAt(0).toUpperCase() + label.slice(1), strong: true };
@@ -134,7 +155,10 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" created the event")];
     case "event.update":
       return [actor, t(` changed the event's ${Object.keys(after).join(", ") || "details"}`)];
-    case "event.tracks":
+    case "event.tracks": {
+      const change = trackChange(r.before, r.after);
+      return change ? [actor, t(` changed the tracks: ${change}`)] : [actor, t(" changed the tracks")];
+    }
     case "event.prizes":
     case "event.questions":
     case "event.rubric":

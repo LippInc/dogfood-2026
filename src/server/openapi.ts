@@ -58,7 +58,7 @@ export const OPERATIONS: Operation[] = [
   { method: "POST", path: "/api/events", tag: "Events", summary: "Create an event", access: "administrator", body: In.NewEvent, ok: 201 },
   { method: "GET", path: "/api/events/{event}", tag: "Events", summary: "One event, public fields only", access: "anyone" },
   { method: "PUT", path: "/api/events/{event}", tag: "Events", summary: "Save the event's name, description and dates", access: "organizer", body: In.Details },
-  { method: "PUT", path: "/api/events/{event}/tracks", tag: "Events", summary: "Replace the event's tracks", access: "organizer", body: In.TrackRows },
+  { method: "PUT", path: "/api/events/{event}/tracks", tag: "Events", summary: "Replace the event's tracks", access: "organizer", body: In.TrackRows, also: [409], note: "The rows in order, each with its id to keep a track (a row without one is a new track). A track with projects or judges cannot be removed (409 track_in_use). Once the results are published the tracks are final (409 results_published); sending them unchanged is still fine. The audit row keeps every track's id, name and position before and after." },
   { method: "PUT", path: "/api/events/{event}/prizes", tag: "Events", summary: "Replace the event's prizes", access: "organizer", body: In.PrizeRows },
   { method: "GET", path: "/api/events/{event}/project-fields", tag: "Events", summary: "What teams fill in on the project form: each built-in field (title, summary, trackId, description, repoUrl, videoUrl, liveUrl, thumbnailUrl, galleryUrls, tags) required, optional or hidden, and how many tracks the event has", access: "anyone" },
   {

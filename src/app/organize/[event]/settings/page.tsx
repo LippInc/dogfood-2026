@@ -168,7 +168,11 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             markUnsaved
             number={num(2)}
             title="Tracks"
-            description="Projects enter one track; judges are assigned by track. A track that has projects or judges can be renamed, not removed."
+            description={
+              event.resultsPublishedAt
+                ? "Results are published, so the tracks are final: the results are grouped, ordered and named by them."
+                : "Projects enter one track; judges are assigned by track. A track that has projects or judges can be renamed, not removed."
+            }
             action={saveTracksAction}
             hidden={hidden}
             fieldLabels={{ tracks: "Tracks" }}
@@ -179,6 +183,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               initial={o.tracks.map((t) => ({ id: t.id, name: t.name }))}
               blank={{ name: "" }}
               addLabel="Add a track"
+              disabled={Boolean(event.resultsPublishedAt)}
               grid="lg:grid-cols-[20px_minmax(0,1fr)_92px]"
               fields={[{ key: "name", label: "Track name", type: "text" }]}
             />

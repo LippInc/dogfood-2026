@@ -273,6 +273,12 @@ export function updateEventDetails(actor: Actor | null, idOrSlug: string, body: 
   });
 }
 
+/**
+ * The tracks, in order. The published results are grouped and ordered by track and name each
+ * one, so once they are published the tracks are final like the rubric and the dates: a rename
+ * or a new order would change what the results page and every certificate issued later say.
+ * The audit row keeps each track's id, name and position before and after.
+ */
 export function saveTracks(actor: Actor | null, idOrSlug: string, body: unknown) {
   const ref: { event?: EventRow } = {};
   return mutate({
@@ -283,7 +289,10 @@ export function saveTracks(actor: Actor | null, idOrSlug: string, body: unknown)
       const e = ref.event!;
       const rows = parse(TrackRows, body);
       uniqueNames(rows, "tracks");
-      const existing = tx.select().from(tracks).where(eq(tracks.eventId, e.id)).all();
+      const existing = tx.select().from(tracks).where(eq(tracks.eventId, e.id)).orderBy(asc(tracks.position)).all();
+      const unchanged = rows.length === existing.length && rows.every((r, i) => r.id === existing[i]!.id && r.name === existing[i]!.name);
+      if (unchanged) return { result: { count: rows.length }, audit: null };
+      resultsFinal(e, "the tracks are");
       const keep = new Set(rows.map((r) => r.id).filter(Boolean) as string[]);
       const removed = existing.filter((t) => !keep.has(t.id));
       for (const t of removed) {
@@ -295,12 +304,14 @@ export function saveTracks(actor: Actor | null, idOrSlug: string, body: unknown)
       // Temporary names first, so swapping two names never trips the unique (event, name) index.
       for (const t of existing) tx.update(tracks).set({ name: `\u0000${t.id}` }).where(eq(tracks.id, t.id)).run();
       if (removed.length) tx.delete(tracks).where(inArray(tracks.id, removed.map((t) => t.id))).run();
-      rows.forEach((r, position) => {
+      const after = rows.map((r, position) => {
         if (r.id && existing.some((t) => t.id === r.id)) {
           tx.update(tracks).set({ name: r.name, position }).where(eq(tracks.id, r.id)).run();
-        } else {
-          tx.insert(tracks).values({ id: newId("trk"), eventId: e.id, name: r.name, position }).run();
+          return { id: r.id, name: r.name, position };
         }
+        const id = newId("trk");
+        tx.insert(tracks).values({ id, eventId: e.id, name: r.name, position }).run();
+        return { id, name: r.name, position };
       });
       return {
         result: { count: rows.length },
@@ -309,8 +320,8 @@ export function saveTracks(actor: Actor | null, idOrSlug: string, body: unknown)
           eventId: e.id,
           targetType: "event",
           targetId: e.id,
-          before: existing.map((t) => t.name),
-          after: rows.map((r) => r.name),
+          before: existing.map((t) => ({ id: t.id, name: t.name, position: t.position })),
+          after,
         },
       };
     },
