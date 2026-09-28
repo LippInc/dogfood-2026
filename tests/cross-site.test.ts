@@ -56,3 +56,36 @@ describe("proxy", () => {
     expect(forwarded(proxy(request({ "sec-fetch-site": "cross-site" })))).toBeNull();
   });
 });
+
+// Login CSRF: signing in or up, and entering a voting link, set a cookie without needing one, so dropping cookies
+// would not stop a page of another origin from sending them. Those writes are refused, with a real 403.
+describe("proxy: the writes that set a cookie without needing one", () => {
+  const at = (path: string, headers: Record<string, string>, method = "POST") =>
+    new NextRequest(`http://localhost:8080${path}`, { method, headers: { host: "localhost:8080", ...headers } });
+  const STARTERS = ["/api/auth/sign-in", "/api/auth/sign-up", "/api/auth/demo-sign-in", "/api/vote/vote0123abcd"];
+  const CROSS: Record<string, string>[] = [{ "sec-fetch-site": "cross-site" }, { "sec-fetch-site": "same-site" }, { origin: "http://evil.example" }, { origin: "null" }];
+
+  it("refuses a write from another origin: 403 cross_origin, cookies or not", async () => {
+    for (const path of STARTERS) {
+      for (const headers of [...CROSS, { ...CROSS[0]!, cookie: "session=abc" }]) {
+        const res = proxy(at(path, headers));
+        expect(res.status, `${path} ${JSON.stringify(headers)}`).toBe(403);
+        expect(await res.json()).toMatchObject({ error: "cross_origin" });
+      }
+    }
+  });
+
+  it("positive controls: the portal's own pages, curl and the checker still get through", () => {
+    for (const path of STARTERS) {
+      expect(proxy(at(path, { "sec-fetch-site": "same-origin" })).status).toBe(200);
+      expect(proxy(at(path, { origin: "http://localhost:8080" })).status).toBe(200);
+      expect(proxy(at(path, {})).status).toBe(200); // no Origin, no Sec-Fetch-Site: curl, the checker
+      expect(proxy(at(path, { "sec-fetch-site": "cross-site" }, "GET")).status).toBe(200);
+    }
+  });
+
+  it("leaves other routes' cross-origin writes to the cookie rule, and sign-out alone", () => {
+    expect(proxy(at("/api/events", { "sec-fetch-site": "cross-site" })).status).toBe(200);
+    expect(proxy(at("/api/auth/sign-out", { "sec-fetch-site": "cross-site" })).status).toBe(200);
+  });
+});

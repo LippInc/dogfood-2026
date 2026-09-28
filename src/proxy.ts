@@ -3,13 +3,26 @@ import { crossOriginWrite } from "@/lib/cross-site";
 import { PAGE_PATH_HEADER } from "@/lib/page-mark";
 
 /**
- * A write to the API from a page of another origin arrives without its cookies (src/lib/cross-site.ts).
- * A page request carries its own path in a header, which the page's mark is drawn from
- * (src/lib/page-mark.ts): Server Components cannot read the address otherwise.
+ * The writes that set a cookie without needing one: signing in or up (a session) and entering a voting link (a
+ * voter). Dropping the cookies does not stop a page of another origin from sending them, which would sign the
+ * visitor in to an account of that page's choosing (login CSRF) or enter voting in the visitor's name, so such
+ * writes are refused outright. The portal's own pages, and curl or the checker (no Origin, no Sec-Fetch-Site),
+ * are not affected.
+ */
+const SESSION_STARTERS = new Set(["/api/auth/sign-in", "/api/auth/sign-up", "/api/auth/demo-sign-in"]);
+const startsCookie = (pathname: string) => SESSION_STARTERS.has(pathname) || pathname.startsWith("/api/vote/");
+
+/**
+ * A write to the API from a page of another origin arrives without its cookies (src/lib/cross-site.ts), and one
+ * that would set a cookie of its own is refused. A page request carries its own path in a header, which the page's mark
+ * is drawn from (src/lib/page-mark.ts): Server Components cannot read the address otherwise.
  */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname === "/api" || pathname.startsWith("/api/")) {
+    if (startsCookie(pathname) && crossOriginWrite(request.method, request.headers)) {
+      return NextResponse.json({ error: "cross_origin", message: "Sign in from this portal's own pages." }, { status: 403 });
+    }
     if (!request.headers.has("cookie") || !crossOriginWrite(request.method, request.headers)) return NextResponse.next();
     const headers = new Headers(request.headers);
     headers.delete("cookie");
