@@ -1,7 +1,10 @@
 # One container: the Next.js standalone server, SQLite in the /data volume.
 # The build needs the network (npm); the running container never does.
 
-FROM node:24-bookworm-slim AS base
+# node:24-bookworm-slim pinned to the image our checks ran on (Node 24.21.0, one index for linux/amd64 and
+# linux/arm64), so a later push to the tag cannot change what a fork builds. To move on: read the tag's new
+# digest with `docker buildx imagetools inspect node:24-bookworm-slim`, put it here, and run the checks again.
+FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS base
 ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS deps
