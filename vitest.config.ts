@@ -14,6 +14,9 @@ export default defineConfig({
   test: {
     environment: "node",
     pool: "forks",
+    // Room for a machine that is also building images and rendering video: two tests that take about a second
+    // alone ran 8 to 9 s under that load and failed at the 5 s default (2026-09-28).
+    testTimeout: 30_000,
     // The Monte Carlo proofs keep every core busy for a minute or more; run them after the
     // rest, so tests that time real work (argon2, a local webhook receiver) never share the
     // machine with them. `vitest run` still runs both groups.
