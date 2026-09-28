@@ -59,7 +59,7 @@ export async function setTracksAction(_prev: ActionResult, form: FormData): Prom
     return actionError(err);
   }
   refresh(slug);
-  return { ok: true, message: "Tracks saved. Existing assignments stay; the next top-up uses the new tracks." };
+  return { ok: true, message: "Tracks saved. Open reviews outside the new tracks leave this judge's list; the next top-up gives those projects another judge." };
 }
 
 export async function runAssignmentAction(_prev: RunResult, form: FormData): Promise<RunResult> {

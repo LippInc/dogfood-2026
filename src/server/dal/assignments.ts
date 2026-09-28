@@ -12,7 +12,7 @@ import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { isJudgeIn, judgeRows } from "./judges";
-import { judgeSet } from "./judging";
+import { inJudgeTracks, judgeSet } from "./judging";
 import { parse } from "./parse";
 import { shownTitle } from "./project-fields";
 
@@ -56,8 +56,9 @@ function engineInput(db: DbOrTx, event: EventRow): Omit<AssignInput, keyof impor
     .all()
     .filter((m) => judgeIds.has(m.userId));
   const existing = db
-    .select({ judgeId: assignments.judgeUserId, projectId: assignments.projectId, status: assignments.status })
+    .select({ judgeId: assignments.judgeUserId, projectId: assignments.projectId, status: assignments.status, visible: inJudgeTracks })
     .from(assignments)
+    .innerJoin(projects, eq(projects.id, assignments.projectId))
     .where(eq(assignments.eventId, event.id))
     .all();
   const excluded = judgeSet(db, event.id).excluded;
@@ -69,10 +70,13 @@ function engineInput(db: DbOrTx, event: EventRow): Omit<AssignInput, keyof impor
     projects: projectRows.map(({ id, trackId }) => ({ id, trackId })),
     judges,
     conflicts,
+    // A seat is filled by a finished review, or by an open one its judge can still finish: an open
+    // review of a project outside the judge's tracks now (the team or an organizer moved it, or the
+    // judge lost the track) never reaches the judge's console, so a top-up gives the project another.
     existing: existing.map((e) => ({
       judgeId: e.judgeId,
       projectId: e.projectId,
-      counts: e.status !== "recused" && !excluded.includes(e.judgeId),
+      counts: (e.status === "done" || (e.status === "pending" && Boolean(e.visible))) && !excluded.includes(e.judgeId),
     })),
     excludedJudges: excluded,
   };

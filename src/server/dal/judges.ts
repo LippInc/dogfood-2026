@@ -10,7 +10,7 @@ import type { FlatFlag } from "../judging/flat";
 import { guardRead, mutate } from "../mutate";
 import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { judgeSet, type ActiveOverride } from "./judging";
+import { inJudgeTracks, judgeSet, type ActiveOverride } from "./judging";
 import { parse } from "./parse";
 
 // Judges join an event by invitation link: the organizer names the tracks, shares
@@ -298,14 +298,17 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
     .where(eq(judgeTracks.eventId, eventId))
     .orderBy(asc(tracks.position))
     .all();
+  // An open review of a project outside the judge's tracks now is not in their console, so it is
+  // not open work of theirs: it is counted only while the project is in one of their tracks.
   const counts = db
     .select({
       judgeId: assignments.judgeUserId,
       status: assignments.status,
-      n: sql<number>`count(*)`,
+      n: sql<number>`sum(case when ${assignments.status} != 'pending' or ${inJudgeTracks} then 1 else 0 end)`,
       last: sql<string | null>`max(${scores.submittedAt})`,
     })
     .from(assignments)
+    .innerJoin(projects, eq(projects.id, assignments.projectId))
     .leftJoin(scores, eq(scores.assignmentId, assignments.id))
     .where(eq(assignments.eventId, eventId))
     .groupBy(assignments.judgeUserId, assignments.status)
