@@ -1,4 +1,5 @@
 import "server-only";
+import { seededRng, shuffle } from "./random";
 
 // The normalization engine (JUDGING.md explains the model and how it was checked).
 //
@@ -373,21 +374,13 @@ export type SignalCheck = { share: number; trials: number; seed: number; observe
 export function permutationShare(obs: readonly Obs[], trials = 2000, seed = 20260924): SignalCheck {
   const ys = obs.map((o) => o.y);
   const observed = varianceOfMeans(obs, ys);
-  let a = seed >>> 0;
-  const random = () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+  // The same seeded generator and Fisher-Yates as assignment runs (random.ts): one copy
+  // underwrites "same seed, same share". Each shuffle starts from the previous one.
+  const random = seededRng(seed);
   let hits = 0;
-  const s = [...ys];
+  let s = ys;
   for (let k = 0; k < trials; k++) {
-    for (let i = s.length - 1; i > 0; i--) {
-      const j = Math.floor(random() * (i + 1));
-      [s[i], s[j]] = [s[j]!, s[i]!];
-    }
+    s = shuffle(s, random);
     if (varianceOfMeans(obs, s) >= observed - 1e-12) hits++;
   }
   return { share: hits / trials, trials, seed, observed };
