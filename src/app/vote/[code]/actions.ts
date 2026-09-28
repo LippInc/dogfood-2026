@@ -8,8 +8,9 @@ import { actionError, enterVoting, voteCookieName, type ActionResult } from "@/s
 export async function enterAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   let slug: string;
   try {
-    const entered = enterVoting(String(form.get("code") ?? ""), await clientOf());
-    (await cookies()).set(voteCookieName(entered.eventId), entered.token, {
+    const jar = await cookies();
+    const entered = enterVoting(String(form.get("code") ?? ""), await clientOf(), (eventId) => jar.get(voteCookieName(eventId))?.value);
+    jar.set(voteCookieName(entered.eventId), entered.token, {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
