@@ -17,6 +17,7 @@ import {
   comparisons,
   tracks,
   userRoles,
+  type WeightChange,
 } from "../db/schema";
 import { ConflictError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
@@ -78,6 +79,14 @@ export const RubricRows = z
   )
   .min(1, "the rubric needs at least one criterion")
   .max(8);
+
+/**
+ * The rubric as sent: the rows and a reason, needed only for a weight change after the first
+ * score, which the published results then show. A bare list of rows (the body before reasons
+ * existed) is still taken as the rows with no reason.
+ */
+export const RubricBody = z.object({ criteria: RubricRows, reason: z.string().trim().max(500).optional() });
+const RubricInput = z.union([RubricRows, RubricBody]);
 
 export const NewEvent = z.object({
   details: Details,
@@ -371,10 +380,11 @@ export function saveQuestions(actor: Actor | null, idOrSlug: string, body: unkno
 }
 
 /**
- * Labels and prompts can change until the results are published (audited). The weights and
- * the set of criteria are fixed once any score exists: re-weighting while the standings are
- * in view would let an organizer choose the ranking, and removing a criterion would leave
- * reviews half-defined.
+ * Labels and prompts can change until the results are published (audited). The set of criteria
+ * is fixed once any score exists: removing a criterion would leave reviews half-defined. A
+ * weight can still change after the first score, to fix a mistake, but only with a written
+ * reason: the change is audited and kept on the event, and the published results show it (the
+ * weights before and after, when, and why), so nobody re-weights the ranking quietly.
  */
 export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown) {
   const ref: { event?: EventRow } = {};
@@ -385,12 +395,15 @@ export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown)
     run: (tx) => {
       const e = ref.event!;
       resultsFinal(e, "the rubric is");
-      const rows = parse(RubricRows, body);
+      const input = parse(RubricInput, body);
+      const rows = Array.isArray(input) ? input : input.criteria;
+      const reason = Array.isArray(input) ? "" : (input.reason ?? "");
       uniqueNames(rows.map((r) => ({ name: r.label })), "criteria");
       const existing = tx.select().from(rubricCriteria).where(eq(rubricCriteria.eventId, e.id)).orderBy(asc(rubricCriteria.position)).all();
       const sameSet =
         rows.length === existing.length && rows.every((r) => r.id && existing.some((c) => c.id === r.id));
       const sameWeights = sameSet && rows.every((r) => Math.abs(existing.find((c) => c.id === r.id)!.weight - r.weight) < 1e-9);
+      let reweighted: WeightChange | null = null;
       if (!sameSet || !sameWeights) {
         const scored = tx
           .select({ n: sql<number>`count(*)` })
@@ -398,7 +411,20 @@ export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown)
           .innerJoin(rubricCriteria, eq(rubricCriteria.id, scoreItems.criterionId))
           .where(eq(rubricCriteria.eventId, e.id))
           .get()!.n;
-        if (scored > 0) throw new ConflictError("rubric_in_use", "Judges have scored already: labels and prompts can change, the weights and the set of criteria cannot.");
+        if (scored > 0 && !sameSet)
+          throw new ConflictError("rubric_in_use", "Judges have scored already: the set of criteria is fixed. Labels, prompts and, with a reason, weights can change.");
+        if (scored > 0) {
+          if (reason.length < 3)
+            throw new ValidationError("Judges have scored already, so a weight change needs a reason: the published results will show it.", {
+              reason: ["say why the weights change, in a few words"],
+            });
+          reweighted = {
+            at: new Date().toISOString(),
+            reason,
+            before: existing.map((c) => ({ id: c.id, label: c.label, weight: c.weight })),
+            after: rows.map((r) => ({ id: r.id!, label: r.label, weight: r.weight })),
+          };
+        }
       }
       if (!sameSet) {
         const keep = rows.map((r) => r.id).filter(Boolean) as string[];
@@ -414,16 +440,24 @@ export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown)
           tx.insert(rubricCriteria).values({ id: `crit_${e.id}_${key}_${newId("c", 4).slice(2)}`, eventId: e.id, key, label: r.label, prompt: r.prompt, weight: r.weight, position }).run();
         }
       });
+      if (reweighted) {
+        tx.update(events)
+          .set({ settings: { ...e.settings, weightChanges: [...(e.settings.weightChanges ?? []), reweighted] } })
+          .where(eq(events.id, e.id))
+          .run();
+      }
       return {
-        result: { count: rows.length },
-        audit: {
-          action: "event.rubric",
-          eventId: e.id,
-          targetType: "event",
-          targetId: e.id,
-          before: existing.map((c) => ({ label: c.label, weight: c.weight })),
-          after: rows.map((r) => ({ label: r.label, weight: r.weight })),
-        },
+        result: { count: rows.length, reweighted: reweighted !== null },
+        audit: reweighted
+          ? { action: "event.rubric_reweighted", eventId: e.id, targetType: "event", targetId: e.id, before: reweighted.before, after: { weights: reweighted.after, reason } }
+          : {
+              action: "event.rubric",
+              eventId: e.id,
+              targetType: "event",
+              targetId: e.id,
+              before: existing.map((c) => ({ label: c.label, weight: c.weight })),
+              after: rows.map((r) => ({ label: r.label, weight: r.weight })),
+            },
       };
     },
   });

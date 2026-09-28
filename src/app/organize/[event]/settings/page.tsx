@@ -278,13 +278,14 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             }
             action={saveRubricAction}
             hidden={hidden}
-            fieldLabels={{ criteria: "Criteria" }}
+            fieldLabels={{ criteria: "Criteria", reason: "Reason" }}
             rowLabel="Criterion"
           >
             <RubricEditor
               saved={o.rubric.map((c) => ({ id: c.id, label: c.label, prompt: c.prompt, weight: c.weight }))}
               locked={o.scored}
-              lockedHint="Judges have scored already: labels and prompts can change, the weights and the set of criteria cannot."
+              lockedHint="Judges have scored already: the set of criteria is fixed. Labels and prompts can change; a weight change needs a reason and shows on the published results."
+              changes={event.settings.weightChanges ?? []}
             />
           </SectionForm>
         </div>

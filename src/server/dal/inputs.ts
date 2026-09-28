@@ -8,7 +8,7 @@ export { ManualInput, RunInput } from "./assignments";
 export { CommentInput, HideInput } from "./comments";
 export { InviteInput, TrackIds } from "./judges";
 export { AcceptInput, MergeInput, OverrideInput, PairInput, RevokeInput, UndoPairInput, UnmergeInput } from "./decisions";
-export { Details, NewEvent, PrizeRows, QuestionRows, RubricRows, TrackRows } from "./organize";
+export { Details, NewEvent, PrizeRows, QuestionRows, RubricBody, RubricRows, TrackRows } from "./organize";
 export { ProjectInput } from "./projects";
 export { RecordRequest } from "./records";
 export { RecuseInput, ReviewInput } from "./reviews";

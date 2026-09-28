@@ -69,7 +69,15 @@ export async function saveQuestionsAction(_prev: ActionResult, form: FormData): 
 
 export async function saveRubricAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const actor = await currentActor();
-  return run(form, (slug) => saveRubric(actor, slug, rows(form, "rubric")), "Rubric saved. Totals are recomputed from the stored scores.");
+  let reweighted = false;
+  const result = await run(
+    form,
+    (slug) => {
+      reweighted = saveRubric(actor, slug, { criteria: rows(form, "rubric"), reason: String(form.get("reason") ?? "") }).reweighted;
+    },
+    "Rubric saved. Totals are recomputed from the stored scores.",
+  );
+  return result.ok && reweighted ? { ok: true, message: "Weights changed. The change and its reason are logged, and the published results will show them." } : result;
 }
 
 export async function addOrganizerAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {

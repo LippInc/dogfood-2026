@@ -32,7 +32,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 ## Judging
 
-**`rubric_criteria`** — one weighted criterion of an event's rubric. `id`; `event_id`; `key` (unique per event); `label`; `prompt`; `weight` real > 0; `scale_min`, `scale_max` (0 ≤ min < max ≤ 100); `anchors` json, anchor text per level; `position`.
+**`rubric_criteria`** — one weighted criterion of an event's rubric. `id`; `event_id`; `key` (unique per event); `label`; `prompt`; `weight` real > 0; `scale_min`, `scale_max` (0 ≤ min < max ≤ 100); `anchors` json, anchor text per level; `position`. Once a score exists the set of criteria is fixed; a weight change then needs a reason and is kept in `events.settings.weightChanges` (when, why, the weights before and after), which the published results list.
 
 **`judge_tracks`** — one judge's claim on one track. `judge_user_id`, `event_id`, `track_id` (pk); the track is composite-pinned to the event.
 

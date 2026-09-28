@@ -10,7 +10,7 @@ import { HttpError } from "@/server/errors";
 import { requireEvent } from "@/server/dal/events";
 import { saveRubric, updateEventDetails } from "@/server/dal/organize";
 import { acceptUnderReviewed, dismissDuplicate, setJudgeOverride } from "@/server/dal/decisions";
-import { publishResults } from "@/server/dal/results";
+import { getPublishedResults, publishResults } from "@/server/dal/results";
 import type { Actor } from "@/server/authz";
 
 // The event settings an organizer edits: the rubric and the event's details. Both are
@@ -63,6 +63,8 @@ const rubric = () =>
     weight: number;
   }[];
 const withWeight = (w: number) => rubric().map((c, i) => ({ ...c, weight: i === 0 ? w : c.weight }));
+const weightChanges = () => requireEvent(h.db, "evt_01").settings.weightChanges ?? [];
+const REASON = "Typo: functionality was meant to count double";
 
 /** The details form as it would be sent back unchanged: times as "YYYY-MM-DDTHH:MM". */
 function detailsAsSent(over: Record<string, unknown> = {}) {
@@ -87,24 +89,41 @@ function publish() {
 }
 
 describe("the rubric", () => {
-  it("known-bad: once judges have scored, a weight cannot change either — 409 rubric_in_use, nothing changes", () => {
-    expectHttpError(() => saveRubric(organizer(), "evt_01", withWeight(2)), 409, "rubric_in_use");
+  it("known-bad: once judges have scored, a weight change without a reason is refused — 422, nothing changes", () => {
+    expectHttpError(() => saveRubric(organizer(), "evt_01", withWeight(2)), 422, "invalid");
+    expectHttpError(() => saveRubric(organizer(), "evt_01", { criteria: withWeight(2), reason: "  " }), 422, "invalid");
     expect(rubric()[0]!.weight).toBe(1);
     expect(auditOf("event.rubric")).toHaveLength(0);
+    expect(auditOf("event.rubric_reweighted")).toHaveLength(0);
+    expect(weightChanges()).toHaveLength(0);
   });
 
-  it("after scoring, labels and prompts still change, audited (positive control)", () => {
+  it("once judges have scored, a weight changes with a reason: audited with it, kept on the event, listed by the published results", () => {
+    expect(saveRubric(organizer(), "evt_01", { criteria: withWeight(2), reason: REASON }).reweighted).toBe(true);
+    expect(rubric()[0]!.weight).toBe(2);
+    const [row] = auditOf("event.rubric_reweighted");
+    expect(row!.after).toMatchObject({ reason: REASON });
+    expect(weightChanges()).toHaveLength(1);
+    expect(weightChanges()[0]).toMatchObject({ reason: REASON, before: [{ weight: 1 }, { weight: 1 }, { weight: 1 }], after: [{ weight: 2 }, { weight: 1 }, { weight: 1 }] });
+    publish();
+    const results = getPublishedResults("evt_01");
+    expect(results.published && results.weightChanges.map((c) => c.reason)).toEqual([REASON]);
+  });
+
+  it("after scoring, labels and prompts still change with no reason and nothing to disclose (positive control)", () => {
     const rows = rubric().map((c, i) => (i === 0 ? { ...c, label: "Does it work?", prompt: "Try the main path." } : c));
     saveRubric(organizer(), "evt_01", rows);
     expect(rubric()[0]).toMatchObject({ label: "Does it work?", prompt: "Try the main path.", weight: 1 });
     expect(auditOf("event.rubric")).toHaveLength(1);
+    expect(weightChanges()).toHaveLength(0);
   });
 
-  it("before any score, a weight can change, audited (positive control)", () => {
+  it("before any score, a weight changes with no reason and nothing to disclose (positive control)", () => {
     h.sqlite.prepare("DELETE FROM score_items").run();
     saveRubric(organizer(), "evt_01", withWeight(2));
     expect(rubric()[0]!.weight).toBe(2);
     expect(auditOf("event.rubric")).toHaveLength(1);
+    expect(weightChanges()).toHaveLength(0);
   });
 
   it("known-bad: a judge cannot change it — 403, nothing changes", () => {
@@ -117,10 +136,12 @@ describe("the rubric", () => {
     expect(rubric()).toHaveLength(3);
   });
 
-  it("known-bad: once the results are published, not even a weight — 409 results_published", () => {
+  it("known-bad: once the results are published, not even a weight, reason or not — 409 results_published", () => {
     publish();
     expectHttpError(() => saveRubric(organizer(), "evt_01", withWeight(2)), 409, "results_published");
+    expectHttpError(() => saveRubric(organizer(), "evt_01", { criteria: withWeight(2), reason: REASON }), 409, "results_published");
     expect(rubric()[0]!.weight).toBe(1);
+    expect(weightChanges()).toHaveLength(0);
   });
 });
 

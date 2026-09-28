@@ -6,7 +6,7 @@ import { SectionErrors } from "@/components/section-form";
 
 export type RowField =
   | { key: string; label: string; type: "text"; placeholder?: string; width?: string }
-  | { key: string; label: string; type: "number"; step?: number; width?: string; frozenWhenLocked?: boolean }
+  | { key: string; label: string; type: "number"; step?: number; width?: string }
   | { key: string; label: string; type: "select"; options: { value: string; label: string }[]; width?: string }
   | { key: string; label: string; type: "checkbox" };
 
@@ -136,9 +136,8 @@ export function RowsEditor({
                       value={String(row[f.key] ?? "")}
                       placeholder={f.type === "text" ? f.placeholder : undefined}
                       disabled={disabled}
-                      readOnly={locked && f.type === "number" && f.frozenWhenLocked}
                       onChange={(e) => set(i, f.key, f.type === "number" ? e.target.value : e.target.value)}
-                      className="h-8 min-w-0 rounded-sm border border-edge bg-surface px-2 text-14 tnum read-only:border-dashed read-only:bg-sunken read-only:text-ink-2"
+                      className="h-8 min-w-0 rounded-sm border border-edge bg-surface px-2 text-14 tnum"
                     />
                   )}
                 </label>

@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignments, auditLog, events, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, users } from "../db/schema";
+import { assignments, auditLog, events, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, users, type WeightChange } from "../db/schema";
 import type { ChainAnchor } from "../audit";
 import { formatUtc } from "@/lib/format";
 import { ConflictError } from "../errors";
@@ -248,6 +248,8 @@ export type PublishedResults =
       k: number | null;
       /** the organizers' yardstick as the published run measured it; null for pairwise runs and runs stored before it existed */
       yardstick: Yardstick | null;
+      /** weight changes made after judging began, each with its reason; empty when no weight moved after the first score */
+      weightChanges: WeightChange[];
       tracks: {
         id: string;
         name: string;
@@ -316,6 +318,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     method: run.method,
     k: (run.params as { k?: number | null }).k ?? null,
     yardstick: (run.params as { yardstick?: Yardstick | null }).yardstick ?? null,
+    weightChanges: event.settings.weightChanges ?? [],
     tracks: [...byTrack.values()].map((t) => {
       const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
       return {

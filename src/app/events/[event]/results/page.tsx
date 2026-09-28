@@ -8,6 +8,7 @@ import { LogSeal } from "@/components/results/log-seal";
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { PublicShell } from "@/components/shell/public-shell";
 import { YardstickLine } from "@/components/yardstick-line";
+import { weightMoves } from "@/lib/weight-change";
 import { formatUtc, plural } from "@/lib/format";
 import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, type Gallery } from "@/server/dal";
 import { competitionPlaces, ordinal } from "@/lib/places";
@@ -98,6 +99,18 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </li>
                 ))}
               </ol>
+              {results.weightChanges.length ? (
+                <div className="mt-6 max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
+                  <p className="font-semibold">The organizers changed the rubric&rsquo;s weights after judging began.</p>
+                  <ul className="mt-1.5 flex flex-col gap-1">
+                    {results.weightChanges.map((c, i) => (
+                      <li key={i}>
+                        <span className="tnum">{formatUtc(c.at)}</span>: {weightMoves(c)}. Their reason: &ldquo;{c.reason}&rdquo;
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
             <details className="group max-w-[760px] self-start rounded-sm border border-rule text-ink-2 lg:col-start-2 lg:row-start-2 lg:mt-6">
               <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">

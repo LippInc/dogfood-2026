@@ -115,6 +115,16 @@ export type EventSettings = {
   voting?: { modes: ("account" | "listed" | "link")[]; votesPerVoter: number; linkHash?: string | null; countLink?: boolean };
   /** How judges judge (decision 18): a rubric per project (the default) or the better of two. */
   judgingMode?: "scores" | "pairwise";
+  /** Weight changes made after the first score, each with its reason; the published results show them. */
+  weightChanges?: WeightChange[];
+};
+
+/** One weight change after judging began: when, why, and the criteria's weights before and after. */
+export type WeightChange = {
+  at: string;
+  reason: string;
+  before: { id: string; label: string; weight: number }[];
+  after: { id: string; label: string; weight: number }[];
 };
 
 export const events = sqliteTable(

@@ -137,6 +137,8 @@ function sentence(r: Row, n: Names): Part[] {
     case "event.questions":
     case "event.rubric":
       return [actor, t(` changed the ${r.action.split(".")[1]}`)];
+    case "event.rubric_reweighted":
+      return [actor, t(` changed the rubric's weights after judging began: ${quote(after.reason)}`)];
     case "team.create":
       return [actor, t(" created team "), { text: n.team.get(target) ?? target, strong: true }];
     case "team.join":
