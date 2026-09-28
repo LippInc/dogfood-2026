@@ -648,11 +648,14 @@ describe("the audit log keeps what a ballot holds sealed until voting closes", (
     expect(text()).toHaveLength(1);
     expect(text()[0]).toMatch(/hidden until voting closes/);
     expect(text()[0]).not.toContain(title);
-    expect(auditCsv(h.db, "evt_01")).not.toContain("prj_07");
+    // the ballot's own line of the CSV (the import's row names prj_07 among the reviews it brought, which is no pick)
+    const ballotLine = () => auditCsv(h.db, "evt_01").split(/\r?\n/).filter((l) => l.includes(",vote.cast,"));
+    expect(ballotLine()).toHaveLength(1);
+    expect(ballotLine()[0]).not.toContain("prj_07");
 
     h.sqlite.prepare("UPDATE events SET voting_close_at = '2026-01-02T00:00:00.000Z' WHERE id = 'evt_01'").run();
     expect(text()[0]).toContain(title); // positive control: the same row, readable once closed
-    expect(auditCsv(h.db, "evt_01")).toContain("prj_07");
+    expect(ballotLine()[0]).toContain("prj_07");
     expect(verifyAuditChain(h.db).ok).toBe(true);
   });
 
