@@ -139,7 +139,7 @@ export function ProjectForm({
             <Field
               id="title"
               label="Title"
-              help={required("title") ? undefined : `Leave it empty and the project is called ${teamName}, your team's name.`}
+              help={required("title") ? undefined : `Leave it empty and the project goes by ${teamName}.`}
               required={required("title")}
               error={e.title}
             >
