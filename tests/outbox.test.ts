@@ -13,7 +13,7 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
-import { MAIL_TIMEOUTS, mailBase, mailProblem, mailSettings, sendMail, setMailTransportForTests } from "@/server/mail";
+import { MAIL_TIMEOUTS, mailBase, mailProblem, mailSettings, sendMail, sendMany, setMailTransportForTests } from "@/server/mail";
 import { listOutbox, listPortalOutbox, type OutboxView } from "@/server/dal/outbox";
 import type { Actor } from "@/server/authz";
 
@@ -314,6 +314,24 @@ describe("sending through SMTP", () => {
     const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, { SMTP_URL: url, MAIL_FROM: "portal@mail.test", PUBLIC_URL: "https://portal.example.org" });
     if (out.status !== "failed") throw new Error(`expected failed, got ${out.status}`);
     expect(out.error).toMatch(/ECONNREFUSED|connect/i);
+  });
+});
+
+describe("a batch that runs out of time", () => {
+  it("starts no new send past its budget: the rest come back not tried, in order, and the page can answer", async () => {
+    const took: string[] = [];
+    // each send takes 100 ms; four at a time with a 150 ms budget: the first two waves go, the third never starts
+    setMailTransportForTests({ sendMail: (m) => new Promise((resolve) => setTimeout(() => resolve(void took.push(m.to)), 100)) });
+    const messages = Array.from({ length: 12 }, (_, i) => ({ to: `voter${i}@example.org`, subject: "Your link", text: "Body" }));
+    const results = await sendMany(messages, ON_ENV, 4, 150);
+    expect(results).toHaveLength(12);
+    const sent = results.filter((r) => r.status === "sent").length;
+    const late = results.filter((r) => r.status === "failed" && r.error === "not tried: the batch ran out of time").length;
+    expect(sent).toBeGreaterThan(0);
+    expect(late).toBeGreaterThan(0);
+    expect(sent + late).toBe(12);
+    expect(took).toHaveLength(sent); // what was not tried never reached the transport
+    expect(results.slice(0, sent).every((r) => r.status === "sent")).toBe(true); // in order: the first ones went
   });
 });
 

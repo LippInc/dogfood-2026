@@ -87,11 +87,22 @@ export async function sendMail(message: { to: string; subject: string; text: str
 /** nodemailer's codes for a server that cannot be used at all (unreachable, silent, refusing the login): the rest would fail too. */
 const SERVER_DOWN = new Set(["ECONNECTION", "ETIMEDOUT", "ESOCKET", "EDNS", "ETLS", "EAUTH"]);
 
+/** A batch starts no new send after this long, so the page that made the links answers before a proxy gives
+ *  up on it (the sends already under way still finish, within the timeouts); the rest are shown to copy. */
+export const MAIL_BATCH_MS = 20_000;
+
 /**
  * Sends several messages, at most `concurrency` at a time, the results in the same order. Once the server
- * cannot be used at all, the messages not yet tried fail at once instead of each waiting out the timeouts.
+ * cannot be used at all, the messages not yet tried fail at once instead of each waiting out the timeouts;
+ * past `budgetMs`, no new send starts.
  */
-export async function sendMany(messages: { to: string; subject: string; text: string }[], env: MailEnv = process.env, concurrency = 4): Promise<SendResult[]> {
+export async function sendMany(
+  messages: { to: string; subject: string; text: string }[],
+  env: MailEnv = process.env,
+  concurrency = 4,
+  budgetMs = MAIL_BATCH_MS,
+): Promise<SendResult[]> {
+  const started = Date.now();
   const results: SendResult[] = new Array(messages.length);
   let down: string | null = null;
   let next = 0;
@@ -100,6 +111,10 @@ export async function sendMany(messages: { to: string; subject: string; text: st
       const i = next++;
       if (down) {
         results[i] = { status: "failed", error: `not tried: ${down}` };
+        continue;
+      }
+      if (Date.now() - started > budgetMs) {
+        results[i] = { status: "failed", error: "not tried: the batch ran out of time" };
         continue;
       }
       const result = await sendMail(messages[i]!, env);
