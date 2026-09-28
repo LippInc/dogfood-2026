@@ -12,7 +12,7 @@ type Row = Record<string, string | number | boolean | undefined> & { id?: string
  */
 const FIELDS: RowField[] = [
   { key: "label", label: "Criterion", type: "text", width: "grow basis-32" },
-  { key: "weight", label: "Weight", type: "number", width: "w-20" },
+  { key: "weight", label: "Weight", type: "number", width: "w-20", frozenWhenLocked: true },
   { key: "prompt", label: "Question for the judge", type: "text", width: "basis-full max-lg:pl-7" },
 ];
 

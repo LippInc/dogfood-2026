@@ -371,9 +371,10 @@ export function saveQuestions(actor: Actor | null, idOrSlug: string, body: unkno
 }
 
 /**
- * Labels, prompts and weights can change at any time (the change is audited and
- * every total is recomputed from the stored items). Criteria can be added or
- * removed only while no score exists, so no review is left half-defined.
+ * Labels and prompts can change until the results are published (audited). The weights and
+ * the set of criteria are fixed once any score exists: re-weighting while the standings are
+ * in view would let an organizer choose the ranking, and removing a criterion would leave
+ * reviews half-defined.
  */
 export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown) {
   const ref: { event?: EventRow } = {};
@@ -389,14 +390,17 @@ export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown)
       const existing = tx.select().from(rubricCriteria).where(eq(rubricCriteria.eventId, e.id)).orderBy(asc(rubricCriteria.position)).all();
       const sameSet =
         rows.length === existing.length && rows.every((r) => r.id && existing.some((c) => c.id === r.id));
-      if (!sameSet) {
+      const sameWeights = sameSet && rows.every((r) => Math.abs(existing.find((c) => c.id === r.id)!.weight - r.weight) < 1e-9);
+      if (!sameSet || !sameWeights) {
         const scored = tx
           .select({ n: sql<number>`count(*)` })
           .from(scoreItems)
           .innerJoin(rubricCriteria, eq(rubricCriteria.id, scoreItems.criterionId))
           .where(eq(rubricCriteria.eventId, e.id))
           .get()!.n;
-        if (scored > 0) throw new ConflictError("rubric_in_use", "Judges have scored already: change labels and weights, but keep the same criteria.");
+        if (scored > 0) throw new ConflictError("rubric_in_use", "Judges have scored already: labels and prompts can change, the weights and the set of criteria cannot.");
+      }
+      if (!sameSet) {
         const keep = rows.map((r) => r.id).filter(Boolean) as string[];
         tx.delete(rubricCriteria)
           .where(and(eq(rubricCriteria.eventId, e.id), keep.length ? notInArray(rubricCriteria.id, keep) : sql`1 = 1`))

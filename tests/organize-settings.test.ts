@@ -86,7 +86,21 @@ function publish() {
 }
 
 describe("the rubric", () => {
-  it("an organizer can change a weight while the results are unpublished, audited", () => {
+  it("known-bad: once judges have scored, a weight cannot change either — 409 rubric_in_use, nothing changes", () => {
+    expectHttpError(() => saveRubric(organizer(), "evt_01", withWeight(2)), 409, "rubric_in_use");
+    expect(rubric()[0]!.weight).toBe(1);
+    expect(auditOf("event.rubric")).toHaveLength(0);
+  });
+
+  it("after scoring, labels and prompts still change, audited (positive control)", () => {
+    const rows = rubric().map((c, i) => (i === 0 ? { ...c, label: "Does it work?", prompt: "Try the main path." } : c));
+    saveRubric(organizer(), "evt_01", rows);
+    expect(rubric()[0]).toMatchObject({ label: "Does it work?", prompt: "Try the main path.", weight: 1 });
+    expect(auditOf("event.rubric")).toHaveLength(1);
+  });
+
+  it("before any score, a weight can change, audited (positive control)", () => {
+    h.sqlite.prepare("DELETE FROM score_items").run();
     saveRubric(organizer(), "evt_01", withWeight(2));
     expect(rubric()[0]!.weight).toBe(2);
     expect(auditOf("event.rubric")).toHaveLength(1);
