@@ -74,6 +74,7 @@ export function LiveRefresh({ seconds = 15 }: { seconds?: number }) {
       title={paused ? "Live updates paused. Resume to refresh this page again" : `Refreshes every ${seconds} s while this tab is open. Pause to keep the page still`}
       className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-transparent px-1.5 text-12 whitespace-nowrap text-ink-2 hover:border-rule hover:text-ink"
     >
+      {paused ? <Play className="size-3.5" aria-hidden /> : <Pause className="size-3.5" aria-hidden />}
       <span className={`size-1.5 rounded-full ${running ? "bg-ok" : "bg-ink-3"}`} aria-hidden />
       {/* both words share one cell, so switching between them never changes the width */}
       <span className="hidden md:inline-grid" aria-hidden>
@@ -84,7 +85,6 @@ export function LiveRefresh({ seconds = 15 }: { seconds?: number }) {
       <span className="hidden min-w-[10ch] tnum md:inline-block" aria-hidden>
         {at ? `· ${at}` : ""}
       </span>
-      {paused ? <Play className="size-3.5" aria-hidden /> : <Pause className="size-3.5" aria-hidden />}
     </button>
   );
 }
