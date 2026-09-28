@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { DitherDigits } from "@/components/dither-digits";
 import { PlainFrame } from "@/components/shell/plain-frame";
 import { buttonVariants } from "@/components/ui/button";
@@ -24,6 +24,9 @@ export function AskedPath({ initial = null }: { initial?: string | null }) {
   const path = useAskedPath(initial);
   return <>{path ?? "this address"}</>;
 }
+
+/** A copy button's "Copied" goes back to "Copy" after this long, as the judges page's CopyButton does. */
+export const COPIED_FOR_MS = 2000;
 
 export type SheetRow ={ label: string; value: React.ReactNode; mono?: boolean };
 
@@ -127,6 +130,12 @@ export function StatusSheet({
 /** A value with a Copy button beside it, for the log id an operator searches for. */
 export function CopyValue({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
+  // "Copied" is an answer to one click: it goes back to "Copy", so a second copy reads as one too.
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), COPIED_FOR_MS);
+    return () => clearTimeout(t);
+  }, [copied]);
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <code className="font-mono text-13 break-all text-ink">{value}</code>
