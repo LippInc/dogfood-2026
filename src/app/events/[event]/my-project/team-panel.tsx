@@ -17,6 +17,9 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
   const [change, changeForm, changing] = useFormAction<ActionResult>(teamMemberAction, { ok: false, message: null });
   const captain = team.role === "captain";
   const [copied, setCopied] = useState(false);
+  // Leaving and removing ask once more: one click used to drop a teammate, or yourself, from the
+  // team and its project at once (a tester left by accident).
+  const [confirming, setConfirming] = useState<string | null>(null);
   // The full link needs this page's address, which only the browser knows: the server
   // renders the short path and the browser fills in the rest after hydration.
   const origin = useSyncExternalStore(noSubscription, () => window.location.origin, () => null);
@@ -41,9 +44,20 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
                 <Button variant="ghost" size="sm" name="do" value="captain" disabled={changing} className="-ml-2.5 h-7 text-13">
                   Make captain
                 </Button>
-                <Button variant="ghost" size="sm" name="do" value="remove" disabled={changing} className="h-7 text-13">
-                  Remove
-                </Button>
+                {confirming === `remove:${m.userId}` ? (
+                  <>
+                    <Button variant="ghost" size="sm" name="do" value="remove" disabled={changing} className="h-7 text-13 text-flag">
+                      Yes, remove {m.name.split(" ")[0]}
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(null)} className="h-7 text-13">
+                      Keep
+                    </Button>
+                  </>
+                ) : (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(`remove:${m.userId}`)} className="h-7 text-13">
+                    Remove
+                  </Button>
+                )}
               </form>
             ) : null}
           </li>
@@ -53,9 +67,23 @@ export function TeamPanel({ team, eventSlug, open, me }: { team: MyTeam; eventSl
         <form {...changeForm} className="mt-3">
           <input type="hidden" name="team" value={team.id} />
           <input type="hidden" name="event" value={eventSlug} />
-          <Button variant="ghost" size="sm" name="do" value="leave" disabled={changing} className="-ml-2.5">
-            Leave team
-          </Button>
+          {confirming === "leave" ? (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-13 text-ink-2">Leave {team.name}? You lose the project with it; the invite link brings you back.</p>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="sm" name="do" value="leave" disabled={changing} className="-ml-2.5 text-flag">
+                  Yes, leave
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(null)}>
+                  Stay
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming("leave")} className="-ml-2.5">
+              Leave team
+            </Button>
+          )}
         </form>
       ) : null}
       {open && captain && team.members.length > 1 ? <p className="mt-2 text-12 text-ink-3">To leave, make another member captain first.</p> : null}
