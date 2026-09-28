@@ -91,6 +91,22 @@ export const NewEvent = z.object({
   prizes: PrizeRows.default([]),
 });
 
+/**
+ * The name and dates arrive nested under `details`, so a refusal is keyed by the field's own name
+ * (submissionsOpenAt), the name the form's input carries and an API caller can act on; keyed by the
+ * envelope, "details: expected string" left six fields to guess from and marked none of them.
+ */
+function parseNewEvent(body: unknown): z.output<typeof NewEvent> {
+  const parsed = NewEvent.safeParse(body);
+  if (parsed.success) return parsed.data;
+  const fields: Record<string, string[]> = {};
+  for (const { path, message } of parsed.error.issues) {
+    const [top, sub] = path;
+    const key = top === "details" && typeof sub === "string" ? sub : top === undefined ? "request" : String(top);
+    (fields[key] ??= []).push(message);
+  }
+  throw new ValidationError("Check the highlighted fields.", fields);
+}
 
 function uniqueNames(rows: { name: string }[], what: string) {
   const seen = new Set<string>();
@@ -109,7 +125,7 @@ export function createEvent(actor: Actor | null, body: unknown) {
     action: "event.create",
     load: () => ({ kind: "platform" }),
     run: (tx) => {
-      const input = parse(NewEvent, body);
+      const input = parseNewEvent(body);
       uniqueNames(input.tracks, "tracks");
       const slug = input.slug || slugify(input.details.name);
       if (tx.select({ id: events.id }).from(events).where(eq(events.slug, slug)).get()) {
