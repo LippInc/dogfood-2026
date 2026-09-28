@@ -67,7 +67,7 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
                 Create an account
               </Link>
             </p>
-            <p>Forgot the password? The portal&apos;s administrator can send you a reset link.</p>
+            <p>Forgot the password? Ask the portal&apos;s administrator for a reset link: they make one on the Accounts page.</p>
           </div>
         </section>
         {demo.length > 0 ? (
