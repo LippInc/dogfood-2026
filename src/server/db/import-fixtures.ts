@@ -33,16 +33,38 @@ import {
 // Fixture shape
 // ---------------------------------------------------------------------------
 
-const id = z.string().min(1);
+// Ids end up in addresses, export file names and response headers, so only a safe set of characters.
+const id = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/, "must be 1 to 80 letters, digits, '_', '-' or '.', starting with a letter or digit");
+
+/** An ISO 8601 date and time with its time zone, such as 2026-03-01T18:00:00Z, that is a real day. */
+const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d{1,9})?)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/;
+export function isIsoDateTime(s: string): boolean {
+  const m = ISO_DATE_TIME.exec(s);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const day = new Date(Date.UTC(y, mo - 1, d));
+  return mo >= 1 && mo <= 12 && day.getUTCFullYear() === y && day.getUTCMonth() === mo - 1 && day.getUTCDate() === d;
+}
+const dateTime = z.string().refine(isIsoDateTime, "must be a date and time with its time zone, such as 2026-03-01T18:00:00Z");
+
+/**
+ * How many rows one file may bring, per list. Every row costs queries inside one transaction that holds the
+ * database while it runs, so a file far past any real event is refused (422, naming the list) rather than
+ * stalling the portal for everyone. Several files can add to the same event.
+ */
+export const IMPORT_LIMITS = { tracks: 100, judges: 1_000, teams: 2_000, members: 50, projects: 2_000, scores: 5_000 } as const;
+const atMost = (n: number, what: string) => `at most ${n.toLocaleString("en")} ${what} in one file; split it into several imports`;
 
 export const FixtureSchema = z.looseObject({
   event: z.looseObject({
     id,
     name: z.string().min(1),
     // stored exactly as given, never reformatted
-    submissions_close: z.string().min(1),
+    submissions_close: dateTime,
   }),
-  tracks: z.array(z.looseObject({ id, name: z.string().min(1) })),
+  tracks: z.array(z.looseObject({ id, name: z.string().min(1) })).max(IMPORT_LIMITS.tracks, atMost(IMPORT_LIMITS.tracks, "tracks")),
   // Not in the organizers' format: what teams are asked for each built-in field, as the portal's
   // own export writes it when an event differs from the defaults. A field left out is the default.
   project_fields: z.partialRecord(z.enum(PROJECT_FIELDS), z.enum(FIELD_MODES)).optional(),
@@ -51,16 +73,16 @@ export const FixtureSchema = z.looseObject({
       id,
       name: z.string().min(1),
       email: z.string().trim().toLowerCase(),
-      tracks: z.array(id),
+      tracks: z.array(id).max(IMPORT_LIMITS.tracks, atMost(IMPORT_LIMITS.tracks, "tracks")),
     }),
-  ),
+  ).max(IMPORT_LIMITS.judges, atMost(IMPORT_LIMITS.judges, "judges")),
   teams: z.array(
     z.looseObject({
       id,
       name: z.string().min(1),
-      members: z.array(z.string().trim().toLowerCase()),
+      members: z.array(z.string().trim().toLowerCase()).max(IMPORT_LIMITS.members, `at most ${IMPORT_LIMITS.members} members in one team`),
     }),
-  ),
+  ).max(IMPORT_LIMITS.teams, atMost(IMPORT_LIMITS.teams, "teams")),
   projects: z.array(
     z.looseObject({
       id,
@@ -86,9 +108,9 @@ export const FixtureSchema = z.looseObject({
         .optional()
         .default([]),
       tags: z.array(z.string().trim().min(1).max(MAX_TAG_LENGTH)).max(MAX_TAGS).optional().default([]),
-      submitted_at: z.string().min(1),
+      submitted_at: dateTime,
     }),
-  ),
+  ).max(IMPORT_LIMITS.projects, atMost(IMPORT_LIMITS.projects, "projects")),
   scores: z.array(
     z.looseObject({
       judge: id,
@@ -97,7 +119,7 @@ export const FixtureSchema = z.looseObject({
       criteria: z.record(z.string(), z.number().int().nullable()),
       comment: z.string().optional(),
     }),
-  ),
+  ).max(IMPORT_LIMITS.scores, atMost(IMPORT_LIMITS.scores, "reviews")),
 });
 
 export type Fixture = z.infer<typeof FixtureSchema>;
