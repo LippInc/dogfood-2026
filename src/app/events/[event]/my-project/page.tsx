@@ -30,8 +30,8 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
     throw err;
   }
   const { event, team, project, open } = work;
-  // one person per team: no team to form, name or invite anyone to
-  const solo = (event.settings.maxTeamSize ?? 4) === 1;
+  // one person per team, and an entry of one: no team to form, name or invite anyone to
+  const solo = work.solo;
   const closeLabel = formatUtc(event.submissionsCloseAt, { weekday: true });
   const certificate = work.feedback ? myRecords(actor, key).find((r) => r.kind === "participant") : undefined;
   const pairwise = work.feedback?.method === PAIRWISE_METHOD;

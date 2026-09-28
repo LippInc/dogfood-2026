@@ -8,7 +8,8 @@ import { runMigrations } from "@/server/db/migrate";
 import { teams, userRoles, users } from "@/server/db/schema";
 import { HttpError } from "@/server/errors";
 import type { Actor } from "@/server/authz";
-import { createEvent } from "@/server/dal/organize";
+import { createEvent, updateEventDetails } from "@/server/dal/organize";
+import { getMyWork } from "@/server/dal/projects";
 import { createTeam, joinTeam } from "@/server/dal/teams";
 
 // An event of one person per team (most people on one team: 1) has no team to form: taking part
@@ -84,5 +85,25 @@ describe("one person per team", () => {
     const slug = event(4);
     expect(status(() => createTeam(person("Linus"), slug, {}))).toBe(422);
     expect(status(() => createTeam(person("Linus 2"), slug, { name: "" }))).toBe(422);
+  });
+
+  it("the one-person view is for an entry of one: a team formed before the size was lowered to 1 keeps the team view", () => {
+    const slug = event(4);
+    const captain = person("Captain");
+    const team = createTeam(captain, slug, { name: "Three of us" });
+    const code = h.db.select({ c: teams.inviteCode }).from(teams).where(eq(teams.id, team.id)).get()!.c;
+    joinTeam(person("Second"), code);
+    joinTeam(person("Third"), code);
+    const newcomer = person("Newcomer");
+    // the control: in an event of teams, nobody gets the one-person view
+    expect(getMyWork(captain, slug).solo).toBe(false);
+    expect(getMyWork(newcomer, slug).solo).toBe(false);
+
+    updateEventDetails(actor("usr_organizer"), slug, { name: "Jam lowered to one", submissionsCloseAt: "2099-01-01T00:00", maxTeamSize: 1 });
+    expect(getMyWork(captain, slug).solo).toBe(false);
+    // someone taking part from now on is one person: the one-person view, and their entry is theirs alone
+    expect(getMyWork(newcomer, slug).solo).toBe(true);
+    createTeam(newcomer, slug, {});
+    expect(getMyWork(newcomer, slug).solo).toBe(true);
   });
 });

@@ -11,7 +11,7 @@ import { derivedId, newId } from "../util";
 import { eventFacts, participantEventView, requireEvent, type EventRow, type ParticipantEventView } from "./events";
 import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
 import { getPublishedResults } from "./results";
-import { myTeam, organizerChangedAfterClose, type MyTeam } from "./teams";
+import { isSolo, myTeam, organizerChangedAfterClose, type MyTeam } from "./teams";
 import { issuesOf } from "./parse";
 import { discardUpload, UPLOAD_PATH } from "../uploads";
 import { DEFAULT_FIELD_MODES, PROJECT_FIELDS, REQUIRED_MESSAGES, withoutHidden, type FieldModes } from "@/lib/project-fields";
@@ -365,6 +365,12 @@ export type MyWork = {
   faceId: string | null;
   /** after results are published: the team's place, score and every review, judges unnamed */
   feedback: TeamFeedback | null;
+  /**
+   * The one-person view (no team to name, no invite link, no roles): an event of one person per
+   * team, and the person's entry, if they have one, has only them. A team formed before the
+   * organizer lowered the size to 1 keeps the team view.
+   */
+  solo: boolean;
 };
 
 export type TeamFeedback = {
@@ -447,6 +453,7 @@ export function getMyWork(actor: Actor, eventIdOrSlug: string): MyWork {
     project: project ? { ...project, title: fields.title === "hidden" ? titleFrom(team?.name ?? "") : project.title, answers } : null,
     faceId: project?.id ?? (team ? projectIdFor(team.id) : null),
     feedback: project && project.status === "submitted" ? teamFeedback(db, event, project.id) : null,
+    solo: isSolo(event) && (team?.members.length ?? 0) <= 1,
   };
 }
 
