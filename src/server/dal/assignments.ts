@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignmentRuns, assignments, judgeTracks, projects, teamMembers, tracks, users } from "../db/schema";
+import { appendAudit } from "../audit";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { assignJudges, type AssignInput, type AssignResult } from "../judging/assign";
 import { newSeed } from "../judging/random";
@@ -185,7 +186,12 @@ function insertOrdered(tx: DbOrTx, eventId: string, runId: string, order: Record
 /**
  * The organizer gives an under-reviewed project one more judge by hand, with a
  * reason. Choosing a judge from another track also adds this track to that judge,
- * in the same audited action, so no judge ever sees a project outside their tracks.
+ * in the same transaction, so no judge ever sees a project outside their tracks.
+ * That widens the judge's reach to the whole track (later top-ups, pairwise
+ * questions), so the grant is its own audit row: a judge.tracks row naming the
+ * hand assignment, the project and the reason, next to the assignment's row.
+ * (Assigning without the track would need an exception to the one track rule
+ * authorize() applies to every review, which stays as it is.)
  */
 export function assignByHand(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   let event: EventRow;
@@ -225,11 +231,32 @@ export function assignByHand(actor: Actor | null, eventIdOrSlug: string, body: u
           .where(and(eq(judgeTracks.judgeUserId, input.judgeUserId), eq(judgeTracks.trackId, project.trackId)))
           .get(),
       );
+      const now = new Date().toISOString();
       if (!inTrack) {
+        const before = tx
+          .select({ id: judgeTracks.trackId })
+          .from(judgeTracks)
+          .where(and(eq(judgeTracks.judgeUserId, input.judgeUserId), eq(judgeTracks.eventId, event.id)))
+          .all()
+          .map((t) => t.id)
+          .sort();
         tx.insert(judgeTracks).values({ judgeUserId: input.judgeUserId, eventId: event.id, trackId: project.trackId }).onConflictDoNothing().run();
+        appendAudit(
+          tx,
+          {
+            actorUserId: actor!.userId,
+            actorLabel: actor!.name,
+            action: "judge.tracks",
+            eventId: event.id,
+            targetType: "user",
+            targetId: input.judgeUserId,
+            before: { trackIds: before },
+            after: { trackIds: [...before, project.trackId].sort(), via: "assignment.by_hand", project: project.id, reason: input.reason },
+          },
+          now,
+        );
       }
       const addedTrack = inTrack ? null : project.trackId;
-      const now = new Date().toISOString();
       const runId = newId("run");
       tx.insert(assignmentRuns)
         .values({

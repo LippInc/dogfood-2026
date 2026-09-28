@@ -183,7 +183,17 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                           </TableCell>
                           <TableCell className="max-w-[220px] max-md:col-span-2 max-md:block max-md:max-w-none max-md:p-0">
                             <details>
-                              <summary className="cursor-pointer text-14">{j.tracks.map((t) => t.name).join(", ") || "No tracks"}</summary>
+                              <summary className="cursor-pointer text-14">
+                                {j.tracks.map((t) => (t.byHand ? `${t.name} (by hand)` : t.name)).join(", ") || "No tracks"}
+                              </summary>
+                              {/* a track a hand assignment added reaches every project in it: say where it came from */}
+                              {j.tracks
+                                .filter((t) => t.byHand)
+                                .map((t) => (
+                                  <p key={t.id} className="mt-2 text-13 text-ink-2">
+                                    {t.name} came with the hand assignment of {t.byHand!.project}, {formatUtc(t.byHand!.at)}.
+                                  </p>
+                                ))}
                               <TracksForm eventSlug={event.slug} judgeId={j.id} tracks={tracks} checked={j.tracks.map((t) => t.id)} />
                             </details>
                           </TableCell>

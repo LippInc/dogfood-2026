@@ -156,7 +156,7 @@ export const OPERATIONS: Operation[] = [
     ok: 201,
     also: [409],
   },
-  { method: "POST", path: "/api/events/{event}/assignments", tag: "Judging", summary: "Assign one project to one judge by hand, with a reason", access: "organizer", body: In.ManualInput, ok: 201, also: [409] },
+  { method: "POST", path: "/api/events/{event}/assignments", tag: "Judging", summary: "Assign one project to one judge by hand, with a reason", access: "organizer", body: In.ManualInput, ok: 201, also: [409], note: "A judge from another track gets the project's track added to theirs, so no judge sees a project outside their tracks; that grant is audited as its own judge.tracks row (via assignment.by_hand, with the project and the reason), and the judges list marks the track byHand." },
   { method: "GET", path: "/api/judge/{event}/console", tag: "Judging", summary: "Your assignments, rubric, scores and ranking so far", access: "judge" },
   {
     method: "GET",

@@ -227,8 +227,17 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" revoked a judge invitation")];
     case "judge.join":
       return [actor, t(" joined as a judge")];
-    case "judge.tracks":
-      return [actor, t(" changed the tracks of "), person(target)];
+    case "judge.tracks": {
+      const ids = (v: Record<string, unknown>) => (Array.isArray(v.trackIds) ? (v.trackIds as unknown[]).map(String) : []);
+      const track = (id: string) => quote(n.track.get(id) ?? id);
+      const added = ids(after).filter((id) => !ids(before).includes(id));
+      const removed = ids(before).filter((id) => !ids(after).includes(id));
+      if (after.via === "assignment.by_hand") {
+        return [actor, t(` added ${andList(added.map(track)) || "a track"} to the tracks of `), person(target), t(" with a hand assignment of "), project(after.project), t(`: ${quote(after.reason)}`)];
+      }
+      const change = [added.length ? `added ${andList(added.map(track))}` : "", removed.length ? `removed ${andList(removed.map(track))}` : ""].filter(Boolean).join("; ");
+      return [actor, t(" changed the tracks of "), person(target), ...(change ? [t(`: ${change}`)] : [])];
+    }
     case "assignment.run":
       return [
         actor,
@@ -236,7 +245,14 @@ function sentence(r: Row, n: Names): Part[] {
         { text: String(after.seed ?? ""), mono: true },
       ];
     case "assignment.by_hand":
-      return [actor, t(" gave "), project(target), t(" to "), person(after.judgeUserId), t(` by hand: ${quote(after.reason)}`)];
+      return [
+        actor,
+        t(" gave "),
+        project(target),
+        t(" to "),
+        person(after.judgeUserId),
+        t(after.addedTrack ? ` by hand, which added the track ${quote(n.track.get(String(after.addedTrack)) ?? after.addedTrack)} to theirs: ${quote(after.reason)}` : ` by hand: ${quote(after.reason)}`),
+      ];
     case "review.save":
     case "review.submit":
     case "review.amend": {

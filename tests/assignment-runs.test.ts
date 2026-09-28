@@ -337,7 +337,10 @@ describe("assignByHand", () => {
       403,
       "not_an_organizer",
     );
-    expect(auditRows().length).toBe(before + 2); // the by_hand row and the participant's refusal; the 409/422 roll back
+    // the track grant's judge.tracks row (the judge was from another track), the by_hand row and the participant's
+    // refusal; the 409/422 roll back
+    expect(auditRows().length).toBe(before + 3);
+    expect(auditRows().filter((r) => r.action === "judge.tracks" && r.targetId === judgeUserId)).toHaveLength(1);
     expect(auditRows().filter((r) => r.action === "authz.refused")).toHaveLength(1);
     expect(runCount()).toBe(2); // the fixture run and the hand run, nothing else
   });

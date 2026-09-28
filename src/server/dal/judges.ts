@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignments, events, judgeInvites, judgeTracks, scores, tracks, userRoles, users } from "../db/schema";
+import { assignmentRuns, assignments, events, judgeInvites, judgeTracks, projects, scores, tracks, userRoles, users } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import type { FlatFlag } from "../judging/flat";
 import { guardRead, mutate } from "../mutate";
@@ -201,7 +201,8 @@ export type JudgeRow = {
   id: string;
   name: string;
   email: string;
-  tracks: { id: string; name: string }[];
+  /** byHand: this track came with an organizer's hand assignment (the project and when), not by an invitation or the tracks form */
+  tracks: { id: string; name: string; byHand: { project: string; at: string } | null }[];
   assigned: number;
   done: number;
   pending: number;
@@ -250,6 +251,13 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
     .where(eq(assignments.eventId, eventId))
     .groupBy(assignments.judgeUserId, assignments.status)
     .all();
+  // Tracks a hand assignment added (assignByHand): the latest such grant per judge and track.
+  const titles = new Map(db.select({ id: projects.id, title: projects.title }).from(projects).where(eq(projects.eventId, eventId)).all().map((x) => [x.id, x.title]));
+  const granted = new Map<string, { project: string; at: string }>();
+  for (const r of db.select({ params: assignmentRuns.params, at: assignmentRuns.createdAt }).from(assignmentRuns).where(eq(assignmentRuns.eventId, eventId)).orderBy(asc(assignmentRuns.createdAt)).all()) {
+    const q = r.params as { byHand?: boolean; addedTrack?: string | null; judgeUserId?: string; projectId?: string };
+    if (q.byHand && q.addedTrack && q.judgeUserId) granted.set(`${q.judgeUserId}|${q.addedTrack}`, { project: titles.get(q.projectId ?? "") ?? q.projectId ?? "", at: r.at });
+  }
   const set = judgeSet(db, eventId);
   return people.map((p) => {
     const mine = counts.filter((c) => c.judgeId === p.id);
@@ -257,7 +265,7 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
     const last = mine.map((c) => c.last).filter((x): x is string => Boolean(x)).sort().at(-1) ?? null;
     return {
       ...p,
-      tracks: trackRows.filter((t) => t.judgeId === p.id).map(({ id, name }) => ({ id, name })),
+      tracks: trackRows.filter((t) => t.judgeId === p.id).map(({ id, name }) => ({ id, name, byHand: granted.get(`${p.id}|${id}`) ?? null })),
       assigned: of("pending") + of("done"),
       done: of("done"),
       pending: of("pending"),
