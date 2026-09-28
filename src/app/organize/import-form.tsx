@@ -26,7 +26,7 @@ export function ImportEventForm() {
           type="file"
           accept="application/json,.json"
           required
-          className="min-w-0 flex-1 text-14 text-ink-2 file:mr-3 file:h-8 file:rounded-sm file:border file:border-edge file:bg-raised file:px-3 file:text-14 file:font-medium file:text-ink"
+          className="min-w-0 text-14 text-ink-2 file:mr-3 file:h-8 file:rounded-sm file:border file:border-edge file:bg-raised file:px-3 file:text-14 file:font-medium file:text-ink"
         />
         <Button disabled={pending}>{pending ? "Importing…" : "Import"}</Button>
       </div>
