@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { LogSeal } from "@/components/results/log-seal";
@@ -92,9 +93,17 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </li>
                 ))}
               </ol>
-              <details className="mt-4 max-w-[760px] text-ink-2">
-                <summary className="label-mono cursor-pointer text-ink">How these {pairwise ? "win %" : "scores"} were made</summary>
-                <div className="mt-3 flex flex-col gap-3">
+              <details className="group mt-6 max-w-[760px] rounded-sm border border-rule bg-surface text-ink-2">
+                <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-15 font-semibold text-ink">How these {pairwise ? "win %" : "scores"} were made</span>
+                    <span className="block text-13 text-ink-3">
+                      {results.yardstick ? "The method in full, the ±, and how far apart the judges were" : "The method in full, and the ±"}
+                    </span>
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 text-ink-2 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+                </summary>
+                <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
                   {pairwise ? (
                     <p>
                       Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores given before the event switched to that
@@ -109,7 +118,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                       about two of them are not told apart.
                     </p>
                   )}
-                  {results.yardstick ? <YardstickLine y={results.yardstick} /> : null}
+                  {results.yardstick ? <YardstickLine y={results.yardstick} figure /> : null}
                 </div>
               </details>
             </div>
