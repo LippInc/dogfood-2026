@@ -501,25 +501,30 @@ async function launch(chromePath, headed) {
     proc.on("exit", (code) => reject(new Error(`Chrome exited (${code}) before it listened`)));
   });
   const cdp = await connect(wsUrl);
-  cdp.close = () => {
+  let gone = false;
+  const exited = new Promise((resolve) => proc.once("exit", () => resolve((gone = true))));
+  cdp.close = async () => {
+    // Ask Chrome to close (it shuts down cleanly and lets go of its profile), force it only if it will not.
+    await Promise.race([cdp.send("Browser.close").catch(() => {}), sleep(3000)]);
+    await Promise.race([exited, sleep(10000)]);
+    if (!gone) {
+      try {
+        if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
+        else proc.kill("SIGKILL");
+      } catch {
+        /* already gone */
+      }
+      await Promise.race([exited, sleep(10000)]);
+    }
     try {
       cdp.ws.close();
     } catch {
       /* already closed */
     }
     try {
-      if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
-      else proc.kill("SIGKILL");
-    } catch {
-      /* already gone */
-    }
-    for (let k = 0; k < 10; k++) {
-      try {
-        fs.rmSync(dir, { recursive: true, force: true });
-        break;
-      } catch {
-        execFileSync(process.execPath, ["-e", "setTimeout(()=>{},300)"]);
-      }
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 40, retryDelay: 250 });
+    } catch (e) {
+      console.error(`stability-check: could not remove ${dir}: ${e.message}`);
     }
   };
   return cdp;
@@ -1095,7 +1100,7 @@ async function selfTest(opts, log) {
     await tab.close();
     return checks.every(([, ok]) => ok) ? 0 : 1;
   } finally {
-    cdp.close();
+    await cdp.close();
   }
 }
 
@@ -1221,7 +1226,7 @@ async function main() {
             all.infos.push(...r.infos);
           }
         } finally {
-          cdp.close();
+          await cdp.close();
         }
       }),
     );
