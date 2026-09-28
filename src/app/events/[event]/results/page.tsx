@@ -96,7 +96,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </li>
                 ))}
               </ol>
-              <details className="group mt-6 max-w-[760px] rounded-sm border border-rule bg-surface text-ink-2">
+              <details className="group mt-6 max-w-[760px] rounded-sm border border-rule text-ink-2">
                 <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
                   <span className="min-w-0 flex-1">
                     <span className="block text-15 font-semibold text-ink">How these {pairwise ? "win %" : "scores"} were made</span>
@@ -121,7 +121,24 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                       about two of them are not told apart.
                     </p>
                   )}
-                  {results.yardstick ? <YardstickLine y={results.yardstick} figure /> : null}
+                  {results.yardstick ? (
+                    // the shared drawing paints its band in --sunken, which all but vanishes on the public dark ground; here it takes the hairline colour
+                    <div className="[&_svg_rect]:fill-rule">
+                      <YardstickLine y={results.yardstick} figure />
+                      {/* the small drawing's key, in the marks it uses */}
+                      <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-13 text-ink-2">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-block size-2.5 rounded-full bg-ink" aria-hidden /> the judges&rsquo; spread
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-block size-2.5 rounded-full border-[1.5px] border-ink" aria-hidden /> after the engine
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-block h-2.5 w-5 bg-rule" aria-hidden /> where luck alone lands, 9 times in 10
+                        </span>
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </details>
             </div>
