@@ -20,8 +20,8 @@ headers for the acceptance checker; they are the same on every start.
 No network is needed at run time. The image build downloads npm packages once.
 
 To look around, open `/sign-in`: while `SEED_CHECKER_SESSIONS=true` it offers
-one-click demo sign-ins as the organizer (Demo Organizer), two judges (Diego
-Herrera, Jonas Vogel) and a participant.
+one-click demo sign-ins as the organizer (Demo Organizer), two judges (Judge A,
+Diego Herrera, and Judge B, Jonas Vogel) and a participant.
 
 ### A five-minute tour
 
