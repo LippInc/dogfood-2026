@@ -126,7 +126,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   deadline an organizer renames a team, adds someone to it or takes someone off,
   each with a reason for the audit log, from the team's page under Submissions,
   until results are published, and the project page says the organizers changed
-  the team after the close), draft and edit a project
+  the team after the close; a change that would move the community vote count, because
+  the person voted for that team's project, is refused until the vote is voided),
+  draft and edit a project
   until the deadline (name,
   tagline, description, repository, demo video and live links, a picture, an
   image gallery, tech tags, the track and the organizer's questions); the server

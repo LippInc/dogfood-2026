@@ -2,8 +2,8 @@
 """DOGFOOD 2026 isolation hand-check, Section C: the T4 features.
 
 Runs after Sections A and B of isolation_check.py on the same instance (the
-driver wires them together), so voting is closed, one comment is hidden and the
-results are not yet published when it starts. It then publishes the sample
+driver wires them together), so voting is closed, the comment Section B hid has
+been unhidden and deleted again, and the results are not yet published when it starts. It then publishes the sample
 event, so the instance is spent for A and B afterwards.
 
 Covers, as numbered checks: the OpenAPI document and bearer auth, a settings

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { runsEvent, submissionsOpen, type Actor } from "../authz";
 import { getDb, type DbOrTx, type Tx } from "../db/client";
@@ -16,6 +16,7 @@ import {
   teams,
   userRoles,
   users,
+  voters,
   votes,
 } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
@@ -62,6 +63,34 @@ function assignedToTeam(tx: DbOrTx, userId: string, teamId: string): boolean {
       .from(assignments)
       .innerJoin(projects, eq(projects.id, assignments.projectId))
       .where(and(eq(projects.teamId, teamId), eq(assignments.judgeUserId, userId), ne(assignments.status, "recused")))
+      .get(),
+  );
+}
+
+/**
+ * Whether this person has a vote (not voided) for this team's project, or for a duplicate the
+ * count folds into it. The community count skips a member's votes for their own team
+ * (voting-organizer.ts, the same person matching: the voter's account, else a listed address
+ * that belongs to an account), so putting them on the team or taking them off would silently
+ * change the count. An organizer's team change must never do that.
+ */
+function votedForTeam(tx: DbOrTx, eventId: string, userId: string, teamId: string): boolean {
+  const own = tx
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.eventId, eventId), eq(projects.teamId, teamId)))
+    .all()
+    .map((p) => p.id);
+  if (own.length === 0) return false;
+  const folded = tx.select({ id: projects.id }).from(projects).where(inArray(projects.duplicateOf, own)).all().map((p) => p.id);
+  const email = tx.select({ email: users.email }).from(users).where(eq(users.id, userId)).get()?.email;
+  const who = email ? or(eq(voters.userId, userId), and(isNull(voters.userId), eq(voters.email, email))) : eq(voters.userId, userId);
+  return Boolean(
+    tx
+      .select({ v: votes.voterId })
+      .from(votes)
+      .innerJoin(voters, eq(voters.id, votes.voterId))
+      .where(and(eq(voters.eventId, eventId), isNull(voters.voidedAt), inArray(votes.projectId, [...own, ...folded]), who))
       .get(),
   );
 }
@@ -458,6 +487,12 @@ export function organizerAddMember(actor: Actor | null, teamId: string, body: un
       if (assignedToTeam(tx, person.id, team.id)) {
         throw new ConflictError("conflict_of_interest", `${person.name} is assigned to judge this team's project. Reassign that review first.`);
       }
+      if (votedForTeam(tx, team.eventId, person.id, team.id)) {
+        throw new ConflictError(
+          "vote_would_change",
+          `${person.name} has a community vote for this team's project, and votes for your own team do not count: adding them would take that vote out of the count. Void their vote on the Voting page first (it is audited), then add them.`,
+        );
+      }
       const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, team.id)).get()?.n ?? 0;
       const max = event.settings.maxTeamSize ?? DEFAULT_MAX_TEAM_SIZE;
       if (size >= max) throw new ConflictError("team_full", `${team.name} already has ${size} members, the most this event allows (Settings).`);
@@ -493,6 +528,12 @@ export function organizerRemoveMember(actor: Actor | null, teamId: string, userI
       if (!leaving) throw new NotFoundError("Team member");
       const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, team.id)).get()!.n;
       if (size === 1) throw new ConflictError("last_member", "That is the team's only member, and a team is never left with nobody.");
+      if (votedForTeam(tx, team.eventId, userId, team.id)) {
+        throw new ConflictError(
+          "vote_would_change",
+          "This member has a community vote for their own team's project, which is not counted while they are on the team: taking them off would start counting it. Void their vote on the Voting page first (it is audited), or leave them on.",
+        );
+      }
       tx.delete(teamMembers).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, userId))).run();
       let captain: string | null = null;
       if (leaving.role === "captain") {
