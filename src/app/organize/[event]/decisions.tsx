@@ -276,7 +276,7 @@ function Body({
               <span className="pt-0.5">{faces[c.id]}</span>
               <span className="min-w-0">
               <span className="font-mono">{c.id}</span> · submitted{" "}
-              {c.submittedAt ? formatUtc(c.submittedAt) : "–"}
+              {c.submittedAt ? formatUtc(c.submittedAt) : "–"} · {c.n} {c.n === 1 ? "review" : "reviews"}
               {c.repoUrl ? (
                 <span className="block truncate text-ink-2">{c.repoUrl}</span>
               ) : null}
@@ -385,8 +385,8 @@ function Body({
         </strong>{" "}
         Its {pw ? "place" : "score"} rests on{" "}
         {d.n === 1 ? "one judge's opinion" : "too few opinions"}, so its rank
-        can be off by several places. A top-up assigns more judges from its own
-        track; the decision settles itself once {pw ? "they have placed it" : "their reviews are finished"}.
+        can be off by several places. A top-up assigns more judges to every project
+        still short of reviews, this one included, each from its own track; the decision settles itself once {pw ? "they have placed it" : "their reviews are finished"}.
       </p>
       {d.resolved ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -396,7 +396,7 @@ function Body({
       ) : (
         <div className="flex flex-wrap items-start gap-3">
           <OneClick
-            label="Assign more reviews (top-up)"
+            label="Top up every project short of reviews"
             action={topUpAction}
             fields={{ project: d.projectId }}
             eventSlug={eventSlug}
