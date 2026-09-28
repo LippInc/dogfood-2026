@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PlainShell } from "@/components/shell/plain-shell";
 import { openApiDocument, OPERATIONS, operationId, type Operation } from "@/server/dal";
+import { SectionMarker } from "./section-marker";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "API" };
@@ -112,7 +113,8 @@ export default function ApiDocsPage() {
 
       <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-12 border-t border-rule pt-8 lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-16">
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <nav aria-labelledby="index-title">
+          <nav id="api-index" aria-labelledby="index-title">
+            <SectionMarker nav="api-index" />
             <h2 id="index-title" className="label-mono text-ink">
               FIG. 01 · The API by section
             </h2>
@@ -121,13 +123,13 @@ export default function ApiDocsPage() {
                 const ops = OPERATIONS.filter((o) => o.tag === tag);
                 return (
                   <li key={tag}>
-                    <a href={`#${slug(tag)}`} className="group grid min-h-11 grid-cols-[20px_minmax(0,1fr)_auto] items-start gap-x-3 py-2.5 text-14">
-                      <span className="font-mono text-12 leading-5 text-ink-3">{String(i + 1).padStart(2, "0")}</span>
+                    <a href={`#${slug(tag)}`} className="group grid min-h-11 grid-cols-[20px_minmax(0,1fr)_auto] items-start gap-x-3 py-2.5 text-14 hover:[--face-dot:var(--accent)] aria-[current=location]:[--face-dot:var(--accent)]">
+                      <span className="font-mono text-12 leading-5 text-ink-3 group-aria-[current=location]:text-accent-ink">{String(i + 1).padStart(2, "0")}</span>
                       <span className="min-w-0">
-                        <span className="group-hover:underline">{tag}</span>
+                        <span className="group-hover:underline group-aria-[current=location]:font-semibold">{tag}</span>
                         <span className="mt-1.5 flex flex-wrap gap-[3px]">
                           {ops.map((o) => (
-                            <Pixel key={operationId(o)} reach={REACH[o.access]} className="group-hover:border-accent group-hover:bg-accent" />
+                            <Pixel key={operationId(o)} reach={REACH[o.access]} />
                           ))}
                         </span>
                       </span>
