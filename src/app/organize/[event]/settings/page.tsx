@@ -124,7 +124,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             id="organizers"
             number={num(1)}
             title="Organizers"
-            description="Everyone here can change this event, settle its decisions and publish its results. Add someone by the email of their account: they sign up first, since the portal sends no mail. The last organizer cannot be removed."
+            description="Everyone here can change this event, settle its decisions and publish its results. Add someone by the email of their account, once they have signed up: adding an organizer mails nothing. The last organizer cannot be removed."
             action={addOrganizerAction}
             hidden={hidden}
             submitLabel="Add organizer"
