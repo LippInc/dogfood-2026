@@ -108,6 +108,8 @@ describe("How this ranking was reached (public results page)", () => {
     expect(html).toContain(`entry #${results.anchor!.entry}`);
     expect(html).toContain(results.anchor!.hash.slice(0, 16));
     expect(html).toContain(`largest correction was ${e.judges!.largest.toFixed(2)}`);
+    // the threshold the count uses is the one the sentence states (0.005 counted as 'corrected by 0.01' before)
+    expect(html).toContain(`corrected by at least ${CORRECTED_FROM} points`);
   });
 
   it("names no judge and carries no judge id, in the page block or in the API's evidence", () => {
@@ -147,7 +149,14 @@ describe("How this ranking was reached (public results page)", () => {
     expect(pullShare({ est: 0, se: 10 })?.measured).toBe(false);
     expect(e.left).toBeNull();
     const html = render(results);
-    expect(html).toContain("1 answer from");
+    // the judge count covers the answers and the score-implied pairs together (never "1 answer from 26 judges")
+    expect(html).toMatch(/1 answer and \d+ pairs implied by scores given before the switch, from \d+ judges/);
+    expect(html).not.toMatch(/1 answer from \d+ judges/);
+    // judges answer about the projects they were given, never "their own projects"
+    expect(html).toContain("about projects they were given to judge");
+    expect(html).not.toContain("their own projects");
+    // no pull measured: the sentence must not claim the fit measured and took them out
+    expect(html).not.toContain("measured and took out");
     expect(html).toContain("too few answers to measure");
     expect(html).not.toContain("Signal check");
     expect(judgeLeaks(html, judgesOfEvent())).toEqual([]);

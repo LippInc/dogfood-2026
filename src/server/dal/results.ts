@@ -1,4 +1,5 @@
 import "server-only";
+import { CORRECTED_FROM } from "@/lib/ranking-evidence";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
@@ -389,7 +390,7 @@ export type RankingEvidence = {
 );
 
 /** A leniency that rounds to 0.00 on the page is not called a correction. */
-export const CORRECTED_FROM = 0.005;
+export { CORRECTED_FROM };
 
 function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);

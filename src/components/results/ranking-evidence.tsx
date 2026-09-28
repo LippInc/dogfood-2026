@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { plural } from "@/lib/format";
+import { CORRECTED_FROM } from "@/lib/ranking-evidence";
 import { JUDGING_URL } from "@/lib/source";
 import type { PublishedResults } from "@/server/dal";
 
@@ -39,11 +40,20 @@ export function RankingEvidence({ results }: { results: PublishedResults }) {
   let correction: string | null;
   if (e.kind === "pairwise") {
     method =
-      `Judges answered "which of these two is better?" about their own projects: ${plural(e.answers, "answer")} from ${plural(e.judges, "judge")}` +
-      (e.fromScores ? `, plus ${plural(e.fromScores, "pair")} implied by scores given before the switch` : "") +
-      ", fitted into each project’s win %.";
-    const pull = (p: typeof e.left, what: string) => (p ? `${what} (${pct(p.share)} ± ${p.pm} between two equal projects)` : `${what} (too few answers to measure; the fit assumes almost none)`);
-    correction = `The fit measured and took out two pulls: ${pull(e.left, "the side a project was shown on")} and ${pull(e.fresh, "the project a judge had just opened")}.${leftOut}`;
+      `Judges answered "which of these two is better?" about projects they were given to judge: ${plural(e.answers, "answer")}` +
+      (e.fromScores ? ` and ${plural(e.fromScores, "pair")} implied by scores given before the switch` : "") +
+      `, from ${plural(e.judges, "judge")}, fitted into each project’s win %.`;
+    const SIDE = "the side a project was shown on";
+    const FRESH = "the project a judge had just opened";
+    const measured = (p: typeof e.left, what: string) => (p ? `${what} (${pct(p.share)} ± ${p.pm} between two equal projects)` : null);
+    const side = measured(e.left, SIDE);
+    const fresh = measured(e.fresh, FRESH);
+    correction =
+      (side && fresh
+        ? `The fit measured and took out two pulls: ${side} and ${fresh}.`
+        : side || fresh
+          ? `The fit measured and took out one pull, ${side ?? fresh}; the other, ${side ? FRESH : SIDE}, had too few answers to measure, and the fit assumes almost none.`
+          : `The fit watches for two pulls, ${SIDE} and ${FRESH}; there were too few answers to measure either, and the fit assumes almost none.`) + leftOut;
   } else if (e.k === null) {
     method = "Rubric scores as plain averages: the judges showed no steady leniency, so nothing was taken off anyone’s reviews.";
     correction = leftOut ? leftOut.trim() : null;
@@ -52,8 +62,8 @@ export function RankingEvidence({ results }: { results: PublishedResults }) {
     const j = e.judges;
     correction = j
       ? (j.corrected
-          ? `${j.corrected} of the ${plural(j.counted, "counted judge")} ${j.corrected === 1 ? "was" : "were"} corrected by 0.01 points or more of a review’s total; the largest correction was ${f2(j.largest)}, the median ${f2(j.median)}.`
-          : `No counted judge’s correction reaches 0.01 points of a review’s total (${plural(j.counted, "counted judge")}).`) + leftOut
+          ? `${j.corrected} of the ${plural(j.counted, "counted judge")} ${j.corrected === 1 ? "was" : "were"} corrected by at least ${CORRECTED_FROM} points of a review’s total; the largest correction was ${f2(j.largest)}, the median ${f2(j.median)}.`
+          : `No counted judge’s correction reaches ${CORRECTED_FROM} points of a review’s total (${plural(j.counted, "counted judge")}).`) + leftOut
       : leftOut
         ? leftOut.trim()
         : null;
