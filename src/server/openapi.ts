@@ -121,6 +121,7 @@ export const OPERATIONS: Operation[] = [
     note: "PNG, JPEG or WebP, told by the file's first bytes rather than its name or Content-Type, at most 2 MB. It is stored in the data volume and served at the /uploads/ address the answer gives. Until submissions close.",
   },
   { method: "DELETE", path: "/api/projects/{project}/image", tag: "Teams and projects", summary: "Take the project's picture down (an uploaded file is deleted)", access: "team member" },
+  { method: "POST", path: "/api/projects/{project}/take-down-picture", tag: "Teams and projects", summary: "Take a project's picture down, uploaded or linked, with a reason for the audit log; at any time", access: "organizer", body: In.HideInput },
 
   // Judging
   { method: "GET", path: "/api/events/{event}/organizers", tag: "Events", summary: "The event's organizers", access: "organizer" },

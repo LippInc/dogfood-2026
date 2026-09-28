@@ -11,7 +11,7 @@ import { auditLog, userRoles } from "@/server/db/schema";
 import { verifyAuditChain } from "@/server/audit";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
-import { removeProjectImage, setProjectImage } from "@/server/dal/project-image";
+import { removeProjectImage, setProjectImage, takeDownProjectImage } from "@/server/dal/project-image";
 import { createProject, updateProject } from "@/server/dal/projects";
 import { createTeam } from "@/server/dal/teams";
 import { MAX_IMAGE_BYTES, readUpload, sniffImage, stripMetadata } from "@/server/uploads";
@@ -282,6 +282,55 @@ describe("another team's upload", () => {
     removeProjectImage(otherTeam(), "prj_02");
     expect(files()).toContain(fileOf(theirs));
     expect(thumbnailOf("prj_01")).toBe(theirs);
+  });
+});
+
+describe("an organizer takes a picture down", () => {
+  beforeEach(openEvent);
+  const organizer = () => actorById("usr_organizer");
+  const judge = () => actorById("jdg_24");
+
+  it("takes an uploaded picture down with a reason in the audit log, and the file goes", () => {
+    const url = setProjectImage(member(), "prj_01", PNG).thumbnailUrl;
+    const r = takeDownProjectImage(organizer(), "prj_01", { reason: "Not the project's picture" });
+    expect(r.thumbnailUrl).toBeNull();
+    expect(thumbnailOf("prj_01")).toBeNull();
+    expect(files()).toEqual([]);
+    const row = auditRows().at(-1)!;
+    expect(row.action).toBe("project.image_taken_down");
+    expect(row.before).toEqual({ thumbnailUrl: url });
+    expect(row.after).toEqual({ thumbnailUrl: null, reason: "Not the project's picture" });
+  });
+
+  it("takes a linked picture down too, and works after submissions close", () => {
+    h.sqlite.prepare("UPDATE projects SET thumbnail_url = 'https://example.org/bad.png' WHERE id = 'prj_01'").run();
+    h.sqlite.prepare("UPDATE events SET submissions_close_at = '2000-01-01T00:00:00Z' WHERE id = 'evt_01'").run();
+    takeDownProjectImage(organizer(), "prj_01", { reason: "Offensive" });
+    expect(thumbnailOf("prj_01")).toBeNull();
+  });
+
+  it("is refused to the team, a judge and a signed-out caller, and needs a reason", () => {
+    setProjectImage(member(), "prj_01", PNG);
+    expectHttpError(() => takeDownProjectImage(member(), "prj_01", { reason: "x" }), 403, "not_an_organizer");
+    expectHttpError(() => takeDownProjectImage(judge(), "prj_01", { reason: "x" }), 403, "not_an_organizer");
+    expectHttpError(() => takeDownProjectImage(null, "prj_01", { reason: "x" }), 401, "unauthenticated");
+    expectHttpError(() => takeDownProjectImage(organizer(), "prj_01", { reason: " " }), 422, "invalid");
+    expect(files()).toHaveLength(1);
+  });
+
+  it("is refused to a portal administrator who does not organize the event: changes stay with its organizers", () => {
+    h.sqlite.prepare("INSERT INTO users (id, email, name, password_hash, is_admin, created_at) VALUES ('usr_admin2', 'admin2@example.org', 'Other Admin', NULL, 1, ?)").run(NOW);
+    const admin = { ...actorById("usr_admin2"), isAdmin: true };
+    setProjectImage(member(), "prj_01", PNG);
+    expectHttpError(() => takeDownProjectImage(admin, "prj_01", { reason: "Offensive" }), 403, "not_an_organizer");
+    expect(files()).toHaveLength(1);
+  });
+
+  it("with no picture to take down, changes nothing and writes no row", () => {
+    h.sqlite.prepare("UPDATE projects SET thumbnail_url = NULL WHERE id = 'prj_01'").run();
+    const rows = auditRows().length;
+    takeDownProjectImage(organizer(), "prj_01", { reason: "Checking" });
+    expect(auditRows().length).toBe(rows);
   });
 });
 

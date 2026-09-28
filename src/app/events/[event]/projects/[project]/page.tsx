@@ -9,6 +9,7 @@ import { competitionPlaces, ordinal } from "@/lib/places";
 import Link from "next/link";
 import { actorNav, currentActor, getGallery, getMyWork, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
 import { CommentForm, HideForm } from "./comments";
+import { TakeDownPicture } from "./take-down";
 
 export const dynamic = "force-dynamic";
 
@@ -204,6 +205,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               <span className="label-mono text-ink">Fig. 01 — {p.thumbnailUrl ? "Its picture" : "Its face"}</span>
               <span className="text-13 text-ink-3">{p.thumbnailUrl ? "sent in by the team" : `drawn from ${p.id}`}</span>
             </figcaption>
+            {canModerate && p.thumbnailUrl ? <TakeDownPicture projectId={p.id} path={`/events/${event.slug}/projects/${p.id}`} /> : null}
           </figure>
         </div>
 

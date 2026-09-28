@@ -6,7 +6,9 @@ import { projects, teamMembers } from "../db/schema";
 import { AuthzError, HttpError, NotFoundError } from "../errors";
 import { mutate } from "../mutate";
 import { discardUpload, MAX_IMAGE_BYTES, sniffImage, storeUpload, stripMetadata } from "../uploads";
+import { HideInput } from "./comments";
 import { eventFacts, requireEvent } from "./events";
+import { parse } from "./parse";
 
 // A project's picture, uploaded by its team. The same rule as editing the project (project.edit:
 // its team's members, while submissions are open), decided in the one transaction with the change
@@ -79,4 +81,38 @@ export function setProjectImage(actor: Actor | null, projectId: string, bytes: U
 /** Take the project's picture away; an uploaded one's file goes with it. */
 export function removeProjectImage(actor: Actor | null, projectId: string) {
   return setThumbnail(actor, projectId, null);
+}
+
+/**
+ * An organizer takes a project's picture down, uploaded or linked, at any time, with a reason for the
+ * audit log, as a comment is hidden: the portal now hosts pictures, so the people who run the event
+ * can remove one that should not be there. An uploaded file goes with it, unless another project shows it.
+ */
+export function takeDownProjectImage(actor: Actor | null, projectId: string, body: unknown) {
+  let project: typeof projects.$inferSelect;
+  let before: string | null = null;
+  let shared = false;
+  const result = mutate({
+    actor,
+    action: "event.manage",
+    load: (tx) => {
+      const p = tx.select().from(projects).where(eq(projects.id, projectId)).get();
+      if (!p) throw new NotFoundError("Project");
+      project = p;
+      return { kind: "event", event: eventFacts(requireEvent(tx, p.eventId)) };
+    },
+    run: (tx) => {
+      const { reason } = parse(HideInput, body);
+      before = project.thumbnailUrl;
+      if (!before) return { result: { id: project.id, thumbnailUrl: null }, audit: null };
+      shared = Boolean(tx.select({ id: projects.id }).from(projects).where(and(eq(projects.thumbnailUrl, before), ne(projects.id, project.id))).get());
+      tx.update(projects).set({ thumbnailUrl: null, updatedAt: new Date().toISOString() }).where(eq(projects.id, project.id)).run();
+      return {
+        result: { id: project.id, thumbnailUrl: null },
+        audit: { action: "project.image_taken_down", eventId: project.eventId, targetType: "project", targetId: project.id, before: { thumbnailUrl: before }, after: { thumbnailUrl: null, reason } },
+      };
+    },
+  });
+  if (!shared) discardUpload(before);
+  return result;
 }

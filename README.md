@@ -276,7 +276,7 @@ start, and the fixture import never overwrites what the organizers changed.
 
 - Only a project's gallery picture is uploaded (PNG, JPEG or WebP up to 2 MB, its
   metadata such as a photo's location removed, in `/data/uploads`, which the backup
-  above does not copy); an organizer cannot take one down; image galleries are links.
+  above does not copy; an organizer can take one down); image galleries are links.
 - Webhook targets on private or local addresses are refused, when added and at
   every delivery (`WEBHOOKS_ALLOW_PRIVATE=true` lifts that for a receiver on the
   same machine), but a host name whose DNS answer changes between the check and
