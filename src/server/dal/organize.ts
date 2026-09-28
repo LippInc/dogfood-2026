@@ -71,6 +71,8 @@ export const QuestionRows = z
     }),
   )
   .max(20);
+/** Criteria in one rubric: room for a detailed rubric; the judge console and the results lay out this many. */
+export const MAX_CRITERIA = 16;
 export const RubricRows = z
   .array(
     z.object({
@@ -81,7 +83,7 @@ export const RubricRows = z
     }),
   )
   .min(1, "the rubric needs at least one criterion")
-  .max(8);
+  .max(MAX_CRITERIA, `at most ${MAX_CRITERIA} criteria`);
 
 /**
  * The rubric as sent: the rows and a reason, needed only for a weight change after the first

@@ -8,7 +8,7 @@ import { auditLog, userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { requireEvent } from "@/server/dal/events";
-import { saveRubric, saveTracks, updateEventDetails } from "@/server/dal/organize";
+import { createEvent, MAX_CRITERIA, saveRubric, saveTracks, updateEventDetails } from "@/server/dal/organize";
 import { latestAudit } from "@/server/dal/audit-log";
 import { acceptUnderReviewed, dismissDuplicate, setJudgeOverride } from "@/server/dal/decisions";
 import { getPublishedResults, publishResults } from "@/server/dal/results";
@@ -90,6 +90,24 @@ function publish() {
 }
 
 describe("the rubric", () => {
+  it("takes up to 16 criteria on an event nobody has scored yet; a 17th is 422 on the field", () => {
+    const fresh = createEvent({ ...organizer(), isAdmin: true }, { details: { name: "Detailed Rubric Hack", submissionsCloseAt: "2026-12-01T18:00:00Z" }, tracks: [{ name: "Open" }], prizes: [] });
+    const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ label: `Criterion ${i + 1}`, prompt: `Question ${i + 1}?`, weight: 1 }));
+    expect(MAX_CRITERIA).toBe(16);
+    saveRubric(organizer(), fresh.id, rows(16));
+    const saved = h.sqlite.prepare("SELECT count(*) AS n FROM rubric_criteria WHERE event_id = ?").get(fresh.id) as { n: number };
+    expect(saved.n).toBe(16);
+    let caught: unknown;
+    try {
+      saveRubric(organizer(), fresh.id, rows(17));
+    } catch (err) {
+      caught = err;
+    }
+    expect((caught as HttpError).status).toBe(422);
+    expect(JSON.stringify((caught as HttpError).details)).toContain("criteria");
+    expect((h.sqlite.prepare("SELECT count(*) AS n FROM rubric_criteria WHERE event_id = ?").get(fresh.id) as { n: number }).n).toBe(16);
+  });
+
   it("known-bad: once judges have scored, a weight change without a reason is refused — 422, nothing changes", () => {
     expectHttpError(() => saveRubric(organizer(), "evt_01", withWeight(2)), 422, "invalid");
     expectHttpError(() => saveRubric(organizer(), "evt_01", { criteria: withWeight(2), reason: "  " }), 422, "invalid");
