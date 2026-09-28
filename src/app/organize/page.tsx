@@ -92,7 +92,7 @@ export default async function OrganizeHome() {
                           {closed ? "Submissions closed" : "Submissions close"} {formatUtc(e.submissionsCloseAt)}
                         </span>
                         <span className="mt-1 text-13 text-ink-2 tnum">
-                          {plural(o.judges.total, "judge")} · {reviews}
+                          {o.judges.total ? plural(o.judges.total, "judge") : "No judges yet"} · {reviews}
                         </span>
                       </span>
                       <span className="flex min-w-0 flex-col gap-2.5 sm:pt-6">
