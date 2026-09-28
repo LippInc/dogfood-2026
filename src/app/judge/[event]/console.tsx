@@ -120,6 +120,9 @@ export function JudgeConsoleView({
   const [noteOpen, setNoteOpen] = useState(false);
   // Once every project is scored, Save and open next says so; on the last one it stays instead of wrapping to the first.
   const [batchDone, setBatchDone] = useState(false);
+  // Said to a screen reader on every switch (J, K, Ctrl+Enter, the rail), since focus stays where it
+  // was: which project is now being scored, and its place in the batch.
+  const [switched, setSwitched] = useState("");
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
   // Keys that jump into the feedback box put the caret after what is already there.
   const focusFeedback = useCallback(() => {
@@ -251,11 +254,15 @@ export function JudgeConsoleView({
       if (current) void flush(current.assignmentId);
       const next = ((to % items.length) + items.length) % items.length;
       setIndex(next);
+      if (next !== index) {
+        const said = `Now scoring: ${items[next]!.project.title}, ${next + 1} of ${items.length}`;
+        setSwitched(said);
+      }
       setFocus(firstOpen(criteria, reviewsRef.current[items[next]!.assignmentId]!.values));
       setNoteOpen(false);
       setBatchDone(false);
     },
-    [criteria, current, flush, items],
+    [criteria, current, flush, index, items],
   );
 
   const saveAndNext = useCallback(() => {
@@ -404,6 +411,9 @@ export function JudgeConsoleView({
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-3rem)] lg:grid-cols-[288px_minmax(0,1fr)_416px]">
+      <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {switched}
+      </p>
       {/* Rail: the judge's own order */}
       <aside aria-label="Your batch" className="flex flex-col border-b border-rule bg-surface lg:min-h-0 lg:border-r lg:border-b-0">
         <div className="border-b border-rule px-5 pt-6 pb-4">
