@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { crossOriginWrite } from "@/lib/cross-site";
+import { hstsFor } from "@/lib/hsts";
 import { PAGE_PATH_HEADER } from "@/lib/page-mark";
 
 /**
@@ -20,6 +21,10 @@ const startsCookie = (pathname: string) => SESSION_STARTERS.has(pathname) || LIN
  * is drawn from (src/lib/page-mark.ts): Server Components cannot read the address otherwise.
  */
 export function proxy(request: NextRequest) {
+  return withTransportSecurity(route(request));
+}
+
+function route(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   if (pathname === "/api" || pathname.startsWith("/api/")) {
     if (startsCookie(pathname) && crossOriginWrite(request.method, request.headers)) {
@@ -33,6 +38,13 @@ export function proxy(request: NextRequest) {
   const headers = new Headers(request.headers);
   headers.set(PAGE_PATH_HEADER, pathname);
   return NextResponse.next({ request: { headers } });
+}
+
+/** Strict-Transport-Security on every page and API answer, read at request time: only when PUBLIC_URL is https (src/lib/hsts.ts). */
+function withTransportSecurity(response: NextResponse): NextResponse {
+  const hsts = hstsFor(process.env.PUBLIC_URL);
+  if (hsts) response.headers.set("Strict-Transport-Security", hsts);
+  return response;
 }
 
 // The API, and every page; not Next's own files or anything with a file extension.

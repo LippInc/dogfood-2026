@@ -15,14 +15,21 @@ const nextConfig: NextConfig = {
     const common = [
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      // The portal uses no camera, microphone, location, payment or USB device, so no page (nor anything framed in one) may ask.
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()" },
     ];
+    // What a policy can hold without breaking the app: no plugins, no <base> pointing elsewhere, forms that post
+    // only here. Scripts and styles stay as Next serves them (inline bootstrap scripts), and pictures come from
+    // any https host a team names, so those are not restricted. Strict-Transport-Security is set per request in
+    // src/proxy.ts, only when PUBLIC_URL is https (the offline run is http).
+    const policy = "base-uri 'self'; form-action 'self'; object-src 'none'";
     return [
       // No page may be framed by another site (clickjacking), except the embeddable gallery.
       {
         source: "/((?!embed/).*)",
-        headers: [...common, { key: "X-Frame-Options", value: "DENY" }, { key: "Content-Security-Policy", value: "frame-ancestors 'none'" }],
+        headers: [...common, { key: "X-Frame-Options", value: "DENY" }, { key: "Content-Security-Policy", value: `${policy}; frame-ancestors 'none'` }],
       },
-      { source: "/embed/:path*", headers: [...common, { key: "Content-Security-Policy", value: "frame-ancestors * file:" }] },
+      { source: "/embed/:path*", headers: [...common, { key: "Content-Security-Policy", value: `${policy}; frame-ancestors * file:` }] },
     ];
   },
 };
