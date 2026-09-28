@@ -440,12 +440,26 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
     .where(eq(assignments.eventId, eventId))
     .groupBy(assignments.judgeUserId, assignments.status)
     .all();
-  // Tracks a hand assignment added (assignByHand): the latest such grant per judge and track.
+  // Tracks a hand assignment added (assignByHand), marked only while the judge's current grant of the
+  // track is that one: the audit log in order, the latest grant per judge and track wins, so a track
+  // taken off and given again with the tracks form (or an invitation) is no longer marked by hand.
   const titles = new Map(db.select({ id: projects.id, title: projects.title }).from(projects).where(eq(projects.eventId, eventId)).all().map((x) => [x.id, x.title]));
-  const granted = new Map<string, { project: string; at: string }>();
-  for (const r of db.select({ params: assignmentRuns.params, at: assignmentRuns.createdAt }).from(assignmentRuns).where(eq(assignmentRuns.eventId, eventId)).orderBy(asc(assignmentRuns.createdAt)).all()) {
-    const q = r.params as { byHand?: boolean; addedTrack?: string | null; judgeUserId?: string; projectId?: string };
-    if (q.byHand && q.addedTrack && q.judgeUserId) granted.set(`${q.judgeUserId}|${q.addedTrack}`, { project: titles.get(q.projectId ?? "") ?? q.projectId ?? "", at: r.at });
+  const granted = new Map<string, { project: string; at: string } | null>();
+  const grants = db
+    .select({ action: auditLog.action, targetId: auditLog.targetId, before: auditLog.before, after: auditLog.after, at: auditLog.at })
+    .from(auditLog)
+    .where(and(eq(auditLog.eventId, eventId), inArray(auditLog.action, ["assignment.by_hand", "judge.tracks", "judge.join"])))
+    .orderBy(asc(auditLog.id))
+    .all();
+  for (const r of grants) {
+    const after = (r.after ?? {}) as { judgeUserId?: string; addedTrack?: string | null; trackIds?: string[]; via?: string };
+    if (r.action === "assignment.by_hand") {
+      if (after.addedTrack && after.judgeUserId) granted.set(`${after.judgeUserId}|${after.addedTrack}`, { project: titles.get(r.targetId ?? "") ?? r.targetId ?? "", at: r.at });
+    } else if (after.via !== "assignment.by_hand" && r.targetId) {
+      // the tracks form or an invitation: every track it added is granted by that, not by hand
+      const had = new Set(((r.before ?? {}) as { trackIds?: string[] }).trackIds ?? []);
+      for (const t of after.trackIds ?? []) if (!had.has(t)) granted.set(`${r.targetId}|${t}`, null);
+    }
   }
   const set = judgeSet(db, eventId);
   return people.map((p) => {

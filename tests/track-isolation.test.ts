@@ -129,6 +129,42 @@ describe("a track judge never sees another track", () => {
     expect(shown.byHand).toMatchObject({ project: expect.any(String) });
   });
 
+  it("a track taken off and granted again with the tracks form is no longer marked by hand", () => {
+    const org = checker("organizer");
+    const project = "prj_19";
+    const track = trackOf(project);
+    const team = h.db.select({ t: projects.teamId }).from(projects).where(eq(projects.id, project)).get()!.t;
+    const onTeam = new Set(h.db.select({ u: teamMembers.userId }).from(teamMembers).where(eq(teamMembers.teamId, team)).all().map((r) => r.u));
+    const assigned = new Set(h.db.select({ j: assignments.judgeUserId }).from(assignments).where(eq(assignments.projectId, project)).all().map((r) => r.j));
+    const outsider = h.db
+      .select({ u: userRoles.userId })
+      .from(userRoles)
+      .where(and(eq(userRoles.eventId, "evt_01"), eq(userRoles.role, "judge")))
+      .all()
+      .map((r) => r.u)
+      .find((j) => !tracksOf(j).includes(track) && !onTeam.has(j) && !assigned.has(j))!;
+    const byHand = () => getJudges(org, "evt_01").judges.find((j) => j.id === outsider)!.tracks.find((t) => t.id === track)?.byHand;
+    const own = tracksOf(outsider);
+
+    assignByHand(org, "evt_01", { projectId: project, judgeUserId: outsider, reason: "cover the under-reviewed project" });
+    expect(byHand()).toMatchObject({ project: expect.any(String) }); // positive control: the hand grant is marked
+    setJudgeTracks(org, "evt_01", outsider, { trackIds: own });
+    expect(byHand()).toBeUndefined(); // the track is gone
+    setJudgeTracks(org, "evt_01", outsider, { trackIds: [...own, track] });
+    expect(byHand()).toBeNull(); // granted again with the tracks form: not by hand
+    // and a second hand grant after another removal is marked again
+    setJudgeTracks(org, "evt_01", outsider, { trackIds: own });
+    const outsiderTeams = new Set(h.db.select({ t: teamMembers.teamId }).from(teamMembers).where(eq(teamMembers.userId, outsider)).all().map((r) => r.t));
+    const another = h.db
+      .select({ id: projects.id, teamId: projects.teamId })
+      .from(projects)
+      .where(and(eq(projects.eventId, "evt_01"), eq(projects.trackId, track)))
+      .all()
+      .find((p) => p.id !== project && !outsiderTeams.has(p.teamId))!;
+    assignByHand(org, "evt_01", { projectId: another.id, judgeUserId: outsider, reason: "cover another one" });
+    expect(byHand()).toMatchObject({ project: expect.any(String) });
+  });
+
   it("a hand assignment within the judge's own track grants nothing and writes no track row (positive control)", () => {
     const org = checker("organizer");
     const project = "prj_19";
