@@ -13,7 +13,7 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
-import { mailProblem, mailSettings, sendMail, setMailTransportForTests } from "@/server/mail";
+import { MAIL_TIMEOUTS, mailProblem, mailSettings, sendMail, setMailTransportForTests } from "@/server/mail";
 import { listOutbox, listPortalOutbox, type OutboxView } from "@/server/dal/outbox";
 import type { Actor } from "@/server/authz";
 
@@ -302,6 +302,25 @@ describe("sending through SMTP", () => {
     const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, { SMTP_URL: url, MAIL_FROM: "portal@mail.test" });
     if (out.status !== "failed") throw new Error(`expected failed, got ${out.status}`);
     expect(out.error).toMatch(/ECONNREFUSED|connect/i);
+  });
+});
+
+describe("a mail server that never answers", () => {
+  it("gives failed within the portal's own timeouts, not nodemailer's minutes", { timeout: 25_000 }, async () => {
+    const silent = net.createServer(() => undefined); // accepts the connection and never greets
+    await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));
+    const url = `smtp://127.0.0.1:${(silent.address() as net.AddressInfo).port}`;
+    try {
+      const started = Date.now();
+      const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, { SMTP_URL: url, MAIL_FROM: "portal@mail.test" });
+      const waited = Date.now() - started;
+      if (out.status !== "failed") throw new Error(`expected failed, got ${out.status}`);
+      expect(out.error).toMatch(/greeting/i);
+      expect(waited).toBeGreaterThanOrEqual(MAIL_TIMEOUTS.greetingTimeout - 500);
+      expect(waited).toBeLessThan(MAIL_TIMEOUTS.greetingTimeout + 5_000); // nodemailer's own default is 30 s
+    } finally {
+      await new Promise<void>((resolve) => silent.close(() => resolve()));
+    }
   });
 });
 

@@ -35,6 +35,10 @@ export type SendResult = { status: "off" } | { status: "sent"; sentAt: string } 
 type Message = { from: string; to: string; subject: string; text: string };
 type Transport = { sendMail(message: Message): Promise<unknown> };
 
+/** How long a send waits on the mail server. nodemailer alone waits 2 minutes to connect, 30 seconds for the
+ *  greeting and 10 minutes of silence, holding the page that sent it; a timeout written in SMTP_URL's query wins. */
+export const MAIL_TIMEOUTS = { connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000 };
+
 let testTransport: Transport | null = null;
 let cached: { url: string; transport: Transport } | null = null;
 
@@ -45,7 +49,7 @@ export function setMailTransportForTests(transport: Transport | null): void {
 
 function transportFor(url: string): Transport {
   if (testTransport) return testTransport;
-  if (cached?.url !== url) cached = { url, transport: nodemailer.createTransport(url) };
+  if (cached?.url !== url) cached = { url, transport: nodemailer.createTransport({ url, ...MAIL_TIMEOUTS }) };
   return cached.transport;
 }
 
