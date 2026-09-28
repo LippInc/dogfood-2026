@@ -174,11 +174,13 @@ function sentence(r: Row, n: Names): Part[] {
       const reviews = after.reviews as { finished?: boolean }[];
       const finished = reviews.filter((x) => x.finished).length;
       const judges = after.judges.length;
+      const grants = Array.isArray(after.judgeTracks) ? after.judgeTracks.length : 0;
       return [
         actor,
         t(
           ` imported ${file}: ${judges} ${judges === 1 ? "judge" : "judges"} and ${reviews.length} ${reviews.length === 1 ? "review" : "reviews"}` +
             (reviews.length ? ` (${finished} finished)` : "") +
+            (grants ? `; ${grants} ${grants === 1 ? "track" : "tracks"} given to a judge` : "") +
             ", each listed in this entry",
         ),
       ];

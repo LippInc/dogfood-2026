@@ -158,7 +158,7 @@ export type ImportReport = {
    * made judges of the event, and every review it brought in or added to (the judge's account, the
    * project, whether the file's review is finished, the scores and feedback it added).
    */
-  added: { judges: string[]; reviews: ImportedReview[] };
+  added: { judges: string[]; reviews: ImportedReview[]; judgeTracks: { judge: string; track: string }[] };
 };
 
 export type ImportedReview = { judge: string; project: string; finished: boolean; values: Record<string, number>; feedback?: string };
@@ -217,7 +217,7 @@ export function importFixtures(
     skipped: [],
     conflicts: [],
     renamed: [],
-    added: { judges: [], reviews: [] },
+    added: { judges: [], reviews: [], judgeTracks: [] },
   };
   const bump = (table: TableKey, changes: number) => {
     if (changes > 0) report.inserted[table] += 1;
@@ -391,15 +391,15 @@ export function importFixtures(
           });
           continue;
         }
-        bump(
-          "judgeTracks",
-          insertOnce(
-            tx
-              .insert(judgeTracks)
-              .values({ judgeUserId: userId, eventId, trackId: trackOf.get(trackId)! })
-              .onConflictDoNothing(),
-          ),
+        const granted = insertOnce(
+          tx
+            .insert(judgeTracks)
+            .values({ judgeUserId: userId, eventId, trackId: trackOf.get(trackId)! })
+            .onConflictDoNothing(),
         );
+        bump("judgeTracks", granted);
+        // a track reaches every project in it, so each grant is named, like the judges and reviews
+        if (granted) report.added.judgeTracks.push({ judge: userId, track: trackOf.get(trackId)! });
       }
     }
 
@@ -685,7 +685,14 @@ export function importFixtures(
           targetType: "event",
           targetId: eventId,
           // the judges and reviews by name, not only counted: an import can add both to an event that is judging
-          after: { source: opts.source, sha256: opts.sha256, inserted: report.inserted, judges: report.added.judges, reviews: report.added.reviews },
+          after: {
+            source: opts.source,
+            sha256: opts.sha256,
+            inserted: report.inserted,
+            judges: report.added.judges,
+            reviews: report.added.reviews,
+            judgeTracks: report.added.judgeTracks,
+          },
         },
         now,
       );

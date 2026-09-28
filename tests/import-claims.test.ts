@@ -506,6 +506,27 @@ describe("what an import adds to a judged event is named in the log and marked i
     expect(JSON.stringify(hook)).not.toContain("Brilliant.");
   });
 
+  it("a track the import gives a judge who is already here is named in its row: the judge and the track", () => {
+    const file = JSON.parse(exportFile(organizer(), EVENT, "fixtures.json").body) as FixtureFile;
+    const judge = file.judges.find((j) => file.tracks.some((t) => !j.tracks.includes(t.id)))!;
+    const track = file.tracks.find((t) => !judge.tracks.includes(t.id))!;
+    judge.tracks.push(track.id);
+    const judgeId = one<{ id: string }>(ha, "SELECT id FROM users WHERE email = ?", judge.email).id;
+    const trackId = one<{ id: string }>(ha, "SELECT id FROM tracks WHERE event_id = ? AND name = ?", EVENT, track.name).id;
+    const rowsBefore = importRows().length;
+
+    importEventFile(organizer(), file);
+    const rows = importRows();
+    expect(rows).toHaveLength(rowsBefore + 1);
+    const after = rows.at(-1)!.after as ImportRow & { judgeTracks?: { judge: string; track: string }[] };
+    expect(after.judges).toEqual([]); // the judge was here already
+    expect(after.judgeTracks).toEqual([{ judge: judgeId, track: trackId }]);
+    expect(latestAudit(ha.db, EVENT, 5, ["fixtures.import"])[0]!.parts.map((p) => p.text).join("")).toContain("1 track given to a judge");
+    // the boot's own import names every grant it made (positive control: the same field, filled from the fixture)
+    const boot = importRows()[0]!.after as { judgeTracks?: unknown[] };
+    expect(boot.judgeTracks).toHaveLength(nOf(ha, "SELECT count(*) AS n FROM judge_tracks WHERE event_id = ?", EVENT) - 1);
+  });
+
   it("scores.csv marks each review that arrived by import; one given out here reads portal (positive control)", () => {
     const file = JSON.parse(exportFile(organizer(), EVENT, "fixtures.json").body) as FixtureFile;
     const project = file.projects[0]!;
