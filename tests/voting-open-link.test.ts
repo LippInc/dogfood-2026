@@ -185,8 +185,8 @@ describe("the rule is fixed from the first ballot", () => {
     expect(auditCount("voting.settings")).toBe(beforeRows + 2); // the refused flip wrote no row
 
     // positive controls: with ballots in, saves that leave countLink out, or send the current
-    // value, still succeed (here raising the pick limit), and countLink keeps its value
-    saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "4" }));
+    // value, still succeed (here raising the pick limit, which needs a reason once ballots are in), and countLink keeps its value
+    saveVotingSettings(org(), "evt_01", { ...settings({ votesPerVoter: "4" }), reason: "Four favourites, as announced" });
     saveVotingSettings(org(), "evt_01", settings({ countLink: false, votesPerVoter: "4" }));
     const s = getVotingAdmin(org(), "evt_01").settings;
     expect(s.countLink).toBe(false);
@@ -198,7 +198,7 @@ describe("the rule is fixed from the first ballot", () => {
     saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "4" })); // before any ballot: no quiet reset
     expect(getVotingAdmin(org(), "evt_01").settings.countLink).toBe(true);
     castBallot(null, "evt_01", linkToken(), { projectIds: ["prj_08"] }, CLIENT);
-    saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5" })); // after it: no 409, and still counted
+    saveVotingSettings(org(), "evt_01", { ...settings({ votesPerVoter: "5" }), reason: "Five favourites, as announced" }); // after it: no 409, and still counted
     const admin = getVotingAdmin(org(), "evt_01");
     expect(admin.settings).toMatchObject({ countLink: true, votesPerVoter: 5 });
     expect(admin.tally!.find((x) => x.projectId === "prj_08")).toMatchObject({ votes: 1, openLink: 1 });

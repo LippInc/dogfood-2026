@@ -365,12 +365,79 @@ describe("the pick limit", () => {
     )?.id;
     castBallot(p, "evt_01", null, { projectIds: ["prj_05", "prj_06", "prj_07", "prj_08"].filter((id) => id !== own).slice(0, 3) }, CLIENT);
 
-    expectHttpError(() => saveVotingSettings(org(), "evt_01", settings("2")), 409, "ballots_too_large");
+    expectHttpError(() => saveVotingSettings(org(), "evt_01", { ...settings("2"), reason: "Two is enough" }), 409, "ballots_too_large");
     expect(limitNow()).toBe(3);
-    saveVotingSettings(org(), "evt_01", settings("5"));
+    saveVotingSettings(org(), "evt_01", { ...settings("5"), reason: "Five, as announced" });
     expect(limitNow()).toBe(5);
-    saveVotingSettings(org(), "evt_01", settings("3"));
+    saveVotingSettings(org(), "evt_01", { ...settings("3"), reason: "Back to three: five was a typo" });
     expect(limitNow()).toBe(3);
+  });
+});
+
+describe("the counting rules once ballots are in", () => {
+  const settings = (over: Record<string, unknown> = {}) => ({
+    votingOpenAt: "2026-01-01T00:00",
+    votingCloseAt: "2999-01-01T00:00",
+    modes: ["account", "listed", "link"],
+    votesPerVoter: "3",
+    countLink: true,
+    ...over,
+  });
+  const REASON = "The announcement said five favourites";
+  const firstBallot = () => {
+    const p = participant();
+    const own = (
+      h.sqlite
+        .prepare("SELECT p.id AS id FROM projects p JOIN team_members m ON m.team_id = p.team_id WHERE m.user_id = ? AND p.event_id = 'evt_01'")
+        .get(p.userId) as { id: string } | undefined
+    )?.id;
+    castBallot(p, "evt_01", null, { projectIds: ["prj_05", "prj_06"].filter((id) => id !== own).slice(0, 1) }, CLIENT);
+  };
+
+  it("known-bad: more favourites, or a way in opened or closed, without a reason is refused — 422, nothing changes, no row", () => {
+    openVoting();
+    firstBallot();
+    const before = getVotingAdmin(org(), "evt_01").settings;
+    const rows = auditRows().length;
+    expectHttpError(() => saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5" })), 422, "invalid");
+    expectHttpError(() => saveVotingSettings(org(), "evt_01", settings({ modes: ["account", "listed"] })), 422, "invalid");
+    expectHttpError(() => saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5", reason: "  " })), 422, "invalid");
+    expect(getVotingAdmin(org(), "evt_01").settings).toEqual(before);
+    expect(auditRows().length).toBe(rows);
+    expect(getCommunityResults("evt_01").ruleChanges).toEqual([]);
+  });
+
+  it("with a reason the change is saved, audited with it, and listed beside the count for everyone", () => {
+    openVoting();
+    firstBallot();
+    const out = saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5", modes: ["account", "listed"], reason: REASON }));
+    expect(out.rulesChanged).toBe(true);
+    const [row] = auditRows().filter((r) => r.action === "voting.rules_changed");
+    expect(row!.before).toMatchObject({ votesPerVoter: 3, modes: ["account", "link", "listed"] });
+    expect(row!.after).toMatchObject({ votesPerVoter: 5, modes: ["account", "listed"], reason: REASON });
+    const change = { reason: REASON, before: { modes: ["account", "link", "listed"], votesPerVoter: 3 }, after: { modes: ["account", "listed"], votesPerVoter: 5 } };
+    expect(getCommunityResults("evt_01").ruleChanges).toMatchObject([change]);
+    expect(getVotingAdmin(org(), "evt_01").settings.ruleChanges).toMatchObject([change]);
+    const line = getAuditLog(org(), "evt_01").lines.find((l) => l.action === "voting.rules_changed")!;
+    expect(line.parts.map((p) => p.text).join("")).toContain("favourites per voter 3 → 5; closed to the open link");
+    expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
+  it("positive controls: before the first ballot no reason is asked and nothing is listed; after it, the window alone moves without one", () => {
+    openVoting();
+    saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5" }));
+    expect(getCommunityResults("evt_01").ruleChanges).toEqual([]);
+    firstBallot();
+    const out = saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5", votingCloseAt: "2998-01-01T00:00" }));
+    expect(out.rulesChanged).toBe(false);
+    expect(auditRows().filter((r) => r.action === "voting.rules_changed")).toHaveLength(0);
+    expect(getCommunityResults("evt_01").ruleChanges).toEqual([]);
+  });
+
+  it("known-bad: a participant cannot change them, reason or not — 403", () => {
+    openVoting();
+    firstBallot();
+    expectHttpError(() => saveVotingSettings(participant(), "evt_01", settings({ votesPerVoter: "5", reason: REASON })), 403, "not_an_organizer");
   });
 });
 

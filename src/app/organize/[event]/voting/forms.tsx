@@ -125,6 +125,17 @@ export function VotingSettingsForm({
       <Field id="votesPerVoter" label="Favourites per voter" error={e.votesPerVoter}>
         {(a) => <Input {...a} name="votesPerVoter" type="number" min={1} max={20} defaultValue={votesPerVoter} className="w-28" />}
       </Field>
+      {countRuleFixed ? (
+        // ballots are in: who may vote and the favourites per voter change only with a reason, which the count shows
+        <Field
+          id="votingReason"
+          label="Why the rules change"
+          help="Needed only to change who may vote or the favourites per voter: ballots are already in, so the count shows the change and your reason."
+          error={e.reason}
+        >
+          {(a) => <Input {...a} name="reason" maxLength={500} />}
+        </Field>
+      ) : null}
       <div className="flex items-center gap-3">
         <Button disabled={pending}>Save voting settings</Button>
         <Status state={state} />

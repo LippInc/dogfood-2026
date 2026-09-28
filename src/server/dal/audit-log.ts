@@ -6,6 +6,7 @@ import { verifyAuditChain } from "../audit";
 import { getDb, type DbOrTx } from "../db/client";
 import { formatUtc } from "@/lib/format";
 import type { TextEdit } from "@/lib/text-edit";
+import { ruleMoves } from "@/lib/vote-rules";
 import { assignments, auditLog, events, projects, rubricCriteria, teams, tracks, users, voters } from "../db/schema";
 import { guardRead } from "../mutate";
 import { toCsv } from "../csv";
@@ -350,6 +351,11 @@ function sentence(r: Row, n: Names): Part[] {
             ),
           ]
         : [actor, t(" cleared the community voting window")];
+    case "voting.rules_changed":
+      return [
+        actor,
+        t(` changed the community vote's rules after ballots were in: ${ruleMoves({ before: { modes: (before.modes as string[] | undefined) ?? [], votesPerVoter: Number(before.votesPerVoter) }, after: { modes: (after.modes as string[] | undefined) ?? [], votesPerVoter: Number(after.votesPerVoter) } }) || "the same rules"}: ${quote(after.reason)}`),
+      ];
     case "voting.demo_opened":
       return after.votingCloseAt
         ? [

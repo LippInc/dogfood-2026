@@ -118,7 +118,15 @@ export type EventSettings = {
   judgingMode?: "scores" | "pairwise";
   /** Weight changes made after the first score, each with its reason; the published results show them. */
   weightChanges?: WeightChange[];
+  /** Changes to who may vote or how many favourites each, made after the first ballot, each with its reason; the count shows them. */
+  voteRuleChanges?: VoteRuleChange[];
 };
+
+/** Who may vote and how many favourites each: the community vote's counting rules. */
+export type VoteRules = { modes: ("account" | "listed" | "link")[]; votesPerVoter: number };
+
+/** One change to the counting rules after the first ballot: when, why, and the rules before and after. */
+export type VoteRuleChange = { at: string; reason: string; before: VoteRules; after: VoteRules };
 
 /** One weight change after judging began: when, why, and the criteria's weights before and after. */
 export type WeightChange = {

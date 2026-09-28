@@ -3,7 +3,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor, VoterKind } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { events, projects, teamMembers, teams, users, voters, votes } from "../db/schema";
+import { events, projects, teamMembers, teams, users, voters, votes, type VoteRuleChange, type VoteRules } from "../db/schema";
 import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
@@ -25,6 +25,8 @@ export const SettingsInput = z
     votesPerVoter: z.coerce.number().int().min(1).max(20),
     /** whether open-link ballots add to the result; left out, it stays as it is */
     countLink: z.boolean().optional(),
+    /** why, when who may vote or the favourites per voter change after the first ballot; the count shows it */
+    reason: z.string().trim().max(500).optional(),
   })
   .refine((v) => (v.votingOpenAt === "") === (v.votingCloseAt === ""), { message: "set both times or neither", path: ["votingCloseAt"] })
   .refine((v) => !v.votingOpenAt || Date.parse(v.votingOpenAt) < Date.parse(v.votingCloseAt), { message: "must be after voting opens", path: ["votingCloseAt"] });
@@ -87,6 +89,27 @@ export function endVoteForPublish(tx: DbOrTx, event: EventRow, at: string) {
   return { ended: state, before: { votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt }, after: window };
 }
 
+const sameRules = (a: VoteRules, b: VoteRules) => a.votesPerVoter === b.votesPerVoter && [...a.modes].sort().join() === [...b.modes].sort().join();
+
+/**
+ * The counting rules hold from the first ballot on. Whether open-link ballots count is fixed outright
+ * (above); who may vote and how many favourites each can still change, to fix a mistake, but only with
+ * a written reason: some ballots were cast under the old rules, so the change is audited with its reason,
+ * kept on the event and shown with the count, public and the organizers' (like a rubric weight changed
+ * after the first score). Returns the change to keep, or null when the rules stay or no ballot is in yet.
+ * The window is not a counting rule here: moving it is the window's own business.
+ */
+function countingRulesHold(tx: DbOrTx, event: EventRow, current: VoteRules, next: VoteRules, reason: string): VoteRuleChange | null {
+  if (sameRules(current, next) || !anyBallotCast(tx, event.id)) return null;
+  if (reason.length < 3) {
+    throw new ValidationError("Ballots are already in, so changing who may vote or the favourites per voter needs a reason: the count will show it.", {
+      reason: ["say why the rules change, in a few words"],
+    });
+  }
+  const rules = (r: VoteRules): VoteRules => ({ modes: [...r.modes].sort(), votesPerVoter: r.votesPerVoter });
+  return { at: new Date().toISOString(), reason, before: rules(current), after: rules(next) };
+}
+
 export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizer(actor, eventIdOrSlug, (tx, event) => {
     voteFinal(event);
@@ -119,20 +142,22 @@ export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, b
     }
     const before = { votingOpenAt: event.votingOpenAt, votingCloseAt: event.votingCloseAt, ...current, linkHash: undefined };
     const voting = { ...current, modes: [...new Set(input.modes)].sort() as VoterKind[], votesPerVoter: input.votesPerVoter, countLink };
+    const ruleChange = countingRulesHold(tx, event, current, voting, input.reason ?? "");
+    const voteRuleChanges = ruleChange ? [...(event.settings.voteRuleChanges ?? []), ruleChange] : event.settings.voteRuleChanges;
     tx.update(events)
-      .set({ votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, settings: { ...event.settings, voting } })
+      .set({
+        votingOpenAt: input.votingOpenAt || null,
+        votingCloseAt: input.votingCloseAt || null,
+        settings: { ...event.settings, voting, ...(voteRuleChanges ? { voteRuleChanges } : {}) },
+      })
       .where(eq(events.id, event.id))
       .run();
+    const after = { votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, modes: voting.modes, votesPerVoter: voting.votesPerVoter, countLink };
     return {
-      result: { ok: true },
-      audit: {
-        action: "voting.settings",
-        eventId: event.id,
-        targetType: "event",
-        targetId: event.id,
-        before,
-        after: { votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, modes: voting.modes, votesPerVoter: voting.votesPerVoter, countLink },
-      },
+      result: { ok: true, rulesChanged: ruleChange !== null },
+      audit: ruleChange
+        ? { action: "voting.rules_changed", eventId: event.id, targetType: "event", targetId: event.id, before, after: { ...after, reason: ruleChange.reason } }
+        : { action: "voting.settings", eventId: event.id, targetType: "event", targetId: event.id, before, after },
     };
   });
 }
@@ -357,8 +382,9 @@ export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
       votesPerVoter: settings.votesPerVoter,
       linkActive: Boolean(settings.linkHash),
       countLink: settings.countLink,
-      /** the counting rule is fixed from the first ballot on */
+      /** the counting rule is fixed from the first ballot on; from then on the other rules change only with a reason */
       countRuleFixed: anyBallotCast(db, event.id),
+      ruleChanges: event.settings.voteRuleChanges ?? [],
     },
     state,
     turnout: {
@@ -377,13 +403,22 @@ export function getVotingAdmin(actor: Actor | null, eventIdOrSlug: string) {
   };
 }
 
-/** countLink: whether the open link's votes add to `votes` (each row shows them apart either way) */
-export type CommunityResults = { state: VotingState; closesAt: string | null; countLink: boolean; tally: Tally[] | null };
+/**
+ * countLink: whether the open link's votes add to `votes` (each row shows them apart either way);
+ * ruleChanges: changes to who may vote or the favourites per voter made after the first ballot, with their reasons
+ */
+export type CommunityResults = { state: VotingState; closesAt: string | null; countLink: boolean; ruleChanges: VoteRuleChange[]; tally: Tally[] | null };
 
 /** The public community vote: only after the window closes (organizers see it live in getVotingAdmin). */
 export function getCommunityResults(eventIdOrSlug: string): CommunityResults {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
   const state = votingState(event);
-  return { state, closesAt: event.votingCloseAt, countLink: votingSettings(event).countLink, tally: state === "closed" ? tally(db, event) : null };
+  return {
+    state,
+    closesAt: event.votingCloseAt,
+    countLink: votingSettings(event).countLink,
+    ruleChanges: event.settings.voteRuleChanges ?? [],
+    tally: state === "closed" ? tally(db, event) : null,
+  };
 }

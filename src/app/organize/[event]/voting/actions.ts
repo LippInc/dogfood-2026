@@ -35,6 +35,8 @@ export async function votingSettingsAction(_prev: ActionResult, form: FormData):
       votesPerVoter: form.get("votesPerVoter"),
       // sent only while the choice is still open; left out, it stays as it is
       countLink: form.get("countLinkField") ? form.get("countLink") === "on" : undefined,
+      // asked for once ballots are in, when who may vote or the favourites per voter change
+      reason: form.get("reason") ?? undefined,
     });
   } catch (err) {
     return actionError(err);
