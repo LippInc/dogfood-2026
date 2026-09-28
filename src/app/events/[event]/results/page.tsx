@@ -136,7 +136,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
               <section aria-labelledby="firsts-title" className="mt-6 border-t border-rule pt-6 lg:col-span-2 lg:mt-14">
                 <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
                   <h2 id="firsts-title" className="label-mono text-ink">
-                    Fig. 02 — First places
+                    Fig. 01 — First places
                   </h2>
                   <p className="text-13 text-ink-3">One per track. Each opens its track below.</p>
                 </div>
@@ -172,7 +172,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
           <section aria-labelledby="scale-title" className="mt-16 border-t border-rule pt-6">
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
               <h2 id="scale-title" className="label-mono text-ink">
-                Fig. 03 — Every place, on one scale
+                Fig. 02 — Every place, on one scale
               </h2>
               <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-13 text-ink-2">
                 <span className="inline-flex items-center gap-1.5">
@@ -276,7 +276,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             {galleryTracks.length ? (
               <figure aria-labelledby="sealed-caption">
                 <figcaption id="sealed-caption" className="label-mono text-ink">
-                  Fig. 02 — {plural(counts.projects, "place")}, sealed
+                  Fig. 01 — {plural(counts.projects, "place")}, sealed
                 </figcaption>
                 <div className="mt-4 grid grid-cols-4 gap-x-3 gap-y-6 xl:grid-cols-8" aria-hidden="true">
                   {galleryTracks.map((t) => (
