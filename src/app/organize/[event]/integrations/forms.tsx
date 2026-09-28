@@ -71,7 +71,14 @@ export function AddWebhookForm({ eventSlug }: { eventSlug: string }) {
       <div>
         <Button disabled={pending}>Add webhook</Button>
       </div>
-      <Secret state={state} />
+      {/* a refusal the field already shows in red is announced, not drawn a second time under the button */}
+      {state.fieldErrors ? (
+        <p role="status" className="sr-only">
+          {state.message}
+        </p>
+      ) : (
+        <Secret state={state} />
+      )}
     </form>
   );
 }
@@ -122,24 +129,28 @@ export function ClaimLinksForm({ eventSlug, waiting, elsewhere }: { eventSlug: s
           Make personal links
         </Button>
         <span className="text-14 text-ink-2">
-          {waiting === 1 ? "1 person has" : `${waiting} people have`} no password yet. A new batch replaces the links not used so far.
+          {waiting ? "One link each. A new batch replaces the links not used so far." : "Everyone in this event has a password."}
           {elsewhere
             ? ` ${elsewhere === 1 ? "1 more also belongs" : `${elsewhere} more also belong`} to an event you do not run: only the portal's administrator can send ${elsewhere === 1 ? "that person" : "them"} a password-reset link.`
             : null}
         </span>
       </form>
+      {/* the batch is shown only this once, like a webhook's secret, so it is framed the same way, with the download as the next step */}
       {state.message ? (
-        <p role="status" className={`text-14 ${state.ok ? "" : "text-flag"}`}>
-          {state.message}
-        </p>
+        <div
+          role="status"
+          className={`flex flex-col items-start gap-3 rounded-sm border-y border-r border-l-4 px-4 py-3 text-14 ${state.ok ? "border-ok" : "border-flag-bar bg-flag-bg"}`}
+        >
+          <p>{state.message}</p>
+          {links.length ? (
+            <Button type="button" size="sm" onClick={download}>
+              Download as CSV (for a mail merge)
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       {links.length ? (
         <div className="flex flex-col gap-2">
-          <div>
-            <Button type="button" size="sm" variant="outline" onClick={download}>
-              Download as CSV (for a mail merge)
-            </Button>
-          </div>
           <div className="max-h-[360px] overflow-y-auto rounded-sm border border-rule">
             <table className="w-full text-13">
               <tbody className="divide-y divide-rule">

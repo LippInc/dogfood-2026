@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
-import { Delivery } from "@/components/figures/delivery";
+import { Delivery, DeliveryTall } from "@/components/figures/delivery";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,17 @@ export const metadata: Metadata = { title: "Integrations" };
 const small = "inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium hover:bg-raised";
 /** The retry schedule, in seconds: the same as RETRY_DELAYS_S in src/server/webhooks.ts, which pages cannot import (only the DAL). */
 const RETRY_DELAYS_S = [10, 60, 300, 1800, 7200] as const;
+const MAX_ATTEMPTS = RETRY_DELAYS_S.length + 1;
+/** What each export holds, in the overview's words; a file added to the DAL later shows with no line until it is named here. */
+const EXPORT_HOLDS: Record<string, string> = {
+  "scores.csv": "every raw score",
+  "projects.csv": "the projects",
+  "normalized.csv": "the normalized ranking",
+  "audit.csv": "the audit log",
+  "comparisons.csv": "every pairwise answer",
+  "event.json": "the whole event, with settings and decisions",
+  "fixtures.json": "the fixture format, to import elsewhere",
+};
 
 export default async function IntegrationsPage({ params }: PageProps<"/organize/[event]/integrations">) {
   const { event: key } = await params;
@@ -30,6 +41,8 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
   const snippet = `<script src="${origin}/embed.js" data-event="${event.slug}" async></script>`;
   const waiting = countWithoutPassword(actor, key);
   const elsewhere = countBeyondReach(actor, key);
+  const on = webhooks.filter((w) => w.enabled).length;
+  const totals = webhooks.reduce((t, w) => ({ delivered: t.delivered + w.counts.delivered, failed: t.failed + w.counts.failed }), { delivered: 0, failed: 0 });
 
   return (
     <WorkShell
@@ -47,10 +60,31 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
             Connect the event to the rest of your tools: the same actions as this interface over JSON, a message to your server whenever something
             happens, and the gallery on your own site.
           </p>
+          <Contents
+            entries={[
+              { id: "api-title", title: "API", holds: "JSON routes, OpenAPI", mark: "set" },
+              {
+                id: "hooks-title",
+                title: "Webhooks",
+                holds: webhooks.length
+                  ? [`${on} of ${webhooks.length} on`, totals.failed ? `${totals.failed} failed` : `${totals.delivered} delivered`].join(" · ")
+                  : "none yet",
+                mark: totals.failed ? "flag" : on ? "set" : "open",
+              },
+              {
+                id: "io-title",
+                title: "Import and export",
+                holds: `${EXPORT_FILES.length} files · ${waiting ? `${waiting} without a password` : "every password set"}`,
+                mark: "set",
+              },
+              { id: "share-title", title: "On your site", holds: "one script tag", mark: "set" },
+            ]}
+          />
         </header>
 
         <section aria-labelledby="api-title" className="flex flex-col gap-3">
-          <h2 id="api-title" className="text-20 font-semibold">
+          <h2 id="api-title" className="scroll-mt-6 text-20 font-semibold">
+            <SectionNo n={1} />
             API
           </h2>
           <p className="max-w-[760px] text-15 text-ink-2">
@@ -72,103 +106,48 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
 
         <section aria-labelledby="hooks-title" className="flex flex-col gap-5">
           <div>
-            <h2 id="hooks-title" className="text-20 font-semibold">
-              Webhooks
+            <h2 id="hooks-title" className="scroll-mt-6 text-20 font-semibold">
+              <SectionNo n={2} />
+            Webhooks
             </h2>
             <p className="mt-1 max-w-[760px] text-15 text-ink-2">
-              Each audited action (a submission, a review, a vote, a published result) is POSTed to your URL as JSON, with the audit row&rsquo;s hash.
-              The <code className="font-mono text-13">Dogfood-Signature</code> header is <code className="font-mono text-13">t=&lt;time&gt;,v1=&lt;HMAC-SHA256&gt;</code>{" "}
-              over <code className="font-mono text-13">&lt;time&gt;.&lt;body&gt;</code> with the webhook&rsquo;s secret. Failed deliveries are retried
-              after 10 s, 1 min, 5 min, 30 min and 2 h. A ballot&rsquo;s picks, a judge&rsquo;s scores and a judge&rsquo;s pairwise answers are left
-              out: the delivery says who acted and when, and the values stay here.
+              Each audited action (a submission, a review, a vote, a published result) is POSTed to your URL as JSON as it happens.
             </p>
           </div>
-
-          <figure className="flex flex-col gap-3 border-t-2 border-ink pt-3">
-            <figcaption className="label-mono text-ink">Fig. 01 — One delivery</figcaption>
-            <div className="overflow-x-auto">
-              <div className="min-w-[680px]">
-                <Delivery delays={RETRY_DELAYS_S} />
-              </div>
-            </div>
-          </figure>
 
           {webhooks.length ? (
             <ul className="flex flex-col gap-4">
               {webhooks.map((w) => (
-                <li key={w.id} className="flex flex-col gap-3 rounded-sm border border-rule bg-surface p-5">
-                  <div className="flex flex-wrap items-baseline justify-between gap-3">
-                    <code className="min-w-0 break-all font-mono text-14">{w.url}</code>
-                    {w.enabled ? <Badge variant="ok">On</Badge> : <Badge>Off</Badge>}
-                  </div>
-                  <p className="text-14 text-ink-2">
-                    {w.actions.includes("*") ? "Every audited action" : w.actions.join(", ")} · added {formatUtc(w.createdAt)} · {w.counts.delivered} delivered,{" "}
-                    {w.counts.pending} waiting, {w.counts.failed} failed
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {w.enabled ? (
-                      <form action={sendTest.bind(null, event.slug, w.id)}>
-                        <button className={small}>Send a test</button>
-                      </form>
-                    ) : null}
-                    <form action={toggleWebhook.bind(null, event.slug, w.id, !w.enabled)}>
-                      <button className={small}>{w.enabled ? "Turn off" : "Turn on"}</button>
-                    </form>
-                    <RotateSecretForm eventSlug={event.slug} webhookId={w.id} />
-                  </div>
-                  {deliveries[w.id]!.length ? (
-                    <details>
-                      <summary className="cursor-pointer text-13 text-ink-2 hover:text-ink">Last deliveries</summary>
-                      <div className="mt-2 overflow-x-auto">
-                        <table className="w-full min-w-[640px] text-13">
-                          <thead className="text-left text-ink-2">
-                            <tr>
-                              <th className="py-1.5 pr-3 font-medium">When (UTC)</th>
-                              <th className="py-1.5 pr-3 font-medium">Action</th>
-                              <th className="py-1.5 pr-3 font-medium">Result</th>
-                              <th className="py-1.5 font-medium" />
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-rule">
-                            {deliveries[w.id]!.map((d) => (
-                              <tr key={d.id}>
-                                <td className="py-1.5 pr-3 font-mono text-12 whitespace-nowrap">{formatUtc(d.createdAt)}</td>
-                                <td className="py-1.5 pr-3 font-mono text-12">{d.action}</td>
-                                <td className="py-1.5 pr-3">
-                                  {d.status === "delivered" ? (
-                                    <span className="text-ok">Delivered ({d.responseStatus})</span>
-                                  ) : d.status === "failed" ? (
-                                    <span className="text-flag">Failed after {d.attempts}: {d.error}</span>
-                                  ) : d.attempts ? (
-                                    <span>
-                                      Retrying at {formatUtc(d.nextAttemptAt)}: {d.error}
-                                    </span>
-                                  ) : (
-                                    <span className="text-ink-2">Waiting to send</span>
-                                  )}
-                                </td>
-                                <td className="py-1.5 text-right">
-                                  {d.status !== "delivered" ? (
-                                    <form action={retry.bind(null, event.slug, w.id, d.id)}>
-                                      <button className="text-13 underline underline-offset-4">Send again</button>
-                                    </form>
-                                  ) : null}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </details>
-                  ) : (
-                    <p className="text-13 text-ink-3">Nothing sent yet.</p>
-                  )}
-                </li>
+                <HookCard key={w.id} slug={event.slug} hook={w} deliveries={deliveries[w.id]!} />
               ))}
             </ul>
           ) : (
-            <p className="text-14 text-ink-2">No webhooks yet.</p>
+            <p className="text-14 text-ink-2">No webhooks yet. One added below receives every audited action from then on; nothing earlier is sent.</p>
           )}
+
+          <figure className="flex flex-col gap-3 border-t-2 border-ink pt-3">
+            <figcaption className="label-mono text-ink">Fig. 01 — One delivery</figcaption>
+            <div className="md:hidden">
+              <DeliveryTall delays={RETRY_DELAYS_S} />
+            </div>
+            <div className="overflow-x-auto max-md:hidden">
+              <div className="min-w-[680px]">
+                <Delivery delays={RETRY_DELAYS_S} />
+              </div>
+            </div>
+            <dl className="mt-1 grid border-t border-rule text-13 sm:grid-cols-[9.5rem_1fr]">
+              <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5 sm:pr-4">Signature</dt>
+              <dd className="border-b border-rule pb-2.5 text-ink-2 sm:py-2.5">
+                <code className="font-mono text-12 text-ink">Dogfood-Signature: t=&lt;time&gt;,v1=&lt;HMAC-SHA256&gt;</code> over{" "}
+                <code className="font-mono text-12 text-ink">&lt;time&gt;.&lt;body&gt;</code>, keyed with the webhook&rsquo;s secret
+              </dd>
+              <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5 sm:pr-4">Left out</dt>
+              <dd className="border-b border-rule pb-2.5 text-ink-2 sm:py-2.5">
+                a ballot&rsquo;s picks, a judge&rsquo;s scores and a judge&rsquo;s pairwise answers: the delivery says who acted and when, and the
+                values stay here
+              </dd>
+            </dl>
+          </figure>
 
           <div className="rounded-sm border border-rule p-5">
             <h3 className="mb-4 text-15 font-semibold">Add a webhook</h3>
@@ -178,8 +157,9 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
 
         <section aria-labelledby="io-title" className="flex flex-col gap-4">
           <div>
-            <h2 id="io-title" className="text-20 font-semibold">
-              Import and export
+            <h2 id="io-title" className="scroll-mt-6 text-20 font-semibold">
+              <SectionNo n={3} />
+            Import and export
             </h2>
             <p className="mt-1 max-w-[760px] text-15 text-ink-2">
               Take everything out at any stage. <code className="font-mono text-13">fixtures.json</code> is the organizers&rsquo; fixture format:
@@ -188,27 +168,37 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
               <code className="font-mono text-13">event.json</code>.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <ul aria-label="Exports" className="grid border-t border-rule md:grid-cols-2 md:gap-x-10">
             {EXPORT_FILES.map((f) => (
-              <a key={f} href={exportHref(event.id, f)} className="inline-flex h-8 items-center rounded-sm border border-edge px-3 font-mono text-12 hover:bg-raised">
-                {f}
-              </a>
+              <li key={f} className="border-b border-rule">
+                <a href={exportHref(event.id, f)} className="group grid grid-cols-[9.5rem_1fr] items-baseline gap-4 py-2.5 hover:bg-raised">
+                  <span className="font-mono text-13 text-ink underline decoration-edge underline-offset-4 group-hover:decoration-ink">{f}</span>
+                  <span className="text-13 text-ink-2">{EXPORT_HOLDS[f] ?? ""}</span>
+                </a>
+              </li>
             ))}
-          </div>
-          <div className="flex flex-col gap-2 rounded-sm border border-rule p-5">
-            <h3 className="text-15 font-semibold">Personal links for imported people</h3>
-            <p className="max-w-[760px] text-14 text-ink-2">
-              People who came in through an import have an account but no password. The portal sends no mail: make each of them a personal link
-              here and send it; it lets that one person set a password, once, within 14 days.
+          </ul>
+          <div className="grid gap-x-6 gap-y-3 rounded-sm border border-rule bg-surface p-5 md:grid-cols-[auto_1fr]">
+            <p className="flex items-baseline gap-2 md:flex-col md:gap-1">
+              <span className={`font-display text-38 tnum ${waiting ? "text-ink" : "text-ok"}`}>{waiting}</span>
+              <span className="text-13 text-ink-2 md:max-w-[9rem]">{waiting === 1 ? "person has" : "people have"} no password yet</span>
             </p>
-            <ClaimLinksForm eventSlug={event.slug} waiting={waiting} elsewhere={elsewhere} />
+            <div className="flex min-w-0 flex-col gap-2">
+              <h3 className="text-15 font-semibold">Personal links for imported people</h3>
+              <p className="max-w-[760px] text-14 text-ink-2">
+                People who came in through an import have an account but no password. The portal sends no mail: make each of them a personal link
+                here and send it; it lets that one person set a password, once, within 14 days.
+              </p>
+              <ClaimLinksForm eventSlug={event.slug} waiting={waiting} elsewhere={elsewhere} />
+            </div>
           </div>
         </section>
 
         <section aria-labelledby="share-title" className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-4">
-            <h2 id="share-title" className="text-20 font-semibold">
-              Put the gallery on your site
+            <h2 id="share-title" className="scroll-mt-6 text-20 font-semibold">
+              <SectionNo n={4} />
+            Put the gallery on your site
             </h2>
             <Link href={`/embed/${event.slug}`} className="text-13 underline underline-offset-4">
               Preview
@@ -225,5 +215,214 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
         </section>
       </div>
     </WorkShell>
+  );
+}
+
+/** A section's number before its heading, as the settings sheet numbers its sections. */
+function SectionNo({ n }: { n: number }) {
+  return (
+    <span aria-hidden className="mr-2.5 font-mono text-13 font-normal text-ink-3">
+      {String(n).padStart(2, "0")}
+    </span>
+  );
+}
+
+type ContentsEntry = { id: string; title: string; holds: string; mark: "set" | "open" | "flag" };
+
+/**
+ * The page's four parts in one row, each saying what it holds now, drawn as the
+ * overview's pipeline stations: a filled square for a part in use, an open one for
+ * a part not set up yet, orange for one that needs you (a delivery that failed).
+ */
+function Contents({ entries }: { entries: ContentsEntry[] }) {
+  return (
+    <nav aria-label="On this page" className="mt-6">
+      <ol className="grid grid-cols-2 gap-y-5 md:grid-cols-4">
+        {entries.map((e, i) => (
+          <li key={e.id} className="relative pt-5 pr-3">
+            <span aria-hidden className="absolute top-[4px] right-0 left-0 h-[2px] bg-rule" />
+            <span
+              aria-hidden
+              className={`absolute top-0 left-0 size-[10px] ${
+                e.mark === "flag" ? "bg-flag-bar" : e.mark === "set" ? "bg-ink" : "border-[1.5px] border-edge bg-surface"
+              }`}
+            />
+            <a href={`#${e.id}`} className="group -mx-1 block rounded-xs px-1 py-0.5">
+              <span className="flex items-baseline gap-1.5">
+                <span className="font-mono text-12 text-ink-3">{String(i + 1).padStart(2, "0")}</span>
+                <span className="truncate text-14 font-medium text-ink group-hover:underline group-hover:underline-offset-4">{e.title}</span>
+              </span>
+              <span className={`mt-0.5 block text-12 ${e.mark === "flag" ? "font-medium text-flag" : "text-ink-2"}`}>{e.holds}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
+type Hook = ReturnType<typeof listWebhooks>["webhooks"][number];
+type Sent = ReturnType<typeof listDeliveries>[number];
+type Standing = "delivered" | "failed" | "retrying" | "waiting";
+
+/** How one delivery stands: arrived, failed for good, being retried, or not tried yet. */
+function standing(d: Sent): Standing {
+  return d.status === "delivered" ? "delivered" : d.status === "failed" ? "failed" : d.attempts ? "retrying" : "waiting";
+}
+
+/**
+ * One webhook: its address and switch, then its last deliveries as a row of cells
+ * (ink when it arrived, orange when it failed for good, dashed orange while it is
+ * retried, open while it waits), in the overview's decided-meter language. A
+ * webhook with a failed delivery carries the orange "needs you" bar, and its
+ * delivery log opens by itself while anything in it has failed a try.
+ */
+function HookCard({ slug, hook: w, deliveries }: { slug: string; hook: Hook; deliveries: Sent[] }) {
+  const failed = w.counts.failed > 0;
+  const troubled = deliveries.some((d) => standing(d) === "failed" || standing(d) === "retrying");
+  // why the newest try that did not arrive failed: said once on the card, and on a row only when that row's reason differs
+  const reason = troubled ? deliveries.find((d) => standing(d) !== "delivered" && d.error)?.error ?? undefined : undefined;
+  return (
+    <li className={`flex flex-col gap-4 rounded-sm border border-rule bg-surface p-5 ${failed ? "border-l-4 border-l-flag-bar" : ""}`}>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <code className="min-w-0 break-all font-mono text-15 text-ink">{w.url}</code>
+          <p className="text-13 text-ink-2">
+            {w.actions.includes("*") ? "Every audited action" : w.actions.join(", ")} · added {formatUtc(w.createdAt)}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {failed ? <Badge variant="flag">{w.counts.failed} failed</Badge> : null}
+          {w.enabled ? <Badge variant="ok">On</Badge> : <Badge>Off</Badge>}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {deliveries.length ? <DeliveryCells deliveries={deliveries} /> : null}
+        <p className="text-13 text-ink-2 tnum">
+          <span className="text-ink">{w.counts.delivered}</span> delivered · <span className="text-ink">{w.counts.pending}</span> waiting ·{" "}
+          <span className={failed ? "font-medium text-flag" : "text-ink"}>{w.counts.failed}</span> failed
+          {deliveries.length ? null : <span className="text-ink-3"> · nothing sent yet</span>}
+        </p>
+        {reason ? (
+          <p className="flex max-w-[760px] flex-wrap items-baseline gap-x-3 gap-y-0.5 border-l-2 border-flag-bar pl-3 text-14 text-ink">
+            <span className="label-mono text-flag">Last error</span>
+            <span>{reason}</span>
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {w.enabled ? (
+          <form action={sendTest.bind(null, slug, w.id)}>
+            <button className={small}>Send a test</button>
+          </form>
+        ) : null}
+        <form action={toggleWebhook.bind(null, slug, w.id, !w.enabled)}>
+          <button className={small}>{w.enabled ? "Turn off" : "Turn on"}</button>
+        </form>
+        <RotateSecretForm eventSlug={slug} webhookId={w.id} />
+      </div>
+
+      {deliveries.length ? (
+        <details open={troubled || undefined} className="border-t border-rule pt-3">
+          <summary className="cursor-pointer text-13 font-medium text-ink-2 hover:text-ink">Last deliveries, newest first</summary>
+          <table className="mt-2 w-full text-13 max-sm:block">
+            <thead className="text-left text-12 text-ink-2 max-sm:hidden">
+              <tr>
+                <th className="py-1.5 pr-4 font-medium">When (UTC)</th>
+                <th className="py-1.5 pr-4 font-medium">Action</th>
+                <th className="py-1.5 pr-4 font-medium">Tries</th>
+                <th className="py-1.5 pr-4 font-medium">Result</th>
+                <th className="py-1.5 font-medium">
+                  <span className="sr-only">Send again</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-rule max-sm:block">
+              {deliveries.map((d) => (
+                <DeliveryRow key={d.id} slug={slug} hookId={w.id} d={d} reason={reason} />
+              ))}
+            </tbody>
+          </table>
+        </details>
+      ) : null}
+    </li>
+  );
+}
+
+const CELL: Record<Standing, string> = {
+  delivered: "bg-ink",
+  failed: "bg-flag-bar",
+  retrying: "border-[1.5px] border-dashed border-flag-bar",
+  waiting: "border-[1.5px] border-edge",
+};
+
+function DeliveryCells({ deliveries }: { deliveries: Sent[] }) {
+  const n: Record<Standing, number> = { delivered: 0, failed: 0, retrying: 0, waiting: 0 };
+  for (const d of deliveries) n[standing(d)]++;
+  const said = (Object.keys(n) as Standing[])
+    .filter((k) => n[k])
+    .map((k) => `${n[k]} ${k}`)
+    .join(", ");
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <span role="img" aria-label={`The last ${deliveries.length} deliveries: ${said}`} className="flex gap-[3px]">
+        {deliveries.map((d) => (
+          <span key={d.id} title={`${d.action}: ${standing(d)}`} className={`size-[14px] ${CELL[standing(d)]}`} />
+        ))}
+      </span>
+      <span className="text-12 text-ink-3">the last {deliveries.length}, newest first</span>
+    </div>
+  );
+}
+
+/** The tries a delivery has used, out of the schedule's six, as small cells: orange once it has failed for good. */
+function Tries({ d }: { d: Sent }) {
+  const s = standing(d);
+  return (
+    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+      <span aria-hidden className="flex gap-[2px]">
+        {Array.from({ length: MAX_ATTEMPTS }, (_, i) => (
+          <span key={i} className={`size-[8px] ${i < d.attempts ? (s === "failed" ? "bg-flag-bar" : "bg-ink") : "border border-edge"}`} />
+        ))}
+      </span>
+      <span className="font-mono text-12 text-ink-2 tnum">
+        {d.attempts} of {MAX_ATTEMPTS}
+      </span>
+    </span>
+  );
+}
+
+function DeliveryRow({ slug, hookId, d, reason }: { slug: string; hookId: string; d: Sent; reason?: string }) {
+  const s = standing(d);
+  const td = "py-2 pr-4 align-top max-sm:p-0";
+  return (
+    <tr className="max-sm:grid max-sm:grid-cols-[1fr_auto] max-sm:gap-x-3 max-sm:gap-y-1 max-sm:py-3">
+      <td className={`${td} font-mono text-12 whitespace-nowrap text-ink-2`}>{formatUtc(d.createdAt).replace(" UTC", "")}</td>
+      <td className={`${td} font-mono text-12 max-sm:col-start-1 max-sm:row-start-2`}>{d.action}</td>
+      <td className={`${td} max-sm:col-start-2 max-sm:row-start-1 max-sm:justify-self-end`}>
+        <Tries d={d} />
+      </td>
+      <td className={`${td} max-sm:col-span-2`}>
+        {s === "delivered" ? (
+          <span className="text-ok">Delivered{d.responseStatus ? `, answered ${d.responseStatus}` : ""}</span>
+        ) : s === "failed" ? (
+          <span className="font-medium text-flag">Failed for good</span>
+        ) : s === "retrying" ? (
+          <span>Next try at {formatUtc(d.nextAttemptAt).split(", ")[1]}</span>
+        ) : (
+          <span className="text-ink-2">Waiting to send</span>
+        )}
+        {s !== "delivered" && d.error && d.error !== reason ? <span className="mt-0.5 block text-12 text-ink-2">{d.error}</span> : null}
+      </td>
+      <td className="py-2 text-right align-top max-sm:col-start-2 max-sm:row-start-2 max-sm:p-0">
+        {s !== "delivered" ? (
+          <form action={retry.bind(null, slug, hookId, d.id)}>
+            <button className="text-13 whitespace-nowrap underline underline-offset-4">Send again</button>
+          </form>
+        ) : null}
+      </td>
+    </tr>
   );
 }

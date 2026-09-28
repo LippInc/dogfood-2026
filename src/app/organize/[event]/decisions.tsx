@@ -177,7 +177,17 @@ function stateLine(d: Decision): string {
 }
 
 /** One decision's working; once the results are published it is final, so no Undo. */
-function Body({ d, eventSlug, published }: { d: Decision; eventSlug: string; published: boolean }) {
+function Body({
+  d,
+  eventSlug,
+  published,
+  faces,
+}: {
+  d: Decision;
+  eventSlug: string;
+  published: boolean;
+  faces: Record<string, React.ReactNode>;
+}) {
   if (d.kind === "flat_judge") {
     const first = d.name.split(" ")[0];
     return (
@@ -187,8 +197,14 @@ function Body({ d, eventSlug, published }: { d: Decision; eventSlug: string; pub
             <tbody>
               {d.evidence.map((e) => (
                 <tr key={e.projectId}>
-                  <td className="py-1.5 pr-4 pl-3">{e.title}</td>
-                  <td className="py-1.5 pr-3 font-mono tnum">
+                  <td className="py-1.5 pr-4 pl-3">
+                    <span className="flex items-center gap-2">
+                      {faces[e.projectId]}
+                      {e.title}
+                    </span>
+                  </td>
+                  {/* the same values on every row (that is the finding): phones keep only the move */}
+                  <td className="py-1.5 pr-3 font-mono tnum max-sm:hidden">
                     {e.values.join(" / ")}
                   </td>
                   <td className="py-1.5 pr-3 text-ink-2 tnum">
@@ -256,12 +272,15 @@ function Body({ d, eventSlug, published }: { d: Decision; eventSlug: string; pub
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
         <ul className="flex flex-col gap-2 self-start rounded-sm bg-sunken p-3 text-13">
           {d.copies.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
+              <span className="pt-0.5">{faces[c.id]}</span>
+              <span className="min-w-0">
               <span className="font-mono">{c.id}</span> · submitted{" "}
               {c.submittedAt ? formatUtc(c.submittedAt) : "–"}
               {c.repoUrl ? (
                 <span className="block truncate text-ink-2">{c.repoUrl}</span>
               ) : null}
+              </span>
             </li>
           ))}
         </ul>
@@ -516,7 +535,7 @@ export function Decisions({
                 </button>
                 {expanded ? (
                   <div className="pb-5 pl-[40px]">
-                    <Body d={d} eventSlug={eventSlug} published={published} />
+                    <Body d={d} eventSlug={eventSlug} published={published} faces={faces} />
                   </div>
                 ) : null}
               </li>
@@ -536,6 +555,7 @@ export function PublishPanel({
   submissionsCloseAt,
   pairwise = false,
   vote = null,
+  receipt = [],
 }: {
   eventSlug: string;
   open: number;
@@ -547,6 +567,8 @@ export function PublishPanel({
   submissionsCloseAt: string | null;
   /** the community vote: publishing closes an open one and calls off one not yet open */
   vote?: { state: "not_set" | "upcoming" | "open" | "closed"; opensAt: string | null; closesAt: string | null; ballots: number } | null;
+  /** once published: what went out, one line each, every value from the data layer */
+  receipt?: { label: string; value: string }[];
 }) {
   const [state, form, pending] = useFormAction(publishAction, idle);
   const decided = total - open;
@@ -577,6 +599,16 @@ export function PublishPanel({
             Since {formatUtc(publishedAt)}. The results page is public, each
             team sees its written feedback, and scoring is frozen.
           </p>
+          {receipt.length ? (
+            <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 border-t border-rule text-13">
+              {receipt.map((r) => (
+                <div key={r.label} className="col-span-2 grid grid-cols-subgrid border-b border-rule py-2">
+                  <dt className="text-ink-2">{r.label}</dt>
+                  <dd className="text-ink tnum">{r.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
           <Link
             href={`/events/${eventSlug}/results`}
             className="text-14 underline underline-offset-4"
@@ -600,6 +632,24 @@ export function PublishPanel({
             </span>
             {submissionsCloseAt ? "After the close" : open ? "Locked" : "Ready"}
           </h2>
+          {total ? (
+            // the lock's own progress, read with the heading: one cell per decision in the
+            // Judges figure's language, filled ink when made, a dashed orange outline (the
+            // open wires' colour) while it waits
+            <div className="flex flex-col gap-1.5">
+              <span className="flex gap-[3px]" aria-hidden>
+                {Array.from({ length: total }, (_, i) => (
+                  <span
+                    key={i}
+                    className={`h-4 flex-1 border ${i < decided ? "border-ink bg-ink" : "border-dashed border-flag-bar"}`}
+                  />
+                ))}
+              </span>
+              <span className="text-13 text-ink-2 tnum">
+                {decided} of {total} decided
+              </span>
+            </div>
+          ) : null}
           <form {...form} className="flex flex-col gap-3">
             <input type="hidden" name="event" value={eventSlug} />
             {vote && (vote.state === "open" || vote.state === "upcoming") ? (
@@ -632,21 +682,6 @@ export function PublishPanel({
             </p>
             <Result state={state} />
           </form>
-          {total ? (
-            <div className="flex items-center gap-3">
-              <span className="flex gap-1" aria-hidden>
-                {Array.from({ length: total }, (_, i) => (
-                  <span
-                    key={i}
-                    className={`h-1.5 w-8 rounded-[1px] ${i < decided ? "bg-ink" : "bg-sunken"}`}
-                  />
-                ))}
-              </span>
-              <span className="text-13 text-ink-2 tnum">
-                {decided} of {total} decided
-              </span>
-            </div>
-          ) : null}
           <p className="text-13 text-ink-2">
             Publishing makes the results page public, shows each team its
             written feedback, and freezes {pairwise ? "judging" : "scoring"}. It is logged, with the

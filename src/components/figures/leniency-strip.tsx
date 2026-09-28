@@ -4,7 +4,16 @@
 
 type Point = { name: string; n: number; tilt: number; leniency: number };
 
-export function LeniencyStrip({ points, label }: { points: Point[]; label: string }) {
+export function LeniencyStrip({
+  points,
+  label,
+  clearLabel = false,
+}: {
+  points: Point[];
+  label: string;
+  /** set the "all n within" label past the rightmost solid dot, so it never sits on the cluster */
+  clearLabel?: boolean;
+}) {
   if (points.length === 0) return <p className="text-13 text-ink-2">No judge has a co-reviewer yet, so there is nothing to draw.</p>;
   const W = 400;
   const H = 136;
@@ -24,6 +33,10 @@ export function LeniencyStrip({ points, label }: { points: Point[]; label: strin
     });
   const extreme = top.reduce((a, b) => (Math.abs(b.tilt) > Math.abs(a.tilt) ? b : a));
   const maxKept = Math.max(...points.map((p) => Math.abs(p.leniency)));
+  // clearLabel: right of the cluster, or left of it when the right side has no room
+  const right = Math.max(x(0) + 10, ...points.map((p) => x(p.leniency) + 9));
+  const roomRight = right < W - 120;
+  const labelX = !clearLabel ? x(0) + 10 : roomRight ? right : Math.min(...points.map((p) => x(p.leniency))) - 9;
   return (
     <figure>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={label}>
@@ -49,7 +62,12 @@ export function LeniencyStrip({ points, label }: { points: Point[]; label: strin
         <text x={W - pad} y={H - 4} textAnchor="end" className="fill-ink-3 text-[10px]">
           more lenient →
         </text>
-        <text x={x(0) + 10} y={H - 26} className="fill-ink-2 text-[11px]">
+        <text
+          x={labelX}
+          y={H - 26}
+          textAnchor={clearLabel && !roomRight ? "end" : undefined}
+          className="fill-ink-2 text-[11px]"
+        >
           all {points.length} within ±{maxKept.toFixed(2)}
         </text>
       </svg>

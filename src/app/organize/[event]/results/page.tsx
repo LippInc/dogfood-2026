@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { YardstickLine } from "@/components/yardstick-line";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
+import { Face } from "@/components/face";
 import { LeniencyStrip } from "@/components/figures/leniency-strip";
 import { RankLine, SlopeChart } from "@/components/figures/slope-chart";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
@@ -57,7 +58,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const tracks = [...new Map(n.projects.map((p) => [p.trackId, p.trackName])).entries()];
   const chosen = typeof track === "string" && tracks.some(([id]) => id === track) ? track : null;
   const rows = n.projects.filter((p) => !chosen || p.trackId === chosen);
-  const flat = decisions.find((d) => d.kind === "flat_judge");
+  const open = decisions.filter((d) => !d.resolved).length;
   const dup = decisions.find((d) => d.kind === "duplicate");
   const excludedNames = n.judges.filter((j) => j.excluded).map((j) => j.name);
   const slope = n.projects
@@ -111,6 +112,16 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                 ))}
             </ul>
           ) : null}
+          {!event.resultsPublishedAt && open > 0 ? (
+            <p className="flex max-w-[860px] flex-wrap items-baseline gap-x-3 gap-y-1 border-l-[3px] border-flag-bar py-1 pl-3 text-14">
+              <span className="font-medium">
+                {open} {open === 1 ? "decision is" : "decisions are"} still open before the results can go out.
+              </span>
+              <Link href={`/organize/${event.slug}#decisions-title`} className="underline underline-offset-4">
+                Decide on the overview
+              </Link>
+            </p>
+          ) : null}
         </header>
 
         <section aria-label="Findings" className="grid gap-6 wrap-anywhere lg:grid-cols-3">
@@ -138,7 +149,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
               {n.variance.k !== null ? `At k = ${n.variance.k.toFixed(1)} a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.` : ""}
             </p>
             <div className="mt-4">
-              <LeniencyStrip points={points} label="Leniency per judge: plain average against what the data supports" />
+              <LeniencyStrip points={points} label="Leniency per judge: plain average against what the data supports" clearLabel />
             </div>
           </div>
           <div className="rounded-sm border border-rule bg-surface p-5">
@@ -156,29 +167,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                   <RankLine total={n.ranked} marks={copies.map((c) => ({ rank: c.rankRaw!, text: rk(c.rankRaw) }))} label={`Raw ranks of the two copies of ${dup.title}`} />
                 </div>
               </>
-            ) : null}
-            {n.signal ? (
-              <div className={copies.length >= 2 ? "mt-6 border-t border-rule pt-4" : ""}>
-                <p className="text-14">
-                  <strong>Signal check: permutation share {n.signal.share.toFixed(3)}.</strong>{" "}
-                  {n.signal.share > 0.05
-                    ? `Shuffling the review totals spreads the projects at least as far apart as the real scores in ${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles, so these scores cannot tell the projects apart better than chance.`
-                    : `Shuffling the review totals almost never spreads the projects as far apart as the real scores (${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles): the projects really differ.`}
-                </p>
-                <svg viewBox="0 0 320 30" className="mt-3 w-full max-w-[360px]" role="img" aria-label={`Permutation share ${n.signal.share.toFixed(3)} on a scale from 0 to 1, with the 0.05 line`}>
-                  <rect x={10} y={12} width={300} height={4} className="fill-sunken" />
-                  <line x1={10 + 0.05 * 300} x2={10 + 0.05 * 300} y1={6} y2={22} className="stroke-flag-bar" strokeWidth={1.5} />
-                  <circle cx={10 + n.signal.share * 300} cy={14} r={5} className="fill-ink" />
-                  <text x={10 + 0.05 * 300 + 4} y={28} className="fill-ink-3 text-[9px]">0.05</text>
-                </svg>
-              </div>
-            ) : null}
-            {n.yardstick ? (
-              <div className="mt-6 border-t border-rule pt-4">
-                <YardstickLine y={n.yardstick} figure />
-              </div>
-            ) : null}
-            {copies.length >= 2 && dup?.kind === "duplicate" ? null : (
+            ) : (
               <>
                 <p className="text-38 leading-none font-semibold tnum">{n.ranked}</p>
                 <p className="mt-2 text-14 text-ink-2">projects ranked. Read neighbouring ranks as ties; the results page shows scores next to places.</p>
@@ -186,6 +175,38 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             )}
           </div>
         </section>
+
+        {n.signal || n.yardstick ? (
+          <section aria-label="Checks on the whole run" className="grid rounded-sm border border-rule bg-surface wrap-anywhere lg:grid-cols-2">
+            {n.signal ? (
+              <div className="border-rule p-5">
+                <p className="label-mono mb-3 text-ink-2">Signal check</p>
+                <p className="text-14">
+                  <strong>Permutation share {n.signal.share.toFixed(3)}.</strong>{" "}
+                  {n.signal.share > 0.05
+                    ? `Shuffling the review totals spreads the projects at least as far apart as the real scores in ${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles, so these scores cannot tell the projects apart better than chance.`
+                    : `Shuffling the review totals almost never spreads the projects as far apart as the real scores (${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles): the projects really differ.`}
+                </p>
+                <svg viewBox="0 0 320 32" className="mt-3 w-full max-w-[360px]" role="img" aria-label={`Permutation share ${n.signal.share.toFixed(3)} on a scale from 0 to 1, with the 0.05 line`}>
+                  <line x1={10} x2={310} y1={14} y2={14} className="stroke-edge" strokeWidth={1} />
+                  <line x1={10} x2={10} y1={10} y2={18} className="stroke-edge" strokeWidth={1} />
+                  <line x1={310} x2={310} y1={10} y2={18} className="stroke-edge" strokeWidth={1} />
+                  <line x1={10 + 0.05 * 300} x2={10 + 0.05 * 300} y1={6} y2={22} className="stroke-flag-bar" strokeWidth={1.5} />
+                  <circle cx={10 + n.signal.share * 300} cy={14} r={5} className="fill-ink" />
+                  <text x={10} y={30} textAnchor="middle" className="fill-ink-3 text-[9px]">0</text>
+                  <text x={10 + 0.05 * 300 + 4} y={30} className="fill-ink-3 text-[9px]">0.05</text>
+                  <text x={310} y={30} textAnchor="middle" className="fill-ink-3 text-[9px]">1</text>
+                </svg>
+              </div>
+            ) : null}
+            {n.yardstick ? (
+              <div className="border-rule p-5 max-lg:border-t max-lg:first:border-t-0 lg:border-l lg:first:border-l-0">
+                <p className="label-mono mb-3 text-ink-2">The organizers&rsquo; yardstick</p>
+                <YardstickLine y={n.yardstick} figure />
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <section aria-labelledby="table-title" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -223,14 +244,14 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             <table className="w-full text-14">
               <thead>
                 <tr className="border-b border-rule text-left text-13 text-ink-2">
-                  <th className="px-3 py-2 font-medium">Rank</th>
+                  <th className="px-3 py-2 font-medium max-md:w-14">Rank</th>
                   <th className="px-3 py-2 font-medium">Project</th>
-                  <th className="px-3 py-2 font-medium">{chosen ? "In track" : "Track"}</th>
-                  <th className="px-3 py-2 text-right font-medium">Reviews</th>
-                  <th className="px-3 py-2 text-right font-medium">Raw, all judges</th>
-                  <th className="px-3 py-2 text-right font-medium">Raw, counted</th>
-                  <th className="px-3 py-2 text-right font-medium">Normalized</th>
-                  <th className="px-3 py-2 text-right font-medium">Move</th>
+                  <th className="px-3 py-2 font-medium max-md:hidden">{chosen ? "In track" : "Track"}</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Reviews</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Raw, all judges</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Raw, counted</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Normalized</th>
+                  <th className="px-3 py-2 text-right font-medium max-md:hidden">Move</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,9 +261,23 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                     <td className="px-3 py-2">
                       <details>
                         <summary className="cursor-pointer">
-                          <span className="font-medium">{p.title}</span> <span className="font-mono text-12 text-ink-3">{p.id}</span>
+                          <Face id={p.id} cols={32} rows={18} className="mr-2 inline-block h-[18px] w-8 align-[-4px]" />
+                          <span className="font-medium">{p.title}</span> <span className="font-mono text-12 text-ink-3 max-md:hidden">{p.id}</span>
                           {p.duplicateOf ? <span className="ml-2 text-12 text-ink-2">merged into {p.duplicateOf}</span> : null}
                           {p.underReviewed ? <span className="ml-2 text-12 text-flag">under-reviewed</span> : null}
+                          <span className="mt-0.5 block pl-[3.25rem] text-12 text-ink-2 md:hidden">
+                          {chosen ? `in track ${rk(p.trackRankRaw)} → ${rk(p.trackRank)}` : p.trackName} · {p.n === p.nAll ? plural(p.n, "review") : `${p.n} of ${p.nAll} reviews`}
+                          <span className="mt-0.5 block text-13 whitespace-nowrap">
+                          raw {f2(p.rawAll)} →{" "}
+                          <span className="font-semibold text-ink tnum">{f2(p.score)}</span>
+                          {p.se !== null ? <span className="text-ink-3 tnum"> ±{f2(p.se)}</span> : null}
+                          {p.duplicateOf ? null : (
+                            <span className="ml-2 tnum">
+                              <Move p={p} />
+                            </span>
+                          )}
+                          </span>
+                          </span>
                         </summary>
                         {p.receipts.length ? (
                           <div className="mt-3 mb-1 rounded-sm bg-sunken p-3">
@@ -300,17 +335,17 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                         )}
                       </details>
                     </td>
-                    <td className="px-3 py-2 text-13 text-ink-2">{chosen ? `${rk(p.trackRankRaw)} → ${rk(p.trackRank)}` : p.trackName}</td>
-                    <td className="px-3 py-2 text-right tnum">{p.n === p.nAll ? p.n : `${p.n} of ${p.nAll}`}</td>
-                    <td className="px-3 py-2 text-right tnum">
+                    <td className="px-3 py-2 text-13 text-ink-2 max-md:hidden">{chosen ? `${rk(p.trackRankRaw)} → ${rk(p.trackRank)}` : p.trackName}</td>
+                    <td className="px-3 py-2 text-right tnum max-md:hidden">{p.n === p.nAll ? p.n : `${p.n} of ${p.nAll}`}</td>
+                    <td className="px-3 py-2 text-right tnum max-md:hidden">
                       {f2(p.rawAll)} <span className="text-12 text-ink-3">#{rk(p.rankRaw)}</span>
                     </td>
-                    <td className="px-3 py-2 text-right tnum">{f2(p.rawKept)}</td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap tnum">
+                    <td className="px-3 py-2 text-right tnum max-md:hidden">{f2(p.rawKept)}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tnum max-md:hidden">
                       <span className="font-semibold">{f2(p.score)}</span>
                       {p.se !== null ? <span className="ml-1 text-12 text-ink-3">±{f2(p.se)}</span> : null}
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap tnum">{p.duplicateOf ? "" : <Move p={p} />}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tnum max-md:hidden">{p.duplicateOf ? "" : <Move p={p} />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -339,24 +374,31 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                 <thead>
                   <tr className="border-b border-rule text-left text-13 text-ink-2">
                     <th className="px-3 py-2 font-medium">Track</th>
-                    <th className="px-3 py-2 text-right font-medium">Projects</th>
+                    <th className="px-3 py-2 text-right font-medium max-md:hidden">Projects</th>
                     <th className="px-3 py-2 text-right font-medium">Agreement (Kendall τ)</th>
-                    <th className="px-3 py-2 font-medium">Largest differences, normalized place → pairwise place</th>
+                    <th className="px-3 py-2 font-medium max-md:hidden">Largest differences, normalized place → pairwise place</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {crossCheck.tracks.map((t) => (
+                  {crossCheck.tracks.map((t) => {
+                    const movers = t.movers.length ? t.movers.map((m) => `${m.title} ${rk(m.normalized)} → ${m.pairwise}`).join(" · ") : "no project moves a full place";
+                    return (
                     <tr key={t.trackId} className="border-b border-rule align-top last:border-b-0">
-                      <td className="px-3 py-2">{t.name}</td>
-                      <td className="px-3 py-2 text-right tnum">{t.projects}</td>
+                      <td className="px-3 py-2">
+                        {t.name}
+                        <span className="mt-0.5 block text-12 text-ink-2 md:hidden">
+                          {plural(t.projects, "project")} ·{" "}
+                          {movers}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right tnum max-md:hidden">{t.projects}</td>
                       <td className="px-3 py-2 text-right tnum">{t.tau === null ? "–" : t.tau.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-13 wrap-anywhere">
-                        {t.movers.length
-                          ? t.movers.map((m) => `${m.title} ${rk(m.normalized)} → ${m.pairwise}`).join(" · ")
-                          : "no project moves a full place"}
+                      <td className="px-3 py-2 text-13 wrap-anywhere max-md:hidden">
+                        {movers}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -364,15 +406,6 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
         ) : null}
 
         <JudgeLedger n={n} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} />
-
-        {flat?.kind === "flat_judge" && !flat.resolved ? (
-          <p className="text-14">
-            <Link href={`/organize/${event.slug}`} className="underline underline-offset-4">
-              Back to the decisions
-            </Link>{" "}
-            : {decisions.filter((d) => !d.resolved).length} still open before results can go out.
-          </p>
-        ) : null}
 
         <RecordsSection eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} records={records} />
       </div>
@@ -403,29 +436,39 @@ function RecordsSection({ eventSlug, published, records }: { eventSlug: string; 
       ) : null}
     </div>
     {records.length ? (
-      <div className="max-h-[480px] overflow-y-auto rounded-sm border border-rule">
-        <table className="w-full text-14">
-          <thead className="sticky top-0 bg-surface text-left text-13 text-ink-2">
-            <tr>
-              <th className="px-3 py-2 font-medium">Person</th>
-              <th className="px-3 py-2 font-medium">Record</th>
-              <th className="px-3 py-2 font-medium max-sm:hidden">Issued (UTC)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-rule">
-            {records.map((r) => (
-              <tr key={r.id}>
-                <td className="px-3 py-2">{r.name}</td>
-                <td className="px-3 py-2">
-                  <Link href={`/records/${r.id}`} className="underline underline-offset-4">
-                    {r.kind === "judge" ? "Judging record" : "Certificate"}
-                  </Link>
-                </td>
-                <td className="px-3 py-2 font-mono text-12 text-ink-2 max-sm:hidden">{formatUtc(r.issuedAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex flex-col rounded-sm border border-rule bg-surface">
+        {(
+          [
+            ["judge", "Judging records"],
+            ["participant", "Certificates"],
+          ] as const
+        ).map(([kind, heading]) => {
+          const group = records.filter((r) => r.kind === kind);
+          if (!group.length) return null;
+          const times = [...new Set(group.map((r) => r.issuedAt))].sort();
+          return (
+            <div key={kind} className="border-rule p-4 not-first:border-t sm:p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="label-mono text-ink">
+                  {heading} · {group.length}
+                </h3>
+                <p className="font-mono text-12 text-ink-2">
+                  issued {formatUtc(times[0]!)}
+                  {times.length > 1 ? ` to ${formatUtc(times[times.length - 1]!)}` : ""}
+                </p>
+              </div>
+              <ul className="mt-3 columns-2 gap-6 text-14 sm:columns-3 lg:columns-5">
+                {group.map((r) => (
+                  <li key={r.id} className="break-inside-avoid">
+                    <Link href={`/records/${r.id}`} title={`${kind === "judge" ? "Judging record" : "Certificate"}, issued ${formatUtc(r.issuedAt)}`} className="inline-block leading-6 underline decoration-edge underline-offset-4 hover:decoration-ink">
+                      {r.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </div>
     ) : null}
   </section>

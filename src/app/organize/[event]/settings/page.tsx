@@ -17,11 +17,18 @@ import {
   saveTracksAction,
 } from "./actions";
 import { RemoveOrganizer } from "./remove-organizer";
+import { DateField } from "./date-field";
+import { RubricEditor } from "./rubric-editor";
+import { type ContentsEntry, SettingsContents } from "./settings-contents";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Settings" };
 
-const input = "h-8 w-full rounded-sm border border-edge bg-surface px-2.5 text-14";
+/** A field refused on save is marked aria-invalid by SectionForm: flag edge and bar, like the error list under it. */
+const invalid = "aria-[invalid=true]:border-flag-bar aria-[invalid=true]:shadow-[inset_3px_0_0_var(--flag-bar)]";
+const input = `h-8 w-full rounded-sm border border-edge bg-surface px-2.5 text-14 ${invalid}`;
+
+const num = (i: number) => String(i + 1).padStart(2, "0");
 
 /** The sections in page order, for the contents rail: [SectionForm id, title]. */
 const SECTIONS: [string, string][] = [
@@ -42,8 +49,19 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
   const { event } = o;
   const organizers = listOrganizers(actor, event.id);
   const hidden = { event: event.slug };
-  const totalWeight = o.rubric.reduce((s, c) => s + c.weight, 0);
   const mode = judgingModeOf(event);
+  const count = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "none");
+  /** What each section holds now, from the saved event: the contents read as an index, not only a list of names. */
+  const holds: Record<string, string> = {
+    details: event.resultsPublishedAt ? "dates final" : "",
+    organizers: String(organizers.length),
+    tracks: String(o.tracks.length),
+    prizes: o.prizes.length ? String(o.prizes.length) : "none",
+    questions: o.questions.length ? String(o.questions.length) : "none",
+    "judging-mode": mode === "pairwise" ? "Pairwise" : "Scores",
+    rubric: count(o.rubric.length, "criterion", "criteria"),
+  };
+  const contents: ContentsEntry[] = SECTIONS.map(([id, title], i) => ({ id, num: num(i), title, holds: holds[id] }));
   return (
     <WorkShell
       eventName={event.name}
@@ -53,19 +71,8 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
       role="Organizer"
     >
       <div className="mx-auto max-w-[960px] lg:grid lg:max-w-[1200px] lg:grid-cols-[200px_minmax(0,960px)] lg:gap-10">
-        {/* the sheet's contents: one numbered line per section, kept in view while the long form scrolls */}
-        <nav aria-label="Settings sections" className="max-lg:hidden">
-          <ol className="sticky top-6 flex flex-col border-l-2 border-ink">
-            {SECTIONS.map(([id, title], i) => (
-              <li key={id}>
-                <a href={`#${id}-title`} className="flex gap-2.5 py-1.5 pl-3 text-13 text-ink-2 hover:text-ink">
-                  <span className="font-mono text-12 text-ink-3">{String(i + 1).padStart(2, "0")}</span>
-                  {title}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
+        {/* the sheet's contents: one numbered line per section with what it holds now, kept in view while the long form scrolls */}
+        <SettingsContents variant="rail" entries={contents} />
         <div className="flex min-w-0 flex-col gap-6">
           <div>
             <h1 className="text-24 font-semibold">Settings</h1>
@@ -73,13 +80,25 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               Every save is written to the audit log with what it changed. Times are in UTC.
             </p>
           </div>
+          {/* on phones the form is five screens long: the same contents, as a two-column index under the heading */}
+          <SettingsContents variant="index" entries={contents} />
 
           <SectionForm
             id="details"
+            markUnsaved
+            number={num(0)}
             title="Event"
             description={event.resultsPublishedAt ? "Results are published, so the dates are final; the name, description and team size can still change." : undefined}
             action={saveDetailsAction}
             hidden={hidden}
+            fieldLabels={{
+              name: "Name",
+              description: "Description",
+              submissionsOpenAt: "Submissions open",
+              submissionsCloseAt: "Submissions close",
+              judgingCloseAt: "Judging closes",
+              maxTeamSize: "Most people on one team",
+            }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-13 text-ink-2 sm:col-span-2">
@@ -88,20 +107,11 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               </label>
               <label className="flex flex-col gap-1 text-13 text-ink-2 sm:col-span-2">
                 Description (shown on the About page)
-                <textarea name="description" defaultValue={event.description} rows={4} className="w-full rounded-sm border border-edge bg-surface px-2.5 py-2 font-serif text-15" />
+                <textarea name="description" defaultValue={event.description} rows={4} className={`w-full rounded-sm border border-edge bg-surface px-2.5 py-2 font-serif text-15 ${invalid}`} />
               </label>
-              <label className="flex flex-col gap-1 text-13 text-ink-2">
-                Submissions open (UTC, empty = from now)
-                <input type="datetime-local" name="submissionsOpenAt" defaultValue={utcInput(event.submissionsOpenAt)} className={input} />
-              </label>
-              <label className="flex flex-col gap-1 text-13 text-ink-2">
-                Submissions close (UTC)
-                <input type="datetime-local" name="submissionsCloseAt" defaultValue={utcInput(event.submissionsCloseAt)} className={input} />
-              </label>
-              <label className="flex flex-col gap-1 text-13 text-ink-2">
-                Judging closes (UTC, optional)
-                <input type="datetime-local" name="judgingCloseAt" defaultValue={utcInput(event.judgingCloseAt)} className={input} />
-              </label>
+              <DateField label="Submissions open (UTC)" name="submissionsOpenAt" value={utcInput(event.submissionsOpenAt)} empty="Empty: no opening time, open until the close" className={input} />
+              <DateField label="Submissions close (UTC)" name="submissionsCloseAt" value={utcInput(event.submissionsCloseAt)} empty="Required" className={input} />
+              <DateField label="Judging closes (UTC)" name="judgingCloseAt" value={utcInput(event.judgingCloseAt)} empty="Empty: judging has no closing time" className={input} />
               <label className="flex flex-col gap-1 text-13 text-ink-2">
                 Most people on one team
                 <input type="number" name="maxTeamSize" min={1} max={20} defaultValue={event.settings.maxTeamSize ?? 4} className={input} />
@@ -112,12 +122,14 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="organizers"
+            number={num(1)}
             title="Organizers"
             description="Everyone here can change this event, settle its decisions and publish its results. Add someone by the email of their account: they sign up first, since the portal sends no mail. The last organizer cannot be removed."
             action={addOrganizerAction}
             hidden={hidden}
             submitLabel="Add organizer"
             resetOnSuccess
+            fieldLabels={{ email: "Email" }}
             before={
               <ul className="divide-y divide-rule rounded-sm border border-rule">
                 {organizers.map((g) => (
@@ -145,26 +157,32 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="tracks"
+            markUnsaved
+            number={num(2)}
             title="Tracks"
             description="Projects enter one track; judges are assigned by track. A track that has projects or judges can be renamed, not removed."
             action={saveTracksAction}
             hidden={hidden}
+            fieldLabels={{ tracks: "Tracks" }}
+            rowLabel="Track"
           >
             <RowsEditor
               name="tracks"
               initial={o.tracks.map((t) => ({ id: t.id, name: t.name }))}
               blank={{ name: "" }}
               addLabel="Add a track"
+              grid="lg:grid-cols-[20px_minmax(0,1fr)_92px]"
               fields={[{ key: "name", label: "Track name", type: "text" }]}
             />
           </SectionForm>
 
-          <SectionForm id="prizes" title="Prizes" description="A name and a line on what wins it. Shown on the About page." action={savePrizesAction} hidden={hidden}>
+          <SectionForm id="prizes" markUnsaved number={num(3)} title="Prizes" description="A name and a line on what wins it. Shown on the About page." action={savePrizesAction} hidden={hidden} fieldLabels={{ prizes: "Prizes" }} rowLabel="Prize">
             <RowsEditor
               name="prizes"
               initial={o.prizes.map((p) => ({ id: p.id, name: p.name, description: p.description }))}
               blank={{ name: "", description: "" }}
               addLabel="Add a prize"
+              grid="lg:grid-cols-[20px_minmax(0,14rem)_minmax(0,1fr)_92px]"
               fields={[
                 { key: "name", label: "Prize", type: "text", width: "w-56" },
                 { key: "description", label: "What wins it", type: "text" },
@@ -174,16 +192,21 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="questions"
+            markUnsaved
+            number={num(4)}
             title="Questions for teams"
             description="Asked on every team's project form; judges read the answers next to the project. A required question must be answered before a team can submit."
             action={saveQuestionsAction}
             hidden={hidden}
+            fieldLabels={{ questions: "Questions" }}
+            rowLabel="Question"
           >
             <RowsEditor
               name="questions"
               initial={o.questions.map((q) => ({ id: q.id, label: q.label, help: q.help, type: q.type, required: q.required }))}
               blank={{ label: "", help: "", type: "longtext", required: false }}
               addLabel="Add a question"
+              grid="lg:grid-cols-[20px_minmax(0,1fr)_minmax(0,1fr)_8rem_5.5rem_92px]"
               fields={[
                 { key: "label", label: "Question", type: "text" },
                 { key: "help", label: "Hint for teams", type: "text" },
@@ -205,6 +228,8 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="judging-mode"
+            markUnsaved
+            number={num(5)}
             title="How judges judge"
             description={
               event.resultsPublishedAt
@@ -214,6 +239,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             action={saveJudgingModeAction}
             hidden={hidden}
             submitLabel="Save the judging mode"
+            fieldLabels={{ mode: "Judging mode", reason: "Why" }}
           >
             <fieldset className="flex flex-col gap-2" disabled={Boolean(event.resultsPublishedAt)}>
               <legend className="sr-only">Judging mode</legend>
@@ -240,51 +266,25 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
 
           <SectionForm
             id="rubric"
+            markUnsaved
+            number={num(6)}
             title="Scoring rubric"
             description={
               <>
                 Judges score each criterion from 1 to 5; a review&apos;s total is the weighted mean. Weights are relative: 1, 1
-                and 2 give the last criterion half the total. Now:{" "}
-                {o.rubric.map((c, i) => (
-                  <span key={c.id} className="tnum">
-                    {i ? " · " : ""}
-                    {c.label} {Math.round((c.weight / totalWeight) * 100)} %
-                  </span>
-                ))}
-                .{event.resultsPublishedAt ? " Results are published, so the rubric is final." : ""}
-                {/* the saved weights as one bar: each criterion's share of a review's total */}
-                {totalWeight > 0 ? (
-                  <span className="mt-3 flex h-7 w-full gap-[2px]" aria-hidden>
-                    {o.rubric.map((c, i) => (
-                      <span
-                        key={c.id}
-                        className={`flex min-w-0 items-center overflow-hidden px-2 text-12 font-medium whitespace-nowrap text-surface ${i % 2 ? "bg-ink-2" : "bg-ink"}`}
-                        style={{ flexGrow: c.weight, flexBasis: 0 }}
-                      >
-                        <span className="truncate">
-                          {c.label} · {Math.round((c.weight / totalWeight) * 100)} %
-                        </span>
-                      </span>
-                    ))}
-                  </span>
-                ) : null}
+                and 2 give the last criterion half the total.
+                {event.resultsPublishedAt ? " Results are published, so the rubric is final." : ""}
               </>
             }
             action={saveRubricAction}
             hidden={hidden}
+            fieldLabels={{ criteria: "Criteria" }}
+            rowLabel="Criterion"
           >
-            <RowsEditor
-              name="rubric"
-              initial={o.rubric.map((c) => ({ id: c.id, label: c.label, prompt: c.prompt, weight: c.weight }))}
-              blank={{ label: "", prompt: "", weight: 1 }}
-              addLabel="Add a criterion"
+            <RubricEditor
+              saved={o.rubric.map((c) => ({ id: c.id, label: c.label, prompt: c.prompt, weight: c.weight }))}
               locked={o.scored}
               lockedHint="Judges have scored already: labels, prompts and weights can change, the set of criteria cannot."
-              fields={[
-                { key: "label", label: "Criterion", type: "text", width: "w-40" },
-                { key: "prompt", label: "Question for the judge", type: "text" },
-                { key: "weight", label: "Weight", type: "number", width: "w-20" },
-              ]}
             />
           </SectionForm>
         </div>

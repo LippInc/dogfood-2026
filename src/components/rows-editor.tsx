@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { SectionErrors } from "@/components/section-form";
 
 export type RowField =
   | { key: string; label: string; type: "text"; placeholder?: string; width?: string }
@@ -25,6 +26,8 @@ export function RowsEditor({
   locked = false,
   lockedHint,
   disabled = false,
+  grid,
+  onRowsChange,
 }: {
   name: string;
   initial: Row[];
@@ -34,8 +37,19 @@ export function RowsEditor({
   locked?: boolean;
   lockedHint?: string;
   disabled?: boolean;
+  /**
+   * Optional: a literal `lg:grid-cols-[...]` template (number, one column per field, the three
+   * buttons). With it the rows read as one ruled table on wide screens: the field labels head
+   * the columns once instead of repeating on every row. Narrower, each row keeps its labels.
+   */
+  grid?: string;
+  /** Optional: told the rows after every change, for a live summary beside the editor. */
+  onRowsChange?: (rows: Row[]) => void;
 }) {
   const [rows, setRows] = useState<Row[]>(initial.length ? initial : [blank]);
+  useEffect(() => onRowsChange?.(rows), [rows, onRowsChange]);
+  // a section's refusal names rows by their place in what was sent (the typed rows), see `typed` below
+  const errors = useContext(SectionErrors);
   const set = (i: number, key: string, value: Row[string]) =>
     setRows((r) => r.map((row, j) => (j === i ? { ...row, [key]: value } : row)));
   const move = (i: number, d: -1 | 1) =>
@@ -48,19 +62,42 @@ export function RowsEditor({
     });
   // A new row nobody typed into is left out, so the blank row the editor starts with
   // never fails validation ("a prize needs a name"); a stored row is always sent.
-  const typed = rows.filter((row) => row.id !== undefined || fields.some((f) => f.type === "text" && String(row[f.key] ?? "").trim() !== ""));
+  const isTyped = (row: Row) => row.id !== undefined || fields.some((f) => f.type === "text" && String(row[f.key] ?? "").trim() !== "");
+  const typed = rows.filter(isTyped);
+  const sentAt = rows.map((row) => (isTyped(row) ? typed.indexOf(row) : -1));
+  const rowErrors = (i: number) => (errors && sentAt[i] >= 0 ? (errors[String(sentAt[i])] ?? []) : []);
+  const table = grid ? `lg:grid lg:items-center ${grid}` : "";
+  // one field (a track's name): the table fits a phone too, so its label heads the column at every width
+  const oneCol = Boolean(grid) && fields.length === 1 && fields[0].type !== "checkbox";
   return (
     <div className="flex flex-col gap-2">
       <input type="hidden" name={name} value={JSON.stringify(typed)} />
-      <ol className="flex flex-col gap-2">
+      {grid ? (
+        <div aria-hidden className={`gap-2 px-2.5 text-12 text-ink-3 ${oneCol ? "max-lg:pl-9" : "max-lg:hidden"} ${table}`}>
+          <span />
+          {fields.map((f) => (
+            <span key={f.key}>{f.type === "checkbox" ? "" : f.label}</span>
+          ))}
+          <span />
+        </div>
+      ) : null}
+      <ol className={grid ? "flex flex-col divide-y divide-rule rounded-sm border border-rule max-lg:gap-0" : "flex flex-col gap-2"}>
         {rows.map((row, i) => (
-          <li key={row.id ?? `new-${i}`} className="flex flex-wrap items-end gap-2 rounded-sm border border-rule bg-surface p-2.5">
-            <span className="mb-2 w-5 shrink-0 text-right font-mono text-12 text-ink-3">{i + 1}</span>
+          <li
+            key={row.id ?? `new-${i}`}
+            data-invalid={rowErrors(i).length ? "" : undefined}
+            className={
+              grid
+                ? `flex flex-wrap ${oneCol ? "items-center" : "items-end"} gap-2 bg-surface px-2.5 py-2 data-[invalid]:bg-flag-bg data-[invalid]:shadow-[inset_3px_0_0_var(--flag-bar)] ${table}`
+                : "flex flex-wrap items-end gap-2 rounded-sm border border-rule bg-surface p-2.5"
+            }
+          >
+            <span className={`w-5 shrink-0 text-right font-mono text-12 text-ink-3 ${oneCol ? "" : grid ? "mb-2 lg:mb-0" : "mb-2"}`}>{i + 1}</span>
             {fields.map((f) => {
               const id = `${name}-${i}-${f.key}`;
               if (f.type === "checkbox") {
                 return (
-                  <label key={f.key} htmlFor={id} className="mb-2 flex items-center gap-2 text-13 text-ink-2">
+                  <label key={f.key} htmlFor={id} className={`mb-2 flex items-center gap-2 text-13 text-ink-2 ${grid ? "lg:mb-0" : ""}`}>
                     <input
                       id={id}
                       type="checkbox"
@@ -74,8 +111,8 @@ export function RowsEditor({
                 );
               }
               return (
-                <label key={f.key} htmlFor={id} className={`flex min-w-0 flex-col gap-1 ${f.width ?? "grow basis-48"}`}>
-                  <span className="text-12 text-ink-3">{f.label}</span>
+                <label key={f.key} htmlFor={id} className={`flex min-w-0 flex-col gap-1 ${oneCol ? "grow basis-0" : (f.width ?? "grow basis-48")} ${grid ? "lg:w-auto" : ""}`}>
+                  <span className={`text-12 text-ink-3 ${oneCol ? "sr-only" : grid ? "lg:sr-only" : ""}`}>{f.label}</span>
                   {f.type === "select" ? (
                     <select
                       id={id}
@@ -106,7 +143,7 @@ export function RowsEditor({
                 </label>
               );
             })}
-            <div className="mb-0.5 ml-auto flex shrink-0 gap-1">
+            <div className={`ml-auto flex shrink-0 gap-1 ${oneCol ? "" : grid ? "mb-0.5 lg:mb-0" : "mb-0.5"}`}>
               <button type="button" onClick={() => move(i, -1)} disabled={disabled || i === 0} className="inline-flex size-7 items-center justify-center rounded-sm text-ink-3 hover:bg-raised hover:text-ink disabled:opacity-30" aria-label={`Move row ${i + 1} up`}>
                 <ArrowUp className="size-3.5" aria-hidden />
               </button>
@@ -123,6 +160,9 @@ export function RowsEditor({
                 <Trash2 className="size-3.5" aria-hidden />
               </button>
             </div>
+            {rowErrors(i).length ? (
+              <p className="basis-full pl-7 text-13 text-flag lg:col-span-full">{rowErrors(i).join("; ")}</p>
+            ) : null}
           </li>
         ))}
       </ol>
@@ -131,7 +171,7 @@ export function RowsEditor({
           type="button"
           onClick={() => setRows((r) => [...r, { ...blank }])}
           disabled={disabled || locked}
-          className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-dashed border-edge px-3 text-13 text-ink-2 hover:bg-raised hover:text-ink disabled:opacity-40"
+          className={`${grid ? "shrink-0 whitespace-nowrap " : ""}inline-flex h-8 items-center gap-1.5 rounded-sm border border-dashed border-edge px-3 text-13 text-ink-2 hover:bg-raised hover:text-ink disabled:opacity-40`}
         >
           <Plus className="size-3.5" aria-hidden /> {addLabel}
         </button>

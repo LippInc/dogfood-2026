@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { HashGlyph, hashGroups } from "@/components/figures/hash-glyph";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
@@ -45,8 +46,99 @@ function Sentence({ l }: { l: AuditLine }) {
   );
 }
 
+/** A run: consecutive rows of the log (no row between them) with the same action by the same actor. */
+const sameRun = (a: AuditLine, b: AuditLine) => a.id - b.id === 1 && a.action === b.action && a.actor === b.actor;
+
+/** The shortest run whose middle folds: its newest and oldest rows stay in view, the rest sit behind one line. */
+const FOLD_AT = 5;
+
+type Item = { kind: "row"; l: AuditLine } | { kind: "fold"; rows: AuditLine[] };
+
+/** Lines, newest first, with the middle of every long run folded into one item. */
+function fold(lines: AuditLine[]): Item[] {
+  const items: Item[] = [];
+  for (let i = 0; i < lines.length; ) {
+    let j = i;
+    while (j + 1 < lines.length && sameRun(lines[j], lines[j + 1])) j++;
+    if (j - i + 1 >= FOLD_AT) {
+      items.push({ kind: "row", l: lines[i] }, { kind: "fold", rows: lines.slice(i + 1, j) }, { kind: "row", l: lines[j] });
+    } else {
+      for (let k = i; k <= j; k++) items.push({ kind: "row", l: lines[k] });
+    }
+    i = j + 1;
+  }
+  return items;
+}
+
+/** One row of the log on the rail: its hash drawn and written, its time, its sentence, its action. */
+function Row({ l, up, down, brokenFrom }: { l: AuditLine; up: "solid" | "dashed"; down: "solid" | null; brokenFrom: number | null }) {
+  const broken = brokenFrom !== null && l.id >= brokenFrom;
+  return (
+    <li className={`grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 border-t border-rule sm:gap-x-4 ${refusal(l) ? "text-ink-2" : ""}`}>
+      <Rail up={up} down={down} node={refusal(l) ? "refusal" : "row"} broken={broken} />
+      <div className="grid gap-x-5 gap-y-1 py-3 md:grid-cols-[150px_150px_minmax(0,1fr)_auto]">
+        <p className="flex items-center gap-2.5 font-mono text-12 text-ink-2" title={l.hash}>
+          <HashGlyph hash={l.hash} />
+          <span>
+            <span className="text-ink">#{l.id}</span> {l.hash.slice(0, 8)}
+          </span>
+        </p>
+        <p className="font-mono text-12 whitespace-nowrap text-ink-2 md:pt-px">{formatUtc(l.at).replace(" UTC", "")}</p>
+        <p className="text-14 leading-5 wrap-anywhere">
+          <Sentence l={l} />
+          {brokenFrom === l.id ? <span className="ml-2 text-13 font-medium text-flag">The chain breaks here.</span> : null}
+        </p>
+        <p className="font-mono text-12 text-ink-3 md:pt-px md:text-right">{l.action}</p>
+      </div>
+    </li>
+  );
+}
+
+/** The folded middle of a run: one line naming it, each row's own hash drawn small, and the rows behind a disclosure. */
+function Fold({ rows, brokenFrom }: { rows: AuditLine[]; brokenFrom: number | null }) {
+  const newest = rows[0];
+  const oldest = rows.at(-1)!;
+  const broken = brokenFrom !== null && newest.id >= brokenFrom;
+  const toggle = "ml-3 text-13 font-medium whitespace-nowrap text-ink underline decoration-edge underline-offset-[3px] group-hover:decoration-ink";
+  return (
+    <li className="border-t border-rule">
+      <details className="group">
+        <summary className="grid cursor-pointer list-none grid-cols-[24px_minmax(0,1fr)] gap-x-3 sm:gap-x-4 [&::-webkit-details-marker]:hidden">
+          <Rail up="solid" down="solid" node="run" broken={broken} />
+          <div className="flex min-w-0 flex-col gap-2.5 py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1">
+              <p className="text-14 leading-5">
+                <span className="font-semibold">{plural(rows.length, "more row", "more rows")}</span> of the same kind,{" "}
+                <span className="font-mono text-12 whitespace-nowrap text-ink-2">
+                  #{oldest.id} to #{newest.id}
+                </span>
+                <span className={`${toggle} group-open:hidden`}>Show them</span>
+                <span className={`${toggle} hidden group-open:inline`}>Fold them</span>
+              </p>
+              <p className="font-mono text-12 text-ink-3">
+                {newest.action} &times; {rows.length}
+              </p>
+            </div>
+            {/* Each row's own hash, its first four digits, newest first: a run is many links, not one. */}
+            <p className="flex flex-wrap gap-x-1 gap-y-1.5 group-open:hidden" aria-hidden>
+              {rows.map((r) => (
+                <HashGlyph key={r.id} hash={r.hash} digits={4} />
+              ))}
+            </p>
+          </div>
+        </summary>
+        <ol>
+          {rows.map((r) => (
+            <Row key={r.id} l={r} up="solid" down="solid" brokenFrom={brokenFrom} />
+          ))}
+        </ol>
+      </details>
+    </li>
+  );
+}
+
 /** The rail: the chain's line through this row, with the row's node on it. */
-function Rail({ up, down, node, broken }: { up: "solid" | "dashed" | null; down: "solid" | "dashed" | null; node: "row" | "refusal" | "head" | "genesis" | "gap" | "more"; broken?: boolean }) {
+function Rail({ up, down, node, broken }: { up: "solid" | "dashed" | null; down: "solid" | "dashed" | null; node: "row" | "refusal" | "run" | "head" | "genesis" | "gap" | "more"; broken?: boolean }) {
   const line = (kind: "solid" | "dashed") =>
     kind === "solid" ? (broken ? "border-l-2 border-dashed border-flag-bar" : "border-l-2 border-ink-3") : "border-l-2 border-dotted border-edge";
   return (
@@ -57,6 +149,11 @@ function Rail({ up, down, node, broken }: { up: "solid" | "dashed" | null; down:
         <span className={`absolute top-[17px] left-[7px] size-[10px] ${broken ? "border-2 border-flag-bar bg-flag-bg" : "bg-ink"}`} />
       ) : node === "refusal" ? (
         <span className="absolute top-[17px] left-[7px] size-[10px] border-2 border-ink-3 bg-surface" />
+      ) : node === "run" ? (
+        <>
+          <span className="absolute top-[12px] left-[11px] size-[10px] border-[1.5px] border-ink-3 bg-surface" />
+          <span className={`absolute top-[17px] left-[7px] size-[10px] ${broken ? "border-2 border-flag-bar bg-flag-bg" : "bg-ink"}`} />
+        </>
       ) : node === "head" ? (
         <span className="absolute top-[14px] left-[4px] size-4 rotate-45 border-2 border-ink bg-surface" />
       ) : node === "genesis" ? (
@@ -66,8 +163,12 @@ function Rail({ up, down, node, broken }: { up: "solid" | "dashed" | null; down:
   );
 }
 
-export default async function AuditPage({ params }: PageProps<"/organize/[event]/audit">) {
+type Show = "all" | "changes" | "refused";
+
+export default async function AuditPage({ params, searchParams }: PageProps<"/organize/[event]/audit">) {
   const { event: key } = await params;
+  const { show: showParam } = await searchParams;
+  const show: Show = showParam === "refused" || showParam === "changes" ? showParam : "all";
   const actor = await currentActor();
   if (!actor) unauthorized();
   const { event, lines, total, chain } = guardPage(() => getAuditLog(actor, key));
@@ -75,6 +176,28 @@ export default async function AuditPage({ params }: PageProps<"/organize/[event]
   const reachesGenesis = lines.at(-1)?.id === 1;
   const olderHidden = total > lines.length;
   const brokenFrom = chain.ok ? null : chain.brokenAtId;
+  // A view is a plain link (?show=), so every view is server-rendered and has its own address.
+  const refusals = lines.filter(refusal).length;
+  const changes = lines.length - refusals;
+  const visible = show === "all" ? lines : lines.filter((l) => (show === "refused") === refusal(l));
+  const items = fold(visible);
+  const filtered = show !== "all";
+  // In a filtered view the chain still runs through the rows it leaves out: above the first shown row,
+  // and below the last one down to row #1.
+  const topGap = filtered && visible[0] && lines[0] ? between(lines[0].id + 1, visible[0].id) : null;
+  const bottomGap = filtered && reachesGenesis && visible.length ? between(visible.at(-1)!.id, 0) : null;
+  const gapText = (g: string) => `${g}: ${filtered ? "not in this view" : "outside this event"}; the chain runs through ${g.includes(" to ") ? "them" : "it"}`;
+  const href = (v: Show) => `/organize/${event.slug}/audit${v === "all" ? "" : `?show=${v}`}`;
+  const chip =
+    "group inline-flex items-baseline gap-1.5 rounded-sm border border-edge px-3 py-1 text-13 hover:border-ink aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-surface";
+  const count = "tnum text-ink-3 group-aria-[current=page]:text-surface";
+  const none = "inline-flex items-baseline gap-1.5 rounded-sm border border-dashed border-rule px-3 py-1 text-13 text-ink-3";
+  const gapRow = (g: string, key: string, down: "dashed" | null = "dashed") => (
+    <li key={key} className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 sm:gap-x-4">
+      <Rail up="dashed" down={down} node="gap" />
+      <p className="py-2 font-mono text-12 text-ink-3">{gapText(g)}</p>
+    </li>
+  );
   return (
     <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Audit log")} person={actor.name} role="Organizer">
       <div className="flex flex-col gap-8">
@@ -151,21 +274,37 @@ export default async function AuditPage({ params }: PageProps<"/organize/[event]
             <h2 id="rows-title" className="label-mono text-ink">
               Fig. 02 — This event&rsquo;s rows, newest first
             </h2>
-            <p className="flex items-center gap-4 text-12 text-ink-3" aria-hidden>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block size-2 bg-ink" /> a change
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block size-2 border-[1.5px] border-ink-3" /> a refused request
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-3 border-l-2 border-dotted border-edge" /> rows outside this event
-              </span>
+            <p className="flex items-center gap-1.5 text-12 text-ink-3" aria-hidden>
+              <span className="inline-block h-3 border-l-2 border-dotted border-edge" /> rows outside this event or this view
             </p>
           </div>
+          <nav aria-label="Show rows" className="flex flex-wrap gap-1.5">
+            <Link href={href("all")} aria-current={show === "all" ? "page" : undefined} className={chip}>
+              All <span className={count}>{lines.length}</span>
+            </Link>
+            {changes ? (
+              <Link href={href("changes")} aria-current={show === "changes" ? "page" : undefined} className={chip}>
+                <span className="inline-block size-2 self-center bg-ink group-aria-[current=page]:bg-surface" aria-hidden />
+                Changes <span className={count}>{changes}</span>
+              </Link>
+            ) : (
+              <span className={none}>No changes</span>
+            )}
+            {refusals ? (
+              <Link href={href("refused")} aria-current={show === "refused" ? "page" : undefined} className={chip}>
+                <span className="inline-block size-2 self-center border-[1.5px] border-ink-3 group-aria-[current=page]:border-surface" aria-hidden />
+                Refused requests <span className={count}>{refusals}</span>
+              </Link>
+            ) : (
+              <span className={none}>
+                <span className="inline-block size-2 self-center border-[1.5px] border-rule" aria-hidden />
+                No refused requests
+              </span>
+            )}
+          </nav>
           <ol className="rounded-sm border border-rule bg-surface px-3 sm:px-5">
             <li className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 sm:gap-x-4">
-              <Rail up={null} down={isHead ? "solid" : "dashed"} node={isHead ? "head" : "more"} />
+              <Rail up={null} down={isHead && !topGap ? "solid" : "dashed"} node={isHead ? "head" : "more"} />
               <p className="py-3 text-13 text-ink-2">
                 {isHead ? (
                   <>
@@ -176,40 +315,43 @@ export default async function AuditPage({ params }: PageProps<"/organize/[event]
                 )}
               </p>
             </li>
-            {lines.map((l, i) => {
-              const older = lines[i + 1];
-              const gap = older ? between(l.id, older.id) : null;
-              const broken = brokenFrom !== null && l.id >= brokenFrom;
-              const last = i === lines.length - 1;
+            {topGap ? gapRow(topGap, "gap-top") : null}
+            {items.length === 0 ? (
+              <li className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 border-t border-rule sm:gap-x-4">
+                <Rail up="dashed" down={reachesGenesis || olderHidden ? "dashed" : null} node="gap" />
+                <p className="py-3 text-14 text-ink-2">
+                  {show === "refused" ? "No request was refused in this event." : "No changes in this event's log."}{" "}
+                  <Link href={href("all")} className="font-medium text-ink underline decoration-edge underline-offset-[3px] hover:decoration-ink">
+                    Show all rows
+                  </Link>
+                </p>
+              </li>
+            ) : null}
+            {items.map((it, i) => {
+              const newest = it.kind === "row" ? it.l : it.rows[0];
+              const next = items[i + 1];
+              const older = next ? (next.kind === "row" ? next.l : next.rows[0]) : null;
+              const gap = older ? between(it.kind === "row" ? it.l.id : it.rows.at(-1)!.id, older.id) : null;
+              const last = i === items.length - 1;
               return [
-                <li key={l.id} className={`grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 border-t border-rule sm:gap-x-4 ${refusal(l) ? "text-ink-2" : ""}`}>
-                  <Rail up={i === 0 && !isHead ? "dashed" : "solid"} down={last && !reachesGenesis && !olderHidden ? null : "solid"} node={refusal(l) ? "refusal" : "row"} broken={broken} />
-                  <div className="grid gap-x-5 gap-y-1 py-3 md:grid-cols-[150px_150px_minmax(0,1fr)_auto]">
-                    <p className="flex items-center gap-2.5 font-mono text-12 text-ink-2" title={l.hash}>
-                      <HashGlyph hash={l.hash} />
-                      <span>
-                        <span className="text-ink">#{l.id}</span> {l.hash.slice(0, 8)}
-                      </span>
-                    </p>
-                    <p className="font-mono text-12 whitespace-nowrap text-ink-2 md:pt-px">{formatUtc(l.at).replace(" UTC", "")}</p>
-                    <p className="text-14 leading-5 wrap-anywhere">
-                      <Sentence l={l} />
-                      {brokenFrom === l.id ? <span className="ml-2 text-13 font-medium text-flag">The chain breaks here.</span> : null}
-                    </p>
-                    <p className="font-mono text-12 text-ink-3 md:pt-px md:text-right">{l.action}</p>
-                  </div>
-                </li>,
-                gap ? (
-                  <li key={`gap-${l.id}`} className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 sm:gap-x-4">
-                    <Rail up="dashed" down="dashed" node="gap" />
-                    <p className="py-2 font-mono text-12 text-ink-3">{gap}: outside this event; the chain runs through {gap.includes(" to ") ? "them" : "it"}</p>
-                  </li>
-                ) : null,
+                it.kind === "row" ? (
+                  <Row
+                    key={it.l.id}
+                    l={it.l}
+                    up={i === 0 && (!isHead || topGap) ? "dashed" : "solid"}
+                    down={last && !reachesGenesis && !olderHidden ? null : "solid"}
+                    brokenFrom={brokenFrom}
+                  />
+                ) : (
+                  <Fold key={`fold-${it.rows[0].id}`} rows={it.rows} brokenFrom={brokenFrom} />
+                ),
+                gap ? gapRow(gap, `gap-${newest.id}`) : null,
               ];
             })}
+            {bottomGap ? gapRow(bottomGap, "gap-bottom") : null}
             {reachesGenesis ? (
               <li className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 border-t border-rule sm:gap-x-4">
-                <Rail up="solid" down={null} node="genesis" />
+                <Rail up={bottomGap || !items.length ? "dashed" : "solid"} down={null} node="genesis" />
                 <p className="py-3 text-13 text-ink-2">
                   <span className="label-mono mr-2 text-ink">Genesis</span>Row #1 links to a hash of 64 zeros, the chain&rsquo;s fixed start.
                 </p>

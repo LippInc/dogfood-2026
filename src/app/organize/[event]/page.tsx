@@ -18,6 +18,7 @@ import {
 } from "@/server/dal";
 import { CopyButton } from "./judges/forms";
 import { Decisions, PublishPanel } from "./decisions";
+import { PipelineScroll } from "./pipeline-scroll";
 import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
@@ -29,13 +30,15 @@ export const metadata: Metadata = { title: "Overview" };
 // ground, each a number, a picture of it and one line, with the details a click
 // away. The figures sit under a ruled head, like the gallery's Field.
 
+// Each export with what it holds (README, T4 row: "scores, projects, normalized
+// ranking and audit log as CSV, event.json").
 const EXPORTS = [
-  "scores.csv",
-  "projects.csv",
-  "normalized.csv",
-  "audit.csv",
-  "event.json",
-];
+  ["scores.csv", "every raw score"],
+  ["projects.csv", "the projects"],
+  ["normalized.csv", "the normalized ranking"],
+  ["audit.csv", "the audit log"],
+  ["event.json", "the whole event"],
+] as const;
 
 function Pipeline({ stages }: { stages: Stage[] }) {
   const reached = stages.filter((s) => s.done).length;
@@ -45,7 +48,7 @@ function Pipeline({ stages }: { stages: Stage[] }) {
       className="border-b border-rule bg-surface"
     >
       {/* Phones scroll the stations sideways in one row; wider screens show all ten. */}
-      <ol className="mx-auto flex max-w-[1440px] overflow-x-auto px-4 pt-5 pb-4 sm:grid sm:grid-cols-5 sm:gap-y-5 sm:overflow-visible lg:grid-cols-10 lg:px-8">
+      <ol id="pipeline-stations" className="mx-auto flex max-w-[1440px] overflow-x-auto px-4 pt-5 pb-4 sm:grid sm:grid-cols-5 sm:gap-y-5 sm:overflow-visible lg:grid-cols-10 lg:px-8">
         {stages.map((s, i) => {
           const done = i < reached;
           return (
@@ -53,6 +56,7 @@ function Pipeline({ stages }: { stages: Stage[] }) {
               key={s.no}
               className="relative w-[132px] shrink-0 pt-5 pr-3 sm:w-auto"
               aria-current={s.current ? "step" : undefined}
+              data-station={s.open ? "open" : undefined}
             >
               {/* the line: ink through the stages reached, a hairline after */}
               <span
@@ -89,6 +93,7 @@ function Pipeline({ stages }: { stages: Stage[] }) {
           );
         })}
       </ol>
+      <PipelineScroll listId="pipeline-stations" />
     </nav>
   );
 }
@@ -184,6 +189,29 @@ export default async function OverviewPage({
     )
     .join("\n\n");
   const runLabel = event.resultsPublishedAt ? "published run" : "preview";
+  // Once published, the Publish panel lists what went out; every value is the DAL's.
+  const receipt = event.resultsPublishedAt
+    ? [
+        {
+          label: "Ranking",
+          value: o.pairwise
+            ? `${o.pairwise.placed} of ${o.pairwise.total} placed, ${plural(o.pairwise.answers, "answer")}`
+            : `${plural(nz.ranked, "project")}, ${nz.k === null ? "no leniency found" : `k = ${nz.k.toFixed(1)}`}`,
+        },
+        {
+          label: "Decisions",
+          value: o.decisions.length
+            ? `${o.decisions.length} made, each in the log`
+            : "none were needed",
+        },
+        ...(o.vote?.state === "closed"
+          ? [{ label: "Community vote", value: `closed, ${plural(o.vote.ballots, "ballot")}` }]
+          : []),
+        ...o.pipeline
+          .filter((s) => s.no === "09")
+          .map((s) => ({ label: s.name, value: s.state })),
+      ]
+    : [];
 
   return (
     <WorkShell
@@ -224,6 +252,7 @@ export default async function OverviewPage({
               submissionsCloseAt={o.submissionsOpenUntil}
               pairwise={o.pairwise !== null}
               vote={o.vote}
+              receipt={receipt}
             />
           </div>
         </Wiring>
@@ -231,7 +260,7 @@ export default async function OverviewPage({
         <div className="grid grid-cols-[minmax(0,1fr)] gap-x-8 gap-y-10 lg:grid-cols-3">
           <Figure
             id="judges-card"
-            no="02"
+            no="01"
             title="Judges"
             aside={
               <Link href={`/organize/${event.slug}/judges`} className={linkCls}>
@@ -297,7 +326,7 @@ export default async function OverviewPage({
           </Figure>
 
           {o.pairwise ? (
-            <Figure id="norm-card" no="03" title="Ranking" aside={runLabel}>
+            <Figure id="norm-card" no="02" title="Ranking" aside={runLabel}>
               <p className="flex items-baseline gap-2">
                 <span className="text-38 leading-none font-semibold tnum">
                   {o.pairwise.placed}
@@ -318,7 +347,7 @@ export default async function OverviewPage({
               </Link>
             </Figure>
           ) : (
-            <Figure id="norm-card" no="03" title="Normalization" aside={runLabel}>
+            <Figure id="norm-card" no="02" title="Normalization" aside={runLabel}>
               {nz.ranked ? (
                 <>
                   <p className="flex items-baseline gap-2">
@@ -332,6 +361,7 @@ export default async function OverviewPage({
                     </span>
                   </p>
                   <LeniencyStrip
+                    clearLabel
                     points={nz.points}
                     label={`Leniency of ${plural(nz.points.length, "judge")}: plain averages against what the data supports`}
                   />
@@ -357,7 +387,7 @@ export default async function OverviewPage({
 
           <Figure
             id="audit-card"
-            no="04"
+            no="03"
             title="Audit log"
             aside={
               <Link href={`/organize/${event.slug}/audit`} className={linkCls}>
@@ -405,19 +435,21 @@ export default async function OverviewPage({
                 Nothing logged for this event yet.
               </p>
             )}
-            <div className="mt-auto flex flex-col gap-2 border-t border-rule pt-3">
+            <div className="flex flex-col gap-2 border-t border-rule pt-3">
               <p className="text-12 text-ink-2">Take it out, at any stage</p>
-              <div className="flex flex-wrap gap-2">
-                {EXPORTS.map((f) => (
-                  <a
-                    key={f}
-                    href={exportHref(event.id, f)}
-                    className="inline-flex h-7 items-center rounded-sm border border-edge bg-surface px-2 font-mono text-12 hover:bg-raised"
-                  >
-                    {f}
-                  </a>
+              <ul className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4">
+                {EXPORTS.map(([f, what]) => (
+                  <li key={f} className="col-span-2 grid grid-cols-subgrid items-baseline py-0.5">
+                    <a
+                      href={exportHref(event.id, f)}
+                      className="inline-flex min-h-6 items-center font-mono text-12 underline decoration-edge underline-offset-4 hover:decoration-ink"
+                    >
+                      {f}
+                    </a>
+                    <span className="truncate text-12 text-ink-2">{what}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           </Figure>
         </div>

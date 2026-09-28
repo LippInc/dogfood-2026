@@ -1,4 +1,6 @@
+import { Check } from "lucide-react";
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import { unauthorized } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
@@ -6,24 +8,70 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, getAssignments, getJudges } from "@/server/dal";
+import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
+import { currentActor, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeRow, type JudgeStanding } from "@/server/dal";
 import { revokeInviteAction } from "./actions";
 import { ByHandForm, CopyButton, InviteForm, RunForm, TracksForm } from "./forms";
 
 export const dynamic = "force-dynamic";
+
+/** Signed to two decimals; a value that rounds to zero shows as 0.00, never −0.00. */
+const signed = (v: number) => (Math.abs(v) < 0.005 ? "0.00" : `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`);
+
+/** On phones the column head is gone, so the cell names itself. */
+const PhoneLabel = () => <span className="text-ink-3 md:hidden">Leniency: </span>;
+
+/** One judge's leniency in the table: their plain tilt and what the engine takes off, drawn on the shared axis. */
+function Leniency({ s, k, span }: { s: JudgeStanding | undefined; k: number | null; span: number }) {
+  if (!s || s.nAll === 0) return <p className="text-13 text-ink-3">
+        <PhoneLabel />
+        no finished review
+      </p>;
+  if (s.excluded) return <p className="text-13 text-flag">
+        <PhoneLabel />
+        left out: nothing counted
+      </p>;
+  if (k === null) return <p className="text-13 text-ink-3">
+        <PhoneLabel />
+        not corrected yet
+      </p>;
+  return (
+    <div className="flex flex-col gap-1">
+      <LeniencyRow tilt={s.tilt} leniency={s.leniency} se={null} span={span} />
+      <p className="text-12 whitespace-nowrap text-ink-2 tnum">
+        <PhoneLabel />
+        {s.tilt === null ? "" : `tilt ${signed(s.tilt)} · `}takes off <span className="text-ink">{signed(s.leniency)}</span>
+      </p>
+    </div>
+  );
+}
 export const metadata: Metadata = { title: "Judges" };
+
+/** Where a judge sits in the table: what needs the organizer first, then open work, then done. */
+const groupOf = (j: JudgeRow) => (j.excluded || (j.flat && !j.override) ? 0 : j.pending > 0 ? 1 : j.assigned > 0 ? 2 : 3);
+const GROUPS = ["Flagged", "Open reviews", "All finished", "Nothing assigned"];
 
 export default async function JudgesPage({ params }: PageProps<"/organize/[event]/judges">) {
   const { event: key } = await params;
   const actor = await currentActor();
   if (!actor) unauthorized();
-  const { event, tracks, judges, invites } = guardPage(() => getJudges(actor, key));
+  const { event, tracks, judges: byName, invites } = guardPage(() => getJudges(actor, key));
+  // Flagged first, then the most open reviews, then finished; by name inside each group (the sort is stable).
+  const judges = [...byName].sort((x, y) => groupOf(x) - groupOf(y) || (groupOf(x) === 1 ? y.pending - x.pending : 0));
+  const grouped = new Set(judges.map(groupOf)).size > 1;
   const a = getAssignments(actor, event.id);
   const published = Boolean(event.resultsPublishedAt);
   const origin = process.env.PUBLIC_URL ?? "http://localhost:8080";
   const assigned = judges.reduce((s, j) => s + j.assigned, 0);
   const finished = judges.reduce((s, j) => s + j.done, 0);
   const openInvites = invites.filter((i) => i.state === "open");
+  const leftOut = judges.filter((j) => j.excluded).length;
+  // Leniency is a scores-mode idea: the engine's own standing per judge, keyed by id.
+  const norm = judgingModeOf(event) === "scores" ? guardPage(() => getNormalization(actor, key)).normalization : null;
+  const standing = new Map((norm?.judges ?? []).map((s) => [s.id, s]));
+  const k = norm?.variance.k ?? null;
+  const drawn = (norm?.judges ?? []).filter((s) => !s.excluded && s.nAll > 0);
+  const span = leniencySpan(drawn.flatMap((s) => [s.tilt ?? 0, s.leniency]));
 
   return (
     <WorkShell
@@ -40,6 +88,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
             <h1 className="text-24 font-semibold">Judges</h1>
             <p className="mt-2 text-15 text-ink-2 tnum">
               {plural(judges.length, "judge")} · {finished} of {plural(assigned, "assigned review")} finished
+              {leftOut ? ` · ${leftOut} left out of the ranking` : ""}
               {a.underReviewed.length ? ` · ${a.underReviewed.length} under-reviewed ${a.underReviewed.length === 1 ? "project" : "projects"}` : ""}
             </p>
           </div>
@@ -75,72 +124,137 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                 No judges yet. Make an invitation link on the right and send it to each judge yourself: this portal sends no email.
               </p>
             ) : (
+              <>
+              {norm && k !== null && drawn.length ? (
+                <p className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-12 text-ink-2">
+                  <span className="label-mono text-ink">Fig. 02 — Leniency</span>
+                  <span className="flex items-center gap-1.5" aria-hidden>
+                    <span className="inline-block size-2 rounded-full border border-ink-2" /> plain tilt against co-reviewers
+                  </span>
+                  <span className="flex items-center gap-1.5" aria-hidden>
+                    <span className="inline-block size-2 rounded-full bg-ink" /> what the engine takes off, k = {k.toFixed(1)}
+                  </span>
+                  <a href={`/organize/${event.slug}/results#ledger-title`} className="underline underline-offset-2 hover:text-ink">
+                    The working, per judge, in Results
+                  </a>
+                </p>
+              ) : null}
               <div className="overflow-x-auto rounded-sm border border-rule bg-surface">
-                <Table>
-                  <TableHeader>
+                <Table className="max-md:block">
+                  <TableHeader className="max-md:hidden">
                     <TableRow>
                       <TableHead>Judge</TableHead>
                       <TableHead>Tracks</TableHead>
-                      <TableHead className="text-right">Finished</TableHead>
-                      <TableHead>Last review</TableHead>
+                      <TableHead className="text-right">Reviews</TableHead>
+                      {norm ? (
+                        <TableHead className="h-auto py-1.5">
+                          <span className="block">Leniency</span>
+                          {k !== null && drawn.length ? <LeniencyAxis span={span} /> : null}
+                        </TableHead>
+                      ) : null}
                       <TableHead>Standing</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {judges.map((j) => {
+                  <TableBody className="max-md:block">
+                    {judges.map((j, n) => {
+                      const g = groupOf(j);
+                      const first = grouped && (n === 0 || groupOf(judges[n - 1]) !== g);
                       const reminder = `Hi ${j.name}, ${j.pending} of your ${plural(j.assigned, "review")} for ${event.name} ${j.pending === 1 ? "is" : "are"} still open. Your console: ${origin}/judge/${event.slug}`;
                       return (
-                        <TableRow key={j.id} className="align-top">
-                          <TableCell>
+                        <Fragment key={j.id}>
+                        {first ? (
+                          <TableRow className="h-auto bg-sunken hover:bg-sunken max-md:block">
+                            <TableCell colSpan={norm ? 5 : 4} className="py-1.5 max-md:block max-md:px-4">
+                              <span className={`label-mono ${g === 0 ? "text-flag" : "text-ink-2"}`}>
+                                {GROUPS[g]} · {judges.filter((x) => groupOf(x) === g).length}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                        {/* On phones each row stacks: name and reviews side by side, then tracks, leniency and standing. */}
+                        <TableRow
+                          className={`align-top max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-4 max-md:gap-y-2.5 max-md:px-4 max-md:py-3.5 ${j.excluded ? "max-md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}
+                        >
+                          <TableCell className={`max-md:col-start-1 max-md:row-start-1 max-md:block max-md:p-0 ${j.excluded ? "md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}>
                             <p className="font-medium">{j.name}</p>
                             <p className="text-13 text-ink-2">{j.email}</p>
                           </TableCell>
-                          <TableCell className="max-w-[220px]">
+                          <TableCell className="max-w-[220px] max-md:col-span-2 max-md:block max-md:max-w-none max-md:p-0">
                             <details>
                               <summary className="cursor-pointer text-14">{j.tracks.map((t) => t.name).join(", ") || "No tracks"}</summary>
                               <TracksForm eventSlug={event.slug} judgeId={j.id} tracks={tracks} checked={j.tracks.map((t) => t.id)} />
                             </details>
                           </TableCell>
-                          <TableCell className="text-right tnum">
-                            <p>
-                              {j.done} / {j.assigned}
-                            </p>
-                            {j.assigned ? (
-                              <div className="mt-1.5 ml-auto flex w-fit gap-[2px]" aria-hidden>
-                                {Array.from({ length: j.assigned }, (_, i) => (
-                                  <span key={i} className={`h-2.5 w-[7px] ${i < j.done ? "bg-ink" : "border border-edge"}`} />
-                                ))}
-                              </div>
-                            ) : null}
+                          <TableCell className="text-right tnum max-md:col-start-2 max-md:row-start-1 max-md:block max-md:p-0">
+                            <div className="flex items-center justify-end gap-2.5">
+                              {j.assigned ? (
+                                <span className="flex gap-[2px]" aria-hidden>
+                                  {Array.from({ length: j.assigned }, (_, i) => (
+                                    <span
+                                      key={i}
+                                      className={`h-2.5 w-[7px] ${j.excluded ? (i < j.done ? "bg-flag-bar" : "border border-flag-bar") : i < j.done ? "bg-ink" : "border border-edge"}`}
+                                    />
+                                  ))}
+                                </span>
+                              ) : null}
+                              <span className="whitespace-nowrap" title={j.lastScoredAt ? `last review ${formatUtc(j.lastScoredAt)}` : undefined}>
+                                {j.done} of {j.assigned}
+                              </span>
+                            </div>
                             {j.recused ? <p className="mt-1 text-12 text-ink-2">{j.recused} recused</p> : null}
                           </TableCell>
-                          <TableCell className="text-13 text-ink-2">{j.lastScoredAt ? formatUtc(j.lastScoredAt) : "–"}</TableCell>
-                          <TableCell className="max-w-[260px] text-13">
+                          {norm ? (
+                            <TableCell className="max-md:col-span-2 max-md:block max-md:p-0">
+                              <Leniency s={standing.get(j.id)} k={k} span={span} />
+                            </TableCell>
+                          ) : null}
+                          <TableCell
+                            className={`max-w-[260px] text-13 max-md:col-span-2 max-md:max-w-none max-md:p-0 ${
+                              // On phones a finished judge's standing is a lone check under the group's "All finished": drop it.
+                              grouped && g === 2 && !j.flat && !j.override ? "max-md:hidden" : "max-md:block"
+                            }`}
+                          >
                             {j.flat ? (
                               <p className={j.excluded ? "text-flag" : "text-ink-2"}>
                                 Flat: {j.flat.vector.join(" / ")} on all {j.flat.reviews} projects.{" "}
                                 {j.excluded ? "Left out of the ranking." : "Reinstated by an organizer."}
+                                {/* The keep-out-or-reinstate decision lives on the overview: point there while it is open. */}
+                                {!j.override && !published ? (
+                                  <a href={`/organize/${event.slug}#decisions-title`} className="mt-1 block font-medium text-ink underline underline-offset-2">
+                                    Decide on the overview
+                                  </a>
+                                ) : null}
                               </p>
                             ) : j.excluded ? (
                               <p className="text-flag">Excluded by an organizer.</p>
                             ) : j.pending > 0 ? (
-                              <div className="flex flex-col items-start gap-2">
-                                <p className="text-ink-2">{j.pending} open</p>
-                                <CopyButton text={reminder} label="Copy reminder" />
+                              <div className="flex flex-col items-start gap-1">
+                                <div className="flex items-center gap-3">
+                                  <p className="font-medium whitespace-nowrap">{j.pending} open</p>
+                                  <CopyButton text={reminder} label="Copy reminder" />
+                                </div>
+                                {/* When a judge last scored matters only while they still have work: it shows who has gone quiet. */}
+                                <p className="text-12 whitespace-nowrap text-ink-3">{j.lastScoredAt ? `last review ${formatUtc(j.lastScoredAt)}` : "nothing scored yet"}</p>
                               </div>
                             ) : j.assigned > 0 ? (
-                              <p className="text-ok">All finished</p>
+                              // Under the "All finished" label the words would repeat on every row: the check says it.
+                              <p className="flex items-center gap-1.5 text-ink-2">
+                                <Check className="size-3.5 shrink-0 text-ok" aria-hidden />
+                                <span className={grouped ? "sr-only" : undefined}>All finished</span>
+                              </p>
                             ) : (
                               <p className="text-ink-2">Nothing assigned yet</p>
                             )}
                             {j.override ? <p className="mt-1 text-12 text-ink-2">Reason: {j.override.reason}</p> : null}
                           </TableCell>
                         </TableRow>
+                        </Fragment>
                       );
                     })}
                   </TableBody>
                 </Table>
               </div>
+              </>
             )}
           </section>
 
@@ -151,6 +265,38 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
               </h2>
               <p className="mt-1 mb-4 text-14 text-ink-2">The link makes whoever opens it, signed in, a judge for the tracks you tick.</p>
               <InviteForm eventSlug={event.slug} tracks={tracks} />
+              {invites.length ? (
+                <div className="mt-5 border-t border-rule pt-4">
+                  <h3 id="invites-title" className="text-14 font-semibold">
+                    Invitations <span className="font-normal text-ink-2">· {openInvites.length} open</span>
+                  </h3>
+                  <ul className="mt-2 flex flex-col divide-y divide-rule">
+                    {invites.map((i) => (
+                      <li key={i.id} className="flex items-start justify-between gap-3 py-2.5 text-13">
+                        <span className="min-w-0 wrap-anywhere">
+                          <span className={`block text-14 font-medium ${i.state === "revoked" ? "text-ink-3 line-through" : ""}`}>{i.name || i.email || "Open link"}</span>
+                          <span className="block text-ink-2">
+                            {i.name && i.email ? `${i.email} · ` : ""}
+                            {i.tracks.join(", ")}
+                          </span>
+                          <span className="block text-ink-3">
+                            {i.state === "open" ? `made ${formatUtc(i.createdAt)}` : i.state === "used" ? `accepted by ${i.acceptedBy ?? "a judge"}` : "revoked"}
+                          </span>
+                        </span>
+                        {i.state === "open" ? (
+                          <form action={revokeInviteAction} className="shrink-0">
+                            <input type="hidden" name="event" value={event.slug} />
+                            <input type="hidden" name="invite" value={i.id} />
+                            <Button size="sm" variant="ghost">
+                              Revoke
+                            </Button>
+                          </form>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </section>
             <section aria-labelledby="assign-title" className="rounded-sm border border-rule bg-surface p-5">
               <h2 id="assign-title" className="text-17 font-semibold">
@@ -223,37 +369,6 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
           </section>
         ) : null}
 
-        {invites.length ? (
-          <section aria-labelledby="invites-title">
-            <h2 id="invites-title" className="text-17 font-semibold">
-              Invitations <span className="text-14 font-normal text-ink-2">· {openInvites.length} open</span>
-            </h2>
-            <ul className="mt-3 divide-y divide-rule rounded-sm border border-rule bg-surface">
-              {invites.map((i) => (
-                <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-14">
-                  <span className="min-w-0 wrap-anywhere">
-                    <span className="font-medium">{i.name || i.email || "Open link"}</span>
-                    <span className="text-ink-2">
-                      {" "}
-                      · {i.tracks.join(", ")} · made {formatUtc(i.createdAt)}
-                    </span>
-                  </span>
-                  {i.state === "open" ? (
-                    <form action={revokeInviteAction}>
-                      <input type="hidden" name="event" value={event.slug} />
-                      <input type="hidden" name="invite" value={i.id} />
-                      <Button size="sm" variant="ghost">
-                        Revoke
-                      </Button>
-                    </form>
-                  ) : (
-                    <span className="text-13 text-ink-2">{i.state === "used" ? `Accepted by ${i.acceptedBy ?? "a judge"}` : "Revoked"}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
       </div>
     </WorkShell>
   );
