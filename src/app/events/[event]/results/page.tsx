@@ -162,7 +162,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </h2>
                   <p className="text-13 text-ink-3">One per track. Each opens its track below.</p>
                 </div>
-                <ol className="mt-6 grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+                {/* two to a row even on a phone, the face on top there: the winners read as a podium, not a list of small cards */}
+                <ol className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 lg:grid-cols-4">
                   {winners.map((w) => (
                     <li key={w.track.id} className="reveal" style={{ "--i": w.index } as CSSProperties}>
                       <a href={`#track-${w.track.id}`} className="tile lit group block border-t-2 border-accent pt-2">
@@ -170,7 +171,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           <span className="font-mono text-12 tnum text-ink-3">{two(w.index + 1)}</span>
                           <span className="truncate">{w.track.name}</span>
                         </span>
-                        <span className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] items-start gap-3">
+                        <span className="mt-3 grid gap-2 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-start sm:gap-3">
                           <span className="block overflow-hidden rounded-xs border border-rule">
                             <Face id={w.first.projectId} cols={32} rows={18} />
                           </span>
