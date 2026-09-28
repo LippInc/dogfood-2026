@@ -201,8 +201,8 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
               <span className="crop-marks" aria-hidden="true" />
             </div>
             <figcaption className="flex items-baseline justify-between gap-4 pt-1">
-              <span className="label-mono text-ink">Fig. {p.id}</span>
-              <span className="text-13 text-ink-3">{p.thumbnailUrl ? "the team’s picture" : "its face, drawn from its id"}</span>
+              <span className="label-mono text-ink">Fig. 01 — {p.thumbnailUrl ? "Its picture" : "Its face"}</span>
+              <span className="text-13 text-ink-3">{p.thumbnailUrl ? "sent in by the team" : `drawn from ${p.id}`}</span>
             </figcaption>
           </figure>
         </div>
