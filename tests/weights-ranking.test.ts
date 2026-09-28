@@ -7,7 +7,6 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import type { Actor } from "@/server/authz";
-import { saveRubric } from "@/server/dal/organize";
 import { getNormalization } from "@/server/dal/results";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -111,13 +110,12 @@ describe("unequal rubric weights change the ranking", () => {
     expect(Number.isFinite(best.rho)).toBe(true);
     const { x: X, y: Y } = best;
 
-    // Rewrite the rubric with all weight on one criterion, then read the engine's scores.
+    // Put all weight on one criterion, then read the engine's scores. The weights are set in the database: the
+    // sample event comes with its scores, and once a score exists the organizer cannot change a weight
+    // (tests/organize-settings.test.ts). What this test checks is what the engine does with the weights.
     function heavy(key: string): { id: string; score: number }[] {
-      saveRubric(
-        organizer(),
-        "evt_01",
-        criteria.map((c) => ({ id: c.id, label: c.label, prompt: c.prompt, weight: c.key === key ? 50 : 1 })),
-      );
+      const setWeight = h.sqlite.prepare("UPDATE rubric_criteria SET weight = ? WHERE id = ?");
+      for (const c of criteria) setWeight.run(c.key === key ? 50 : 1, c.id);
       return getNormalization(organizer(), "evt_01").normalization.projects
         .filter((p) => p.score !== null && means.get(p.id)?.has(X) && means.get(p.id)?.has(Y))
         .map((p) => ({ id: p.id, score: p.score! }));
