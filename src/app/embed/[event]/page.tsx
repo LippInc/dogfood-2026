@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { PageMark } from "@/components/page-mark";
-import { getGallery, NotFoundError, type Gallery } from "@/server/dal";
+import { competitionPlaces, ordinal } from "@/lib/places";
+import { getGallery, getPublishedResults, NotFoundError, type Gallery } from "@/server/dal";
 import { ReportHeight } from "./height";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,18 @@ export default async function EmbedPage({
   const projects = typeof track === "string" && track ? g.projects.filter((p) => p.trackId === track || p.trackName === track) : g.projects;
   // A frame showing one track names it, so a visitor on the host site knows why only some projects are here.
   const shownTrack = typeof track === "string" && track ? (g.tracks.find((t) => t.id === track || t.name === track) ?? null) : null;
+  // Once the results are out, the places from the published run, as the results page counts them: each track's
+  // first place (a frame showing one track: its first three), so the winners stand out without a wall of badges.
+  const results = g.event.resultsPublishedAt ? getPublishedResults(g.event.id) : null;
+  const places = new Map<string, string>();
+  if (results?.published) {
+    const upTo = shownTrack ? 3 : 1;
+    for (const t of results.tracks) {
+      competitionPlaces(t.rows).forEach(({ place, joint }, i) => {
+        if (place !== null && place <= upTo) places.set(t.rows[i]!.projectId, `${joint ? "Joint " : ""}${ordinal(place)} in ${t.name}`);
+      });
+    }
+  }
   return (
     <div className="public min-h-0 p-4 wrap-anywhere">
       <ReportHeight />
@@ -76,6 +89,11 @@ export default async function EmbedPage({
               <span className="crop-marks" aria-hidden="true" />
               <span className="flex min-w-0 flex-col justify-center px-3 py-2 min-[480px]:block min-[480px]:p-3">
                 <span className="font-mono text-12 text-ink-3 min-[480px]:hidden">{p.id}</span>
+                {places.has(p.id) && (
+                  <span className="mb-1 inline-block self-start rounded-xs bg-accent-tint px-1.5 py-0.5 font-mono text-12 text-accent-ink">
+                    {places.get(p.id)}
+                  </span>
+                )}
                 <span className="block font-display text-15 leading-5 min-[480px]:text-17 min-[480px]:leading-6">{p.title}</span>
                 <span className="mt-0.5 block text-13 text-ink-2 min-[480px]:mt-1">
                   {p.teamName} · {p.trackName}
@@ -87,16 +105,30 @@ export default async function EmbedPage({
       </ul>
       {/* the way on: the whole gallery on the portal, in a new tab (the frame's links never navigate the host page) */}
       <p className="mt-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-t border-rule pt-3 text-13">
-        <a
-          href={`${origin}/events/${g.event.slug}`}
-          target="_blank"
-          rel="noopener"
-          className="font-medium text-ink underline decoration-edge underline-offset-4 hover:decoration-accent"
-        >
-          {shownTrack ? `Every track of ${g.event.name}` : `All of ${g.event.name}`}, on its portal
-          <span aria-hidden="true"> ↗</span>
-          <span className="sr-only"> (opens in a new tab)</span>
-        </a>
+        <span className="flex flex-wrap gap-x-6 gap-y-1">
+          <a
+            href={`${origin}/events/${g.event.slug}`}
+            target="_blank"
+            rel="noopener"
+            className="font-medium text-ink underline decoration-edge underline-offset-4 hover:decoration-accent"
+          >
+            {shownTrack ? `Every track of ${g.event.name}` : `All of ${g.event.name}`}, on its portal
+            <span aria-hidden="true"> ↗</span>
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+          {results?.published && (
+            <a
+              href={`${origin}/events/${g.event.slug}/results`}
+              target="_blank"
+              rel="noopener"
+              className="font-medium text-ink underline decoration-edge underline-offset-4 hover:decoration-accent"
+            >
+              The results and how they were worked out
+              <span aria-hidden="true"> ↗</span>
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          )}
+        </span>
         <span className="label-mono text-ink-3">Projects open in a new tab</span>
       </p>
     </div>
