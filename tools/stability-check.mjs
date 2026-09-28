@@ -297,7 +297,24 @@ function instrument() {
     requestAnimationFrame(tick);
     return { tracked: s.items.length };
   };
-  S.cause = (what) => S.session && S.session.causes.push([Math.round(performance.now() - S.session.t0), what]);
+  // A cause is marked twice: when the checker asks for the click or key, and again when the page actually receives it
+  // (a busy page can take a second to), so the grace runs from the later of the two.
+  S.cause = (what) => {
+    if (!S.session) return;
+    S.session.causes.push([Math.round(performance.now() - S.session.t0), what]);
+    S.armed = what;
+  };
+  for (const type of ["click", "keydown"]) {
+    addEventListener(
+      type,
+      () => {
+        if (!S.armed || !S.session) return;
+        S.session.causes.push([Math.round(performance.now() - S.session.t0), `${S.armed} (received)`]);
+        S.armed = null;
+      },
+      { capture: true },
+    );
+  }
   S.hover = (i) => {
     const s = S.session;
     if (s) s.hovers.push({ i, el: i == null ? null : S.refs[i], t: Math.round(performance.now() - s.t0) });
@@ -308,6 +325,7 @@ function instrument() {
     if (!s) return null;
     s.running = false;
     S.session = null;
+    S.armed = null;
     const tEnd = performance.now();
     const moving = s.items.filter((it) => it.frames.length);
     // Group elements that moved identically (a container and everything in it) and report the outermost one.
