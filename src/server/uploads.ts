@@ -64,7 +64,7 @@ export async function redrawImage(b: Uint8Array): Promise<Redrawn> {
 
 /** The folder: UPLOADS_DIR, else `uploads` beside the database file. */
 export function uploadsDir(): string {
-  return process.env.UPLOADS_DIR ?? path.join(path.dirname(databasePath()), "uploads");
+  return process.env.UPLOADS_DIR ?? path.join(/*turbopackIgnore: true*/ path.dirname(databasePath()), "uploads");
 }
 
 /** Write the bytes under a new random name and return the name. The caller has checked kind and size. */
@@ -72,7 +72,8 @@ export function storeUpload(bytes: Uint8Array, kind: ImageKind): string {
   const dir = uploadsDir();
   fs.mkdirSync(dir, { recursive: true });
   const name = `${randomBytes(16).toString("base64url")}.${kind}`;
-  fs.writeFileSync(path.join(dir, name), bytes, { flag: "wx" });
+  // the ignore comments keep the build from tracing the whole project into the server bundle for these joins
+  fs.writeFileSync(path.join(/*turbopackIgnore: true*/ dir, name), bytes, { flag: "wx" });
   return name;
 }
 
@@ -81,14 +82,14 @@ export function discardUpload(nameOrPath: string | null | undefined): void {
   if (!nameOrPath) return;
   const name = nameOrPath.startsWith("/uploads/") ? nameOrPath.slice("/uploads/".length) : nameOrPath;
   if (!UPLOAD_NAME.test(name)) return;
-  fs.rmSync(path.join(uploadsDir(), name), { force: true });
+  fs.rmSync(path.join(/*turbopackIgnore: true*/ uploadsDir(), name), { force: true });
 }
 
 /** A stored file and the type its name says, or null for a malformed name or a missing file. */
 export function readUpload(name: string): { bytes: Buffer; type: string } | null {
   if (!UPLOAD_NAME.test(name)) return null;
   try {
-    return { bytes: fs.readFileSync(path.join(uploadsDir(), name)), type: TYPE[name.split(".").pop() as ImageKind] };
+    return { bytes: fs.readFileSync(path.join(/*turbopackIgnore: true*/ uploadsDir(), name)), type: TYPE[name.split(".").pop() as ImageKind] };
   } catch {
     return null;
   }
