@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 // A clock that ticks every 30 s; the server has no clock (null), so the countdown
 // appears after hydration and server and client HTML agree.
@@ -28,6 +29,16 @@ function left(ms: number): string {
 export function Deadline({ iso, utcLabel }: { iso: string; utcLabel: string }) {
   const now = useSyncExternalStore(subscribeClock, clockNow, () => null);
   const at = Date.parse(iso);
+  // When the deadline passes with the page open, the page renders again from the server, so the
+  // banner and the form lock too, not only this countdown (a tester found them still open).
+  const router = useRouter();
+  const closed = now !== null && at - now <= 0;
+  const wasOpen = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (now === null) return;
+    if (wasOpen.current === true && closed) router.refresh();
+    wasOpen.current = !closed;
+  }, [closed, now, router]);
   const local =
     now === null
       ? null
