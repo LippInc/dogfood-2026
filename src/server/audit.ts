@@ -39,11 +39,6 @@ export function chainHash(prevHash: string, row: ChainedFields): string {
   return sha256(`${prevHash}\n${auditPayload(row)}`);
 }
 
-/**
- * Append one row to the audit log. Call it inside the same synchronous transaction
- * as the change it records; better-sqlite3 transactions serialize writers, so the
- * chain head read here cannot race another append.
- */
 /** One entry of the chain and its hash: what a signed record or the published results pin. */
 export type ChainAnchor = { entry: number; hash: string };
 
@@ -57,6 +52,11 @@ export function anchorHolds(db: DbOrTx, anchor: ChainAnchor): boolean {
   return db.select({ hash: auditLog.hash }).from(auditLog).where(eq(auditLog.id, anchor.entry)).get()?.hash === anchor.hash;
 }
 
+/**
+ * Append one row to the audit log. Call it inside the same synchronous transaction
+ * as the change it records; better-sqlite3 transactions serialize writers, so the
+ * chain head read here cannot race another append.
+ */
 export function appendAudit(tx: DbOrTx, entry: AuditEntry, at: string = nowIso()): string {
   const head = tx.select({ hash: auditLog.hash }).from(auditLog).orderBy(desc(auditLog.id)).limit(1).get();
   const prevHash = head?.hash ?? GENESIS_HASH;

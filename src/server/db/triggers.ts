@@ -5,8 +5,10 @@ import type Database from "better-sqlite3";
 // migrations: a missing trigger is created, and a trigger whose SQL differs from
 // the text below (someone replaced it with a no-op) is dropped and recreated.
 // This stops edits made through the app or a stray tool; it cannot stop someone
-// who holds the database file and rewrites it by hand. The hash chain in
-// audit_log is what makes such an edit visible (JUDGING.md, "Audit trail").
+// who holds the database file and rewrites it by hand. Nor does the hash chain
+// in audit_log on its own: it has no key, so that person can recompute it. The
+// edit shows only against a head hash kept outside the database: a CSV export,
+// a signed record, the public results page (JUDGING.md, "The audit trail").
 
 const range = (event: "INSERT" | "UPDATE OF value, criterion_id") => `
   BEFORE ${event} ON score_items
