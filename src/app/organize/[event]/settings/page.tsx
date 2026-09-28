@@ -265,7 +265,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             }
             action={saveJudgingModeAction}
             hidden={hidden}
-            submitLabel="Save the judging mode"
+            submitLabel="Save how judges judge"
             fieldLabels={{ mode: "Judging mode", reason: "Why", show: "Judges' own ranking" }}
           >
             <fieldset className="flex flex-col gap-2" disabled={Boolean(event.resultsPublishedAt)}>

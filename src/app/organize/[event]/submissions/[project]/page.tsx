@@ -19,7 +19,13 @@ function Standing({ a }: { a: ProjectAssignment }) {
     a.status === "done" ? "Finished" : a.status === "recused" ? "Recused" : a.started ? "Started, not finished" : "Not started";
   const notes = [
     a.byHand ? "assigned by hand" : null,
-    !a.isJudge ? "no longer a judge of this event" : !a.inTracks && a.status !== "recused" ? "outside their tracks now, so not in their list" : null,
+    !a.isJudge
+      ? "removed as a judge; left out of the ranking"
+      : a.inTracks || a.status === "recused"
+        ? null
+        : a.status === "done"
+          ? "outside their tracks now; the finished review still counts"
+          : "outside their tracks now, so not in their list",
   ].filter(Boolean);
   return (
     <div className="flex flex-col gap-0.5 text-14">

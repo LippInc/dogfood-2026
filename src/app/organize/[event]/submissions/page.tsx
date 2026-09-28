@@ -230,12 +230,12 @@ export default async function SubmissionsPage({ params, searchParams }: PageProp
                               {r.reviewsAssigned ? (
                                 <>
                                   <ReviewCells done={r.reviewsDone} assigned={r.reviewsAssigned} />
-                                  <span className="whitespace-nowrap underline-offset-2 group-hover/reviews:underline">
+                                  <span className="whitespace-nowrap underline decoration-dotted underline-offset-4 group-hover/reviews:decoration-solid">
                                     {r.reviewsDone} of {r.reviewsAssigned}
                                   </span>
                                 </>
                               ) : (
-                                <span className="text-ink-3 underline-offset-2 group-hover/reviews:underline">–</span>
+                                <span className="text-ink-3 underline decoration-dotted underline-offset-4 group-hover/reviews:decoration-solid">none</span>
                               )}
                             </Link>
                           </td>
