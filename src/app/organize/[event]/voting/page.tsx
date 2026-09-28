@@ -43,13 +43,16 @@ function MethodOff({ method, then }: { method: string; then: string }) {
   );
 }
 
-/** Fig. 01: the voting window as a line from open to close, the part gone by drawn solid, with where now falls. */
-function WindowFigure({ openAt, closeAt }: { openAt: string; closeAt: string }) {
+/** Where now falls in a window: its ends in ms, the share gone by (0 to 1), and whether it is still open. */
+function windowNow(openAt: string, closeAt: string, now = Date.now()) {
   const o = Date.parse(openAt);
   const c = Date.parse(closeAt);
-  const now = Date.now();
-  const gone = c > o ? Math.min(1, Math.max(0, (now - o) / (c - o))) : 1;
-  const open = now < c;
+  return { o, c, now, gone: c > o ? Math.min(1, Math.max(0, (now - o) / (c - o))) : 1, open: now < c };
+}
+
+/** Fig. 01: the voting window as a line from open to close, the part gone by drawn solid, with where now falls. */
+function WindowFigure({ openAt, closeAt }: { openAt: string; closeAt: string }) {
+  const { o, c, now, gone, open } = windowNow(openAt, closeAt);
   return (
     <figure className="flex flex-col gap-2 border-t border-rule pt-4">
       <figcaption className="flex items-baseline justify-between gap-3 text-12 text-ink-2">
