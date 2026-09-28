@@ -111,8 +111,9 @@ const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${ite
 
 type Mark = "ok" | "bad" | "idle";
 function StepMark({ mark }: { mark: Mark }) {
-  if (mark === "ok") return <Check className="size-4 text-ok" aria-label="passed" />;
-  if (mark === "bad") return <X className="size-4 text-flag" aria-label="failed" />;
+  // role="img": an svg with only an aria-label is not announced by every screen reader
+  if (mark === "ok") return <Check className="size-4 text-ok" role="img" aria-label="passed" />;
+  if (mark === "bad") return <X className="size-4 text-flag" role="img" aria-label="failed" />;
   return <Minus className="size-4 text-ink-3" aria-hidden />;
 }
 
