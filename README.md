@@ -221,9 +221,9 @@ never promoted, so name an address that has no account yet.
 Why `SEED_CHECKER_SESSIONS: "false"`: the checker's four
 session tokens are public in `.dogfood.toml`. They are derived from
 `DOGFOOD_SEED_SECRET`, whose default (`dogfood-2026-public-demo-secret`) is
-documented on purpose; set your own when the flag is on anywhere public. The
-portal enforces that: with the flag on, the default secret and a `PUBLIC_URL`
-that is not a local address, it refuses demo mode and says so at start. With
+documented on purpose; set your own wherever the portal can be reached. The
+portal enforces that: with the default secret and a `PUBLIC_URL` that is not a
+local address, it refuses to start and says what to set, flag on or off. With
 the flag off, each start also signs out every session the demo sign-in buttons
 made, takes the demo organizer's administrator rights, and ends what anyone
 acting as a demo identity handed out: their API tokens are revoked, their
@@ -236,7 +236,7 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 | Setting (environment, in `docker-compose.yml`) | What it does |
 |---|---|
 | `SEED_CHECKER_SESSIONS` | `"true"` seeds the checker's four sessions and the demo sign-in buttons; `"false"` for a real event (boot then removes any left from before) |
-| `DOGFOOD_SEED_SECRET` | Derives the checker sessions, salts the voters' address hashes and seals the signing key in the database; set your own, and keep it: under a new one the portal starts a new signing key (records signed before still verify) |
+| `DOGFOOD_SEED_SECRET` | Derives the checker sessions, salts the voters' address hashes and seals the signing key in the database; set your own, and keep it: with the default, a portal whose `PUBLIC_URL` is not a local address refuses to start; under a new one the portal starts a new signing key (records signed before still verify) |
 | `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, an exported uploaded picture's address, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
 | `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
 | `TRUST_PROXY_HOPS` | How many reverse proxies stand in front of the portal, each appending to `X-Forwarded-For` (usually `1`). Unset, the client address is the connection's own and any `X-Forwarded-For` a client sends is ignored; set it only when that many proxies really are in front, or a client can name its own address |

@@ -1,7 +1,7 @@
 import "server-only";
 import path from "node:path";
 import { openAdminSetup } from "./admins";
-import { checkerSessionsEnabled, checkerToml, demoModeRefusal, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, writeCheckerFile, type DemoGrants } from "./checker";
+import { checkerSessionsEnabled, checkerToml, demoModeRefusal, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, startRefusal, writeCheckerFile, type DemoGrants } from "./checker";
 import { databasePath, handle, type Handle } from "./db/client";
 import { importFixtures, loadFixtureFile } from "./db/import-fixtures";
 import { runMigrations } from "./db/migrate";
@@ -56,6 +56,9 @@ export function bootFixture(h: Handle, now: string): string | null {
 
 export async function boot(): Promise<void> {
   const started = Date.now();
+  // before the database is opened: a portal others can reach never runs on the public default secret
+  const refused = startRefusal();
+  if (refused) throw new Error(`refusing to start: ${refused}`);
   const h = handle();
   const triggers = runMigrations(h);
   if (triggers.restored.length > 0) console.warn(`[boot] triggers restored: ${triggers.restored.join(", ")}`);

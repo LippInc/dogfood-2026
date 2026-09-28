@@ -65,3 +65,9 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 **What is built:** every refusal of a known person writes one audit row, so refusals are capped: past 60 in 10 minutes, one person (an account, or a voter holding a link) is answered 429 and nothing is written. A request with no valid session (401) never writes a row.
 
 **What is not:** a cap across people. Many accounts, each under its own ceiling, still add rows; making accounts is itself limited (60 sign-ups and password sign-ins per network address in 10 minutes).
+
+## The public default secret
+
+**What is built:** `DOGFOOD_SEED_SECRET` derives the checker's sessions, salts the voters' address hashes and seals the signing key, and its default is published so that `docker compose up` works with no setup. With that default (or none), a portal whose `PUBLIC_URL` is not this machine's own address (localhost, a name under `.localhost`, 127.x.x.x, ::1) refuses to start and says what to set, before it opens the database, demo mode or not; with demo mode on it also refuses the checker's sessions.
+
+**What is not:** a check that an operator's own secret is long or random; and a portal served to others while its `PUBLIC_URL` still names this machine, which the portal cannot tell apart from local use.

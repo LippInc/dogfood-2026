@@ -47,16 +47,35 @@ export function checkerSessionsEnabled(): boolean {
  */
 export function demoModeRefusal(env: NodeJS.ProcessEnv = process.env): string | null {
   if (env.SEED_CHECKER_SESSIONS !== "true") return null;
-  if (env.DOGFOOD_SEED_SECRET && env.DOGFOOD_SEED_SECRET !== DEFAULT_SEED_SECRET) return null;
+  if (ownSecret(env)) return null;
   const url = env.PUBLIC_URL ?? "http://localhost:8080";
-  let host = "";
+  if (isLocalUrl(url)) return null;
+  return `PUBLIC_URL (${url}) is not a local address and DOGFOOD_SEED_SECRET is the public default, so anyone could derive the organizer's session`;
+}
+
+/**
+ * Why the portal will not start at all, or null. On an address other than this machine's, the public
+ * default secret would seal the signing key (a copy of the database could then sign certificates) and
+ * salt the voters' address hashes (every IPv4 address could be tried against them), demo mode or not.
+ */
+export function startRefusal(env: NodeJS.ProcessEnv = process.env): string | null {
+  if (ownSecret(env)) return null;
+  const url = env.PUBLIC_URL ?? "http://localhost:8080";
+  if (isLocalUrl(url)) return null;
+  return `PUBLIC_URL (${url}) is not a local address and DOGFOOD_SEED_SECRET is the public default, which seals the signing key and salts the voters' address hashes: set DOGFOOD_SEED_SECRET to a long random string of your own, and keep it`;
+}
+
+const ownSecret = (env: NodeJS.ProcessEnv) => Boolean(env.DOGFOOD_SEED_SECRET) && env.DOGFOOD_SEED_SECRET !== DEFAULT_SEED_SECRET;
+
+/** This machine's own address: localhost, a name under .localhost, 127.x.x.x or ::1. A malformed address is not. */
+function isLocalUrl(url: string): boolean {
+  let host: string;
   try {
     host = new URL(url).hostname.replace(/^\[|\]$/g, "");
   } catch {
-    host = "";
+    return false;
   }
-  if (host === "localhost" || host.endsWith(".localhost") || host === "::1" || /^127\.\d+\.\d+\.\d+$/.test(host)) return null;
-  return `PUBLIC_URL (${url}) is not a local address and DOGFOOD_SEED_SECRET is the public default, so anyone could derive the organizer's session`;
+  return host === "localhost" || host.endsWith(".localhost") || host === "::1" || /^127\.\d+\.\d+\.\d+$/.test(host);
 }
 
 /** Plain letters and digits, so both TOML parsers in run.py read it the same way. */
