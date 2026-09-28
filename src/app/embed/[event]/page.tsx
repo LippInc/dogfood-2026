@@ -85,10 +85,19 @@ export default async function EmbedPage({
           </li>
         ))}
       </ul>
-      <p className="mt-4 text-12 text-ink-3">
-        <a href={`${origin}/events/${g.event.slug}`} target="_blank" rel="noopener" className="underline underline-offset-2">
-          All of {g.event.name}
+      {/* the way on: the whole gallery on the portal, in a new tab (the frame's links never navigate the host page) */}
+      <p className="mt-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-t border-rule pt-3 text-13">
+        <a
+          href={`${origin}/events/${g.event.slug}`}
+          target="_blank"
+          rel="noopener"
+          className="font-medium text-ink underline decoration-edge underline-offset-4 hover:decoration-accent"
+        >
+          {shownTrack ? `Every track of ${g.event.name}` : `All of ${g.event.name}`}, on its portal
+          <span aria-hidden="true"> ↗</span>
+          <span className="sr-only"> (opens in a new tab)</span>
         </a>
+        <span className="label-mono text-ink-3">Projects open in a new tab</span>
       </p>
     </div>
   );
