@@ -14,8 +14,8 @@ export function SectionMarker({ nav }: { nav: string }) {
     let frame = 0;
     const mark = () => {
       frame = 0;
-      // the last section whose top has passed a line a sixth of the way down the screen
-      const line = window.innerHeight / 6;
+      // the last section whose top has passed a line a third of the way down the screen
+      const line = window.innerHeight / 3;
       let current: HTMLElement | undefined;
       for (const s of sections) if (s.getBoundingClientRect().top <= line) current = s;
       for (const a of links) {
