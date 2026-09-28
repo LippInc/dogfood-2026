@@ -357,7 +357,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                       />
                     </span>
                     <span className="col-start-3 row-start-1 flex items-baseline justify-end gap-3 sm:col-start-5">
-                      <span className="w-[4.5rem] text-right text-15 font-semibold tnum">
+                      <span className="text-right text-15 font-semibold tnum sm:w-[4.5rem]">
                         {t.votes} {t.votes === 1 ? "vote" : "votes"}
                       </span>
                       {linkVotes ? (
