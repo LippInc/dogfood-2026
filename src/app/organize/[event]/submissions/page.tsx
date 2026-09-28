@@ -191,7 +191,7 @@ export default async function SubmissionsPage({ params, searchParams }: PageProp
                           <td className={`w-12 py-2.5 pl-3 max-md:row-span-2 max-md:w-auto max-md:p-0 ${flag ? "md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}>
                             <Face id={r.id} cols={32} rows={18} className={`mt-0.5 block h-[18px] w-8 ${merged ? "opacity-40" : ""}`} />
                           </td>
-                          <td className="px-3 py-2.5 max-md:col-start-2 max-md:p-0">
+                          <td className="px-3 py-2.5 [overflow-wrap:anywhere] max-md:col-start-2 max-md:p-0">
                             {r.status === "submitted" ? (
                               <Link href={`/events/${event.slug}/projects/${r.id}`} className={`font-medium hover:underline ${merged ? "text-ink-2" : ""}`}>
                                 {r.title}

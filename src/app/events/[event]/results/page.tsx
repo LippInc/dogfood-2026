@@ -64,7 +64,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
     pairwise
       ? "Judges compared their own projects two at a time; each project’s win % is its chance to beat an average project of its track."
       : "Each score is the judges’ weighted rubric average, evened out for judges who score higher or lower than the rest.",
-    "Read gaps smaller than the ± as ties.",
+    "Read gaps smaller than the margin of error (±) as ties.",
     ...(underReviewed
       ? [
           pairwise
@@ -104,7 +104,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                 <span className="min-w-0 flex-1">
                   <span className="block text-15 font-semibold text-ink">How these {pairwise ? "win %" : "scores"} were made</span>
                   <span className="block text-13 text-ink-3">
-                    {results.yardstick ? "The method, the ±, and how far apart the judges were" : "The method in full, and the ±"}
+                    {results.yardstick ? "The method, the margin of error (±), and how far apart the judges were" : "The method in full, and the margin of error (±)"}
                   </span>
                 </span>
                 <ChevronDown className="size-4 shrink-0 text-ink-2 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />

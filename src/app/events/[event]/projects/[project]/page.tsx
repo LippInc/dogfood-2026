@@ -346,7 +346,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                         <span className="flex flex-wrap items-baseline gap-x-2">
-                          <span className="text-14 font-semibold">{c.author}</span>
+                          <bdi className="text-14 font-semibold">{c.author}</bdi>
                           {c.mine ? <span className="label-mono text-accent-ink">you</span> : null}
                           <span className="font-mono text-12 text-ink-3">{formatUtc(c.createdAt)}</span>
                         </span>
