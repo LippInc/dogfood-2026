@@ -434,6 +434,25 @@ describe("the counting rules once ballots are in", () => {
     expect(getCommunityResults("evt_01").ruleChanges).toEqual([]);
   });
 
+  it("a save that changes the rules and moves the window writes both rows: the window keeps its own sentence", () => {
+    openVoting();
+    firstBallot();
+    const settingsRows = auditCount("voting.settings");
+    saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "5", votingCloseAt: "2998-06-01T00:00", reason: REASON }));
+    expect(auditCount("voting.rules_changed")).toBe(1);
+    const windowRows = auditRows().filter((r) => r.action === "voting.settings");
+    expect(windowRows).toHaveLength(settingsRows + 1);
+    expect(windowRows.at(-1)!.after).toMatchObject({ votingCloseAt: "2998-06-01T00:00:00.000Z", votesPerVoter: 5 });
+    const lines = getAuditLog(org(), "evt_01").lines;
+    const windowTexts = lines.filter((l) => l.action === "voting.settings").map((l) => l.parts.map((p) => p.text).join(""));
+    expect(windowTexts.some((t) => t.includes("2998"))).toBe(true);
+    expect(verifyAuditChain(h.db).ok).toBe(true);
+    // positive control: a rule change that leaves the window where it is writes no window row
+    saveVotingSettings(org(), "evt_01", settings({ votesPerVoter: "6", votingCloseAt: "2998-06-01T00:00", reason: REASON }));
+    expect(auditCount("voting.rules_changed")).toBe(2);
+    expect(auditCount("voting.settings")).toBe(settingsRows + 1);
+  });
+
   it("known-bad: a participant cannot change them, reason or not — 403", () => {
     openVoting();
     firstBallot();

@@ -6,6 +6,7 @@ import { getDb, type DbOrTx } from "../db/client";
 import { events, projects, teamMembers, teams, users, voters, votes, type VoteRuleChange, type VoteRules } from "../db/schema";
 import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
+import { appendAudit } from "../audit";
 import { guardRead, mutate } from "../mutate";
 import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -153,6 +154,11 @@ export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, b
       .where(eq(events.id, event.id))
       .run();
     const after = { votingOpenAt: input.votingOpenAt || null, votingCloseAt: input.votingCloseAt || null, modes: voting.modes, votesPerVoter: voting.votesPerVoter, countLink };
+    // A rule change is audited as voting.rules_changed, whose sentence names the rules and the reason only.
+    // A window moved in the same save keeps its own voting.settings row and sentence, as it would alone.
+    if (ruleChange && (after.votingOpenAt !== before.votingOpenAt || after.votingCloseAt !== before.votingCloseAt)) {
+      appendAudit(tx, { actorUserId: actor!.userId, actorLabel: actor!.name, action: "voting.settings", eventId: event.id, targetType: "event", targetId: event.id, before, after });
+    }
     return {
       result: { ok: true, rulesChanged: ruleChange !== null },
       audit: ruleChange
