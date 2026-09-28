@@ -261,6 +261,9 @@ export const OPERATIONS: Operation[] = [
     also: [422],
   },
 
+  // Email
+  { method: "GET", path: "/api/events/{event}/outbox", tag: "Email", summary: "The last 100 messages the portal mailed for the event, or would have mailed while email is off", access: "organizer" },
+
   // Records
   { method: "GET", path: "/api/events/{event}/records", tag: "Records", summary: "Every signed record issued for the event", access: "organizer" },
   {
