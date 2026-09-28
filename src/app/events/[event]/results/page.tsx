@@ -54,7 +54,24 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
     const firsts = t.rows.filter((_, i) => t.places[i]?.place === 1);
     return firsts.length ? [{ track: t, index: ti, first: firsts[0], joint: firsts.slice(1) }] : [];
   });
-  const topVotes = community.tally?.reduce((m, t) => Math.max(m, t.votes), 0) ?? 0;
+  const placedCount = placed.reduce((n, t) => n + t.rows.length, 0);
+  const underReviewed = placed.some((t) => t.rows.some((r) => r.n < 2));
+  // The plain words, one point each; the same sentences the page said as one paragraph.
+  const readingPoints: string[] = [
+    "Places compare within a track.",
+    pairwise
+      ? "Judges compared their own projects two at a time; each project’s win % is its chance to beat an average project of its track."
+      : "Each score is the judges’ weighted rubric average, evened out for judges who score higher or lower than the rest.",
+    "Read gaps smaller than the ± as ties.",
+    ...(underReviewed
+      ? [
+          pairwise
+            ? "A project marked under-compared was compared by fewer than two judges; the organizers chose to publish it as it is."
+            : "A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is.",
+        ]
+      : []),
+  ];
+  const topVotes =community.tally?.reduce((m, t) => Math.max(m, t.votes), 0) ?? 0;
 
   return (
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
@@ -63,24 +80,18 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
           <div className="grid gap-8 pt-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-end lg:gap-16">
             <div>
               <h1 className="font-display text-[48px] leading-[52px] md:text-64">Results</h1>
-              {/* Plain words on top; the method, word for word, one click away (his call, 2026-09-27 21:09 NL). */}
-              {pairwise ? (
-                <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-                  Published {formatUtc(results.publishedAt)}. Places compare within a track. Judges compared their own projects two at a time; each
-                  project&rsquo;s win % is its chance to beat an average project of its track. Read gaps smaller than the ± as ties.
-                  {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
-                    ? " A project marked under-compared was compared by fewer than two judges; the organizers chose to publish it as it is."
-                    : ""}
-                </p>
-              ) : (
-                <p className="mt-6 max-w-[760px] text-17 text-ink-2">
-                  Published {formatUtc(results.publishedAt)}. Places compare within a track. Each score is the judges&rsquo; weighted rubric average, evened
-                  out for judges who score higher or lower than the rest; read gaps smaller than the ± as ties.
-                  {results.tracks.some((t) => t.rows.some((r) => r.n < 2))
-                    ? " A project marked under-reviewed had fewer than the two reviews a fair score needs; the organizers chose to publish it as it is."
-                    : ""}
-                </p>
-              )}
+              <p className="label-mono mt-3 tnum text-ink-3">
+                Published {formatUtc(results.publishedAt)} · {plural(placedCount, "place")} in {plural(placed.length, "track")}
+              </p>
+              {/* Plain words on top, one point to a line; the method, word for word, one click away (his call, 2026-09-27 21:09 NL). */}
+              <ol aria-label="How to read these results" className="mt-6 max-w-[760px] border-b border-rule text-17">
+                {readingPoints.map((point, i) => (
+                  <li key={i} className="grid grid-cols-[36px_minmax(0,1fr)] items-baseline border-t border-rule py-2.5">
+                    <span className="font-mono text-12 tnum text-ink-3">{two(i + 1)}</span>
+                    <span className={i === readingPoints.length - 1 && underReviewed ? "text-ink-2" : "text-ink"}>{point}</span>
+                  </li>
+                ))}
+              </ol>
               <details className="mt-4 max-w-[760px] text-ink-2">
                 <summary className="label-mono cursor-pointer text-ink">How these {pairwise ? "win %" : "scores"} were made</summary>
                 <div className="mt-3 flex flex-col gap-3">
