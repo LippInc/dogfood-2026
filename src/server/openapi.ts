@@ -182,6 +182,7 @@ export const OPERATIONS: Operation[] = [
   // Results
   { method: "GET", path: "/api/events/{event}/normalization", tag: "Results", summary: "The normalization run with its working, judge by judge", access: "organizer" },
   { method: "GET", path: "/api/events/{event}/pairwise", tag: "Results", summary: "The live pairwise ranking: receipts, the two pulls and the flagged judges", access: "organizer" },
+  { method: "PUT", path: "/api/events/{event}/judge-ranking", tag: "Results", summary: "Whether each judge's console shows their own ranking so far (409 once published)", access: "organizer", body: In.RankingInput, note: "Answers { show, changed }: saving what the event already has writes no audit row." },
   { method: "PUT", path: "/api/events/{event}/judging-mode", tag: "Results", summary: "How the judges judge: scores or pairwise (409 once published)", access: "organizer", body: In.ModeInput, note: "Answers { mode, changed }: saving the mode the event already has changes nothing and writes no audit row (changed: false)." },
   {
     method: "POST",

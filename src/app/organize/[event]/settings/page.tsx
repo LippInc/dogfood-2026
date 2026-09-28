@@ -266,7 +266,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             action={saveJudgingModeAction}
             hidden={hidden}
             submitLabel="Save the judging mode"
-            fieldLabels={{ mode: "Judging mode", reason: "Why" }}
+            fieldLabels={{ mode: "Judging mode", reason: "Why", show: "Judges' own ranking" }}
           >
             <fieldset className="flex flex-col gap-2" disabled={Boolean(event.resultsPublishedAt)}>
               <legend className="sr-only">Judging mode</legend>
@@ -285,8 +285,23 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
                 </label>
               ))}
               <label className="mt-2 flex flex-col gap-1 text-13 text-ink-2">
-                Why (kept in the audit log)
-                <input name="reason" required maxLength={500} className={input} />
+                Why, when you switch (kept in the audit log)
+                <input name="reason" maxLength={500} className={input} />
+              </label>
+              <label className="mt-3 flex items-start gap-3 border-t border-rule pt-4">
+                <input
+                  type="checkbox"
+                  name="judgeRanking"
+                  defaultChecked={event.settings.judgeRanking !== false}
+                  className="mt-1 size-4 shrink-0 accent-[var(--primary)]"
+                />
+                <span>
+                  <span className="block text-14 font-medium">Show each judge their own ranking so far</span>
+                  <span className="block text-13 text-ink-2">
+                    The console lists the judge&apos;s finished reviews in the order of their own totals, and marks how often they have used each score. Turn it
+                    off if you want judges to score each project against the rubric, not against the projects they saw before it.
+                  </span>
+                </span>
               </label>
             </fieldset>
           </SectionForm>

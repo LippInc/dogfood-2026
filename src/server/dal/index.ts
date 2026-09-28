@@ -58,6 +58,7 @@ export {
   inviteJudge,
   judgeInviteByCode,
   revokeJudgeInvite,
+  setJudgeRanking,
   setJudgeTracks,
   type InviteRow,
   type JudgeInviteView,

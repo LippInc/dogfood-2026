@@ -6,7 +6,7 @@ import "server-only";
 export { SignUp } from "./accounts";
 export { ManualInput, RunInput } from "./assignments";
 export { CommentInput, HideInput } from "./comments";
-export { InviteInput, TrackIds } from "./judges";
+export { InviteInput, RankingInput, TrackIds } from "./judges";
 export { AcceptInput, MergeInput, OverrideInput, PairInput, RevokeInput, UndoPairInput, UnmergeInput } from "./decisions";
 export { Details, NewEvent, PrizeRows, QuestionRows, RubricBody, RubricRows, TrackRows } from "./organize";
 export { ProjectInput } from "./projects";

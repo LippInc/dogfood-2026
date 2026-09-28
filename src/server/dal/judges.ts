@@ -222,6 +222,40 @@ export function setJudgeTracks(actor: Actor | null, eventIdOrSlug: string, judge
   });
 }
 
+export const RankingInput = z.object({ show: z.boolean() });
+
+/**
+ * Whether each judge's console shows "your ranking so far" (their own finished reviews in
+ * the order of their own totals) and how often they used each score. On by default; an
+ * organizer who wants judges to score each project against the rubric, not against each
+ * other, turns it off. Audited; final once the results are published.
+ */
+export function setJudgeRanking(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
+  let event: EventRow;
+  return mutate({
+    actor,
+    action: "event.manage",
+    load: (tx) => {
+      event = requireEvent(tx, eventIdOrSlug);
+      return { kind: "event", event: eventFacts(event) };
+    },
+    run: (tx) => {
+      const { show } = parse(RankingInput, body);
+      if (event.resultsPublishedAt) throw new ConflictError("results_published", "Results are published, so how the event was judged is final.");
+      const before = event.settings.judgeRanking !== false;
+      if (before === show) return { result: { show, changed: false }, audit: null };
+      tx.update(events)
+        .set({ settings: { ...event.settings, judgeRanking: show } })
+        .where(eq(events.id, event.id))
+        .run();
+      return {
+        result: { show, changed: true },
+        audit: { action: "event.judge_ranking", eventId: event.id, targetType: "event", targetId: event.id, before: { show: before }, after: { show } },
+      };
+    },
+  });
+}
+
 export type JudgeRow = {
   id: string;
   name: string;

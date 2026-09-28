@@ -78,7 +78,7 @@ Why bridges: normalized ranks compare within a track; tracks compare only throug
 
 The organizer defines the rubric: criteria with weights (the sample event uses equal weights), each scored on the criterion's scale (1 to 5 here). The set of criteria is fixed once the first score arrives. A weight can still change after that, to fix a mistake, but only with a written reason: the change is audited and the published results show it (the weights before and after, when, and why), so nobody re-weights the ranking quietly with the standings in view. Before judging starts, the rubric form says so in red. Labels and prompts can be reworded until publishing. A review's total is Σ weight × score ÷ Σ weight, and the judge sees the formula filled in. A review counts only when every criterion is scored; a missing criterion is stored as absent, never as zero, and the review is shown as unfinished.
 
-Judges see only their own scores ("your ranking so far" lists their own finished reviews); the server refuses any other judge's scores with 403 (tested, and checked by the organizers' own acceptance suite). Scoring closes when judging closes or when results are published.
+Judges see only their own scores ("your ranking so far" lists their own finished reviews; an organizer who wants each project scored against the rubric rather than against the ones before it hides that list in Settings, "How judges judge", an audited switch); the server refuses any other judge's scores with 403 (tested, and checked by the organizers' own acceptance suite). Scoring closes when judging closes or when results are published.
 
 ## Normalization
 

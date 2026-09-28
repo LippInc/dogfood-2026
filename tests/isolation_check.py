@@ -275,6 +275,18 @@ def run_checks(cfg):
     expect(c, s == 401, visitor, "GET", console_url, s, "401")
     checks.append(c)
 
+    # A7 -- fixing the judging set-up is the organizers' alone. Refusals only, plus
+    # organizer requests that change nothing, so the later sections see the same event.
+    c = Check("A", "judging set-up fixes are organizer-only")
+    ranking_url = u(f"/api/events/{EVENT_ID}/judge-ranking")
+    for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403), (judge_b, 403)):
+        s, _, _ = person.request("PUT", ranking_url, {"show": False})
+        expect(c, s == wanted, person, "PUT", ranking_url, s, str(wanted))
+    s, body, _ = organizer.request("PUT", ranking_url, {"show": True})
+    if expect(c, s == 200, organizer, "PUT", ranking_url, s, "200 (showing what is already shown)"):
+        expect(c, as_json(body).get("changed") is False, organizer, "PUT", ranking_url, f"changed {as_json(body).get('changed')!r}", "changed False")
+    checks.append(c)
+
     # ================= Section B: T3 community voting & comments =================
 
     # B1 -- open a window as the organizer, and only as the organizer

@@ -6,12 +6,15 @@ import {
   actionError,
   addOrganizer,
   currentActor,
+  getOrganizerEvent,
+  judgingModeOf,
   removeOrganizer,
   savePrizes,
   saveProjectFields,
   saveQuestions,
   saveRubric,
   saveTracks,
+  setJudgeRanking,
   setJudgingMode,
   updateEventDetails,
   type ActionResult,
@@ -106,15 +109,28 @@ export async function removeOrganizerAction(_prev: ActionResult, form: FormData)
 export async function saveJudgingModeAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const actor = await currentActor();
   const mode = String(form.get("mode") ?? "");
-  let changed = true;
+  const show = form.get("judgeRanking") === "on";
+  let changed = false;
+  let rankingChanged = false;
   const saved = await run(
     form,
     (slug) => {
-      changed = setJudgingMode(actor, slug, { mode, reason: form.get("reason") }).changed;
+      // A switch of mode needs its reason; saving only the ranking choice asks for none. The mode goes
+      // first, so a switch refused for want of a reason saves nothing at all.
+      if (judgingModeOf(getOrganizerEvent(actor, slug).event) !== mode) {
+        changed = setJudgingMode(actor, slug, { mode, reason: form.get("reason") }).changed;
+      }
+      rankingChanged = setJudgeRanking(actor, slug, { show }).changed;
     },
-    mode === "pairwise" ? "Pairwise from now on: judges see two projects at a time." : "Scores from now on: judges score each project on the rubric.",
+    "",
   );
-  // Saving the mode the event already has changes nothing and logs nothing; say so.
-  if (saved.ok && !changed) return { ok: true, message: `Nothing changed: the event already judges ${mode === "pairwise" ? "pairwise" : "by scores"}, so nothing was logged.` };
-  return saved;
+  if (!saved.ok) return saved;
+  const ranking = rankingChanged ? (show ? " Judges see their own ranking so far again." : " Judges no longer see their own ranking so far.") : "";
+  if (changed) {
+    const switched = mode === "pairwise" ? "Pairwise from now on: judges see two projects at a time." : "Scores from now on: judges score each project on the rubric.";
+    return { ok: true, message: `${switched}${ranking}` };
+  }
+  if (rankingChanged) return { ok: true, message: ranking.trim() };
+  // Saving what the event already has changes nothing and logs nothing; say so.
+  return { ok: true, message: `Nothing changed: the event already judges ${mode === "pairwise" ? "pairwise" : "by scores"}, so nothing was logged.` };
 }
