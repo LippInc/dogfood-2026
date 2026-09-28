@@ -15,6 +15,7 @@ import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { authorize, type EventFacts } from "@/server/authz";
 import { computePairwise, getPairwiseRanking, getPairwiseState, pickPairwise, pullShare, setJudgingMode, undoPairwise, PAIRWISE_METHOD, PULL_SHOWN_WITHIN } from "@/server/dal/pairwise";
 import { requireEvent } from "@/server/dal/events";
+import { exportFile } from "@/server/dal/exports";
 import { getCommunityResults, saveVotingSettings } from "@/server/dal/voting-organizer";
 import { actorForToken } from "@/server/session";
 
@@ -284,6 +285,27 @@ describe("pairwise mode: publishing", () => {
     // The judge's signed record counts their answers.
     const record = getRecord(issueOwnRecord(judge, "evt_01", "judge").id).envelope.record as { judging: { finishedReviews: number; answers?: number } };
     expect(record.judging.answers).toBe(1);
+  });
+
+  it("after publishing, normalized.csv is the published pairwise run, in its own columns, not the score engine worked out again", () => {
+    toPairwise();
+    const org = checker("organizer");
+    const judge = checker("judge_a");
+    pickPairwise(judge, "evt_01", { ...firstQuestion(judge), outcome: "left" });
+    mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "only one judge compared it" });
+    setJudgeOverride(org, "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "flat scores" });
+    // known-bad control: before publishing the file is the score engine's table
+    expect(exportFile(org, "evt_01", "normalized.csv").body.split(/\r?\n/)[0]).toContain("normalized_se");
+    publishResults(org, "evt_01");
+    const [head, ...lines] = exportFile(org, "evt_01", "normalized.csv").body.trim().split(/\r?\n/);
+    expect(head).toBe("project_id,title,track,team,judges,win_rate,win_pct,win_pct_se,rank_plain,rank_win_pct,track_place");
+    const published = getPublishedResults("evt_01");
+    if (!published.published) throw new Error("not published");
+    const winPct = new Map(published.tracks.flatMap((t) => t.rows).map((r) => [r.projectId, r.score === null ? "" : r.score.toFixed(4)]));
+    // win_pct is the fifth column from the end
+    for (const l of lines) expect(l.split(",").at(-5), l).toBe(winPct.get(l.split(",")[0]!));
+    expect(lines.length).toBe(winPct.size);
   });
 
   it("publishing in pairwise mode ends an open community vote too", () => {

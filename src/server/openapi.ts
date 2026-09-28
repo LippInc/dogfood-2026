@@ -80,7 +80,7 @@ export const OPERATIONS: Operation[] = [
     tag: "Events",
     summary: "Export: scores.csv, projects.csv, normalized.csv, audit.csv, event.json, or fixtures.json (the import format)",
     access: "organizer",
-    note: "Add ?bom=1 to a CSV for a UTF-8 byte-order mark, which Excel needs to read names outside ASCII; the portal's own download buttons do. scores.csv's last column, source, says whether each review arrived by an import (import) or was given out on this portal (portal).",
+    note: "Add ?bom=1 to a CSV for a UTF-8 byte-order mark, which Excel needs to read names outside ASCII; the portal's own download buttons do. scores.csv's last column, source, says whether each review arrived by an import (import) or was given out on this portal (portal). After publishing, normalized.csv is the published run as stored, not worked out again; a pairwise run has its own columns.",
   },
 
   {

@@ -564,6 +564,61 @@ describe("publishing ends the community vote", () => {
   });
 });
 
+describe("normalized.csv after publishing is the published run", () => {
+  const settle = () => {
+    setJudgeOverride(organizer(), "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+  };
+  const csv = () => exportFile(organizer(), "evt_01", "normalized.csv").body;
+
+  it("read back from the stored run, it is the file the engine gave at the moment of publishing, byte for byte", () => {
+    settle();
+    const live = csv();
+    publishResults(organizer(), "evt_01");
+    expect(csv()).toBe(live);
+    // the merged copy keeps its own row, as the live file had it
+    expect(live).toContain("prj_41,");
+  });
+
+  it("known-bad: a change after publishing that moves the live engine does not move the file", () => {
+    settle();
+    const { runId } = publishResults(organizer(), "evt_01");
+    const published = csv();
+    // a finished review taken out of the engine after publishing (assignments carry no publish trigger)
+    const a = h.sqlite
+      .prepare("SELECT a.id AS id, a.project_id AS project FROM assignments a WHERE a.event_id = 'evt_01' AND a.status = 'done' AND a.judge_user_id <> 'jdg_07' AND a.project_id NOT IN ('prj_07', 'prj_41') ORDER BY a.id LIMIT 1")
+      .get() as { id: string; project: string };
+    h.sqlite.prepare("UPDATE assignments SET status = 'recused' WHERE id = ?").run(a.id);
+    // the instrument sees the move: the engine, worked out now, counts one review fewer for that project
+    const storedN = (h.sqlite.prepare("SELECT n FROM normalized_scores WHERE run_id = ? AND project_id = ?").get(runId, a.project) as { n: number }).n;
+    expect(computeNormalization(h.db, eventOf()).projects.find((p) => p.id === a.project)!.n).toBe(storedN - 1);
+    expect(csv()).toBe(published);
+  });
+
+  it("a run stored before the run kept its whole table still exports, with the columns it lacks left empty", () => {
+    settle();
+    const { runId } = publishResults(organizer(), "evt_01");
+    const full = csv();
+    // the same run without the table, as runs published before it were stored (published runs are write-once, so rebuild the row)
+    const params = JSON.parse((h.sqlite.prepare("SELECT params FROM normalization_runs WHERE id = ?").get(runId) as { params: string }).params);
+    delete params.table;
+    const triggers = h.sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'normalization_runs'").all() as { name: string }[];
+    for (const t of triggers) h.sqlite.exec(`DROP TRIGGER "${t.name}"`);
+    h.sqlite.prepare("UPDATE normalization_runs SET params = ? WHERE id = ?").run(JSON.stringify(params), runId);
+    const old = csv();
+    const [head, ...rows] = old.trim().split(/\r?\n/);
+    expect(head).toBe(full.trim().split(/\r?\n/)[0]);
+    expect(rows.length).toBe(full.trim().split(/\r?\n/).length - 1);
+    // the stored numbers are the same: each project's normalized score and rank, read from the end of the line
+    // (a title may hold a quoted comma), line up with the full file
+    const pick = (text: string) =>
+      new Map(text.trim().split(/\r?\n/).slice(1).map((l) => [l.split(",")[0], `${l.split(",").at(-11)}|${l.split(",").at(-7)}`]));
+    expect(pick(old)).toEqual(pick(full));
+    expect([...pick(full).values()].filter((v) => v !== "|").length).toBeGreaterThan(30);
+  });
+});
+
 describe("normalized.csv before anything is measured", () => {
   it("leaves beta2 and sigma2 empty while no project has two counted reviews; the fixture's measured run fills them", () => {
     const rows = () =>

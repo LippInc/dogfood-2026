@@ -12,6 +12,7 @@ import {
   judgeOverrides,
   judgeTracks,
   normalizationRuns,
+  normalizedScores,
   prizes,
   projects,
   rubricCriteria,
@@ -29,6 +30,8 @@ import { guardRead } from "../mutate";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { auditCsv } from "./audit-log";
 import { computeNormalization } from "./normalization";
+import { PAIRWISE_METHOD } from "./pairwise";
+import { averageRanks } from "../judging/normalize";
 import { issuer } from "./records";
 import { reviewsOf } from "./scores";
 import { changedFromDefaults } from "@/lib/project-fields";
@@ -159,11 +162,116 @@ function comparisonsCsv(db: DbOrTx, event: EventRow): string {
   );
 }
 
-/** The engine's table: raw, raw without excluded judges, normalized, ranks and the move. */
+const NORMALIZED_HEAD = ["project_id", "title", "track", "team", "duplicate_of", "reviews_all", "reviews_counted", "raw_mean", "raw_mean_kept", "normalized", "normalized_se", "rank_raw", "rank_kept", "rank_normalized", "track_rank", "under_reviewed", "k", "beta2", "sigma2", "excluded_judges"];
+const fixed = (v: number | null | undefined, digits: number) => (v === null || v === undefined ? "" : v.toFixed(digits));
+
+type RunTableRow = { id: string; duplicateOf: string | null; nAll: number; rawKept: number | null; rankKept: number | null; trackRank: number | null; underReviewed: boolean; n?: number; rawAll?: number | null };
+
+/**
+ * After publishing, the ranking that was published, read from its stored run (normalization_runs and
+ * normalized_scores) rather than worked out again: a later engine, or anything that moved since, cannot
+ * change the file. The score engine's run keeps the columns normalized_scores lacks in its params; a run
+ * stored before it did leaves those three empty. A pairwise run has columns of its own. Null before publishing.
+ */
+function publishedRunCsv(db: DbOrTx, event: EventRow): string | null {
+  const runId = event.settings.publishedRunId;
+  if (!event.resultsPublishedAt || !runId) return null;
+  const run = db.select().from(normalizationRuns).where(eq(normalizationRuns.id, runId)).get();
+  if (!run) return null;
+  const stored = db
+    .select({
+      id: normalizedScores.projectId,
+      n: normalizedScores.n,
+      raw: normalizedScores.rawMean,
+      score: normalizedScores.normalizedMean,
+      se: normalizedScores.se,
+      rankRaw: normalizedScores.rankRaw,
+      rankNormalized: normalizedScores.rankNormalized,
+    })
+    .from(normalizedScores)
+    .where(eq(normalizedScores.runId, runId))
+    .all();
+  const byId = new Map(stored.map((r) => [r.id, r]));
+  const info = new Map(
+    db
+      .select({ id: projects.id, title: projects.title, trackId: projects.trackId, track: tracks.name, team: teams.name })
+      .from(projects)
+      .innerJoin(teams, eq(teams.id, projects.teamId))
+      .innerJoin(tracks, eq(tracks.id, projects.trackId))
+      .where(eq(projects.eventId, event.id))
+      .all()
+      .map((p) => [p.id, p]),
+  );
+  // places within a track, from the stored scores, as the published results page counts them
+  const places = new Map<string, number>();
+  const byTrack = new Map<string, Map<string, number>>();
+  for (const r of stored) {
+    const trackId = info.get(r.id)?.trackId;
+    if (r.score === null || !trackId) continue;
+    byTrack.set(trackId, (byTrack.get(trackId) ?? new Map()).set(r.id, r.score));
+  }
+  for (const scores of byTrack.values()) for (const [id, place] of averageRanks(scores)) places.set(id, place);
+  const byRank = [...stored].sort((a, b) => (a.rankNormalized ?? 1e9) - (b.rankNormalized ?? 1e9) || a.id.localeCompare(b.id));
+
+  if (run.method === PAIRWISE_METHOD) {
+    return toCsv(
+      ["project_id", "title", "track", "team", "judges", "win_rate", "win_pct", "win_pct_se", "rank_plain", "rank_win_pct", "track_place"],
+      byRank.map((r) => {
+        const p = info.get(r.id);
+        return [r.id, p?.title ?? "", p?.track ?? "", p?.team ?? "", r.n, fixed(r.raw, 4), fixed(r.score, 4), fixed(r.se, 4), r.rankRaw ?? "", r.rankNormalized ?? "", places.get(r.id) ?? ""];
+      }),
+    );
+  }
+
+  const params = run.params as { k?: number | null; beta2?: number; sigma2?: number; measured?: boolean; excluded?: string[]; merges?: { duplicate: string; into: string }[]; table?: RunTableRow[] };
+  const table: RunTableRow[] =
+    params.table ??
+    [
+      ...byRank.map((r) => ({ id: r.id, duplicateOf: null, nAll: Number.NaN, rawKept: null, rankKept: null, trackRank: places.get(r.id) ?? null, underReviewed: r.n < 2 })),
+      ...(params.merges ?? []).map((m) => ({ id: m.duplicate, duplicateOf: m.into, nAll: Number.NaN, rawKept: null, rankKept: null, trackRank: null, underReviewed: false })),
+    ];
+  const measured = params.measured !== false;
+  return toCsv(
+    NORMALIZED_HEAD,
+    table.map((t) => {
+      const p = info.get(t.id);
+      const s = byId.get(t.id);
+      return [
+        t.id,
+        p?.title ?? "",
+        p?.track ?? "",
+        p?.team ?? "",
+        t.duplicateOf ?? "",
+        Number.isNaN(t.nAll) ? "" : t.nAll,
+        s ? s.n : (t.n ?? 0),
+        fixed(s ? s.raw : t.rawAll, 4),
+        fixed(t.rawKept, 4),
+        fixed(s?.score, 4),
+        fixed(s?.se, 4),
+        s?.rankRaw ?? "",
+        t.rankKept ?? "",
+        s?.rankNormalized ?? "",
+        t.trackRank ?? "",
+        t.underReviewed ? "yes" : "no",
+        params.k === null || params.k === undefined ? "" : params.k.toFixed(3),
+        measured && typeof params.beta2 === "number" ? params.beta2.toFixed(4) : "",
+        measured && typeof params.sigma2 === "number" ? params.sigma2.toFixed(4) : "",
+        (params.excluded ?? []).join(" "),
+      ];
+    }),
+  );
+}
+
+/**
+ * The engine's table: raw, raw without excluded judges, normalized, ranks and the move. Worked out
+ * live until the results are published; from then on, the published run (publishedRunCsv).
+ */
 function normalizedCsv(db: DbOrTx, event: EventRow): string {
+  const published = publishedRunCsv(db, event);
+  if (published !== null) return published;
   const n = computeNormalization(db, event);
   return toCsv(
-    ["project_id", "title", "track", "team", "duplicate_of", "reviews_all", "reviews_counted", "raw_mean", "raw_mean_kept", "normalized", "normalized_se", "rank_raw", "rank_kept", "rank_normalized", "track_rank", "under_reviewed", "k", "beta2", "sigma2", "excluded_judges"],
+    NORMALIZED_HEAD,
     n.projects.map((p) => [
       p.id,
       p.title,

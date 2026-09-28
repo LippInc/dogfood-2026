@@ -202,7 +202,7 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
               <li key={f} className="border-b border-rule">
                 <a href={exportHref(event.id, f)} className="group grid grid-cols-[9.5rem_1fr] items-baseline gap-4 py-2.5 hover:bg-raised">
                   <span className="font-mono text-13 text-ink underline decoration-edge underline-offset-4 group-hover:decoration-ink">{f}</span>
-                  <span className="text-13 text-ink-2">{EXPORT_HOLDS[f] ?? ""}</span>
+                  <span className="text-13 text-ink-2">{f === "normalized.csv" && event.resultsPublishedAt ? "the published ranking, read from its stored run" : (EXPORT_HOLDS[f] ?? "")}</span>
                 </a>
               </li>
             ))}

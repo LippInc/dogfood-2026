@@ -143,6 +143,18 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
         moved: n.moved,
         signal: n.signal,
         yardstick: n.yardstick,
+        // the engine's table beyond what normalized_scores holds, in its order: normalized.csv after publishing is this run
+        table: n.projects.map((p) => ({
+          id: p.id,
+          duplicateOf: p.duplicateOf,
+          nAll: p.nAll,
+          rawKept: p.rawKept,
+          rankKept: p.rankKept,
+          trackRank: p.trackRank,
+          underReviewed: p.underReviewed,
+          // a merged copy has no normalized_scores row: its own counts go here
+          ...(p.duplicateOf ? { n: p.n, rawAll: p.rawAll } : {}),
+        })),
       },
       computedAt: at,
       computedBy: actor.userId,

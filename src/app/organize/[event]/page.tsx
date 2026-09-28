@@ -451,7 +451,7 @@ export default async function OverviewPage({
                     >
                       {f}
                     </a>
-                    <span className="truncate text-12 text-ink-2">{what}</span>
+                    <span className="truncate text-12 text-ink-2">{f === "normalized.csv" && event.resultsPublishedAt ? "the published ranking" : what}</span>
                   </li>
                 ))}
               </ul>
