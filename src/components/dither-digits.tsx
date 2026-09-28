@@ -23,7 +23,16 @@ const BAYER4 = [
 
 const S = 6; // cells per font pixel
 
-function drawing(text: string): { w: number; h: number; d: string } {
+/** Optional ways to spoil the figure on purpose; left out, the drawing is the plain one. */
+type Spoil = { hollow?: number[]; tear?: boolean };
+
+/** Rows of cells shifted sideways, like a misregistered print: [first row, last row + 1, shift]. */
+const TEARS: [number, number, number][] = [
+  [18, 22, 6],
+  [22, 24, -3],
+];
+
+function drawing(text: string, spoil: Spoil = {}): { w: number; h: number; d: string } {
   const glyphs = [...text].map((c) => FONT[c] ?? FONT["0"]);
   // the whole string as one pixel grid, one blank column between digits
   const cols = glyphs.length * 6 - 1;
@@ -38,17 +47,20 @@ function drawing(text: string): { w: number; h: number; d: string } {
   let d = "";
   for (let cy = 0; cy < h; cy++) {
     let run = -1;
+    const shift = spoil.tear ? (TEARS.find(([a, b]) => cy >= a && cy < b)?.[2] ?? 0) : 0;
     for (let cx = 0; cx <= w; cx++) {
       let on = false;
-      if (cx < w) {
-        const px = Math.floor(cx / S);
+      const sx = cx - shift;
+      if (cx < w && sx >= 0 && sx < w) {
+        const px = Math.floor(sx / S);
         const py = Math.floor(cy / S);
         if (ink(px, py)) {
-          const ix = cx % S;
+          const ix = sx % S;
           const iy = cy % S;
           const edge = (ix === 0 && !ink(px - 1, py)) || (ix === S - 1 && !ink(px + 1, py)) || (iy === 0 && !ink(px, py - 1)) || (iy === S - 1 && !ink(px, py + 1));
           const v = 0.66 + 0.34 * Math.sin((cx + 1.7 * cy) / 6);
-          on = edge || v > (BAYER4[cy % 4][cx % 4] + 0.5) / 16;
+          const hollow = spoil.hollow?.includes(Math.floor(px / 6)) ?? false;
+          on = edge || (!hollow && v > (BAYER4[cy % 4][cx % 4] + 0.5) / 16);
         }
       }
       if (on && run < 0) run = cx;
@@ -61,9 +73,9 @@ function drawing(text: string): { w: number; h: number; d: string } {
   return { w, h, d };
 }
 
-export function DitherDigits({ value, className = "" }: { value: string; className?: string }) {
+export function DitherDigits({ value, className = "", spoil }: { value: string; className?: string; spoil?: Spoil }) {
   const digits = value.replace(/[^0-9]/g, "").slice(0, 3) || "0";
-  const { w, h, d } = drawing(digits);
+  const { w, h, d } = drawing(digits, spoil);
   const pad = 4;
   return (
     <svg

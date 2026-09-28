@@ -88,6 +88,20 @@ export function RecordCheck({ envelope, children }: { envelope: Envelope; childr
 }
 
 /**
+ * The certificate sheet itself. Once this browser has checked the signature, the sheet
+ * is "lit": its corner marks, the project's face and the place figure take the accent,
+ * with the seal. Until then, or when the check fails, they stay grey.
+ */
+export function CheckedSheet({ className, children, ...rest }: React.ComponentProps<"article">) {
+  const state = useContext(CheckState);
+  return (
+    <article {...rest} data-check={state.at} className={`${className ?? ""} ${state.at === "valid" ? "lit" : ""}`}>
+      {children}
+    </article>
+  );
+}
+
+/**
  * The certificate's seal: the signature itself, one square per bit. It lights up in
  * the accent once this browser has checked the signature, and its frame turns to the
  * alarm colour if the check fails, so the seal shows what the browser found.
@@ -95,7 +109,10 @@ export function RecordCheck({ envelope, children }: { envelope: Envelope; childr
 export function LiveSeal({ signature }: { signature: string }) {
   const state = useContext(CheckState);
   return (
-    <figure className="flex flex-col gap-2" data-check={state.at}>
+    <figure
+      className="grid gap-2 max-md:grid-cols-[minmax(0,168px)_minmax(0,1fr)] max-md:items-end max-md:gap-x-4 print:grid-cols-1"
+      data-check={state.at}
+    >
       <div
         className={`overflow-hidden rounded-xs border transition-colors duration-500 motion-reduce:transition-none ${
           state.at === "invalid" ? "border-flag-bar" : state.at === "valid" ? "border-accent" : "border-rule"
@@ -109,8 +126,12 @@ export function LiveSeal({ signature }: { signature: string }) {
           {state.at === "checking" ? (
             <span className="text-ink-2">Checking in your browser…</span>
           ) : state.at === "valid" ? (
-            <span className="stamp inline-flex items-center gap-1.5 font-semibold text-ok">
-              <Check className="size-4" aria-hidden /> Valid, checked by your browser
+            <span className="stamp inline-flex items-start gap-1.5">
+              <Check className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />
+              <span>
+                <strong className="font-semibold text-ok">Valid</strong>
+                <span className="text-ink-2">, checked by your browser</span>
+              </span>
             </span>
           ) : state.at === "invalid" ? (
             <span className="stamp inline-flex items-center gap-1.5 font-semibold text-flag">
@@ -122,6 +143,18 @@ export function LiveSeal({ signature }: { signature: string }) {
         </span>
       </figcaption>
     </figure>
+  );
+}
+
+/** The same bits as the seal, drawn beside the signature's base64 in step 2; lit once this browser has checked them, like the seal. */
+export function LiveBits({ signature }: { signature: string }) {
+  const state = useContext(CheckState);
+  return (
+    <div
+      className={`overflow-hidden rounded-xs border transition-colors duration-500 motion-reduce:transition-none ${state.at === "valid" ? "border-accent" : "border-rule"}`}
+    >
+      <SignatureBits signature={signature} lit={state.at === "valid"} />
+    </div>
   );
 }
 
@@ -243,14 +276,16 @@ export function RecordActions({ envelope, id }: { envelope: Envelope; id: string
     a.click();
     URL.revokeObjectURL(url);
   };
-  const button = "inline-flex h-10 items-center rounded-sm border border-edge px-4 text-14 font-medium hover:bg-raised";
+  // One row on a phone: the shorter labels below sm, the full ones from sm up (each name is the visible label).
+  const button = "inline-flex h-10 items-center whitespace-nowrap rounded-sm border border-edge px-3 text-14 font-medium hover:bg-raised sm:px-4";
   return (
     <div className="flex flex-wrap gap-2">
       <button type="button" onClick={() => window.print()} className={button}>
         Print
       </button>
       <button type="button" onClick={download} className={button}>
-        Download the record (.json)
+        <span className="sm:hidden">Download .json</span>
+        <span className="max-sm:hidden">Download the record (.json)</span>
       </button>
       <button
         type="button"
@@ -265,7 +300,15 @@ export function RecordActions({ envelope, id }: { envelope: Envelope; id: string
           }
         }}
       >
-        <span aria-live="polite">{copied ? "Link copied" : "Copy the link"}</span>
+        <span aria-live="polite">
+          {copied ? (
+            "Link copied"
+          ) : (
+            <>
+              Copy <span className="max-sm:hidden">the </span>link
+            </>
+          )}
+        </span>
       </button>
     </div>
   );

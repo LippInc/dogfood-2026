@@ -1,46 +1,51 @@
 "use client";
 
 import Link from "next/link";
-import { StatusFigure } from "@/components/status-figure";
-import { PlainFrame } from "@/components/shell/plain-frame";
-import { Button } from "@/components/ui/button";
+import { AskedPath, CopyValue, StatusSheet } from "@/components/status-sheet";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 /**
- * The designed page for an unexpected failure under the root layout. The status
- * stays a real 500; the digest is the id Next writes next to the error in the
- * server log, so an operator can find what happened.
+ * The designed page for an unexpected failure under the root layout. A server error keeps
+ * its real 500; the digest is the id Next writes next to the error in the server log, so an
+ * operator can find what happened. An error with no digest broke in the browser, and the
+ * server log has nothing on it.
  */
 export default function ErrorPage({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+  const digest = error.digest;
   return (
-    <PlainFrame width="max-w-[1120px]">
-      <div className="grid items-center gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:gap-20">
-        <div>
-          <p className="label-mono text-accent-ink">500 · Something broke</p>
-          <h1 className="mt-3 font-display text-38">This page hit an error</h1>
-          <div className="mt-4 max-w-[600px] space-y-3 text-17 text-ink-2">
-            <p>
-              The server ran into something it did not expect. A change you were making was saved whole or not at all,
-              never half, so look at the page again before repeating it.
-            </p>
-            {error.digest ? (
-              <p className="text-15">
-                For the operator: the server log has this error under <code className="font-mono">{error.digest}</code>.
-              </p>
-            ) : null}
-          </div>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button size="lg" onClick={() => retry()}>
-              Try again
-            </Button>
-            <Link href="/" className="inline-flex h-10 items-center rounded-sm border border-edge px-4 text-15 hover:bg-raised">
-              Go to the projects
-            </Link>
-          </div>
-        </div>
-        <div className="max-md:max-w-[320px]">
-          <StatusFigure status="500" />
-        </div>
-      </div>
-    </PlainFrame>
+    <StatusSheet
+      code="500 · Something broke"
+      title="This page hit an error"
+      lead={
+        <p>
+          The portal ran into something it did not expect. A change you were making was saved whole or not at all,
+          never half, so look at the page again before repeating it.
+        </p>
+      }
+      status="500"
+      spoil={{ tear: true }}
+      rows={[
+        { label: "Page", value: <AskedPath />, mono: true },
+        digest
+          ? { label: "Log id", value: <CopyValue value={digest} label="log id" /> }
+          : { label: "Where", value: "In this browser, while drawing the page. The server log has no entry for it." },
+        {
+          label: "If it stays",
+          value: digest
+            ? "Send the operator this page's address and the log id; they find the error under it."
+            : "Reload the page. If it breaks again, send the operator this page's address.",
+        },
+      ]}
+      actions={
+        <>
+          <Button size="lg" className="max-sm:h-11" onClick={() => retry()}>
+            Try again
+          </Button>
+          <Link href="/" className={buttonVariants({ variant: "outline", size: "lg", className: "max-sm:h-11" })}>
+            Go to the projects
+          </Link>
+        </>
+      }
+    />
   );
 }

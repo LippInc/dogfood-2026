@@ -53,7 +53,11 @@ export default async function JudgePage({ params, searchParams }: PageProps<"/ju
             </Link>
           ) : data.event.resultsPublishedAt && finished ? (
             <form action={openOwnRecord.bind(null, data.event.slug, "judge")}>
-              <button className={recordButton}>Get your signed judging record</button>
+              {/* on phones the long label pushed Sign out onto a line of its own; the name is the visible label at each width (WCAG 2.5.3) */}
+              <button className={recordButton}>
+                <span className="sm:hidden">Get your record</span>
+                <span className="max-sm:hidden">Get your signed judging record</span>
+              </button>
             </form>
           ) : null}
           <KeysButton />
@@ -76,7 +80,8 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
       id,
       {
         small: <Face id={id} cols={32} rows={18} className="block h-[27px] w-12" />,
-        large: <Face id={id} cols={48} rows={27} className="block aspect-video w-full" />,
+        // a 3:1 band, drawn at that shape (not stretched), so both cards and all three answers fit a 900 px screen
+        large: <Face id={id} cols={48} rows={16} className="block h-full w-full" />,
       },
     ]),
   );
@@ -102,10 +107,15 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
             </Link>
           ) : state.event.resultsPublishedAt && answered ? (
             <form action={openOwnRecord.bind(null, state.event.slug, "judge")}>
-              <button className={recordButton}>Get your signed judging record</button>
+              {/* on phones the long label pushed Sign out onto a line of its own; the name is the visible label at each width (WCAG 2.5.3) */}
+              <button className={recordButton}>
+                <span className="sm:hidden">Get your record</span>
+                <span className="max-sm:hidden">Get your signed judging record</span>
+              </button>
             </form>
           ) : null}
-          <KeysButton />
+          {/* once answers are final no key answers anything, so the keys are not offered */}
+          {state.readOnly ? null : <KeysButton />}
         </>
       }
       person={actor.name}

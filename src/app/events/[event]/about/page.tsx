@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/shell/public-shell";
-import { formatUtc, weightShares } from "@/lib/format";
+import { plural, weightShares } from "@/lib/format";
 import { actorNav, currentActor, getAbout, NotFoundError, type About } from "@/server/dal";
+import { Rubric } from "./rubric";
+import { stagesOf, Timeline } from "./timeline";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "About" };
@@ -22,45 +25,62 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
   const actor = await currentActor();
   const { event } = about;
   const shares = weightShares(about.rubric.map((c) => c.weight));
-  const dates: [string, string | null][] = [
-    ["Submissions open", event.submissionsOpenAt ? formatUtc(event.submissionsOpenAt, { weekday: true }) : "From the start"],
-    ["Submissions close", formatUtc(event.submissionsCloseAt, { weekday: true })],
-    ["Judging closes", event.judgingCloseAt ? formatUtc(event.judgingCloseAt, { weekday: true }) : "Set by the organizers"],
-    ["Results", event.resultsPublishedAt ? `Published ${formatUtc(event.resultsPublishedAt)}` : "Not yet published"],
-  ];
+  const projects = about.tracks.reduce((n, t) => n + t.count, 0);
   return (
     <PublicShell event={event} active="about" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
-      <div className="pt-10">
+      <div className="flex flex-col gap-3 pt-8 md:flex-row md:items-end md:justify-between md:pt-10">
         <h1 className="font-display text-[48px] leading-[52px] md:text-64">About</h1>
-        {event.description ? (
-          <p className="mt-6 max-w-[680px] font-serif text-17 leading-7 whitespace-pre-line text-ink-2 wrap-anywhere">{event.description}</p>
-        ) : null}
+        <p className="label-mono tnum text-ink-2 tracking-[0.06em] sm:tracking-[0.12em] md:pb-2">
+          {plural(about.tracks.length, "track")} / {plural(projects, "project")} / {plural(about.rubric.length, "criterion", "criteria")}
+        </p>
       </div>
-      <div className="mt-12 grid gap-12 border-t border-rule pt-10 lg:grid-cols-3">
-        <section aria-labelledby="dates-title">
+      {event.description ? (
+        <p className="mt-6 max-w-[680px] font-serif text-17 leading-7 whitespace-pre-line text-ink-2 wrap-anywhere">{event.description}</p>
+      ) : null}
+      <section aria-labelledby="dates-title" className="mt-8 border-t border-rule pt-6 md:mt-10">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-5">
           <h2 id="dates-title" className="label-mono text-ink">
-            Dates, in UTC
+            Fig. 01 — When it happens
           </h2>
-          <dl className="mt-4 flex flex-col divide-y divide-rule border-y border-rule">
-            {dates.map(([label, value]) => (
-              <div key={label} className="flex items-baseline justify-between gap-4 py-2.5">
-                <dt className="text-14 text-ink-2">{label}</dt>
-                <dd className="text-right text-14 font-medium tnum">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
+          <p className="text-13 text-ink-3">Every time in UTC.</p>
+        </div>
+        <Timeline stages={stagesOf(event)} />
+      </section>
+      <section aria-labelledby="rubric-title" className="mt-12 border-t border-rule pt-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-5">
+          <h2 id="rubric-title" className="label-mono text-ink">
+            Fig. 02 — How projects are judged
+          </h2>
+          <p className="text-13 text-ink-3">The weights are the organizers&apos; setting.</p>
+        </div>
+        <Rubric rubric={about.rubric} shares={shares} resultsHref={`/events/${event.slug}/results`} />
+      </section>
+      <div className="mt-12 grid gap-12 border-t border-rule pt-6 lg:grid-cols-2">
         <section aria-labelledby="tracks-title">
-          <h2 id="tracks-title" className="label-mono text-ink">
-            Tracks
-          </h2>
-          <ul className="mt-4 flex flex-col divide-y divide-rule border-y border-rule">
-            {about.tracks.map((t) => (
-              <li key={t.id} className="flex items-baseline justify-between gap-4 py-2.5 text-14">
-                <span className="min-w-0 wrap-anywhere">{t.name}</span>
-                <span className="shrink-0 text-ink-3 tnum">
-                  {t.count} {t.count === 1 ? "project" : "projects"}
-                </span>
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-5">
+            <h2 id="tracks-title" className="label-mono text-ink">
+              Tracks
+            </h2>
+            <p className="text-13 text-ink-3">Each project enters one. Choose a track to see its projects.</p>
+          </div>
+          <ul className="mt-6 flex flex-col divide-y divide-rule border-y border-rule">
+            {about.tracks.map((t, i) => (
+              <li key={t.id}>
+                <Link
+                  href={`/events/${event.slug}?track=${encodeURIComponent(t.id)}`}
+                  className="group grid min-h-11 grid-cols-[auto_1fr_auto] items-center gap-x-4 py-2.5 text-15"
+                >
+                  <span className="font-mono text-12 text-ink-3">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="min-w-0 wrap-anywhere group-hover:underline">{t.name}</span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className="hidden gap-[3px] sm:flex" aria-hidden="true">
+                      {Array.from({ length: Math.min(t.count, 24) }, (_, k) => (
+                        <span key={k} className="size-2 bg-face-dot group-hover:bg-accent" />
+                      ))}
+                    </span>
+                    <span className="w-20 text-right text-14 text-ink-3 tnum">{plural(t.count, "project")}</span>
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
@@ -70,40 +90,22 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
             Prizes
           </h2>
           {about.prizes.length ? (
-            <ul className="mt-4 flex flex-col gap-4">
-              {about.prizes.map((p) => (
-                <li key={p.id} className="border-l-[3px] border-accent pl-4 wrap-anywhere">
-                  <p className="text-15 font-semibold">{p.name}</p>
+            <ol className="mt-6 grid gap-x-6 gap-y-8 sm:grid-cols-2">
+              {about.prizes.map((p, i) => (
+                <li key={p.id} className="border-t-2 border-ink pt-3 wrap-anywhere">
+                  <p className="font-mono text-12 text-accent-ink">{String(i + 1).padStart(2, "0")}</p>
+                  <h3 className="mt-2 text-17 font-semibold">{p.name}</h3>
                   {p.description ? <p className="mt-1 text-14 text-ink-2">{p.description}</p> : null}
                 </li>
               ))}
-            </ul>
+            </ol>
           ) : (
-            <p className="mt-4 text-14 text-ink-3">The organizers have not listed prizes yet.</p>
+            <p className="mt-6 rounded-sm border border-dashed border-edge px-5 py-6 text-14 text-ink-2">
+              The organizers have not listed prizes yet.
+            </p>
           )}
         </section>
       </div>
-      <section aria-labelledby="rubric-title" className="mt-14 border-t border-rule pt-10">
-        <h2 id="rubric-title" className="label-mono text-ink">
-          How projects are judged
-        </h2>
-        <p className="mt-3 max-w-[680px] text-15 text-ink-2">
-          Each judge scores every criterion from {about.rubric[0]?.scaleMin ?? 1} to {about.rubric[0]?.scaleMax ?? 5}. A
-          review&apos;s total is the weighted mean of its criteria. Before ranking, the portal evens out judges who score
-          harshly or generously, and shows its working next to every result.
-        </p>
-        <ul className="mt-6 grid gap-4 sm:grid-cols-3">
-          {about.rubric.map((c, i) => (
-            <li key={c.key} className="rounded-sm border border-rule bg-surface p-5 wrap-anywhere">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="min-w-0 text-15 font-semibold">{c.label}</p>
-                <p className="shrink-0 font-mono text-13 text-ink-3">weight {shares[i]}</p>
-              </div>
-              <p className="mt-1 text-14 text-ink-2">{c.prompt}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
     </PublicShell>
   );
 }

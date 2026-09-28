@@ -20,13 +20,13 @@ export function SignUpForm({ next, setup }: { next: string | null; setup: string
         </p>
       ) : null}
       <Field id="name" label="Your name" error={e.name}>
-        {(a) => <Input {...a} name="name" autoComplete="name" required />}
+        {(a) => <Input {...a} name="name" autoComplete="name" required className="max-sm:h-11" />}
       </Field>
       <Field id="email" label="Email" error={e.email}>
-        {(a) => <Input {...a} name="email" type="email" autoComplete="email" required />}
+        {(a) => <Input {...a} name="email" type="email" autoComplete="email" required className="max-sm:h-11" />}
       </Field>
       <Field id="password" label="Password" help="At least 10 characters." error={e.password}>
-        {(a) => <Input {...a} name="password" type="password" autoComplete="new-password" required />}
+        {(a) => <Input {...a} name="password" type="password" autoComplete="new-password" required className="max-sm:h-11" />}
       </Field>
       {state.message && !state.ok ? (
         <p role="alert" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-flag">

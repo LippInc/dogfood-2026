@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatUtc, isPast } from "@/lib/format";
 import { actorNav, currentActor, getMyWork, myRecords, NotFoundError, PAIRWISE_METHOD, type MyWork } from "@/server/dal";
 import { openOwnRecord } from "../../../records/actions";
-import { ProjectForm } from "./project-form";
+import { HandedIn } from "./handed-in";
+import { ProjectForm, type FormProject } from "./project-form";
 import { StartTeam, TeamPanel } from "./team-panel";
 
 type TeamFeedback = NonNullable<MyWork["feedback"]>;
@@ -32,27 +33,61 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
   const closeLabel = formatUtc(event.submissionsCloseAt, { weekday: true });
   const certificate = work.feedback ? myRecords(actor, key).find((r) => r.kind === "participant") : undefined;
   const pairwise = work.feedback?.method === PAIRWISE_METHOD;
+  const formProject: FormProject | null = project
+    ? {
+        id: project.id,
+        title: project.title,
+        summary: project.summary,
+        description: project.description,
+        trackId: project.trackId,
+        repoUrl: project.repoUrl,
+        videoUrl: project.videoUrl,
+        liveUrl: project.liveUrl,
+        thumbnailUrl: project.thumbnailUrl,
+        galleryUrls: project.galleryUrls,
+        tags: project.tags,
+        status: project.status,
+        answers: project.answers,
+      }
+    : null;
+  const trackName = work.tracks.find((t) => t.id === project?.trackId)?.name ?? null;
   const recordButton = "inline-flex h-10 items-center rounded-sm border border-edge px-4 text-14 font-medium hover:bg-surface";
 
   const side = (
     <>
-      <section aria-labelledby="deadline-title">
-        <h2 id="deadline-title" className="label-mono text-ink-2">
-          {open ? "Submissions close" : "Submissions closed"}
-        </h2>
-        <div className="mt-3">
-          <Deadline iso={event.submissionsCloseAt} utcLabel={closeLabel} />
-        </div>
-      </section>
+      {open ? (
+        <section aria-labelledby="deadline-title">
+          <h2 id="deadline-title" className="label-mono text-ink-2">
+            Submissions close
+          </h2>
+          <div className="mt-3">
+            <Deadline iso={event.submissionsCloseAt} utcLabel={closeLabel} />
+          </div>
+        </section>
+      ) : !work.feedback && project?.status === "submitted" ? (
+        // After the close the date is in the stages strip and the sheet; what the team waits for is the results.
+        <section aria-labelledby="next-title">
+          <h2 id="next-title" className="label-mono text-ink-2">
+            What comes next
+          </h2>
+          <p className="mt-3 text-15 text-ink">
+            {event.judgingCloseAt && !isPast(event.judgingCloseAt) ? `Judges review until ${formatUtc(event.judgingCloseAt)}.` : "The judges are reviewing."}
+          </p>
+          <p className="mt-2 text-14 text-ink-2">
+            When the organizers publish results, your place{trackName ? ` in ${trackName}` : ""} and every review of your project, judges unnamed,
+            appear at the top of this page.
+          </p>
+        </section>
+      ) : null}
       {team ? <TeamPanel team={team} eventSlug={event.slug} open={open} me={actor.userId} /> : null}
     </>
   );
 
   return (
     <PublicShell event={event} active="none" signedInAs={actor.name} links={actorNav(actor, event.id)}>
-      <div className="grid gap-8 pt-10 pb-8 md:grid-cols-[minmax(0,1fr)_280px] md:items-end">
+      <div className="grid gap-8 pt-10 pb-8 md:grid-cols-[minmax(0,1fr)_280px] md:items-end lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0 wrap-anywhere">
-          <p className="label-mono text-ink-3">{team ? `Team ${team.name}` : "No team yet"}</p>
+          <p className="label-mono text-ink-3">{team ? `Team ${team.name}` : open ? "No team yet" : "No team"}</p>
           <h1 className="mt-2 font-display text-[40px] leading-[46px] md:text-[52px] md:leading-[58px]">Your project</h1>
           {project?.title ? (
             <p className="mt-3 font-serif text-24 leading-8">
@@ -86,7 +121,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
       {work.feedback ? (
         <section aria-labelledby="feedback-title" className="mb-10 border-b border-rule py-10">
           <p className="label-mono text-accent-ink">Results are published</p>
-          <div className="mt-4 grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-end">
+          <div className="mt-4 grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-end lg:grid-cols-[minmax(0,1fr)_400px]">
             <h2 id="feedback-title" className="flex flex-wrap items-end gap-x-4 gap-y-1">
               {work.feedback.place !== null ? (
                 <>
@@ -123,34 +158,20 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
         </section>
       ) : null}
       {!team ? (
-        <StartTeam eventSlug={event.slug} open={open} />
+        <StartTeam eventSlug={event.slug} open={open} closedLabel={formatUtc(event.submissionsCloseAt)} published={Boolean(event.resultsPublishedAt)} />
+      ) : open ? (
+        <ProjectForm eventSlug={event.slug} open={open} tracks={work.tracks} questions={work.questions} project={formProject} side={side} />
       ) : (
-        <ProjectForm
-          eventSlug={event.slug}
-          open={open}
-          tracks={work.tracks}
-          questions={work.questions}
-          project={
-            project
-              ? {
-                  id: project.id,
-                  title: project.title,
-                  summary: project.summary,
-                  description: project.description,
-                  trackId: project.trackId,
-                  repoUrl: project.repoUrl,
-                  videoUrl: project.videoUrl,
-                  liveUrl: project.liveUrl,
-                  thumbnailUrl: project.thumbnailUrl,
-                  galleryUrls: project.galleryUrls,
-                  tags: project.tags,
-                  status: project.status,
-                  answers: project.answers,
-                }
-              : null
-          }
-          side={side}
-        />
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,680px)_320px] lg:justify-between">
+          <HandedIn
+            eventSlug={event.slug}
+            closedAt={event.submissionsCloseAt}
+            project={formProject}
+            trackName={trackName}
+            questions={work.questions}
+          />
+          <aside className="flex flex-col gap-8 lg:sticky lg:top-6 lg:self-start">{side}</aside>
+        </div>
       )}
     </PublicShell>
   );
@@ -164,14 +185,22 @@ function Stages({ work }: { work: MyWork }) {
   const { event, team, project, open } = work;
   const published = Boolean(event.resultsPublishedAt);
   const short = (iso: string) => formatUtc(iso, { time: false });
-  const steps: { name: string; state: string; done: boolean }[] = [
-    { name: "Team", state: team ? `${team.members.length} ${team.members.length === 1 ? "member" : "members"}` : "not started", done: Boolean(team) },
+  const submitted = project?.status === "submitted";
+  // After the close a step the team never reached is missed, not "now": it can no longer happen.
+  const steps: { name: string; state: string; done: boolean; missed: boolean }[] = [
+    {
+      name: "Team",
+      state: team ? `${team.members.length} ${team.members.length === 1 ? "member" : "members"}` : open ? "not started" : "no team",
+      done: Boolean(team),
+      missed: !team && !open,
+    },
     {
       name: "Project",
-      state: !project ? "not started" : project.status === "submitted" ? `submitted ${short(project.submittedAt ?? event.submissionsCloseAt)}` : "draft",
-      done: project?.status === "submitted",
+      state: !project ? (open ? "not started" : "none handed in") : submitted ? `submitted ${short(project.submittedAt ?? event.submissionsCloseAt)}` : open ? "draft" : "draft, never submitted",
+      done: submitted,
+      missed: !submitted && !open,
     },
-    { name: open ? "Submissions close" : "Submissions closed", state: short(event.submissionsCloseAt), done: !open },
+    { name: open ? "Submissions close" : "Submissions closed", state: short(event.submissionsCloseAt), done: !open, missed: false },
     {
       name: "Judging",
       state: published
@@ -182,22 +211,30 @@ function Stages({ work }: { work: MyWork }) {
             : "in progress"
           : "after the close",
       done: published,
+      missed: false,
     },
-    { name: "Results", state: published ? `published ${short(event.resultsPublishedAt!)}` : "not yet", done: published },
+    { name: "Results", state: published ? `published ${short(event.resultsPublishedAt!)}` : "not yet", done: published, missed: false },
   ];
-  const now = steps.findIndex((s) => !s.done);
+  const now = steps.findIndex((s) => !s.done && !s.missed);
   return (
     <nav aria-label="Where your team stands" className="mb-2 border-y border-rule py-5">
-      <ol className="grid grid-cols-2 gap-y-5 sm:grid-cols-5">
+      <ol className="flex flex-col gap-3 sm:grid sm:grid-cols-5 sm:gap-0">
         {steps.map((s, i) => (
-          <li key={s.name} className="relative pt-4 pr-3" aria-current={i === now ? "step" : undefined}>
-            <span aria-hidden className={`absolute top-0 right-0 left-0 h-[3px] ${s.done ? "bg-ink" : i === now ? "bg-accent" : "bg-rule"}`} />
-            {i === now ? <span aria-hidden className="absolute -top-[3px] left-0 size-[9px] bg-accent" /> : null}
-            <p className="font-mono text-12 text-ink-3">{String(i + 1).padStart(2, "0")}</p>
-            <p className={`text-14 ${i === now ? "font-semibold" : s.done ? "" : "text-ink-2"}`}>{s.name}</p>
+          <li key={s.name} className="relative pl-4 sm:pt-4 sm:pr-3 sm:pl-0" aria-current={i === now ? "step" : undefined}>
+            <span
+              aria-hidden
+              className={`absolute top-0 bottom-0 left-0 w-[3px] sm:right-0 sm:bottom-auto sm:h-[3px] sm:w-auto ${
+                s.done ? "bg-ink" : i === now ? "bg-accent" : s.missed ? "border-l-[3px] border-dashed border-edge sm:border-t-[3px] sm:border-l-0" : "bg-rule"
+              }`}
+            />
+            {i === now ? <span aria-hidden className="absolute top-0 -left-[3px] size-[9px] bg-accent sm:-top-[3px] sm:left-0" /> : null}
+            <p className="flex items-baseline gap-2 sm:block">
+              <span className="font-mono text-12 text-ink-3 sm:block">{String(i + 1).padStart(2, "0")}</span>
+              <span className={`text-14 ${i === now ? "font-semibold" : s.done ? "" : "text-ink-2"}`}>{s.name}</span>
+            </p>
             <p className="text-12 text-ink-2">
               {s.state}
-              <span className="sr-only">{s.done ? ", done" : i === now ? ", now" : ", to come"}</span>
+              <span className="sr-only">{s.done ? ", done" : i === now ? ", now" : s.missed ? ", missed" : ", to come"}</span>
             </p>
           </li>
         ))}

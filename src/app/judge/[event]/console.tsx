@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFlip } from "@/components/use-flip";
 import { formatUtc, weightShares } from "@/lib/format";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
-import { Kbd, letters, paragraphs, ProjectLink, RecuseDialog } from "./judge-bits";
+import { Kbd, letters, paragraphs, RecuseDialog, shortUrl } from "./judge-bits";
 import "./judge.css";
 
 // The judge console (DESIGN.md: the judge keys with autosave and "your ranking so
@@ -388,6 +388,8 @@ export function JudgeConsoleView({
   const openLabels = openList.length > 1 ? `${openList.slice(0, -1).join(", ")} and ${openList.at(-1)}` : (openList[0] ?? "");
   const p = current.project;
   const body = paragraphs(p.description);
+  // A declared conflict takes the review out of the batch: its old scores stay visible, faded, but no longer count.
+  const recused = review.status === "recused";
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-3rem)] lg:grid-cols-[288px_minmax(0,1fr)_416px]">
@@ -411,7 +413,7 @@ export function JudgeConsoleView({
                     n === index
                       ? "border-accent bg-accent"
                       : r.status === "recused"
-                        ? "border-rule bg-sunken"
+                        ? "border-edge bg-[repeating-linear-gradient(135deg,var(--edge)_0_1px,transparent_1px_4px)]"
                         : finished
                           ? "border-ink bg-ink"
                           : "border-edge bg-transparent"
@@ -420,13 +422,14 @@ export function JudgeConsoleView({
               );
             })}
           </ol>
-          <p className="mt-3 text-13 text-ink-2">
+          <p className={`mt-3 text-13 ${left === 0 && active.length > 0 ? "flex items-start gap-1.5 text-ink" : "text-ink-2"}`}>
+            {left === 0 && active.length > 0 ? <Check className="mt-0.5 size-3.5 shrink-0 text-ok" aria-hidden /> : null}
             {active.length === 0
               ? "Nothing left to review: you declared a conflict on every project in your batch."
               : left === 0
               ? active.every((i) => reviews[i.assignmentId]!.readOnly)
-                ? "Every project reviewed. Your scores are final now."
-                : "Every project reviewed. You can still change a score until judging closes."
+                ? "Batch complete. Your scores are final now."
+                : "Batch complete. You can still change a score until judging closes."
               : data.minutesPerReview
                 ? `About ${Math.max(1, Math.round(data.minutesPerReview * left))} min left at your pace`
                 : `${left} still to review`}
@@ -437,28 +440,33 @@ export function JudgeConsoleView({
             const r = reviews[i.assignmentId]!;
             const t = totalOf(criteria, r.values);
             const here = n === index;
+            const recused = r.status === "recused";
             return (
               <li key={i.assignmentId}>
                 <button
                   type="button"
                   onClick={() => go(n)}
                   aria-current={here ? "true" : undefined}
-                  className={`flex w-full items-center gap-3 border-b border-rule px-5 py-3 text-left hover:bg-raised ${
+                  className={`flex w-full items-center gap-3 border-b border-rule px-5 py-3 text-left hover:bg-raised focus-visible:-outline-offset-2 ${
                     here ? "lit border-l-[3px] border-l-accent bg-accent-tint pl-[17px]" : ""
                   }`}
                 >
                   <span className="w-5 font-mono text-12 text-ink-3 tnum">{String(n + 1).padStart(2, "0")}</span>
-                  <span className="w-12 shrink-0">{faces[i.project.id]?.small}</span>
+                  <span className={`w-12 shrink-0 ${recused && !here ? "opacity-40" : ""}`}>{faces[i.project.id]?.small}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-14 font-medium">{i.project.title}</span>
+                    <span className={`block truncate text-14 font-medium ${recused ? "text-ink-2 line-through decoration-edge" : ""}`}>{i.project.title}</span>
                     <span className="block truncate text-12 text-ink-2">{i.project.trackName}</span>
                   </span>
-                  <span
-                    key={t === null ? "open" : t.toFixed(2)}
-                    className={`text-13 tnum ${t !== null ? "judge-tick" : ""} ${here ? "font-medium text-accent-ink" : "text-ink-2"}`}
-                  >
-                    {r.status === "recused" ? "recused" : here && t === null ? "scoring" : t === null ? "–" : t.toFixed(2)}
-                  </span>
+                  {recused ? (
+                    <span className={`label-mono ${here ? "text-accent-ink" : "text-ink-3"}`}>conflict</span>
+                  ) : (
+                    <span
+                      key={t === null ? "open" : t.toFixed(2)}
+                      className={`tnum ${t !== null ? "judge-tick text-13" : "text-12"} ${here ? "font-medium text-accent-ink" : t === null ? "text-ink-3" : "text-ink-2"}`}
+                    >
+                      {here && t === null ? "scoring" : t === null ? "to score" : t.toFixed(2)}
+                    </span>
+                  )}
                 </button>
               </li>
             );
@@ -510,21 +518,24 @@ export function JudgeConsoleView({
                 </ul>
               ) : null}
             </div>
-            <div className="hidden shrink-0 sm:block">
+            <figure className="corner-marks hidden shrink-0 rounded-sm border border-rule px-7 pt-7 pb-4 sm:block">
               <div className="w-32">{faces[p.id]?.large}</div>
-              <p className="mt-2 font-mono text-12 text-ink-3">{p.id}</p>
-            </div>
+              <figcaption className="mt-2 flex justify-between font-mono text-12 text-ink-3">
+                <span>FIG. 01</span>
+                <span>{p.id}</span>
+              </figcaption>
+            </figure>
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <ProjectLink label="Repository" url={p.repoUrl} />
-            <ProjectLink label="Demo video" url={p.videoUrl} />
-            <ProjectLink label="Live demo" url={p.liveUrl} />
-            {[p.thumbnailUrl, ...p.galleryUrls]
-              .filter((u): u is string => Boolean(u))
-              .map((u, n, all) => (
-                <ProjectLink key={u} label={all.length === 1 ? "Image" : `Image ${n + 1}`} url={u} />
-              ))}
-          </div>
+          <Materials
+            rows={[
+              ["Repository", p.repoUrl],
+              ["Demo video", p.videoUrl],
+              ["Live demo", p.liveUrl],
+              ...[p.thumbnailUrl, ...p.galleryUrls]
+                .filter((u): u is string => Boolean(u))
+                .map((u, n, all): [string, string] => [all.length === 1 ? "Image" : `Image ${n + 1}`, u]),
+            ]}
+          />
           <div className="mt-8 border-t border-rule pt-6">
             <h2 className="text-14 font-semibold">About the project</h2>
             {body.length ? (
@@ -534,7 +545,9 @@ export function JudgeConsoleView({
                 </p>
               ))
             ) : (
-              <p className="mt-4 text-15 text-ink-2">The team wrote no longer description; the summary above is all there is.</p>
+              <p className="mt-4 rounded-sm border border-dashed border-edge px-4 py-3 text-15 text-ink-2">
+                The team wrote no longer description; the summary above is all there is.
+              </p>
             )}
           </div>
           {p.answers.length ? (
@@ -578,8 +591,8 @@ export function JudgeConsoleView({
             </p>
           ) : null}
           {readOnly ? (
-            <p className="mt-3 flex items-start gap-2 border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-13 text-flag">
-              <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <p className="mt-3 flex items-start gap-2 border-l-[3px] border-edge bg-sunken px-3 py-2 text-13 text-ink">
+              <Lock className="mt-0.5 size-3.5 shrink-0 text-ink-2" aria-hidden />
               {readOnly}
             </p>
           ) : null}
@@ -605,7 +618,7 @@ export function JudgeConsoleView({
                     </p>
                     <span className="shrink-0 text-13 text-ink-2">weight {shares[ci]}</span>
                   </div>
-                  <div className="mt-3 flex">
+                  <div className={`mt-3 flex ${recused ? "opacity-50" : ""}`}>
                     {levels.map((level, li) => {
                       const used = data.showRanking && !readOnly ? (usage[c.key]?.[li] ?? 0) : 0;
                       const anchor = c.anchors[String(level)];
@@ -654,7 +667,13 @@ export function JudgeConsoleView({
           </div>
           <div className="flex min-h-[76px] items-center justify-between gap-4 py-4">
             <p className="text-15 font-semibold">Your total</p>
-            {total !== null ? (
+            {recused ? (
+              <p className="text-right text-13 text-ink-2">
+                <span className="label-mono text-ink">Not counted</span>
+                <br />
+                you declared a conflict of interest
+              </p>
+            ) : total !== null ? (
               <p className="flex items-baseline gap-3">
                 <span className="font-mono text-12 text-ink-2">{formula(criteria, review.values)} =</span>
                 <span key={total.toFixed(2)} className="judge-tick text-38 leading-none font-semibold tnum">
@@ -769,7 +788,7 @@ export function JudgeConsoleView({
             ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-2 border-t border-rule px-6 py-3">
+        <div className="flex items-center gap-2 border-t border-rule bg-surface px-6 py-3 max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:px-4">
           <Button size="lg" onClick={saveAndNext} className="flex-1 justify-between">
             {readOnly ? "Open next" : "Save and open next"}
             <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">Ctrl ↵</kbd>
@@ -800,6 +819,46 @@ export function JudgeConsoleView({
         }}
       />
     </div>
+  );
+}
+
+/** What the team handed in, as one list: every project shows the same rows, so a missing demo is as visible as a present one. */
+function Materials({ rows }: { rows: [string, string | null][] }) {
+  const given = rows.filter(([, url]) => url).length;
+  return (
+    <section aria-labelledby="materials-title" className="mt-6 rounded-sm border border-rule bg-surface">
+      <div className="flex items-baseline justify-between border-b border-rule px-4 py-2">
+        <h2 id="materials-title" className="label-mono text-ink-2">
+          Handed in
+        </h2>
+        <p className="text-12 text-ink-2 tnum">
+          {given} of {rows.length}
+        </p>
+      </div>
+      <dl className="grid grid-cols-[112px_minmax(0,1fr)] text-14">
+        {rows.map(([label, url], n) => (
+          <div key={`${label}-${n}`} className={`contents ${n ? "[&>*]:border-t [&>*]:border-rule" : ""}`}>
+            <dt className="px-4 py-2 text-ink-2">{label}</dt>
+            <dd className="min-w-0 py-2 pr-4">
+              {url ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex max-w-full items-center gap-1.5 font-mono text-13 text-ink underline decoration-edge underline-offset-4 hover:decoration-ink"
+                >
+                  <span className="truncate">{shortUrl(url)}</span>
+                  <span aria-hidden>↗</span>
+                  <span className="sr-only">(opens in a new tab)</span>
+                </a>
+              ) : (
+                <span className="text-ink-3">not submitted</span>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

@@ -23,14 +23,22 @@ export function PlainShell({
     <PlainFrame
       width={width}
       account={account}
-      mark={
-        <>
-          <PageMark anchor="top-right" cols={28} rows={9} extra={mark} className="absolute top-0 right-4 sm:right-8 md:hidden" />
-          <PageMark anchor="top-right" cols={64} rows={16} extra={mark} className="absolute top-0 right-8 hidden md:block xl:right-16" />
-        </>
-      }
+      mark={<PlainMark extra={mark} />}
     >
       {children}
     </PlainFrame>
+  );
+}
+
+/**
+ * PlainShell's mark on its own: a client component that wears PlainFrame (the 404 and 500 sheets) is
+ * handed this from its server page, since the mark reads the request and cannot run in the browser.
+ */
+export function PlainMark({ extra }: { extra?: string }) {
+  return (
+    <>
+      <PageMark anchor="top-right" cols={28} rows={9} extra={extra} className="absolute top-0 right-4 sm:right-8 md:hidden" />
+      <PageMark anchor="top-right" cols={64} rows={16} extra={extra} className="absolute top-0 right-8 hidden md:block xl:right-16" />
+    </>
   );
 }

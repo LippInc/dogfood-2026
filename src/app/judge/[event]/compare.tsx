@@ -41,7 +41,8 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
   // The answer being saved (its card or the tie stays marked until the next question
   // arrives), and the project the last answer placed, lit for a moment in the list.
   const [picked, setPicked] = useState<Outcome | null>(null);
-  const [justPlaced, setJustPlaced] = useState<string | null>(null);
+  // A tie is kept too, so the list can say the new project sits right below its equal.
+  const [justPlaced, setJustPlaced] = useState<{ id: string; tieWith: string | null } | null>(null);
   const lettersOn = useSyncExternalStore(letters.subscribe, letters.get, () => true);
   const track = data.tracks.find((t) => t.trackId === trackId) ?? data.tracks[0] ?? null;
   const slug = data.event.slug;
@@ -86,6 +87,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
       const q = track?.current;
       if (!track || !q || busy || readOnly) return;
       const placing = q.left.id === q.newId ? q.left : q.right;
+      const other = q.left.id === q.newId ? q.right : q.left;
       setPicked(outcome);
       setJustPlaced(null);
       void send("pick", { trackId: track.trackId, left: q.left.id, right: q.right.id, outcome }, (next) => {
@@ -93,8 +95,13 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
         if (!t) return "Saved.";
         if (t.current?.newId === placing.id) return `Saved. One more question about ${placing.title}.`;
         const at = t.list.findIndex((p) => p.id === placing.id) + 1;
-        if (at > 0) setJustPlaced(placing.id);
-        const where = at > 0 ? `${placing.title} is number ${at} of ${t.list.length} in your list.` : "";
+        if (at > 0) setJustPlaced({ id: placing.id, tieWith: outcome === "tie" ? other.id : null });
+        const where =
+          at <= 0
+            ? ""
+            : outcome === "tie"
+              ? `Too close: ${placing.title} goes right below ${other.title}.`
+              : `${placing.title} is number ${at} of ${t.list.length} in your list.`;
         return t.current ? `Saved. ${where}` : `Saved. ${where} All ${t.total} placed.`;
       }).finally(() => setPicked(null));
     },
@@ -115,7 +122,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (keysOpen || recuseFor || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (readOnly || keysOpen || recuseFor || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("textarea, input, select, [contenteditable='true']")) return;
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -139,7 +146,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [answer, keysOpen, lettersOn, recuseFor, undo]);
+  }, [answer, keysOpen, lettersOn, readOnly, recuseFor, undo]);
 
   const listRef = useFlip<HTMLOListElement>(track ? `${track.trackId}:${track.list.map((p) => p.id).join()}:${track.current?.newId ?? ""}` : "");
 
@@ -154,12 +161,15 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
     );
   }
 
-  const q = track.current;
+  // Once answers are final, an open question is no longer shown as one.
+  const q = readOnly ? null : track.current;
   const placing = q ? (q.left.id === q.newId ? q.left : q.right) : null;
   const against = q ? (q.left.id === q.newId ? q.right : q.left) : null;
   const left = questionsLeft(track);
   const canAnswer = !busy && !readOnly;
   const nextTrack = data.tracks.find((t) => t.trackId !== track.trackId && t.current);
+  // once answers are final, the projects this judge's list never reached
+  const unplaced = readOnly ? track.projects.filter((p) => !track.list.some((x) => x.id === p.id)) : [];
   const pickTrack = (id: string) => {
     setTrackId(id);
     setStatus({ kind: "idle" });
@@ -216,15 +226,19 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
           <p className="mt-3 text-13 text-ink-2">
             {track.total === 0
               ? "No projects of yours in this track."
-              : q
-                ? `About ${left} more ${left === 1 ? "question" : "questions"} in ${track.trackName}.`
-                : "All placed. You can take back your last answer until judging closes."}
+              : readOnly
+                ? "Your answers are final. This list counts as it stands."
+                : q
+                  ? `About ${left} more ${left === 1 ? "question" : "questions"} in ${track.trackName}.`
+                  : "All placed. You can take back your last answer until judging closes."}
           </p>
         </div>
-        <ol ref={listRef} aria-label={`Your list in ${track.trackName}, best first`} className="flex-1 overflow-y-auto max-lg:max-h-56">
+        <ol ref={listRef} aria-label={`Your list in ${track.trackName}, best first`} className="flex-1 overflow-y-auto max-lg:hidden">
           {track.list.map((p, n) => {
             const here = p.id === against?.id;
-            const fresh = p.id === justPlaced;
+            const fresh = p.id === justPlaced?.id;
+            // only when the list really shows it right below its equal
+            const tied = fresh && n > 0 && track.list[n - 1].id === justPlaced?.tieWith;
             return (
               <li
                 key={p.id}
@@ -238,11 +252,18 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                 <span className="w-12 shrink-0">{faces[p.id]?.small}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-14 font-medium">{p.title}</span>
-                  <span className="block truncate text-12 text-ink-2">{p.teamName}</span>
+                  {tied ? (
+                    <span className="block truncate text-12 text-accent-ink">
+                      <span className="sr-only">just placed, </span>
+                      <span aria-hidden>= </span>too close to {String(n).padStart(2, "0")}
+                    </span>
+                  ) : (
+                    <span className="block truncate text-12 text-ink-2">{p.teamName}</span>
+                  )}
                 </span>
                 {here ? (
                   <span className="text-12 font-medium text-accent-ink">comparing</span>
-                ) : fresh ? (
+                ) : fresh && !tied ? (
                   <span className="text-12 font-medium text-accent-ink">just placed</span>
                 ) : null}
               </li>
@@ -259,9 +280,11 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
             </li>
           ) : null}
         </ol>
-        <div className="border-t border-rule px-5 py-4 text-13 text-ink-2 max-lg:hidden">
-          <KeyHints lettersOn={lettersOn} />
-        </div>
+        {readOnly ? null : (
+          <div className="border-t border-rule px-5 py-4 text-13 text-ink-2 max-lg:hidden">
+            <KeyHints lettersOn={lettersOn} />
+          </div>
+        )}
       </aside>
 
       {/* The question */}
@@ -278,16 +301,19 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
             </p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <StatusLine status={status} />
-              <Button variant="outline" onClick={undo} disabled={!canAnswer || track.answered === 0}>
-                <Undo2 aria-hidden />
-                Undo last answer
-                <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">U</kbd>
-              </Button>
+              {readOnly ? null : (
+                // on phones a disabled undo is a whole row above the question, so it waits for the first answer
+                <Button variant="outline" onClick={undo} disabled={!canAnswer || track.answered === 0} className={track.answered === 0 ? "max-lg:hidden" : ""}>
+                  <Undo2 aria-hidden />
+                  Undo last answer
+                  <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">U</kbd>
+                </Button>
+              )}
             </div>
           </div>
           {readOnly ? (
-            <p className="mt-4 flex items-start gap-2 border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-13 text-flag">
-              <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <p className="mt-4 flex items-start gap-2 border-l-[3px] border-edge bg-sunken px-3 py-2 text-13 text-ink">
+              <Lock className="mt-0.5 size-3.5 shrink-0 text-ink-2" aria-hidden />
               {readOnly}
             </p>
           ) : null}
@@ -321,6 +347,27 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
                   );
                 })}
               </div>
+              {/* Phones: the list comes after the question, so the two projects are the first thing a judge sees. */}
+              <section aria-label={`Your list in ${track.trackName}, best first`} className="mt-10 lg:hidden">
+                <h2 className="label-mono text-ink-2">Your list so far, best first</h2>
+                <ol className="mt-2 border-t border-rule">
+                  {track.list.map((p, n) => (
+                    <li
+                      key={p.id}
+                      aria-current={p.id === against.id ? "true" : undefined}
+                      className={`flex items-center gap-3 border-b border-rule py-2.5 ${p.id === against.id ? "bg-accent-tint px-2" : ""}`}
+                    >
+                      <span className="w-5 font-mono text-12 text-ink-3 tnum">{String(n + 1).padStart(2, "0")}</span>
+                      <span className="min-w-0 flex-1 truncate text-14 font-medium">{p.title}</span>
+                      {p.id === against.id ? (
+                        <span className="text-12 font-medium text-accent-ink">comparing</span>
+                      ) : p.id === justPlaced?.id ? (
+                        <span className="text-12 font-medium text-accent-ink">just placed</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              </section>
               <div className="mt-6 flex justify-center max-lg:hidden">
                 <Button
                   size="lg"
@@ -338,24 +385,71 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
               </div>
             </>
           ) : (
-            <div className="mt-6 max-w-[680px]">
+            <div className="mt-6">
               <h1 id="question" className="font-serif text-38 font-semibold">
-                {track.total === 0 ? "Nothing to compare in this track" : `All ${track.total} placed`}
+                {track.total === 0
+                  ? "Nothing to compare in this track"
+                  : track.placed === track.total
+                    ? `All ${track.total} placed`
+                    : `${track.placed} of ${track.total} placed`}
               </h1>
-              <p className="mt-3 text-15 text-ink-2">
+              <p className="mt-3 max-w-[680px] text-15 text-ink-2">
                 {track.total === 0
                   ? "You have no projects in this track."
-                  : `Your list for ${track.trackName}, best first. It counts as it stands when the organizers publish results.`}
+                  : readOnly
+                    ? `Your list for ${track.trackName}, best first, as it stood when answers closed. Nothing here can change now.`
+                    : `Your list for ${track.trackName}, best first. It counts as it stands when the organizers publish results.`}
               </p>
-              <ol className="mt-6 border-t border-rule lg:hidden">
-                {track.list.map((p, n) => (
-                  <li key={p.id} className="flex items-center gap-3 border-b border-rule py-3">
-                    <span className="w-5 font-mono text-12 text-ink-3 tnum">{String(n + 1).padStart(2, "0")}</span>
-                    <span className="min-w-0 flex-1 truncate text-14 font-medium">{p.title}</span>
-                  </li>
-                ))}
-              </ol>
-              {nextTrack ? (
+              {track.list.length ? (
+                // The finished list, drawn: the same faces the judge compared, in the order their answers made.
+                <figure className="mt-8">
+                  <figcaption className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <span className="label-mono text-ink-2">Fig. 01 · Your list, best first</span>
+                    {track.answered > 0 ? (
+                      <span className="text-13 text-ink-2 tnum">
+                        {track.placed} placed with {track.answered} {track.answered === 1 ? "answer" : "answers"}
+                      </span>
+                    ) : null}
+                  </figcaption>
+                  <ol className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3">
+                    {track.list.map((p, n) => (
+                      <li
+                        key={p.id}
+                        className={`min-w-0 overflow-hidden rounded-sm border bg-surface ${p.id === justPlaced?.id ? "judge-flash border-accent" : "border-rule"}`}
+                      >
+                        <div className="relative aspect-[3/1] overflow-hidden border-b border-rule">
+                          {faces[p.id]?.large}
+                          <span className="absolute top-1.5 left-1.5 rounded-xs bg-surface px-1 font-mono text-12 text-ink tnum">
+                            {String(n + 1).padStart(2, "0")}
+                          </span>
+                        </div>
+                        <div className="px-3 pt-2 pb-2.5">
+                          <span className="block truncate text-14 font-medium">{p.title}</span>
+                          <span className="block truncate text-12 text-ink-2">{p.teamName}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  {unplaced.length ? (
+                    // The rest of the track, drawn where the list stops: the same cells, dashed and faded, with no place.
+                    <>
+                      <p className="mt-5 text-13 text-ink-2">Not placed before answers closed</p>
+                      <ul aria-label="Not placed before answers closed" className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3">
+                        {unplaced.map((p) => (
+                          <li key={p.id} className="min-w-0 overflow-hidden rounded-sm border border-dashed border-edge">
+                            <div className="relative aspect-[3/1] overflow-hidden border-b border-dashed border-edge opacity-50">{faces[p.id]?.large}</div>
+                            <div className="px-3 pt-2 pb-2.5">
+                              <span className="block truncate text-14 text-ink-2">{p.title}</span>
+                              <span className="block truncate text-12 text-ink-2">{p.teamName}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : null}
+                </figure>
+              ) : null}
+              {nextTrack && !readOnly ? (
                 <Button className="mt-6" size="lg" onClick={() => pickTrack(nextTrack.trackId)}>
                   Continue with {nextTrack.trackName}
                   <ArrowRight aria-hidden />
@@ -369,13 +463,13 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
       {/* Phone and tablet: the three answers stay in reach while the judge scrolls through both projects. */}
       {q ? (
         <div className="sticky bottom-0 z-10 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 border-t border-rule bg-surface px-4 py-3 lg:hidden">
-          <Button size="lg" onClick={() => answer("left")} disabled={!canAnswer} aria-label={`This one: ${q.left.title}`} className="min-w-0">
+          <Button size="lg" onClick={() => answer("left")} disabled={!canAnswer} aria-label={`This one: ${q.left.title}`} className="min-w-0 px-3">
             <span className="truncate">{q.left.title}</span>
           </Button>
-          <Button size="lg" variant="outline" onClick={() => answer("tie")} disabled={!canAnswer}>
+          <Button size="lg" variant="outline" onClick={() => answer("tie")} disabled={!canAnswer} className="px-3">
             Too close
           </Button>
-          <Button size="lg" onClick={() => answer("right")} disabled={!canAnswer} aria-label={`This one: ${q.right.title}`} className="min-w-0">
+          <Button size="lg" onClick={() => answer("right")} disabled={!canAnswer} aria-label={`This one: ${q.right.title}`} className="min-w-0 px-3">
             <span className="truncate">{q.right.title}</span>
           </Button>
         </div>
@@ -429,8 +523,8 @@ function ProjectCard({
         picked ? "lit border-accent shadow-[0_0_0_1px_var(--accent)]" : "border-rule"
       }`}
     >
-      <div className="relative overflow-hidden rounded-t-sm border-b border-rule">
-        {p.thumbnailUrl ? <ProjectImage src={p.thumbnailUrl} alt="" fallback={face} /> : face}
+      <div className="relative aspect-[3/1] overflow-hidden rounded-t-sm border-b border-rule">
+        {p.thumbnailUrl ? <ProjectImage src={p.thumbnailUrl} alt="" fallback={face} className="h-full" /> : face}
         <span className={`absolute top-2.5 rounded-xs bg-surface px-1.5 py-0.5 font-mono text-12 text-ink-2 ${side === "left" ? "right-2.5" : "left-2.5"}`}>
           {p.id}
         </span>
@@ -505,7 +599,8 @@ function ProjectCard({
 
 function StatusLine({ status }: { status: Status }) {
   return (
-    <p role="status" aria-live="polite" className="flex items-center gap-1.5 text-13 text-ink-2">
+    // empty, it leaves the row (sr-only keeps the live region), so it does not push the undo button in by a gap on phones
+    <p role="status" aria-live="polite" className="flex items-center gap-1.5 text-13 text-ink-2 empty:sr-only">
       {status.kind === "saving" ? (
         "Saving…"
       ) : status.kind === "saved" ? (
@@ -518,9 +613,7 @@ function StatusLine({ status }: { status: Status }) {
           <CircleAlert className="size-3.5 shrink-0 text-flag" aria-hidden />
           <span className="text-flag">{status.text}</span>
         </>
-      ) : (
-        ""
-      )}
+      ) : null}
     </p>
   );
 }

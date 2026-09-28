@@ -5,7 +5,9 @@ import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "../../organize/[event]/judges/forms";
+import { formatUtc } from "@/lib/format";
 import { createTokenAction, type TokenResult } from "./actions";
+import { TokenMark } from "./token-mark";
 
 const idle: TokenResult = { ok: false, message: null };
 
@@ -35,17 +37,29 @@ export function TokenForm() {
       </div>
       {state.message ? (
         state.ok && state.token ? (
-          // The one time the token exists outside its hash: a plate that says so.
+          // The one time the token exists outside its hash: a plate that says so, names it and
+          // carries its mark, lit, so it can be found in the list once the plate is gone.
           <div role="status" className="rounded-sm border border-ink bg-bg">
-            <p className="flex items-center justify-between gap-3 border-b border-rule px-4 py-2">
-              <span className="label-mono text-accent-ink">Shown once</span>
-              <span className="text-12 text-ink-3">the portal keeps only its hash</span>
+            <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule px-4 py-2">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="label-mono shrink-0 text-accent-ink">Shown once</span>
+                <TokenMark hint={state.token.slice(0, 10)} lit className="size-5 sm:hidden" />
+                <span className="min-w-0 truncate text-14 font-medium">{state.name}</span>
+              </span>
+              <span className="text-12 text-ink-3 tnum">
+                {state.expiresAt ? `expires ${formatUtc(state.expiresAt, { time: false })}` : "does not expire"}
+              </span>
             </p>
-            <div className="flex flex-col gap-3 px-4 py-4">
-              <p className="text-14">{state.message}</p>
-              <div className="flex flex-wrap items-center gap-3">
-                <code className="min-w-0 flex-1 break-all rounded-sm border border-rule bg-surface px-3 py-2 font-mono text-15 tracking-wide">{state.token}</code>
-                <CopyButton text={state.token} label="Copy token" />
+            <div className="flex items-start gap-4 px-4 py-4">
+              <TokenMark hint={state.token.slice(0, 10)} lit className="size-14 max-sm:hidden" />
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <code className="min-w-0 flex-1 basis-full break-all rounded-sm sm:basis-0 border border-rule bg-surface px-3 py-2 font-mono text-15 tracking-wide">
+                    {state.token}
+                  </code>
+                  <CopyButton text={state.token} label="Copy token" />
+                </div>
+                <p className="text-13 text-ink-2">{state.message}</p>
               </div>
             </div>
           </div>
