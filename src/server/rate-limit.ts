@@ -15,6 +15,13 @@ export type Limit = { capacity: number; perSeconds: number };
 export const LIMITS = {
   /** ballot saves per voter */
   ballot: { capacity: 30, perSeconds: 60 },
+  /**
+   * unknown voting codes per network address (showing a link's page or entering with it):
+   * guessing a personal or open link costs a try, and a real voter's code never does, so
+   * a venue where everyone shares one address is not slowed by its honest voters. Once
+   * dry, every code from that address waits, known or not, so the answers say nothing.
+   */
+  voteCodeMiss: { capacity: 30, perSeconds: 600 },
   /** new open-link voters per network address */
   linkVoter: { capacity: 8, perSeconds: 3600 },
   /**
@@ -75,6 +82,14 @@ export function take(key: string, limit: Limit, now = Date.now()): Take {
     tx.insert(rateBuckets).values({ key, ...b }).onConflictDoUpdate({ target: rateBuckets.key, set: b }).run();
     return result;
   });
+}
+
+/** Whether take() would pass right now, without spending a token or writing anything. */
+export function peek(key: string, limit: Limit, now = Date.now()): Take {
+  const rate = limit.capacity / (limit.perSeconds * 1000);
+  const row = getDb().select().from(rateBuckets).where(eq(rateBuckets.key, key)).get();
+  const tokens = row ? Math.min(limit.capacity, row.tokens + Math.max(0, now - row.at) * rate) : limit.capacity;
+  return tokens >= 1 ? { ok: true } : { ok: false, retryAfter: Math.max(1, Math.ceil((1 - tokens) / rate / 1000)), firstRefusal: false };
 }
 
 /**

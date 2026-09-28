@@ -12,6 +12,7 @@ import { resetRateLimits } from "@/server/rate-limit";
 import { sha256 } from "@/server/util";
 import {
   castBallot,
+  describeVotingCode,
   enterVoting,
   getBallot,
   type Client,
@@ -756,6 +757,40 @@ describe("rate limits", () => {
     expectHttpError(() => enterVoting(code, client), 429, "rate_limited");
     expect(auditCount("ratelimit.refused")).toBe(1); // one row for both refusals, not one each
     expect(count("SELECT count(*) AS n FROM voters WHERE kind = 'link'")).toBe(8);
+  });
+
+  it("unknown voting codes cost an address a try: 30 answer 404, then every code from it waits (429), known or not; one audit row", () => {
+    const { code } = makeVotingLink(org(), "evt_01");
+    const listed = addListedVoters(org(), "evt_01", { emails: "listed-limit@example.org" }).links[0]!.path.slice("/vote/".length);
+    const guesser: Client = { ip: "10.2.2.2", agent: "G" };
+    for (let i = 0; i < 30; i++) {
+      const guess = `guess-${i}-${"x".repeat(20)}`;
+      expectHttpError(() => (i % 2 ? describeVotingCode(guess, guesser) : enterVoting(guess, guesser)), 404, "not_found");
+    }
+    expect(auditCount("ratelimit.refused")).toBe(0);
+    expectHttpError(() => describeVotingCode("guess-30-xxxxxxxxxxxxxxxxxxxx", guesser), 429, "rate_limited");
+    // dry: the answers no longer tell a real code from a guess
+    expectHttpError(() => describeVotingCode(listed, guesser), 429, "rate_limited");
+    expectHttpError(() => enterVoting(listed, guesser), 429, "rate_limited");
+    expectHttpError(() => describeVotingCode(code, guesser), 429, "rate_limited");
+    expectHttpError(() => enterVoting(code, guesser), 429, "rate_limited");
+    expect(auditCount("ratelimit.refused")).toBe(1);
+    expect(count("SELECT count(*) AS n FROM voters WHERE kind = 'link'")).toBe(0);
+    // positive control: another address is not affected
+    const other: Client = { ip: "10.2.2.3", agent: "G" };
+    expect(describeVotingCode(listed, other).kind).toBe("listed");
+    expect(enterVoting(listed, other).token).toBe(listed);
+    expect(describeVotingCode(code, other).kind).toBe("link");
+  });
+
+  it("known codes spend no tries: a venue opening real links 100 times from one address still gets 404 for a slip, not 429", () => {
+    const listed = addListedVoters(org(), "evt_01", { emails: "venue-listed@example.org" }).links[0]!.path.slice("/vote/".length);
+    const venue: Client = { ip: "10.3.3.3", agent: "V" };
+    for (let i = 0; i < 100; i++) {
+      expect(describeVotingCode(listed, venue).kind).toBe("listed");
+      expect(enterVoting(listed, venue).token).toBe(listed);
+    }
+    expectHttpError(() => describeVotingCode("a-slip-in-the-address-xxxxx", venue), 404, "not_found");
   });
 
   it("allows a voter 30 ballot saves; the 31st is 429", () => {

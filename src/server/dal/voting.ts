@@ -12,7 +12,7 @@ import { fieldModes, shownTitle } from "./project-fields";
 import { AuthzError, ConflictError, NotFoundError, RateLimitedError, ValidationError } from "../errors";
 import { seededRng, shuffle } from "../judging/random";
 import { mutate } from "../mutate";
-import { LIMITS, takeAudited, type Limit } from "../rate-limit";
+import { LIMITS, peek, takeAudited, type Limit } from "../rate-limit";
 import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { parse } from "./parse";
@@ -347,15 +347,18 @@ export function enterVoting(
   const hash = sha256(code);
   const listed = db.select().from(voters).where(eq(voters.tokenHash, hash)).get();
   if (listed) {
+    lookedUp(client, listed);
     const event = requireEvent(db, listed.eventId);
     return { eventSlug: event.slug, eventId: event.id, token: code };
   }
-  const event = db
-    .select()
-    .from(events)
-    .all()
-    .find((e) => e.settings.voting?.linkHash === hash);
-  if (!event || !votingSettings(event).modes.includes("link")) throw new NotFoundError("Voting link");
+  const event = lookedUp(
+    client,
+    db
+      .select()
+      .from(events)
+      .all()
+      .find((e) => e.settings.voting?.linkHash === hash && votingSettings(e).modes.includes("link")),
+  );
   // The entry limit comes first, so refused entries after the close cannot grow the log
   // without bound either (the link is public).
   const ipHash = clientHash(client.ip, event.id);
@@ -408,19 +411,39 @@ export function enterVoting(
   return { eventSlug: event.slug, eventId: event.id, token };
 }
 
+/**
+ * A voting code looked up from one network address. An unknown code spends one of the
+ * address's tries (LIMITS.voteCodeMiss) and answers 404; a known one spends none, so a
+ * venue's honest voters never use them up. With no tries left, every code from the address
+ * waits (429), known or not, so guessing learns nothing until the bucket refills.
+ */
+function lookedUp<T>(client: Client, found: T | null | undefined): T {
+  const key = `votecode-miss:${client.ip ?? "none"}`;
+  if (found) {
+    const p = peek(key, LIMITS.voteCodeMiss);
+    if (!p.ok) throw new RateLimitedError(p.retryAfter);
+    return found;
+  }
+  const t = takeAudited(key, LIMITS.voteCodeMiss, { userId: null, label: "anonymous", what: "voting-code lookup" });
+  if (!t.ok) throw new RateLimitedError(t.retryAfter);
+  throw new NotFoundError("Voting link");
+}
+
 /** What a voting link is, without using it: link previews and bots fetch URLs, so entering takes a click. */
-export function describeVotingCode(code: string): { event: { id: string; slug: string; name: string }; kind: "listed" | "link"; state: VotingState; closesAt: string | null } {
+export function describeVotingCode(code: string, client: Client): { event: { id: string; slug: string; name: string }; kind: "listed" | "link"; state: VotingState; closesAt: string | null } {
   const db = getDb();
   const hash = sha256(code);
   const listed = db.select({ eventId: voters.eventId }).from(voters).where(eq(voters.tokenHash, hash)).get();
-  const event = listed
-    ? requireEvent(db, listed.eventId)
-    : db
-        .select()
-        .from(events)
-        .all()
-        .find((e) => e.settings.voting?.linkHash === hash && votingSettings(e).modes.includes("link"));
-  if (!event) throw new NotFoundError("Voting link");
+  const event = lookedUp(
+    client,
+    listed
+      ? requireEvent(db, listed.eventId)
+      : db
+          .select()
+          .from(events)
+          .all()
+          .find((e) => e.settings.voting?.linkHash === hash && votingSettings(e).modes.includes("link")),
+  );
   return { event: { id: event.id, slug: event.slug, name: event.name }, kind: listed ? "listed" : "link", state: votingState(event), closesAt: event.votingCloseAt };
 }
 

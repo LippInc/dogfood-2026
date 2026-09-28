@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Refusal } from "@/components/refusal";
 import { PlainShell } from "@/components/shell/plain-shell";
 import { Ticket } from "@/components/ticket";
 import { buttonVariants } from "@/components/ui/button";
 import { formatUtc } from "@/lib/format";
-import { describeVotingCode, listEvents, NotFoundError } from "@/server/dal";
+import { clientOf } from "@/lib/client";
+import { describeVotingCode, listEvents, NotFoundError, RateLimitedError } from "@/server/dal";
 import { EnterButton } from "./enter-button";
 
 export const dynamic = "force-dynamic";
@@ -18,15 +20,30 @@ function splitDate(iso: string | null): [string, string] {
   return m ? [m[1], m[2]] : [full, ""];
 }
 
+/**
+ * Too many unknown voting links from this network: every link waits until the tries refill. A page
+ * cannot answer 429 (the API does), so this one names no status code and draws no status figure.
+ */
+function TooManyTries({ retryAfter }: { retryAfter: number }) {
+  const minutes = Math.max(1, Math.ceil(retryAfter / 60));
+  return (
+    <Refusal code="Too many tries" title="Wait a moment, then open your link again">
+      Your network has opened too many voting links that do not exist, so every link from it waits for {minutes} {minutes === 1 ? "minute" : "minutes"}. Then
+      open the link exactly as you were sent it.
+    </Refusal>
+  );
+}
+
 // Opening the link only shows this page; the ballot is created by the button, so
 // link previews and scanners that fetch the URL never cast or create anything.
 export default async function VoteLinkPage({ params }: PageProps<"/vote/[code]">) {
   const { code } = await params;
   let info: ReturnType<typeof describeVotingCode>;
   try {
-    info = describeVotingCode(code);
+    info = describeVotingCode(code, await clientOf());
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
+    if (err instanceof RateLimitedError) return <TooManyTries retryAfter={err.retryAfter} />;
     throw err;
   }
   const opensAt = listEvents().find((e) => e.id === info.event.id)?.votingOpenAt ?? null;

@@ -103,7 +103,7 @@ const linkRule = (after: Record<string, unknown>) =>
     : after.countLink
       ? "; open-link ballots add to the result"
       : "; open-link ballots are counted apart";
-const LIMIT_WORDS: Record<string, string> = { ballot: "ballot saves", comment: "comments", "open-link entry": "open-link entries", "sign-in": "sign-in attempts" };
+const LIMIT_WORDS: Record<string, string> = { ballot: "ballot saves", comment: "comments", "open-link entry": "open-link entries", "sign-in": "sign-in attempts", "voting-code lookup": "unknown voting links" };
 const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
