@@ -82,6 +82,7 @@ export function ProjectForm({
   questions,
   project,
   side,
+  face,
 }: {
   eventSlug: string;
   open: boolean;
@@ -89,6 +90,8 @@ export function ProjectForm({
   questions: Question[];
   project: FormProject | null;
   side: React.ReactNode;
+  /** the project's generated face, drawn by the page on the server (the face module is server-only) */
+  face: React.ReactNode;
 }) {
   // Never reset, even after a save: a reset would drop the chosen track and the checklist with it.
   const [state, form, pending] = useFormAction<ActionResult>(saveProjectAction, { ok: false, message: null }, { resetOnSuccess: false });
@@ -179,7 +182,7 @@ export function ProjectForm({
           </Part>
           <Part no="04" title="Pictures and tags">
             <div className="grid gap-5 sm:grid-cols-2">
-              <PictureField projectId={project?.id ?? null} initial={project?.thumbnailUrl ?? null} error={e.thumbnailUrl} />
+              <PictureField projectId={project?.id ?? null} initial={project?.thumbnailUrl ?? null} error={e.thumbnailUrl} face={face} />
               <Field id="tags" label="Tech tags" help="Up to 8, separated by commas. Visitors can search for them." error={e.tags}>
                 {(a) => <Input {...a} name="tags" placeholder="rust, webgpu, accessibility" defaultValue={(project?.tags ?? []).join(", ")} />}
               </Field>

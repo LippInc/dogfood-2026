@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Face } from "@/components/face";
 import { ProjectImage } from "@/components/project-cover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +11,18 @@ import { Input } from "@/components/ui/input";
  * elsewhere. An upload or a take-down saves at once, through the project's image route; the form's
  * Save sends back whichever the field shows, so saving the rest never undoes an upload.
  */
-export function PictureField({ projectId, initial, error }: { projectId: string | null; initial: string | null; error?: string[] }) {
+export function PictureField({
+  projectId,
+  initial,
+  error,
+  face,
+}: {
+  projectId: string | null;
+  initial: string | null;
+  error?: string[];
+  /** the project's generated face, drawn on the server: shown while there is no picture, or when one does not load */
+  face: React.ReactNode;
+}) {
   const router = useRouter();
   const [url, setUrl] = useState(initial ?? "");
   const [busy, setBusy] = useState(false);
@@ -54,11 +64,7 @@ export function PictureField({ projectId, initial, error }: { projectId: string 
       </p>
       <div className="mt-1 grid gap-4 sm:grid-cols-[208px_minmax(0,1fr)] sm:items-start">
         <div className="overflow-hidden rounded-xs border border-rule">
-          {url ? (
-            <ProjectImage key={url} src={url} alt="" fallback={<Face id={projectId ?? "new"} className="block aspect-video w-full" />} />
-          ) : (
-            <Face id={projectId ?? "new"} className="block aspect-video w-full opacity-60" />
-          )}
+          {url ? <ProjectImage key={url} src={url} alt="" fallback={face} /> : <div className="opacity-60">{face}</div>}
         </div>
         <div className="flex min-w-0 flex-col gap-2.5">
           {projectId ? (

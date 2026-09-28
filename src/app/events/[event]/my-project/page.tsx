@@ -169,7 +169,15 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
       {!team ? (
         <StartTeam eventSlug={event.slug} open={open} closedLabel={formatUtc(event.submissionsCloseAt)} published={Boolean(event.resultsPublishedAt)} />
       ) : open ? (
-        <ProjectForm eventSlug={event.slug} open={open} tracks={work.tracks} questions={work.questions} project={formProject} side={side} />
+        <ProjectForm
+          eventSlug={event.slug}
+          open={open}
+          tracks={work.tracks}
+          questions={work.questions}
+          project={formProject}
+          side={side}
+          face={<Face id={project?.id ?? `team-${team.id}`} className="block aspect-video w-full" />}
+        />
       ) : (
         <div className="grid gap-10 lg:grid-cols-[minmax(0,680px)_320px] lg:justify-between">
           <HandedIn
