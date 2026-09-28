@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
+import { exportFile } from "@/server/dal/exports";
 import { auditLog, userRoles } from "@/server/db/schema";
 import { verifyAuditChain } from "@/server/audit";
 import { ensureDemoOrganizer } from "@/server/checker";
@@ -159,6 +160,24 @@ describe("setProjectImage with the event open", () => {
     expect(thumbnailOf("prj_01")).toBe(url);
     for (const bad of ["/uploads/../portal.db", "/etc/passwd", "/uploads/short.png", "javascript:alert(1)"])
       expectHttpError(() => updateProject(member(), "prj_01", { ...base, thumbnailUrl: bad }), 422, "invalid");
+  });
+});
+
+describe("the fixtures.json export of an event with an uploaded picture", () => {
+  it("writes the picture's full address, so the file imports again (the importer takes web addresses only)", () => {
+    openEvent();
+    const url = setProjectImage(member(), "prj_01", PNG).thumbnailUrl;
+    const organizer = actorById("usr_organizer");
+    const body = exportFile(organizer, "evt_01", "fixtures.json").body;
+    const exported = (JSON.parse(body) as { projects: { id: string; thumbnail_url?: string }[] }).projects.find((p) => p.id === "prj_01")!;
+    expect(exported.thumbnail_url).toBe(`http://localhost:8080${url}`);
+    const file = path.join(os.tmpdir(), `export-${process.pid}-${Date.now()}.json`);
+    fs.writeFileSync(file, body);
+    try {
+      expect(() => loadFixtureFile(file)).not.toThrow();
+    } finally {
+      fs.unlinkSync(file);
+    }
   });
 });
 

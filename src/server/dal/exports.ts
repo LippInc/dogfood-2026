@@ -29,6 +29,7 @@ import { guardRead } from "../mutate";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { auditCsv } from "./audit-log";
 import { computeNormalization } from "./normalization";
+import { issuer } from "./records";
 import { reviewsOf } from "./scores";
 
 // Organizer exports: CSV at every stage, and always a header row, even before
@@ -278,7 +279,8 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
         summary: p.summary,
         repo_url: p.repoUrl ?? "",
         // beyond the organizers' format, only when present, so fixture data exports byte for byte
-        ...(p.thumbnailUrl ? { thumbnail_url: p.thumbnailUrl } : {}),
+        // an uploaded picture by its full address, which the importer (web addresses only) takes and another portal can load
+        ...(p.thumbnailUrl ? { thumbnail_url: p.thumbnailUrl.startsWith("/uploads/") ? `${issuer()}${p.thumbnailUrl}` : p.thumbnailUrl } : {}),
         ...(p.galleryUrls.length ? { gallery_urls: p.galleryUrls } : {}),
         ...(p.tags.length ? { tags: p.tags } : {}),
         submitted_at: p.submittedAt,

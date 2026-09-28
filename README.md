@@ -117,7 +117,7 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   share an invite link (until the deadline a member can leave, and the captain
   can take a member off or hand the captaincy over), draft and edit a project
   until the deadline (name,
-  tagline, description, repository, demo video and live links, a thumbnail, an
+  tagline, description, repository, demo video and live links, a picture, an
   image gallery, tech tags, the track and the organizer's questions); the server
   refuses changes after it. The public gallery shows every submitted project,
   searchable (tags included) and filterable by track.
@@ -274,9 +274,9 @@ start, and the fixture import never overwrites what the organizers changed.
 
 ## What it does not do yet
 
-- Thumbnails and gallery images are links to images on the team's own host; the
-  portal stores no uploaded files. They load from that host, without a referrer,
-  and a card falls back to its generated picture when one does not load.
+- Only a project's gallery picture is uploaded (PNG, JPEG or WebP up to 2 MB, in
+  `/data/uploads`, which the backup below does not copy: copy that folder too);
+  its image gallery is links to the team's own host, loaded without a referrer.
 - Webhook targets on private or local addresses are refused, when added and at
   every delivery (`WEBHOOKS_ALLOW_PRIVATE=true` lifts that for a receiver on the
   same machine), but a host name whose DNS answer changes between the check and

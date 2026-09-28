@@ -54,6 +54,12 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 **What is not:** a guard on the two writes that need no session and set a cookie. Such a page could sign a visitor in to an account its owner controls (the API's sign-in), or enter an open voting link in the visitor's browser (a voter row with no ballot, since the ballot itself is a write that arrives signed out; the entry limit of 8 per address per hour applies). Keep apps you do not trust off the portal's host and its parent domain.
 
+## Uploaded files
+
+**What is built:** only a project's picture is uploaded, by its team while submissions are open, through the same permission check and audit row as any edit. The portal reads the kind from the file's first bytes (PNG, JPEG or WebP; never the name or the declared type), so no SVG or HTML is stored, refuses anything over 2 MB before reading the rest, names each file with 128 random bits, and serves only names it made, as the image type, with `nosniff`. A refused upload leaves no file.
+
+**What is not:** a limit on how often a team replaces its picture (each replacement deletes the old file), and a scan of what an image shows.
+
 ## Filling the audit log
 
 **What is built:** every refusal of a known person writes one audit row, so refusals are capped: past 60 in 10 minutes, one person (an account, or a voter holding a link) is answered 429 and nothing is written. A request with no valid session (401) never writes a row.

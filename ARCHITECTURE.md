@@ -1,6 +1,6 @@
 # Architecture
 
-One Node container runs the whole portal: a Next.js App Router server (`node server.js`, standalone build) with SQLite (better-sqlite3 + Drizzle ORM) in a file on the `/data` volume (`Dockerfile`, `docker-compose.yml`). The build downloads npm packages once; the running container needs no network. No other process, queue or database exists. Three choices are load-bearing:
+One Node container runs the whole portal: a Next.js App Router server (`node server.js`, standalone build) with SQLite (better-sqlite3 + Drizzle ORM) in a file on the `/data` volume, uploaded project pictures beside it in `/data/uploads` (`Dockerfile`, `docker-compose.yml`). The build downloads npm packages once; the running container needs no network. No other process, queue or database exists. Three choices are load-bearing:
 
 1. Every permission decision goes through one data access layer, and inside it through one function, `authorize(actor, action, resource)` in `src/server/authz.ts`. App code never imports the database.
 2. `docker compose up` alone produces a seeded, working, offline portal: migrations, the fixture import and the deterministic checker sessions all run inside the server's own start-up.
