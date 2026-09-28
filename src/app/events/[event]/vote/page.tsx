@@ -79,7 +79,7 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
         <div className="flex min-w-0 flex-col gap-6">
           <p className="max-w-[680px] font-serif text-17 leading-7 text-ink-2">
             {state === "not_set"
-              ? "This event has no community vote."
+              ? "This event has no community vote yet."
               : state === "upcoming"
                 ? `Once voting opens, pick ${many}. Here is what will be on the ballot.`
                 : state === "open"
@@ -133,7 +133,7 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
             <p className="max-w-[680px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-14 text-flag">
               The organizers set this ballot aside as a suspected duplicate, so its picks do not count.
             </p>
-          ) : voter?.kind === "link" && !closed ? (
+          ) : voter?.kind === "link" && !closed && state !== "not_set" ? (
             <p className="max-w-[680px] rounded-xs border border-rule bg-sunken px-4 py-3 text-14 text-ink-2">
               You are voting through the event&rsquo;s open link. Ballots from it are counted apart from those of signed-in accounts and the voter
               list, {ballot.countLink ? "and the organizers chose to include them in the count." : "and shown next to the count without changing any place."}
