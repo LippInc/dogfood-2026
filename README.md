@@ -148,7 +148,8 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   step: no team to name (the entry goes by the person's name) and no invite link.
   The public gallery shows every submitted project, searchable (tags included)
   and filterable by track.
-- **Judging.** The organizer invites judges by link (no mail server needed) and
+- **Judging.** The organizer invites judges by link (no mail server needed; a
+  link stops admitting judges once judging closes or the results are out) and
   assigns projects with a seeded, stored assignment run; judges score in a
   keyboard-first console with autosave and see only their own scores. The
   organizer's overview shows progress live and lists the decisions that must be

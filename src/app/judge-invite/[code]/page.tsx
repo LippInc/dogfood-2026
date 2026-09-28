@@ -67,6 +67,8 @@ export default async function JudgeInvitePage({ params }: PageProps<"/judge-invi
             ) : (
               <TicketNote>This invitation was already used. Each link admits one judge; ask the organizer for a new one.</TicketNote>
             )
+          ) : invite.closed ? (
+            <TicketNote flag>{invite.closed} This invitation can no longer be accepted.</TicketNote>
           ) : wrongPerson ? (
             <TicketNote flag>
               This invitation is for <span className="font-medium">{invite.email}</span>, and you are signed in as {actor!.email}. Sign out at the top, then

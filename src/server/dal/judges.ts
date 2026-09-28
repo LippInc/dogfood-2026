@@ -5,6 +5,7 @@ import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignmentRuns, assignments, events, judgeInvites, judgeTracks, projects, scores, tracks, userRoles, users } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
+import { formatUtc } from "@/lib/format";
 import type { FlatFlag } from "../judging/flat";
 import { guardRead, mutate } from "../mutate";
 import { newId, newSecret, sha256 } from "../util";
@@ -116,18 +117,40 @@ export type JudgeInviteView = {
   email: string | null;
   tracks: string[];
   state: "open" | "used";
+  /** why the event takes no new judges any more (judging closed, results published); null while it does */
+  closed: string | null;
 };
+
+/**
+ * An event takes no new judges once judging is over: a judge who joins after the results
+ * are published, or after judging closed, could never score anything and would only add a
+ * name to a finished event. A stale invitation link is refused with this, a 409.
+ */
+export function joiningClosed(event: Pick<EventRow, "resultsPublishedAt" | "judgingCloseAt">, now = new Date()): ConflictError | null {
+  if (event.resultsPublishedAt) return new ConflictError("results_published", "The results of this event are published, so it takes no new judges.");
+  if (event.judgingCloseAt && now.getTime() >= Date.parse(event.judgingCloseAt)) {
+    return new ConflictError("judging_closed", `Judging for this event closed at ${formatUtc(event.judgingCloseAt)}, so it takes no new judges.`);
+  }
+  return null;
+}
 
 /** What the invitation link shows. Public: the code itself is the capability. */
 export function judgeInviteByCode(code: string): JudgeInviteView {
   const db = getDb();
   const row = db.select().from(judgeInvites).where(eq(judgeInvites.codeHash, sha256(code))).get();
   if (!row || row.revokedAt) throw new NotFoundError("Invitation link");
-  const event = db.select({ id: events.id, slug: events.slug, name: events.name }).from(events).where(eq(events.id, row.eventId)).get()!;
+  const full = requireEvent(db, row.eventId);
   const names = row.trackIds.length
     ? db.select({ name: tracks.name }).from(tracks).where(inArray(tracks.id, row.trackIds)).orderBy(asc(tracks.position)).all().map((t) => t.name)
     : [];
-  return { event, name: row.name, email: row.email, tracks: names, state: row.acceptedAt ? "used" : "open" };
+  return {
+    event: { id: full.id, slug: full.slug, name: full.name },
+    name: row.name,
+    email: row.email,
+    tracks: names,
+    state: row.acceptedAt ? "used" : "open",
+    closed: joiningClosed(full)?.message ?? null,
+  };
 }
 
 export function acceptJudgeInvite(actor: Actor | null, code: string) {
@@ -146,6 +169,8 @@ export function acceptJudgeInvite(actor: Actor | null, code: string) {
     run: (tx) => {
       if (invite.acceptedBy === actor!.userId) return { result: { eventSlug: event.slug }, audit: null };
       if (invite.acceptedAt) throw new ConflictError("invite_used", "This invitation was already used. Ask the organizer for a new link.");
+      const closed = joiningClosed(event);
+      if (closed) throw closed;
       const now = new Date().toISOString();
       const known = eventTrackIds(tx, event.id);
       const trackIds = invite.trackIds.filter((id) => known.has(id));
