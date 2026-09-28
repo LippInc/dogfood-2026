@@ -34,6 +34,15 @@ function stretch(ms: number): string {
   return d ? `${d} d ${h} h` : h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
 }
 
+/** Under a link panel whose way of voting is unticked: the links can be made, and every vote through them is refused. */
+function MethodOff({ method, then }: { method: string; then: string }) {
+  return (
+    <p className="mt-3 border-l-[3px] border-flag-bar pl-3 text-13 text-ink-2">
+      <strong className="font-semibold text-ink">{method}</strong> is not ticked under Who may vote, so {then} every vote until you tick it.
+    </p>
+  );
+}
+
 /** Fig. 01: the voting window as a line from open to close, the part gone by drawn solid, with where now falls. */
 function WindowFigure({ openAt, closeAt }: { openAt: string; closeAt: string }) {
   const o = Date.parse(openAt);
@@ -127,6 +136,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             Open voting link
           </h2>
           {closed || over ? <p className="text-14 text-ink-2">{closed ? "Voting has closed; the link only says so." : "No vote to link to."}</p> : <VotingLinkForm eventSlug={event.slug} active={v.settings.linkActive} />}
+          {closed || over || v.settings.modes.includes("link") ? null : <MethodOff method="Anyone with the open link" then="the open link refuses" />}
         </section>
         <section aria-labelledby="list-title" className="rounded-sm border border-rule bg-surface p-5">
           <h2 id="list-title" className="mb-1 text-17 font-semibold">
@@ -149,6 +159,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             </div>
           ) : null}
           {closed || over ? null : <VoterListForm eventSlug={event.slug} />}
+          {closed || over || v.settings.modes.includes("listed") ? null : <MethodOff method="People on a voter list" then="these links refuse" />}
         </section>
       </div>
     </div>
