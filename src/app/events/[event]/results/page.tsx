@@ -89,7 +89,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
               <p className="label-mono mt-3 tnum text-ink-3">
                 Published {formatUtc(results.publishedAt)} · {plural(placedCount, "place")} in {plural(placed.length, "track")}
               </p>
-              {/* Plain words on top, one point to a line; the method, word for word, one click away (his call, 2026-09-27 21:09 NL). */}
+              {/* Plain words on top, one point to a line; the method, word for word, one click away (decided 2026-09-27 21:09 NL). */}
               <ol aria-label="How to read these results" className="mt-6 max-w-[760px] border-b border-rule text-17">
                 {readingPoints.map((point, i) => (
                   <li key={i} className="grid grid-cols-[36px_minmax(0,1fr)] items-baseline border-t border-rule py-2.5">
