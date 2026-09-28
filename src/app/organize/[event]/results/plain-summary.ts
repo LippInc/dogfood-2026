@@ -55,10 +55,13 @@ export function plainSummary(n: Normalized, opts: { open: number; published: boo
   lines.push(`First in each track: ${leaders.map((l) => (l.titles.length > 1 ? `${names(l.titles)}, tied (${l.track})` : `${l.titles[0]} (${l.track})`)).join("; ")}.`);
   const close = leaders.filter((l) => l.close).map((l) => l.track);
   const leads = leaders.filter((l) => l.titles.length === 1).length;
+  // a tied track has no lead to measure, so a count says which tracks it is out of
+  const tracksLed = leads < leaders.length ? "tracks with one leader" : "tracks";
   if (!close.length) lines.push("Every first place leads by more than the margin of error (±).");
   else if (close.length === 1) lines.push(`In ${close[0]}, first place leads by less than the margin of error (±), so read that lead as a tie.`);
-  else if (close.length === leads) lines.push("In every track first place leads by less than the margin of error (±), so read those leads as ties.");
-  else lines.push(`In ${close.length} of the ${leads} tracks first place leads by less than the margin of error (±), so read those leads as ties: ${names(close)}.`);
+  else if (close.length === leads)
+    lines.push(`In every ${tracksLed === "tracks" ? "track" : "track with one leader,"} first place leads by less than the margin of error (±), so read those leads as ties.`);
+  else lines.push(`In ${close.length} of the ${leads} ${tracksLed} first place leads by less than the margin of error (±), so read those leads as ties: ${names(close)}.`);
 
   if (!n.variance.measured) lines.push("No project has two counted reviews yet, so nothing is evened out: places come from the plain averages.");
   else if (n.variance.k === null) lines.push("The judges show no steady leniency, so places come from the plain averages.");
