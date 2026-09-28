@@ -11,7 +11,7 @@ import { derivedId, newId } from "../util";
 import { eventFacts, participantEventView, requireEvent, type EventRow, type ParticipantEventView } from "./events";
 import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
 import { getPublishedResults } from "./results";
-import { myTeam, type MyTeam } from "./teams";
+import { myTeam, organizerChangedAfterClose, type MyTeam } from "./teams";
 import { issuesOf } from "./parse";
 import { discardUpload, UPLOAD_PATH } from "../uploads";
 import { DEFAULT_FIELD_MODES, PROJECT_FIELDS, REQUIRED_MESSAGES, withoutHidden, type FieldModes } from "@/lib/project-fields";
@@ -475,7 +475,8 @@ export type PublicProject = {
   galleryUrls: string[];
   tags: string[];
   submittedAt: string | null;
-  team: { name: string; members: number };
+  /** changedByOrganizersAt: the organizers changed the team (its name or members) after submissions closed, last at this time */
+  team: { name: string; members: number; changedByOrganizersAt: string | null };
   track: { id: string; name: string };
   answers: { label: string; value: string }[];
   duplicateOf: string | null;
@@ -536,7 +537,7 @@ export function getPublicProject(eventIdOrSlug: string, projectId: string): { ev
       galleryUrls: p.galleryUrls,
       tags: p.tags,
       submittedAt: p.submittedAt,
-      team: { name: p.teamName, members },
+      team: { name: p.teamName, members, changedByOrganizersAt: organizerChangedAfterClose(db, event, p.teamId) },
       track: { id: p.trackId, name: p.trackName },
       answers,
       duplicateOf: p.duplicateOf,

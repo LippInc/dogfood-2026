@@ -27,6 +27,8 @@ export {
   joinTeam,
   leaveTeam,
   makeCaptain,
+  organizerAddMember,
+  organizerRemoveMember,
   removeMember,
   renameTeam,
   rotateInvite,

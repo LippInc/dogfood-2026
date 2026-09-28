@@ -1,10 +1,11 @@
 import "server-only";
-import { and, asc, eq, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { runsEvent, submissionsOpen, type Actor } from "../authz";
 import { getDb, type DbOrTx, type Tx } from "../db/client";
 import {
   assignments,
+  auditLog,
   comments,
   comparisons,
   customAnswers,
@@ -415,6 +416,130 @@ export function renameTeam(actor: Actor | null, teamId: string, body: unknown) {
       };
     },
   });
+}
+
+export const AddMemberInput = z.object({ email: z.string().trim().toLowerCase().email("an email address such as ada@example.org"), reason: TeamChangeReason });
+export const RemoveMemberInput = z.object({ reason: TeamChangeReason });
+
+/**
+ * An organizer puts someone on a team, with a reason, until results are published: a person
+ * left off by mistake gets their place (and their certificate) back after the close. The
+ * rules a join follows still hold: one team per person per event, the event's team size, and
+ * no judge assigned to the team's project.
+ */
+export function organizerAddMember(actor: Actor | null, teamId: string, body: unknown) {
+  let team: { id: string; name: string; eventId: string };
+  let event: EventRow;
+  return mutate({
+    actor,
+    action: "team.organize",
+    load: (tx) => {
+      const loaded = loadTeam(tx, actor, teamId);
+      team = loaded.team;
+      event = requireEvent(tx, team.eventId);
+      return loaded.resource;
+    },
+    run: (tx) => {
+      const { email, reason } = parse(AddMemberInput, body);
+      const person = tx.select({ id: users.id, name: users.name }).from(users).where(eq(users.email, email)).get();
+      if (!person) {
+        throw new ValidationError("No account has that address.", { email: ["no account has this address: they sign up first, then you add them"] });
+      }
+      const current = tx
+        .select({ teamId: teamMembers.teamId, name: teams.name })
+        .from(teamMembers)
+        .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+        .where(and(eq(teamMembers.userId, person.id), eq(teamMembers.eventId, team.eventId)))
+        .get();
+      if (current?.teamId === team.id) throw new ConflictError("already_on_this_team", `${person.name} is on ${team.name} already.`);
+      if (current) {
+        throw new ConflictError("already_on_a_team", `${person.name} is on ${current.name} in this event: one person, one team. Take them off it first.`);
+      }
+      if (assignedToTeam(tx, person.id, team.id)) {
+        throw new ConflictError("conflict_of_interest", `${person.name} is assigned to judge this team's project. Reassign that review first.`);
+      }
+      const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, team.id)).get()?.n ?? 0;
+      const max = event.settings.maxTeamSize ?? DEFAULT_MAX_TEAM_SIZE;
+      if (size >= max) throw new ConflictError("team_full", `${team.name} already has ${size} members, the most this event allows (Settings).`);
+      const now = new Date().toISOString();
+      tx.insert(teamMembers).values({ eventId: team.eventId, teamId: team.id, userId: person.id, role: "member", joinedAt: now }).run();
+      addParticipantRole(tx, person.id, team.eventId, now);
+      return {
+        result: { teamId: team.id, added: person.id },
+        audit: { action: "team.member_added_by_organizer", eventId: team.eventId, targetType: "team", targetId: team.id, after: { member: person.id, reason } },
+      };
+    },
+  });
+}
+
+/**
+ * An organizer takes someone off a team, with a reason, until results are published. The last
+ * member stays (a team is never left with nobody); a captain taken off hands the captaincy to
+ * the member who joined first.
+ */
+export function organizerRemoveMember(actor: Actor | null, teamId: string, userId: string, body: unknown) {
+  let team: { id: string; name: string; eventId: string };
+  return mutate({
+    actor,
+    action: "team.organize",
+    load: (tx) => {
+      const loaded = loadTeam(tx, actor, teamId);
+      team = loaded.team;
+      return loaded.resource;
+    },
+    run: (tx) => {
+      const { reason } = parse(RemoveMemberInput, body);
+      const leaving = memberOf(tx, team.id, userId);
+      if (!leaving) throw new NotFoundError("Team member");
+      const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, team.id)).get()!.n;
+      if (size === 1) throw new ConflictError("last_member", "That is the team's only member, and a team is never left with nobody.");
+      tx.delete(teamMembers).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, userId))).run();
+      let captain: string | null = null;
+      if (leaving.role === "captain") {
+        captain = tx
+          .select({ userId: teamMembers.userId })
+          .from(teamMembers)
+          .where(eq(teamMembers.teamId, team.id))
+          .orderBy(asc(teamMembers.joinedAt), asc(teamMembers.userId))
+          .get()!.userId;
+        tx.update(teamMembers).set({ role: "captain" }).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, captain))).run();
+      }
+      return {
+        result: { teamId: team.id, removed: userId, captain },
+        audit: {
+          action: "team.member_removed_by_organizer",
+          eventId: team.eventId,
+          targetType: "team",
+          targetId: team.id,
+          before: { member: userId, role: leaving.role },
+          after: captain ? { reason, captain } : { reason },
+        },
+      };
+    },
+  });
+}
+
+/** What an organizer does to a team that the team did not do itself. */
+export const ORGANIZER_TEAM_ACTIONS = ["team.renamed_by_organizer", "team.member_added_by_organizer", "team.member_removed_by_organizer"];
+
+/** When the organizers last changed this team after submissions closed (the team the judges saw), or null. */
+export function organizerChangedAfterClose(db: DbOrTx, event: { id: string; submissionsCloseAt: string }, teamId: string): string | null {
+  return (
+    db
+      .select({ at: auditLog.at })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.eventId, event.id),
+          eq(auditLog.targetType, "team"),
+          eq(auditLog.targetId, teamId),
+          inArray(auditLog.action, ORGANIZER_TEAM_ACTIONS),
+          gte(auditLog.at, new Date(event.submissionsCloseAt).toISOString()),
+        ),
+      )
+      .orderBy(desc(auditLog.id))
+      .get()?.at ?? null
+  );
 }
 
 export type OrganizerTeamView = {

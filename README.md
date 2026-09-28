@@ -123,8 +123,10 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   share an invite link (until the deadline a member can rename the team or leave, the captain
   can take a member off or hand the captaincy over, and a team's only member
   can dissolve it, a draft project with it, but never a submitted one; after the
-  deadline an organizer renames a team with a reason, from the team's page under
-  Submissions, until results are published), draft and edit a project
+  deadline an organizer renames a team, adds someone to it or takes someone off,
+  each with a reason for the audit log, from the team's page under Submissions,
+  until results are published, and the project page says the organizers changed
+  the team after the close), draft and edit a project
   until the deadline (name,
   tagline, description, repository, demo video and live links, a picture, an
   image gallery, tech tags, the track and the organizer's questions); the server
@@ -318,6 +320,11 @@ removed stands; a changed fixture file imports only its new rows.
   duplicate-ballot flags key on the client's network address, so people behind
   one address (an office, a venue's wifi) share a limit.
 - Results cannot be unpublished from the interface.
+- A team is never left with nobody: its last member cannot leave, and an organizer
+  cannot take them off. A team with a submitted project cannot be dissolved, so
+  someone who handed in a project alone under the wrong team stays on it; the
+  organizers can add them to the right team only after taking them off this one,
+  which needs another member on it first.
 - Organizers are trusted with their own event: nothing stops an organizer from
   also being on a team in it. What the portal does is log every organizer
   decision (a judge left out or reinstated, a merge, a project published as it

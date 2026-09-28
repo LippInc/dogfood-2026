@@ -174,6 +174,18 @@ function sentence(r: Row, n: Names): Part[] {
         { text: String(after.name ?? ""), strong: true },
         t(` as an organizer: ${quote(after.reason)}`),
       ];
+    case "team.member_added_by_organizer":
+      return [actor, t(" put "), person(after.member), t(" on "), { text: n.team.get(target) ?? target, strong: true }, t(` as an organizer: ${quote(after.reason)}`)];
+    case "team.member_removed_by_organizer":
+      return [
+        actor,
+        t(" took "),
+        person(before.member),
+        t(" off "),
+        { text: n.team.get(target) ?? target, strong: true },
+        t(` as an organizer: ${quote(after.reason)}`),
+        ...(after.captain ? [t("; "), person(after.captain), t(" is captain now")] : []),
+      ];
     case "team.captain_changed":
       return [actor, t(" made "), person(after.captain), t(" captain of "), { text: n.team.get(target) ?? target, strong: true }];
     case "project.submit":

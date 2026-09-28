@@ -44,6 +44,7 @@ export type Action =
   | "team.leave"
   | "team.dissolve"
   | "team.rename"
+  | "team.organize"
   | "team.members"
   | "project.create"
   | "project.edit"
@@ -254,6 +255,16 @@ export function authorize(
       }
       if (!resource.isMember) return refuse("not_on_this_team", "You are not on this team.");
       return windowRefusal(resource.event, now, "Only the organizers can rename the team now");
+    }
+
+    // An organizer adds someone to a team or takes someone off, with a reason (checked in the DAL), at any time
+    // until results are published: certificates go to the members, so a mistake can be put right after the close.
+    case "team.organize": {
+      if (resource.kind !== "team") return refuse("bad_resource", "This action needs a team.");
+      if (!runsEvent(actor, resource.event.id)) return refuse("not_an_organizer", "Only this event's organizers can do this.");
+      return resource.event.resultsPublishedAt
+        ? refuse("results_published", "Results are published, so the team is final: its certificates name who was on it.")
+        : allow;
     }
 
     case "team.members": {

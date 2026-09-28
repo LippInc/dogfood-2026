@@ -13,7 +13,7 @@ export { ProjectInput } from "./projects";
 export { ProjectFieldsInput } from "./project-fields";
 export { RecordRequest } from "./records";
 export { RecuseInput, ReviewInput } from "./reviews";
-export { CaptainInput, RenameInput, TeamName } from "./teams";
+export { AddMemberInput, CaptainInput, RemoveMemberInput, RenameInput, TeamName } from "./teams";
 export { BallotInput } from "./voting";
 export { RestoreInput, SettingsInput, VoidInput, VoterAddress, VoterList } from "./voting-organizer";
 export { WebhookInput } from "./webhooks";

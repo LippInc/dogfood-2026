@@ -5,7 +5,7 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, isPast, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { currentActor, getTeamForOrganizer, type OrganizerTeamView } from "@/server/dal";
-import { RenameTeamForm } from "./team-forms";
+import { AddMemberForm, RemoveMemberForm, RenameTeamForm } from "./team-forms";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Team" };
@@ -71,7 +71,7 @@ export default async function OrganizerTeamPage({ params }: PageProps<"/organize
               ? "Results are published, so this team is final: its name and members stay as they were judged and certified."
               : closed
                 ? "Submissions are closed, so the team can no longer change itself. Until results are published you can, with a reason; certificates go to whoever is on the team then."
-                : "While submissions are open the team manages itself: members rename it and join by its invite link, and its captain takes members off. You can step in, with a reason."}
+                : "While submissions are open the team manages itself: members rename it and join by its invite link, and its captain takes members off. You can step in, with a reason; the project page then says the organizers changed the team only if it happens after the close."}
           </p>
         </header>
 
@@ -87,6 +87,11 @@ export default async function OrganizerTeamPage({ params }: PageProps<"/organize
                   <th className="px-3 py-2 font-medium">Email</th>
                   <th className="px-3 py-2 font-medium">Role</th>
                   <th className="px-3 py-2 font-medium">Joined, UTC</th>
+                  {canChange && members.length > 1 ? (
+                    <th className="px-3 py-2 font-medium">
+                      <span className="sr-only">Take off</span>
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="max-md:block">
@@ -96,12 +101,30 @@ export default async function OrganizerTeamPage({ params }: PageProps<"/organize
                     <td className="px-3 py-2.5 font-mono text-12 text-ink-2 wrap-anywhere max-md:p-0">{m.email}</td>
                     <td className="px-3 py-2.5 text-ink-2 max-md:p-0 max-md:text-13">{m.role}</td>
                     <td className="px-3 py-2.5 font-mono text-12 whitespace-nowrap text-ink-2 max-md:p-0">{formatUtc(m.joinedAt).replace(" UTC", "")}</td>
+                    {canChange && members.length > 1 ? (
+                      <td className="px-3 py-1.5 text-right max-md:p-0 max-md:text-left">
+                        <RemoveMemberForm teamId={team.id} eventSlug={event.slug} userId={m.userId} name={m.name} />
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </section>
+
+        {canChange ? (
+          <section aria-labelledby="add-title" className="flex max-w-[560px] flex-col gap-3">
+            <h2 id="add-title" className="text-20 font-semibold">
+              Add a member
+            </h2>
+            <p className="text-14 text-ink-2">
+              Someone left off by mistake: they need an account first. The event&apos;s rules still hold (one team per person, the team size, no judge of
+              this project).
+            </p>
+            <AddMemberForm teamId={team.id} eventSlug={event.slug} />
+          </section>
+        ) : null}
 
         {canChange ? (
           <section aria-labelledby="rename-title" className="flex max-w-[560px] flex-col gap-3">

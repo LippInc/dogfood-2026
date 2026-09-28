@@ -289,6 +289,11 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                   <dt className="label-mono text-ink-3">Team</dt>
                   <dd>
                     {p.team.name} <span className="text-ink-3">· {p.team.members} {p.team.members === 1 ? "member" : "members"}</span>
+                    {p.team.changedByOrganizersAt ? (
+                      <span className="mt-0.5 block text-13 text-ink-2">
+                        Changed by the organizers after submissions closed, {formatUtc(p.team.changedByOrganizersAt)}; the reason is in their audit log.
+                      </span>
+                    ) : null}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-4 py-2.5">
