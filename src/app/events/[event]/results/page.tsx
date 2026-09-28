@@ -27,8 +27,9 @@ function load(key: string): Gallery {
 const two = (n: number) => String(n).padStart(2, "0");
 
 // The row grid, shared by the axis above a track and every row in it, so the figure column lines up.
+// On a wide screen the scale takes the room the short titles leave, so a ± bar reads at a glance.
 const ROW =
-  "grid grid-cols-[56px_minmax(0,1fr)_auto] gap-x-4 md:grid-cols-[72px_64px_minmax(0,1fr)_minmax(160px,280px)_112px] lg:grid-cols-[72px_64px_minmax(0,1fr)_minmax(200px,340px)_120px]";
+  "grid grid-cols-[56px_minmax(0,1fr)_auto] gap-x-4 md:grid-cols-[72px_64px_minmax(0,1fr)_minmax(160px,280px)_112px] lg:grid-cols-[72px_64px_minmax(200px,1fr)_minmax(280px,560px)_120px]";
 
 export default async function ResultsPage({ params }: PageProps<"/events/[event]/results">) {
   const { event: key } = await params;
