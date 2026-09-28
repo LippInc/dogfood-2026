@@ -140,10 +140,12 @@ describe("checker sessions (database)", () => {
     expect(checkerSessionCount()).toBe(4);
   });
 
-  it("refuses demo mode on a non-local PUBLIC_URL with the public default secret, and removes an earlier boot's sessions (controls: a local address, or an own secret)", () => {
+  it("refuses demo mode on a non-local PUBLIC_URL whatever the secret, and removes an earlier boot's sessions (controls: a local address; PUBLIC_DEMO=true with an own secret)", () => {
     const organizerToken = seed().find((i) => i.label === "organizer")!.token;
     const oldUrl = process.env.PUBLIC_URL;
+    const oldDemo = process.env.PUBLIC_DEMO;
     try {
+      delete process.env.PUBLIC_DEMO;
       delete process.env.DOGFOOD_SEED_SECRET; // the public default
       process.env.PUBLIC_URL = "https://hack.example.org";
       expect(demoModeRefusal()).toMatch(/not a local address/);
@@ -158,13 +160,22 @@ describe("checker sessions (database)", () => {
       }
       process.env.PUBLIC_URL = "https://hack.example.org";
       process.env.DOGFOOD_SEED_SECRET = "an operator's own secret";
+      // an own secret keeps the tokens private, but the sign-in page's one-click buttons would still make anyone
+      // the demo organizer, an administrator: refused unless a public demo is meant
+      expect(demoModeRefusal()).toMatch(/PUBLIC_DEMO=true/);
+      expect(checkerSessionsEnabled()).toBe(false);
+      process.env.PUBLIC_DEMO = "true";
       expect(checkerSessionsEnabled()).toBe(true);
       process.env.DOGFOOD_SEED_SECRET = "";
+      expect(checkerSessionsEnabled()).toBe(false); // PUBLIC_DEMO never opens it on the public default secret
+      delete process.env.PUBLIC_DEMO;
       process.env.PUBLIC_URL = "not a url";
       expect(checkerSessionsEnabled()).toBe(false);
     } finally {
       if (oldUrl === undefined) delete process.env.PUBLIC_URL;
       else process.env.PUBLIC_URL = oldUrl;
+      if (oldDemo === undefined) delete process.env.PUBLIC_DEMO;
+      else process.env.PUBLIC_DEMO = oldDemo;
     }
   });
 

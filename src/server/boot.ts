@@ -93,7 +93,7 @@ export async function boot(): Promise<void> {
     const seeded = seedCheckerSessions(h.db, eventId ?? "", now);
     const refusal = demoModeRefusal();
     lines.push(
-      `${refusal ? `checker sessions REFUSED: ${refusal}; set your own DOGFOOD_SEED_SECRET, or SEED_CHECKER_SESSIONS=false` : `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")`}${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}${!seeded.enabled && seeded.signedOut ? `; signed out ${seeded.signedOut} demo sign-in ${seeded.signedOut === 1 ? "session" : "sessions"}` : ""}${!seeded.enabled && seeded.demoted ? "; the demo organizer is no longer an administrator" : ""}${!seeded.enabled ? demoGrantsLine(seeded.revoked) : ""}.`,
+      `${refusal ? `checker sessions REFUSED: ${refusal}; for a real event, set SEED_CHECKER_SESSIONS=false` : `checker sessions are OFF (SEED_CHECKER_SESSIONS is not "true")`}${!seeded.enabled && seeded.removed ? `; removed ${seeded.removed} left from an earlier boot` : ""}${!seeded.enabled && seeded.signedOut ? `; signed out ${seeded.signedOut} demo sign-in ${seeded.signedOut === 1 ? "session" : "sessions"}` : ""}${!seeded.enabled && seeded.demoted ? "; the demo organizer is no longer an administrator" : ""}${!seeded.enabled ? demoGrantsLine(seeded.revoked) : ""}.`,
     );
   }
   const setup = openAdminSetup(h.db);

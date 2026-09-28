@@ -41,16 +41,21 @@ export function checkerSessionsEnabled(): boolean {
 
 /**
  * Why demo mode is refused although SEED_CHECKER_SESSIONS=true asks for it, or null.
- * With the public default secret anyone who reads this repository can derive the four
- * session tokens, the organizer's (an administrator) among them; that is fine on the
- * judges' own machines, not on a portal reachable from elsewhere.
+ * Demo mode is for the judges' own machines: its sign-in page lets anyone act as the demo
+ * organizer, an administrator, with one click, and with the public default secret anyone who
+ * reads this repository can also derive the four session tokens. So on a PUBLIC_URL that is
+ * not a local address it is refused whatever the secret, unless PUBLIC_DEMO=true says a
+ * public demo is meant (and then only with an own secret).
  */
 export function demoModeRefusal(env: NodeJS.ProcessEnv = process.env): string | null {
   if (env.SEED_CHECKER_SESSIONS !== "true") return null;
-  if (ownSecret(env)) return null;
   const url = env.PUBLIC_URL ?? "http://localhost:8080";
   if (isLocalUrl(url)) return null;
-  return `PUBLIC_URL (${url}) is not a local address and DOGFOOD_SEED_SECRET is the public default, so anyone could derive the organizer's session`;
+  if (!ownSecret(env)) {
+    return `PUBLIC_URL (${url}) is not a local address and DOGFOOD_SEED_SECRET is the public default, so anyone could derive the organizer's session`;
+  }
+  if (env.PUBLIC_DEMO === "true") return null;
+  return `PUBLIC_URL (${url}) is not a local address, and demo mode would let anyone who opens the sign-in page act as the demo organizer, an administrator; set PUBLIC_DEMO=true only to run a public demo on purpose`;
 }
 
 /**
