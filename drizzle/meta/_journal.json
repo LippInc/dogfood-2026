@@ -78,6 +78,13 @@
       "when": 1790520482877,
       "tag": "0010_password_resets",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1790581229246,
+      "tag": "0011_outbox",
+      "breakpoints": true
     }
   ]
 }

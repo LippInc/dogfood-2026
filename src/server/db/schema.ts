@@ -782,6 +782,45 @@ export const webhookDeliveries = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// Email
+// ---------------------------------------------------------------------------
+
+export const MAIL_KINDS = ["judge_invite", "voter_link", "password_reset", "claim_link", "judge_reminder", "admin_setup"] as const;
+export type MailKind = (typeof MAIL_KINDS)[number];
+export const OUTBOX_STATUSES = ["sent", "failed", "off"] as const;
+export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
+
+// One row per message the portal mailed, or would have mailed while email is off
+// (SMTP_URL unset). event_id is null for portal mail (password resets, administrator
+// setup); created_by is null when the system made the message at start.
+export const outbox = sqliteTable(
+  "outbox",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").references(() => events.id),
+    kind: text("kind", { enum: MAIL_KINDS }).notNull(),
+    toEmail: text("to_email").notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    status: text("status", { enum: OUTBOX_STATUSES }).notNull(),
+    error: text("error"),
+    createdBy: text("created_by").references(() => users.id),
+    createdAt: text("created_at").notNull(),
+    sentAt: text("sent_at"),
+  },
+  (t) => [
+    index("outbox_event_idx").on(t.eventId, t.createdAt),
+    check("outbox_kind", sql`${t.kind} in ('judge_invite', 'voter_link', 'password_reset', 'claim_link', 'judge_reminder', 'admin_setup')`),
+    check("outbox_status", sql`${t.status} in ('sent', 'failed', 'off')`),
+    check("outbox_to_email", sql`${t.toEmail} like '%_@_%'`),
+    check("outbox_subject_length", sql`length(${t.subject}) between 1 and 200`),
+    check("outbox_body_length", sql`length(${t.body}) between 1 and 20000`),
+    check("outbox_created_iso", isoTimestamp(t.createdAt)),
+    check("outbox_sent_at", sql`(${t.status} = 'sent') = (${t.sentAt} is not null)`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Audit and imports
 // ---------------------------------------------------------------------------
 
