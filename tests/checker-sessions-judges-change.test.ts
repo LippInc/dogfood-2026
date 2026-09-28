@@ -98,6 +98,29 @@ describe("checker sessions after the judges change", () => {
     expectValidPair();
   });
 
+  it("known-bad: once chosen, the pair stays while it fits, even when another judge becomes the busiest", () => {
+    seed();
+    expect(expectValidPair()).toEqual({ a: "jdg_24", b: "jdg_26" });
+    // another judge on jdg_24's track gets far more reviews than anyone (the default rule would now pick them)
+    const track = tracksOf("jdg_24")[0]!;
+    const rival = sqlAll<{ j: string }>("SELECT judge_user_id AS j FROM judge_tracks WHERE track_id = ? AND judge_user_id NOT IN ('jdg_24', 'jdg_26')", track)[0]!.j;
+    const open = sqlAll<{ id: string }>("SELECT id FROM projects WHERE event_id = 'evt_01' AND id NOT IN (SELECT project_id FROM assignments WHERE judge_user_id = ?)", rival);
+    open.forEach((p, i) =>
+      sqlRun(
+        "INSERT INTO assignments (id, event_id, judge_user_id, project_id, run_id, batch_no, position, status, created_at) VALUES (?, 'evt_01', ?, ?, 'run_fixture_evt_01', 9, ?, 'pending', ?)",
+        `asg_busy_${i}`, rival, p.id, i, NOW,
+      ),
+    );
+    const fresh = sqlAll<{ label: string }>("SELECT label FROM sessions WHERE kind = 'checker'").length;
+    expect(fresh).toBe(4);
+    const again = seed();
+    expect(again.changed).toEqual([]);
+    expect(expectValidPair()).toEqual({ a: "jdg_24", b: "jdg_26" });
+    // positive control: on a volume with no earlier choice the busiest rule picks the rival
+    sqlRun("DELETE FROM sessions WHERE kind = 'checker'");
+    expect(chooseCheckerUsers(getDb(), "evt_01").chosen.judge_a).toBe(rival);
+  });
+
   it("a judge left with no track at all (a row removed by hand) is never picked", () => {
     seed();
     sqlRun("DELETE FROM judge_tracks WHERE judge_user_id = 'jdg_24'");

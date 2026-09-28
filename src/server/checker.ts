@@ -98,9 +98,12 @@ export type CheckerIdentity = { label: CheckerLabel; userId: string; name: strin
  * a judge). judge_a is the candidate with the most reviews (ties: lowest id) among those who
  * share a track with another candidate, judge_b the candidate with the most reviews among
  * those sharing a track with judge_a, and the participant is the first member of the first
- * team who holds no judge role. On the fixture that is always jdg_24 and jdg_26. A label no
- * one fits is skipped with the reason: the organizers can remove or move judges, and that
- * must never stop the portal from starting.
+ * team who holds no judge role. On the fixture that is always jdg_24 and jdg_26. Once
+ * chosen, an identity stays while it still fits (the account in the label's session is kept
+ * first), so the committed .dogfood.toml, whose peer-scores route names judge_a, stays true
+ * when the organizers move other judges or change who is busiest. A label no one fits is
+ * skipped with the reason: the organizers can remove or move judges, and that must never
+ * stop the portal from starting.
  */
 export function chooseCheckerUsers(db: Db, eventId: string): { chosen: Partial<Record<CheckerLabel, string>>; skipped: CheckerSkip[] } {
   const judges = new Set(
@@ -131,8 +134,22 @@ export function chooseCheckerUsers(db: Db, eventId: string): { chosen: Partial<R
   const skipped: CheckerSkip[] = [];
   const chosen: Partial<Record<CheckerLabel, string>> = { organizer: DEMO_ORGANIZER.id };
 
-  const judgeA = candidates.find((a) => candidates.some((b) => shares(a, b))) ?? candidates[0];
-  const judgeB = judgeA ? candidates.find((b) => shares(judgeA, b)) : undefined;
+  // the account each label's session named at the last start, if any
+  const before = new Map(
+    db
+      .select({ label: sessions.label, u: sessions.userId })
+      .from(sessions)
+      .where(eq(sessions.kind, "checker"))
+      .all()
+      .map((r) => [r.label, r.u]),
+  );
+  const keptA = before.get("judge_a");
+  const judgeA =
+    (keptA && tracksOf.has(keptA) && candidates.some((b) => shares(keptA, b)) ? keptA : undefined) ??
+    candidates.find((a) => candidates.some((b) => shares(a, b))) ??
+    candidates[0];
+  const keptB = before.get("judge_b");
+  const judgeB = judgeA ? ((keptB && tracksOf.has(keptB) && shares(judgeA, keptB) ? keptB : undefined) ?? candidates.find((b) => shares(judgeA, b))) : undefined;
   if (judgeA) chosen.judge_a = judgeA;
   else skipped.push({ label: "judge_a", why: "the event has no judge with a track" });
   if (judgeB) chosen.judge_b = judgeB;
@@ -145,7 +162,8 @@ export function chooseCheckerUsers(db: Db, eventId: string): { chosen: Partial<R
     .where(eq(teamMembers.eventId, eventId))
     .orderBy(teams.id, sql`${teamMembers.role} = 'member'`, teamMembers.joinedAt, teamMembers.userId)
     .all();
-  const participant = members.find((m) => !judges.has(m.userId))?.userId;
+  const keptP = before.get("participant");
+  const participant = (keptP && members.some((m) => m.userId === keptP) && !judges.has(keptP) ? keptP : undefined) ?? members.find((m) => !judges.has(m.userId))?.userId;
   if (participant) chosen.participant = participant;
   else skipped.push({ label: "participant", why: "no team member without a judge role" });
 
