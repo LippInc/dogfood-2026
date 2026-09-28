@@ -20,7 +20,7 @@ import { parse } from "./parse";
 // identities are refused: they sign in by their one-click links, and a password set on
 // one would outlive demo mode.
 
-const RESET_HOURS = 24;
+export const RESET_HOURS = 24;
 
 export const ResetLinkInput = z.object({ email: z.string().trim().toLowerCase().pipe(z.email()) });
 export const ResetInput = z.object({ password: z.string().min(10, "at least 10 characters").max(200) });

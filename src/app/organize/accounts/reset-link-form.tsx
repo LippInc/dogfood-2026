@@ -36,6 +36,7 @@ export function ResetLinkForm() {
         ) : null}
       </form>
       {state.ok && state.ticket ? <div role="status">{state.ticket}</div> : null}
+      {state.ok && state.message ? <p className="text-13 text-ink-2">{state.message}</p> : null}
     </>
   );
 }

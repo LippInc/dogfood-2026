@@ -78,7 +78,7 @@ export function inviteJudge(actor: Actor | null, eventIdOrSlug: string, body: un
         .values({ id, eventId: event.id, codeHash: sha256(code), name: input.name, email, trackIds, createdAt: new Date().toISOString(), createdBy: actor!.userId })
         .run();
       return {
-        result: { id, code, path: `/judge-invite/${code}` },
+        result: { id, code, path: `/judge-invite/${code}`, email },
         // The code is a credential: the audit row names the invitation, never the code.
         audit: { action: "judge.invite", eventId: event.id, targetType: "judge_invite", targetId: id, after: { name: input.name, email, trackIds } },
       };

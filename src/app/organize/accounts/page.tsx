@@ -3,7 +3,7 @@ import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, guardAccounts } from "@/server/dal";
+import { currentActor, emailIsOn, guardAccounts } from "@/server/dal";
 import { ResetLinkForm } from "./reset-link-form";
 
 export const dynamic = "force-dynamic";
@@ -11,10 +11,12 @@ export const metadata: Metadata = { title: "Accounts" };
 
 // How a reset goes, in the order it happens: the administrator's part is steps 2 and 3,
 // the only ones this page does. Said once here, beside the form, instead of a paragraph above it.
-const STEPS: React.ReactNode[] = [
+const steps = (mailOn: boolean): React.ReactNode[] => [
   "Someone who lost their password asks you, outside the portal.",
   "You make a one-time link for their address here. It works once, within a day; a new one replaces an unused one.",
-  "You give it to them yourself. The portal sends no email.",
+  mailOn
+    ? "The portal mails it to their own address, and shows it here once in case the mail goes astray."
+    : "You give it to them yourself. The portal sends no email.",
   "They set a new password on it. That signs the account out everywhere; its API tokens keep working until their owner revokes them.",
   <>
     Both steps are written to the{" "}
@@ -50,7 +52,7 @@ export default async function AccountsPage() {
               How a reset goes
             </h2>
             <ol className="mt-3 border-t border-rule">
-              {STEPS.map((step, i) => (
+              {steps(emailIsOn()).map((step, i) => (
                 <li key={i} className={`grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2 border-b border-rule py-2.5 text-14 ${i === 1 || i === 2 ? "text-ink" : "text-ink-2"}`}>
                   <span className={`font-mono text-12 leading-5 tnum ${i === 1 || i === 2 ? "text-accent-ink" : "text-ink-3"}`}>{String(i + 1).padStart(2, "0")}</span>
                   <span>{step}</span>

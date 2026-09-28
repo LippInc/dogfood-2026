@@ -17,7 +17,7 @@ import { parse } from "./parse";
 // the organizer gets each link once and sends it; opening it lets that one person
 // set a password. A link lasts 14 days and works once; a new one replaces it.
 
-const CLAIM_DAYS = 14;
+export const CLAIM_DAYS = 14;
 
 export const ClaimInput = z.object({
   password: z.string().min(10, "at least 10 characters").max(200),

@@ -5,6 +5,7 @@ import {
   actionError,
   createWebhook,
   currentActor,
+  mailClaimLinks,
   makeClaimLinks,
   type ClaimLink,
   retryDelivery,
@@ -13,6 +14,7 @@ import {
   testWebhook,
   type ActionResult,
 } from "@/server/dal";
+import { mailNote } from "@/lib/mail-note";
 
 export type SecretResult = ActionResult & { secret?: string };
 
@@ -66,9 +68,15 @@ export type ClaimResult = ActionResult & { links?: ClaimLink[] };
 export async function claimLinksAction(_prev: ClaimResult, form: FormData): Promise<ClaimResult> {
   const slug = String(form.get("event") ?? "");
   try {
-    const { links, elsewhere } = makeClaimLinks(await currentActor(), slug);
+    const actor = await currentActor();
+    const { links, elsewhere } = makeClaimLinks(actor, slug);
     refresh(slug);
-    const made = links.length ? `${links.length} personal links. Copy or download them now: they are shown only this once.` : elsewhere.length ? "No links made." : "Everyone in this event has a password already.";
+    const note = mailNote(await mailClaimLinks(actor, slug, links));
+    const made = links.length
+      ? `${note ? `${note} ` : ""}${links.length} personal links. Copy or download them now: they are shown only this once.`
+      : elsewhere.length
+        ? "No links made."
+        : "Everyone in this event has a password already.";
     const names = elsewhere.slice(0, 5).map((p) => p.name).join(", ") + (elsewhere.length > 5 ? ` and ${elsewhere.length - 5} more` : "");
     const left = elsewhere.length
       ? ` ${names} also ${elsewhere.length === 1 ? "belongs" : "belong"} to an event you do not run, so only the portal's administrator can send ${elsewhere.length === 1 ? "that person" : "them"} a password-reset link.`

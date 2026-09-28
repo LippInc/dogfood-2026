@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
-import { currentActor, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeRow, type JudgeStanding } from "@/server/dal";
+import { currentActor, emailIsOn, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeRow, type JudgeStanding } from "@/server/dal";
 import { revokeInviteAction } from "./actions";
 import { ByHandForm, CopyButton, InviteForm, RunForm, TracksForm } from "./forms";
 
@@ -121,7 +121,9 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
             </h2>
             {judges.length === 0 ? (
               <p className="rounded-sm border border-rule bg-surface p-6 text-15 text-ink-2">
-                No judges yet. Make an invitation link on the right and send it to each judge yourself: this portal sends no email.
+                {emailIsOn()
+                  ? "No judges yet. Make an invitation on the right: with an email address, the portal mails the judge the link; without one, send the link yourself."
+                  : "No judges yet. Make an invitation link on the right and send it to each judge yourself: this portal sends no email."}
               </p>
             ) : (
               <>

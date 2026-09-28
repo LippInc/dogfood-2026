@@ -83,6 +83,15 @@ function ballotsSealed(db: DbOrTx, eventId: string): boolean {
 }
 
 const MODE_WORDS: Record<string, string> = { account: "signed-in accounts", listed: "the voter list", link: "the open link" };
+/** What each kind of mail is called in a sentence, one and many. */
+const MAIL_WORDS: Record<string, [string, string]> = {
+  judge_invite: ["judge invitation", "judge invitations"],
+  voter_link: ["voting link", "voting links"],
+  claim_link: ["account link", "account links"],
+  password_reset: ["password reset link", "password reset links"],
+  judge_reminder: ["reminder", "reminders"],
+  admin_setup: ["setup link", "setup links"],
+};
 /** How the open link's ballots were set to count; rows written before the rule existed carry no countLink and say nothing. */
 const linkRule = (after: Record<string, unknown>) =>
   typeof after.countLink !== "boolean" || !((after.modes as string[] | undefined) ?? []).includes("link")
@@ -252,6 +261,13 @@ function sentence(r: Row, n: Names): Part[] {
       const added = Number(after.added ?? 0);
       const skipped = Number(after.skipped ?? 0);
       return [actor, t(` added ${added} ${added === 1 ? "person" : "people"} to the voter list${skipped ? ` (${skipped} already on it)` : ""}`)];
+    }
+    case "mail.sent": {
+      const sent = Number(after.sent ?? 0);
+      const failed = Number(after.failed ?? 0);
+      const [one, many] = MAIL_WORDS[String(after.kind)] ?? ["message", "messages"];
+      const count = (k: number) => `${k} ${k === 1 ? one : many}`;
+      return [actor, t(sent ? ` mailed ${count(sent)}${failed ? `; ${failed} could not be sent` : ""}` : ` could not mail ${count(failed)}`)];
     }
     case "voter.join_link":
       return [actor, t(" entered voting with the open link")];

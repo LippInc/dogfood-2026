@@ -5,7 +5,7 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc } from "@/lib/format";
 import { guardPage, utcInput } from "@/lib/page-guard";
-import { currentActor, getVotingAdmin } from "@/server/dal";
+import { currentActor, emailIsOn, getVotingAdmin } from "@/server/dal";
 import { VoidForm, VoterListForm, VotingLinkForm, VotingSettingsForm } from "./forms";
 
 export const dynamic = "force-dynamic";
@@ -147,7 +147,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
           </h2>
           <p className="mb-3 text-14 text-ink-2">
             {v.listed.length} on the list, {v.listed.filter((l) => l.voted).length} voted.
-            {closed || over ? "" : " The portal sends no email: copy the links and send them yourself."}
+            {closed || over ? "" : emailIsOn() ? " The portal mails each person their link as it is made." : " The portal sends no email: copy the links and send them yourself."}
           </p>
           {/* one cell per address on the list, filled once its ballot is in; a set-aside ballot is hollow and struck */}
           {v.listed.length ? (

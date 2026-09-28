@@ -5,12 +5,14 @@ import {
   actionError,
   addListedVoters,
   currentActor,
+  mailVoterLinks,
   makeVotingLink,
   restoreVoter,
   saveVotingSettings,
   voidVoter,
   type ActionResult,
 } from "@/server/dal";
+import { mailNote } from "@/lib/mail-note";
 
 export type LinkResult = ActionResult & { path?: string };
 export type ListResult = ActionResult & { links?: { email: string; path: string }[] };
@@ -57,10 +59,11 @@ export async function votersAction(_prev: ListResult, form: FormData): Promise<L
   try {
     const { links, skipped } = addListedVoters(actor, slug, { emails: form.get("emails") ?? "" });
     refresh(slug);
+    const note = mailNote(await mailVoterLinks(actor, slug, links));
     return {
       ok: true,
       links,
-      message: `${links.length} personal ${links.length === 1 ? "link" : "links"} made${skipped ? `, ${skipped} already on the list` : ""}. Copy them now: each is shown only once.`,
+      message: `${note ? `${note} ` : ""}${links.length} personal ${links.length === 1 ? "link" : "links"} made${skipped ? `, ${skipped} already on the list` : ""}. Copy them now: each is shown only once.`,
     };
   } catch (err) {
     return actionError(err);

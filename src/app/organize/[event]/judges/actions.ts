@@ -6,11 +6,13 @@ import {
   assignByHand,
   currentActor,
   inviteJudge,
+  mailJudgeInvite,
   revokeJudgeInvite,
   runAssignment,
   setJudgeTracks,
   type ActionResult,
 } from "@/server/dal";
+import { mailNote } from "@/lib/mail-note";
 
 export type InviteResult = ActionResult & { path?: string };
 export type RunResult = ActionResult & { added?: number; seed?: number; underReviewed?: number };
@@ -30,7 +32,8 @@ export async function inviteJudgeAction(_prev: InviteResult, form: FormData): Pr
       trackIds: form.getAll("trackIds").map(String),
     });
     refresh(slug);
-    return { ok: true, message: "Invitation ready. Copy the link now: it is shown only once.", path: invite.path };
+    const note = mailNote(await mailJudgeInvite(actor, slug, invite));
+    return { ok: true, message: `${note ? `${note} ` : ""}Invitation ready. Copy the link now: it is shown only once.`, path: invite.path };
   } catch (err) {
     return actionError(err);
   }
