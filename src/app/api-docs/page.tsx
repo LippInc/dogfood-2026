@@ -245,20 +245,20 @@ export default function ApiDocsPage() {
                       const ok = codes.filter((c) => c < 300);
                       const refusals = codes.filter((c) => c >= 400);
                       return (
-                        <li key={operationId(op)} id={operationId(op)} className="scroll-mt-6 py-5 sm:grid sm:grid-cols-[64px_minmax(0,1fr)] sm:gap-x-3">
+                        <li key={operationId(op)} id={operationId(op)} className="grid scroll-mt-6 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 py-4 sm:grid-cols-[64px_minmax(0,1fr)]">
                           <span className={`font-mono text-13 leading-5 font-semibold ${METHOD_TONE[op.method]}`}>{op.method}</span>
-                          <div className="mt-1 flex min-w-0 flex-col gap-2 sm:mt-0">
-                            <code className="font-mono text-14 leading-5 break-all text-ink">
-                              {op.path.split(/(\{\w+\})/).map((part, i) =>
-                                /^\{\w+\}$/.test(part) ? (
-                                  <span key={i} className="text-ink-3">
-                                    {part}
-                                  </span>
-                                ) : (
-                                  part
-                                ),
-                              )}
-                            </code>
+                          <code className="font-mono text-14 leading-5 break-all text-ink">
+                            {op.path.split(/(\{\w+\})/).map((part, i) =>
+                              /^\{\w+\}$/.test(part) ? (
+                                <span key={i} className="text-ink-3">
+                                  {part}
+                                </span>
+                              ) : (
+                                part
+                              ),
+                            )}
+                          </code>
+                          <div className="col-span-2 mt-2 flex min-w-0 flex-col gap-2 sm:col-span-1 sm:col-start-2">
                             <p className="text-15">{op.summary}</p>
                             {op.note ? <p className="max-w-[720px] text-14 text-ink-2">{op.note}</p> : null}
                             <dl className="flex flex-wrap gap-x-6 gap-y-1 font-mono text-12 leading-4">
