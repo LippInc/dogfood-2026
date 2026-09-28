@@ -9,6 +9,8 @@ type Env = Record<string, string | undefined>;
 export const OPERATOR_COUNTS = {
   /** sign-ups and password sign-ins together, per network address per 10 minutes */
   SIGN_IN_LIMIT_PER_ADDRESS: { fallback: 300, min: 1, max: 100_000 },
+  /** how long a password sign-in lasts, in days, counted from the sign-in */
+  SESSION_DAYS: { fallback: 14, min: 1, max: 366 },
 } as const;
 
 export type OperatorCount = keyof typeof OPERATOR_COUNTS;

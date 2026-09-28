@@ -5,10 +5,10 @@ import { cookies, headers } from "next/headers";
 import type { Actor } from "./authz";
 import { getDb, type DbOrTx } from "./db/client";
 import { apiTokens, sessions, userRoles, users } from "./db/schema";
+import { operatorCount } from "./settings";
 import { newSecret, sha256 } from "./util";
 
 export const SESSION_COOKIE = "session";
-const LOGIN_SESSION_DAYS = 14;
 
 /** Resolve a raw session token or API token to its actor, or null when it is unknown, expired or revoked. */
 export function actorForToken(db: DbOrTx, token: string, now = new Date()): Actor | null {
@@ -80,7 +80,9 @@ export async function currentActor(): Promise<Actor | null> {
 /** Create a login session row; the caller sets the cookie once its transaction commits. */
 export function createLoginSession(db: DbOrTx, userId: string, now = new Date()): { token: string; expires: Date } {
   const token = newSecret(32);
-  const expires = new Date(now.getTime() + LOGIN_SESSION_DAYS * 86_400_000);
+  // SESSION_DAYS (default 14): a judging window a month long wants more; a session made
+  // before a change keeps the end it was given.
+  const expires = new Date(now.getTime() + operatorCount("SESSION_DAYS") * 86_400_000);
   db.insert(sessions)
     .values({
       tokenHash: sha256(token),

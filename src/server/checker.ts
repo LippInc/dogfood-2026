@@ -179,7 +179,7 @@ export function seedCheckerSessions(db: Db, eventId: string, now: string): Check
   return db.transaction((tx) => {
     if (!checkerSessionsEnabled()) {
       // Demo mode off: the checker sessions go, and so does everything the demo sign-in
-      // buttons handed out for the same identities (ordinary 14-day sessions), and the
+      // buttons handed out for the same identities (ordinary sessions, SESSION_DAYS long), and the
       // demo organizer stops being an administrator, on a reused volume too.
       const demoUsers = [
         ...new Set([DEMO_ORGANIZER.id, ...tx.select({ u: sessions.userId }).from(sessions).where(eq(sessions.kind, "checker")).all().map((r) => r.u)]),
