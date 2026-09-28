@@ -63,9 +63,20 @@ export {
   type InviteRow,
   type JudgeInviteView,
   type JudgeRow,
+  type RemovedJudge,
 } from "./judges";
 export { assignByHand, getAssignments, runAssignment, type RunRow, type RunSummary } from "./assignments";
-export { getProjectJudging, moveProjectTrack, removeAssignment, undoRecusal, type ProjectAssignment, type ProjectJudging, type TrackMove } from "./corrections";
+export {
+  getProjectJudging,
+  moveProjectTrack,
+  removeAssignment,
+  removeJudge,
+  undoRecusal,
+  type JudgeRemoval,
+  type ProjectAssignment,
+  type ProjectJudging,
+  type TrackMove,
+} from "./corrections";
 export {
   getJudgeConsole,
   recuseAssignment,

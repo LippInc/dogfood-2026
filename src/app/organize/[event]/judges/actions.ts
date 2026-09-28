@@ -7,6 +7,7 @@ import {
   currentActor,
   inviteJudge,
   mailJudgeInvite,
+  removeJudge,
   revokeJudgeInvite,
   runAssignment,
   setJudgeTracks,
@@ -103,4 +104,21 @@ export async function assignByHandAction(_prev: ActionResult, form: FormData): P
   }
   refresh(slug);
   return { ok: true, message: "Assigned. The judge sees it at the end of their batch." };
+}
+
+export async function removeJudgeAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  const slug = String(form.get("event") ?? "");
+  let out: { withdrawn: number; voided: boolean };
+  try {
+    out = removeJudge(actor, slug, String(form.get("judge") ?? ""), { reason: form.get("reason") ?? "" });
+  } catch (err) {
+    return actionError(err);
+  }
+  refresh(slug);
+  revalidatePath(`/events/${slug}`, "layout");
+  const withdrawn = out.withdrawn
+    ? ` ${out.withdrawn} unstarted ${out.withdrawn === 1 ? "review was" : "reviews were"} withdrawn: a top-up fills ${out.withdrawn === 1 ? "that seat" : "those seats"}.`
+    : "";
+  return { ok: true, message: `Removed.${out.voided ? " What they saved stays on record, out of the ranking." : ""}${withdrawn}` };
 }

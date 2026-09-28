@@ -240,6 +240,10 @@ export function revokeJudgeOverride(actor: Actor | null, eventIdOrSlug: string, 
       .where(and(eq(judgeOverrides.eventId, event.id), eq(judgeOverrides.judgeUserId, judgeUserId), isNull(judgeOverrides.revokedAt)))
       .get();
     if (!active) return { result: { revoked: false }, audit: null };
+    // A removed judge's reviews stay out: they count again only once the person judges here again.
+    if (!isJudgeIn(tx, judgeUserId, event.id)) {
+      throw new ConflictError("judge_removed", "This judge was removed from the event, so their reviews stay out of the ranking. Invite them again first, then reinstate them with a reason.");
+    }
     tx.update(judgeOverrides).set({ revokedAt: new Date().toISOString(), revokedBy: actor!.userId }).where(eq(judgeOverrides.id, active.id)).run();
     return {
       result: { revoked: true },

@@ -9,7 +9,7 @@ import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { mutate } from "../mutate";
 import { derivedId, newId } from "../util";
 import { eventFacts, participantEventView, requireEvent, type EventRow, type ParticipantEventView } from "./events";
-import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
+import { finishedReviews, formerJudges, judgeSet, rubricOf, weightedTotal } from "./judging";
 import { getPublishedResults } from "./results";
 import { isSolo, myTeam, organizerChangedAfterClose, type MyTeam } from "./teams";
 import { issuesOf } from "./parse";
@@ -394,7 +394,10 @@ function teamFeedback(db: DbOrTx, event: EventRow, projectId: string): TeamFeedb
   const criteria = rubricOf(db, event.id);
   const merged = new Set([projectId, ...db.select({ id: projects.id }).from(projects).where(eq(projects.duplicateOf, projectId)).all().map((x) => x.id)]);
   const excluded = new Set(judgeSet(db, event.id).excluded);
-  const reviews = finishedReviews(db, event.id, criteria).filter((r) => merged.has(r.projectId));
+  // A judge the organizers removed from the event (a wrong account, say) is no reviewer of it: the
+  // team never sees their words. Their reviews stay on the organizers' record, out of the ranking.
+  const former = formerJudges(db, event.id);
+  const reviews = finishedReviews(db, event.id, criteria).filter((r) => merged.has(r.projectId) && !former.has(r.judgeId));
   const notes = reviews.length
     ? new Map(
         db

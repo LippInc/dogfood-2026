@@ -20,7 +20,7 @@ import {
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { finishedReviews, inJudgeTracks, judgeNames, judgeSet, rubricOf, submittedProjects, weightedTotal, type ProjectInfo } from "./judging";
+import { finishedReviews, formerJudges, inJudgeTracks, judgeNames, judgeSet, rubricOf, submittedProjects, weightedTotal, type ProjectInfo } from "./judging";
 import { parse } from "./parse";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
 import { fieldModes, shownTitle } from "./project-fields";
@@ -371,7 +371,7 @@ export function computePairwise(db: DbOrTx, event: EventRow, opts: { scoresOnly?
     if (t) t.projectIds.push(p.id);
     else tracksList.push({ trackId: p.trackId, projectIds: [p.id] });
   }
-  const names = judgeNames(db, event.id);
+  const names = new Map([...judgeNames(db, event.id), ...formerJudges(db, event.id)]);
   const reviews = finishedReviews(db, event.id);
   const set = judgeSet(db, event.id, reviews);
   const excluded = new Set(set.excluded);
@@ -541,7 +541,7 @@ export function getPairwiseRanking(actor: Actor | null, eventIdOrSlug: string): 
     fresh: pw.fit.fresh,
     flags: pw.flags,
     leftOut: (() => {
-      const names = judgeNames(db, event.id);
+      const names = new Map([...judgeNames(db, event.id), ...formerJudges(db, event.id)]);
       return pw.excluded.map((id) => names.get(id) ?? id).sort();
     })(),
     tracks: pw.fit.tracks.map((t) => ({

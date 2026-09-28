@@ -1,20 +1,21 @@
 import "server-only";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignmentRuns, assignments, auditLog, judgeTracks, projects, scores, teams, tracks, users } from "../db/schema";
+import { assignmentRuns, assignments, auditLog, comparisons, judgeOverrides, judgeTracks, projects, scores, teams, tracks, userRoles, users } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { guardRead, mutate, type MutationSpec } from "../mutate";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { isJudgeIn } from "./judges";
 import { parse } from "./parse";
+import { newId } from "../util";
 
 // The organizer's audited corrections to the judging set-up: taking back an assignment
-// nobody has started, undoing a recusal clicked by mistake, and moving a project to another
-// track after judges were assigned. Each asks for a reason,
+// nobody has started, undoing a recusal clicked by mistake, moving a project to another track
+// after judges were assigned, and removing a judge. Each asks for a reason,
 // writes its audit row in the same transaction, and stops once the results are published,
-// when the assignments are final. None of them touches a saved score.
+// when the assignments are final. None of them deletes a saved score.
 
 const Reason = z.string().trim().min(3, "say why, in a few words").max(500);
 export const CorrectionInput = z.object({ reason: Reason });
@@ -317,6 +318,90 @@ export function moveProjectTrack(actor: Actor | null, eventIdOrSlug: string, pro
             withdrawn: withdrawn.map((r) => ({ assignment: r.id, judgeUserId: r.judgeId })),
             finishedKept: finishedKept.map((r) => r.id),
             startedKept: startedKept.map((r) => r.id),
+          },
+        },
+      };
+    },
+  });
+}
+
+export const REMOVED_PREFIX = "Removed as a judge: ";
+
+export type JudgeRemoval = { removed: string; withdrawn: number; kept: number; voided: boolean };
+
+/**
+ * Remove a judge from the event, for an invitation accepted by the wrong account or a judge
+ * who has to go. Their tracks and judge role end, so the console and every judge route refuse
+ * them; open reviews they never started are withdrawn (a top-up fills those seats). Whatever
+ * they saved stays in the record, and if they saved anything (a review, a draft, a pairwise
+ * answer), an exclusion with the organizer's reason, the same kind the judge ledger shows,
+ * leaves it all out of the ranking: the results' receipts name them as removed. Only if they
+ * join again (a new invitation) can an organizer count those reviews again, by reinstating them
+ * with a reason. Audited as judge.remove; final once the results are published.
+ */
+export function removeJudge(actor: Actor | null, eventIdOrSlug: string, judgeUserId: string, body: unknown): JudgeRemoval {
+  let event: EventRow;
+  return mutate<JudgeRemoval>({
+    actor,
+    action: "event.manage",
+    load: (tx) => {
+      event = requireEvent(tx, eventIdOrSlug);
+      return { kind: "event", event: eventFacts(event) };
+    },
+    run: (tx) => {
+      correctionsOpen(event);
+      const { reason } = parse(CorrectionInput, body);
+      if (!isJudgeIn(tx, judgeUserId, event.id)) throw new NotFoundError("Judge");
+      const trackIds = tx
+        .select({ id: judgeTracks.trackId })
+        .from(judgeTracks)
+        .where(and(eq(judgeTracks.judgeUserId, judgeUserId), eq(judgeTracks.eventId, event.id)))
+        .all()
+        .map((t) => t.id)
+        .sort();
+      const rows = tx
+        .select({ id: assignments.id, status: assignments.status, scoreId: scores.id })
+        .from(assignments)
+        .leftJoin(scores, eq(scores.assignmentId, assignments.id))
+        .where(and(eq(assignments.eventId, event.id), eq(assignments.judgeUserId, judgeUserId)))
+        .orderBy(asc(assignments.id))
+        .all();
+      const withdrawn = rows.filter((r) => r.status === "pending" && !r.scoreId);
+      const kept = rows.filter((r) => !withdrawn.includes(r));
+      const answers = tx
+        .select({ n: sql<number>`count(*)` })
+        .from(comparisons)
+        .where(and(eq(comparisons.eventId, event.id), eq(comparisons.judgeUserId, judgeUserId)))
+        .get()!.n;
+      const now = new Date().toISOString();
+      // Anything saved is voided from the ranking by an exclusion carrying the reason; nothing is deleted.
+      const voided = rows.some((r) => r.scoreId) || answers > 0;
+      if (voided) {
+        tx.update(judgeOverrides)
+          .set({ revokedAt: now, revokedBy: actor!.userId })
+          .where(and(eq(judgeOverrides.eventId, event.id), eq(judgeOverrides.judgeUserId, judgeUserId), isNull(judgeOverrides.revokedAt)))
+          .run();
+        tx.insert(judgeOverrides)
+          .values({ id: newId("ovr"), eventId: event.id, judgeUserId, mode: "exclude", reason: `${REMOVED_PREFIX}${reason}`, createdAt: now, createdBy: actor!.userId })
+          .run();
+      }
+      if (withdrawn.length) tx.delete(assignments).where(inArray(assignments.id, withdrawn.map((r) => r.id))).run();
+      tx.delete(judgeTracks).where(and(eq(judgeTracks.judgeUserId, judgeUserId), eq(judgeTracks.eventId, event.id))).run();
+      tx.delete(userRoles).where(and(eq(userRoles.userId, judgeUserId), eq(userRoles.eventId, event.id), eq(userRoles.role, "judge"))).run();
+      return {
+        result: { removed: judgeUserId, withdrawn: withdrawn.length, kept: kept.length, voided },
+        audit: {
+          action: "judge.remove",
+          eventId: event.id,
+          targetType: "user",
+          targetId: judgeUserId,
+          before: { trackIds },
+          after: {
+            reason,
+            withdrawn: withdrawn.map((r) => r.id),
+            kept: kept.map((r) => r.id),
+            pairwiseAnswers: answers,
+            voided,
           },
         },
       };

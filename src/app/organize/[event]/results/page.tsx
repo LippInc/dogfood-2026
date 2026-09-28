@@ -304,9 +304,12 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                               <tbody>
                                 {p.receipts.map((r) => (
                                   <tr key={r.judgeId} className={r.excluded ? "text-ink-3 line-through" : ""}>
-                                    <td className="pr-4">{r.judge}</td>
+                                    <td className="pr-4">
+                                      {r.judge}
+                                      {r.removed ? <span className="ml-1.5 inline-block text-12">removed as a judge</span> : null}
+                                    </td>
                                     <td className="pr-4 text-right tnum">{f2(r.y)}</td>
-                                    <td className="pr-4 text-right tnum">{r.excluded ? "left out" : signed(r.leniency)}</td>
+                                    <td className="pr-4 text-right tnum">{r.removed ? "removed" : r.excluded ? "left out" : signed(r.leniency)}</td>
                                     <td className="text-right tnum">{r.excluded ? "–" : f2(r.adjusted)}</td>
                                   </tr>
                                 ))}

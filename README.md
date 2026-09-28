@@ -162,7 +162,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   mistakes can be fixed, each with a reason in the audit log: from a project's
   page (Submissions, its review count) an organizer takes back an assignment
   nobody started, undoes a recusal clicked by mistake, or moves the project to
-  another track after judges were assigned.
+  another track after judges were assigned; on the Judges page, a judge's name
+  opens their removal (an invitation taken by the wrong account): what they
+  saved stays on record, out of the ranking, and the receipts name them.
 - **Pairwise judging (optional).** An organizer can have judges answer "which
   is better?" instead of scoring: the switch is on Settings, audited, with a
   reason. Judges see two of their own projects at a time, may call it too close,
@@ -346,7 +348,7 @@ removed stands; a changed fixture file imports only its new rows.
   also being on a team in it. What the portal does is log every organizer
   decision (a judge left out or reinstated, a merge, a project published as it
   is, an assignment taken back, a recusal undone, a project moved to another
-  track, publishing) with its reason, where co-organizers can read it.
+  track, a judge removed, publishing) with its reason, where co-organizers can read it.
 - A team that entered the same project three or more times: the overview merges
   two copies; merge the others over the API (`POST
   /api/events/<event>/duplicates/merge`).

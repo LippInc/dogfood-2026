@@ -10,7 +10,8 @@ import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
 import { currentActor, emailIsOn, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeRow, type JudgeStanding } from "@/server/dal";
-import { revokeInviteAction } from "./actions";
+import { removeJudgeAction, revokeInviteAction } from "./actions";
+import { WithReason } from "../decisions";
 import { ByHandForm, CopyButton, InviteForm, RunForm, TracksForm } from "./forms";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
   const { event: key } = await params;
   const actor = await currentActor();
   if (!actor) unauthorized();
-  const { event, tracks, judges: byName, invites } = guardPage(() => getJudges(actor, key));
+  const { event, tracks, judges: byName, invites, removed } = guardPage(() => getJudges(actor, key));
   // Flagged first, then the most open reviews, then finished; by name inside each group (the sort is stable).
   const judges = [...byName].sort((x, y) => groupOf(x) - groupOf(y) || (groupOf(x) === 1 ? y.pending - x.pending : 0));
   const grouped = new Set(judges.map(groupOf)).size > 1;
@@ -178,8 +179,28 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                           className={`align-top max-md:grid max-md:h-auto max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-4 max-md:gap-y-2.5 max-md:px-4 max-md:py-3.5 ${j.excluded ? "max-md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}
                         >
                           <TableCell className={`max-md:col-start-1 max-md:row-start-1 max-md:block max-md:p-0 ${j.excluded ? "md:shadow-[inset_3px_0_0_var(--flag-bar)]" : ""}`}>
-                            <p className="font-medium">{j.name}</p>
-                            <p className="text-13 text-ink-2">{j.email}</p>
+                            {published ? (
+                              <>
+                                <p className="font-medium">{j.name}</p>
+                                <p className="text-13 text-ink-2">{j.email}</p>
+                              </>
+                            ) : (
+                              // The name opens what an organizer can do to the judge as a whole: remove them.
+                              <details>
+                                <summary className="cursor-pointer">
+                                  <span className="font-medium">{j.name}</span>
+                                  <span className="block pl-4 text-13 text-ink-2">{j.email}</span>
+                                </summary>
+                                <div className="mt-3 flex max-w-[340px] flex-col items-start gap-3 text-13 text-ink-2">
+                                  <p>
+                                    Remove {j.name} from this event, for an invitation accepted by the wrong account or a judge who has to go.
+                                    {j.pending ? ` Their ${plural(j.pending, "open review")} ${j.pending === 1 ? "is" : "are"} withdrawn if not started.` : ""}{" "}
+                                    Whatever they saved stays on record, out of the ranking, and the results name them as removed.
+                                  </p>
+                                  <WithReason label="Remove judge…" submit="Remove" action={removeJudgeAction} hidden={{ judge: j.id }} eventSlug={event.slug} idKey={`remove-${j.id}`} />
+                                </div>
+                              </details>
+                            )}
                           </TableCell>
                           <TableCell className="max-w-[220px] max-md:col-span-2 max-md:block max-md:max-w-none max-md:p-0">
                             <details>
@@ -268,6 +289,25 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
               </div>
               </>
             )}
+            {removed.length ? (
+              <div className="mt-6">
+                <h3 className="text-14 font-semibold">
+                  Removed judges <span className="font-normal text-ink-2">· what they saved stays on record, out of the ranking</span>
+                </h3>
+                <ul className="mt-2 flex flex-col divide-y divide-rule rounded-sm border border-rule bg-surface">
+                  {removed.map((r) => (
+                    <li key={r.id} className="flex flex-col gap-0.5 px-4 py-2.5 text-13">
+                      <span className="wrap-anywhere">
+                        <span className="text-14 font-medium">{r.name}</span> <span className="text-ink-2">· {r.email}</span>
+                      </span>
+                      <span className="text-ink-2">
+                        Removed {formatUtc(r.at)}: “{r.reason}”
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
 
           <aside className="flex flex-col gap-8">

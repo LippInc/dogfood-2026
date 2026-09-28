@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignmentRuns, assignments, events, judgeInvites, judgeTracks, projects, scores, tracks, userRoles, users } from "../db/schema";
+import { assignmentRuns, assignments, events, judgeInvites, judgeTracks, projects, scores, tracks, userRoles, users, auditLog } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { formatUtc } from "@/lib/format";
 import type { FlatFlag } from "../judging/flat";
@@ -100,7 +100,7 @@ export function revokeJudgeInvite(actor: Actor | null, inviteId: string) {
       return { kind: "event", event: eventFacts(requireEvent(tx, row.eventId)) };
     },
     run: (tx) => {
-      if (invite.acceptedAt) throw new ConflictError("invite_used", "This invitation was already accepted; remove the judge's tracks instead.");
+      if (invite.acceptedAt) throw new ConflictError("invite_used", "This invitation was already accepted. To undo that, remove the judge on the Judges page.");
       if (invite.revokedAt) return { result: { id: invite.id }, audit: null };
       tx.update(judgeInvites).set({ revokedAt: new Date().toISOString() }).where(eq(judgeInvites.id, invite.id)).run();
       return {
@@ -167,7 +167,11 @@ export function acceptJudgeInvite(actor: Actor | null, code: string) {
       return { kind: "judge_invite", event: eventFacts(event), email: row.email };
     },
     run: (tx) => {
-      if (invite.acceptedBy === actor!.userId) return { result: { eventSlug: event.slug }, audit: null };
+      if (invite.acceptedBy === actor!.userId) {
+        // Opening one's own used link again is a no-op, unless an organizer has since removed this judge.
+        if (isJudgeIn(tx, actor!.userId, event.id)) return { result: { eventSlug: event.slug }, audit: null };
+        throw new ConflictError("judge_removed", "An organizer removed you as a judge of this event, so this invitation no longer admits you. Ask them for a new one if that was a mistake.");
+      }
       if (invite.acceptedAt) throw new ConflictError("invite_used", "This invitation was already used. Ask the organizer for a new link.");
       const closed = joiningClosed(event);
       if (closed) throw closed;
@@ -369,6 +373,29 @@ export function inviteRows(db: DbOrTx, eventId: string): InviteRow[] {
     }));
 }
 
+export type RemovedJudge = { id: string; name: string; email: string; reason: string; at: string };
+
+/** Who was removed as a judge of this event and is not one again, with the reason: the latest removal each. DAL-internal. */
+export function removedJudges(db: DbOrTx, eventId: string): RemovedJudge[] {
+  const rows = db
+    .select({ id: auditLog.targetId, at: auditLog.at, after: auditLog.after, name: users.name, email: users.email })
+    .from(auditLog)
+    .innerJoin(users, eq(users.id, auditLog.targetId))
+    .where(and(eq(auditLog.eventId, eventId), eq(auditLog.action, "judge.remove")))
+    .orderBy(desc(auditLog.id))
+    .all();
+  const seen = new Set<string>();
+  const out: RemovedJudge[] = [];
+  for (const r of rows) {
+    if (!r.id || seen.has(r.id)) continue;
+    seen.add(r.id);
+    if (isJudgeIn(db, r.id, eventId)) continue;
+    const reason = (r.after as { reason?: unknown } | null)?.reason;
+    out.push({ id: r.id, name: r.name, email: r.email, reason: typeof reason === "string" ? reason : "", at: r.at });
+  }
+  return out;
+}
+
 export function getJudges(actor: Actor | null, eventIdOrSlug: string) {
   const db = getDb();
   const event = requireEvent(db, eventIdOrSlug);
@@ -378,5 +405,6 @@ export function getJudges(actor: Actor | null, eventIdOrSlug: string) {
     tracks: db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, event.id)).orderBy(asc(tracks.position)).all(),
     judges: judgeRows(db, event.id),
     invites: inviteRows(db, event.id),
+    removed: removedJudges(db, event.id),
   };
 }

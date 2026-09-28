@@ -146,6 +146,7 @@ export const OPERATIONS: Operation[] = [
   { method: "POST", path: "/api/events/{event}/judges/invites", tag: "Judging", summary: "Invite a judge: returns the invitation link once", access: "organizer", body: In.InviteInput, ok: 201, note: "With email on (SMTP_URL), each link is also mailed as it is made; the answer's mail says to whom and whether it went, and the outbox keeps the message with its link blanked." },
   { method: "POST", path: "/api/events/{event}/judges/invites/{invite}/revoke", tag: "Judging", summary: "Revoke an unused invitation", access: "organizer" },
   { method: "POST", path: "/api/judge-invites/{code}/accept", tag: "Judging", summary: "Accept a judge invitation", access: "signed in" },
+  { method: "POST", path: "/api/events/{event}/judges/{judge}/remove", tag: "Judging", summary: "Remove a judge from the event, with a reason", access: "organizer", body: In.CorrectionInput, also: [409], note: "Their role and tracks end, so every judge route refuses them; open reviews they never started are withdrawn. Whatever they saved stays on record and leaves the ranking by an exclusion carrying the reason (the receipts name them as removed). Answers { removed, withdrawn, kept, voided }. 409 results_published after publishing." },
   { method: "PUT", path: "/api/events/{event}/judges/{judge}/tracks", tag: "Judging", summary: "Set which tracks a judge reviews", access: "organizer", body: In.TrackIds },
   {
     method: "POST",

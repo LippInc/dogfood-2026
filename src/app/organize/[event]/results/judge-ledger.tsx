@@ -14,6 +14,9 @@ const signed = (v: number) => (Math.abs(v) < 0.005 ? "0.00" : `${v > 0 ? "+" : "
 const rk = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
 function Standing({ j }: { j: JudgeStanding }) {
+  if (j.removed) {
+    return <p className="text-12 text-flag">Removed from the event by an organizer{j.override ? `: “${j.override.reason.replace(/^Removed as a judge: /, "")}”` : ""}</p>;
+  }
   if (j.override) {
     return (
       <p className={`text-12 ${j.excluded ? "text-flag" : "text-ink-2"}`}>
@@ -58,6 +61,8 @@ function IfFlipped({ inf }: { inf: Influence }) {
 }
 
 function Action({ j, eventSlug }: { j: JudgeStanding; eventSlug: string }) {
+  // A removed judge's reviews count again only once they judge here again (a new invitation).
+  if (j.removed) return null;
   if (j.override) {
     return <OneClick label="Undo" variant="outline" action={undoOverrideAction} fields={{ judge: j.id }} eventSlug={eventSlug} />;
   }

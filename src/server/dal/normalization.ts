@@ -4,7 +4,7 @@ import type { FlatFlag } from "../judging/flat";
 import { averageRanks, normalize, permutationShare, type Obs, type SignalCheck } from "../judging/normalize";
 import { judgeSpread, type Yardstick } from "../judging/yardstick";
 import type { EventRow } from "./events";
-import { finishedReviews, judgeSet, rubricOf, weightedTotal, type ActiveOverride, judgeNames, submittedProjects, type ProjectInfo } from "./judging";
+import { finishedReviews, formerJudges, judgeSet, rubricOf, weightedTotal, type ActiveOverride, judgeNames, submittedProjects, type ProjectInfo } from "./judging";
 
 // Normalization as the organizer sees it: the score engine's run over an event's finished
 // reviews, with each project's receipt, the judge ledger and the ranking. The decisions that
@@ -16,7 +16,16 @@ export const METHOD_LABEL = "Judge leniency, shrunk by n ÷ (n + k), with k esti
 
 const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
-export type Receipt = { judgeId: string; judge: string; y: number; leniency: number; adjusted: number; excluded: boolean };
+export type Receipt = {
+  judgeId: string;
+  judge: string;
+  y: number;
+  leniency: number;
+  adjusted: number;
+  excluded: boolean;
+  /** an organizer removed this judge from the event: the review stays on record, out of the ranking */
+  removed: boolean;
+};
 
 export type ProjectRow = {
   id: string;
@@ -71,6 +80,8 @@ export type JudgeStanding = {
   flag: FlatFlag | null;
   override: ActiveOverride | null;
   excluded: boolean;
+  /** an organizer removed this judge from the event (their exclusion carries the reason) */
+  removed: boolean;
   /** when asked for: the single-judge influence check */
   influence: Influence | null;
 };
@@ -203,7 +214,8 @@ export function computeNormalization(
   const canonicalRows = info.filter((p) => !p.duplicateOf);
   const base = rankingOf(keptObs, canonicalRows, true);
   const fit = base.fit;
-  const names = judgeNames(db, event.id);
+  const former = formerJudges(db, event.id);
+  const names = new Map([...judgeNames(db, event.id), ...former]);
 
   const byProjectAll = new Map<string, Obs[]>();
   for (const o of allObs) byProjectAll.set(o.projectId, [...(byProjectAll.get(o.projectId) ?? []), o]);
@@ -227,7 +239,7 @@ export function computeNormalization(
       .map((o) => {
         const out = excluded.has(o.judgeId);
         const b = out ? 0 : (fit.leniency.get(o.judgeId) ?? 0);
-        return { judgeId: o.judgeId, judge: names.get(o.judgeId) ?? o.judgeId, y: o.y, leniency: b, adjusted: o.y - b, excluded: out };
+        return { judgeId: o.judgeId, judge: names.get(o.judgeId) ?? o.judgeId, y: o.y, leniency: b, adjusted: o.y - b, excluded: out, removed: former.has(o.judgeId) };
       })
       .sort((a, b) => Number(a.excluded) - Number(b.excluded) || b.y - a.y);
     const ownYs = own.get(p.id) ?? [];
@@ -289,6 +301,7 @@ export function computeNormalization(
         flag: set.flags.find((f) => f.judgeId === id) ?? null,
         override: [...set.overrides].reverse().find((o) => o.judgeId === id) ?? null,
         excluded: excluded.has(id),
+        removed: former.has(id),
         influence: opts.influence && (countsAll.get(id) ?? 0) > 0 ? influenceOf(id, excluded, allObs, canonicalRows, base) : null,
       };
     })

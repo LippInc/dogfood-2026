@@ -22,7 +22,7 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 ## Judge collusion
 
-**What is built:** judges cannot read each other's scores (backend-enforced, tested, and checked by the organizers' suite); every score change is audited with before and after, and a webhook for one says who scored which project and when, never the values; the leniency model limits what one generous or harsh judge can do; the flat-judge rule catches a judge who scores everything the same; the judge ledger shows, for every judge, what leaving them out would move.
+**What is built:** judges cannot read each other's scores (backend-enforced, tested, and checked by the organizers' suite); every score change is audited with before and after, and a webhook for one says who scored which project and when, never the values; the leniency model limits what one generous or harsh judge can do; the flat-judge rule catches a judge who scores everything the same; the judge ledger shows, for every judge, what leaving them out would move. A judge who should not be one (an open invitation link taken by the wrong account) is removed by an organizer with a reason: their access ends at once, and what they saved stays on record but out of the ranking, named as removed on the receipts, never shown to teams; a stale link cannot add a judge after judging closes or the results are published.
 
 **What is not:** detection of coordinated collusion. Two judges trading favourable scores look like ordinary disagreement to the model; nothing flags that. The audit log keeps the evidence for an organizer to read.
 

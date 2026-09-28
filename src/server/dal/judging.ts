@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import type { DbOrTx } from "../db/client";
-import { assignments, judgeOverrides, judgeTracks, projects, rubricCriteria, scoreItems, scores, teams, tracks, userRoles, users } from "../db/schema";
+import { assignments, comparisons, judgeOverrides, judgeTracks, projects, rubricCriteria, scoreItems, scores, teams, tracks, userRoles, users } from "../db/schema";
 import { excludedJudges, flatJudges, type FinishedReview, type FlatFlag, type Override } from "../judging/flat";
 import { shownTitle } from "./project-fields";
 
@@ -184,4 +184,28 @@ export function judgeNames(db: DbOrTx, eventId: string): Map<string, string> {
       .all()
       .map((u) => [u.id, u.name]),
   );
+}
+
+/**
+ * People who judged in this event (an assignment or a pairwise answer) and are no longer its
+ * judges: an organizer removed them. id → name. Their reviews stay in the record, left out of
+ * the ranking by the exclusion the removal recorded; the receipts name them as removed.
+ */
+export function formerJudges(db: DbOrTx, eventId: string): Map<string, string> {
+  const current = judgeNames(db, eventId);
+  const people = [
+    ...db
+      .selectDistinct({ id: users.id, name: users.name })
+      .from(assignments)
+      .innerJoin(users, eq(users.id, assignments.judgeUserId))
+      .where(eq(assignments.eventId, eventId))
+      .all(),
+    ...db
+      .selectDistinct({ id: users.id, name: users.name })
+      .from(comparisons)
+      .innerJoin(users, eq(users.id, comparisons.judgeUserId))
+      .where(eq(comparisons.eventId, eventId))
+      .all(),
+  ];
+  return new Map(people.filter((p) => !current.has(p.id)).map((p) => [p.id, p.name]));
 }

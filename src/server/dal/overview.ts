@@ -194,6 +194,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       "project.submit",
       "judge.override",
       "judge.override_revoke",
+      "judge.remove",
       "project.merge",
       "project.unmerge",
       "project.not_duplicate",

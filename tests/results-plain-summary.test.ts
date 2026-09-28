@@ -33,7 +33,7 @@ function row(o: Partial<ProjectRow> & { id: string; trackId: string }): ProjectR
 }
 
 function judge(o: Partial<JudgeStanding> & { id: string }): JudgeStanding {
-  return { name: o.id, n: 3, nAll: 3, leniency: 0, se: 0.1, shrink: 0.5, tilt: 0, flag: null, override: null, excluded: false, influence: null, ...o };
+  return { name: o.id, n: 3, nAll: 3, leniency: 0, se: 0.1, shrink: 0.5, tilt: 0, flag: null, override: null, excluded: false, removed: false, influence: null, ...o };
 }
 
 function run(o: Partial<Normalized> = {}): Normalized {

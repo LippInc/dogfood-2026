@@ -264,6 +264,18 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" revoked a judge invitation")];
     case "judge.join":
       return [actor, t(" joined as a judge")];
+    case "judge.remove": {
+      const out = Array.isArray(after.withdrawn) ? after.withdrawn.length : 0;
+      return [
+        actor,
+        t(" removed "),
+        person(target),
+        t(" as a judge"),
+        t(after.voided ? ", leaving what they saved out of the ranking" : ""),
+        t(out ? `, and withdrew ${out} unstarted ${out === 1 ? "review" : "reviews"}` : ""),
+        t(`: ${quote(after.reason)}`),
+      ];
+    }
     case "judge.tracks": {
       const ids = (v: Record<string, unknown>) => (Array.isArray(v.trackIds) ? (v.trackIds as unknown[]).map(String) : []);
       const track = (id: string) => quote(n.track.get(id) ?? id);
