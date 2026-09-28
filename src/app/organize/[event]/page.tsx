@@ -209,7 +209,12 @@ export default async function OverviewPage({
           : []),
         ...o.pipeline
           .filter((s) => s.no === "09")
-          .map((s) => ({ label: s.name, value: s.state })),
+          // Two testers could not find where certificates are issued: "ready to issue" leads to the button.
+          .map((s) =>
+            s.state === "ready to issue"
+              ? { label: s.name, value: "ready to issue: issue every record", href: `/organize/${event.slug}/results#records-title` }
+              : { label: s.name, value: s.state },
+          ),
       ]
     : [];
 

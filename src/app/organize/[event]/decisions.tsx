@@ -568,7 +568,7 @@ export function PublishPanel({
   /** the community vote: publishing closes an open one and calls off one not yet open */
   vote?: { state: "not_set" | "upcoming" | "open" | "closed"; opensAt: string | null; closesAt: string | null; ballots: number } | null;
   /** once published: what went out, one line each, every value from the data layer */
-  receipt?: { label: string; value: string }[];
+  receipt?: { label: string; value: string; href?: string }[];
 }) {
   const [state, form, pending] = useFormAction(publishAction, idle);
   const decided = total - open;
@@ -604,7 +604,15 @@ export function PublishPanel({
               {receipt.map((r) => (
                 <div key={r.label} className="col-span-2 grid grid-cols-subgrid border-b border-rule py-2">
                   <dt className="text-ink-2">{r.label}</dt>
-                  <dd className="text-ink tnum">{r.value}</dd>
+                  <dd className="text-ink tnum">
+                    {r.href ? (
+                      <Link href={r.href} className="underline underline-offset-4">
+                        {r.value}
+                      </Link>
+                    ) : (
+                      r.value
+                    )}
+                  </dd>
                 </div>
               ))}
             </dl>
