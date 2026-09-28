@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PlainMark } from "@/components/shell/plain-shell";
+import { PlainBand, PlainMark } from "@/components/shell/plain-shell";
 import { AskedPath, StatusSheet } from "@/components/status-sheet";
 import { buttonVariants } from "@/components/ui/button";
 import { LookAlikes } from "./look-alikes";
@@ -22,6 +22,7 @@ export default function NotFound() {
       }
       status="404"
       mark={<PlainMark extra="404" />}
+      band={<PlainBand />}
       spoil={{ hollow: [1] }}
       rows={[
         { label: "Asked for", value: <AskedPath />, mono: true },

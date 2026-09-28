@@ -1,4 +1,4 @@
-import { PageMark } from "@/components/page-mark";
+import { PageBand, PageMark } from "@/components/page-mark";
 import { PlainFrame } from "./plain-frame";
 
 /**
@@ -24,6 +24,7 @@ export function PlainShell({
       width={width}
       account={account}
       mark={<PlainMark extra={mark} />}
+      band={<PageBand anchor="bottom" cols={480} rows={24} />}
     >
       {children}
     </PlainFrame>
@@ -41,4 +42,9 @@ export function PlainMark({ extra }: { extra?: string }) {
       <PageMark anchor="top-right" cols={64} rows={16} extra={extra} className="absolute top-0 right-8 hidden md:block xl:right-16" />
     </>
   );
+}
+
+/** PlainShell's band along the foot on its own, for the same server pages that hand a client frame PlainMark. */
+export function PlainBand() {
+  return <PageBand anchor="bottom" cols={480} rows={24} />;
 }

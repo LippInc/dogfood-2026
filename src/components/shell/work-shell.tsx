@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ModeToggle } from "@/components/mode-toggle";
-import { PageMark } from "@/components/page-mark";
+import { PageBand, PageMark } from "@/components/page-mark";
 
 export type WorkTab = { href: string; label: string; active?: boolean };
 
@@ -9,6 +9,8 @@ export type WorkTab = { href: string; label: string; active?: boolean };
  * marked by one pink square. Pages pass their tabs and a slot for the top bar's
  * right-hand tools. The page's mark closes the bar on the right, in whatever room the
  * bar leaves (none, no mark); on a phone, where the bar wraps, it closes the brand row.
+ * Below the page the mark runs out as a band along the foot, as on the public pages, except
+ * on the judge console, whose phone layout keeps its answer buttons at the bottom of the screen.
  */
 export function WorkShell({
   eventName,
@@ -20,6 +22,7 @@ export function WorkShell({
   role,
   children,
   flush = false,
+  band = role !== "Judge",
 }: {
   eventName: string;
   eventHref: string;
@@ -30,11 +33,12 @@ export function WorkShell({
   role: string;
   children: React.ReactNode;
   flush?: boolean;
+  band?: boolean;
 }) {
   // on the judge console the mark is the judge's own
   const markExtra = role === "Judge" ? person : undefined;
   return (
-    <div className="work min-h-dvh">
+    <div className={band ? "work flex min-h-dvh flex-col" : "work min-h-dvh"}>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:border focus:border-ink focus:bg-surface focus:px-4 focus:py-2 focus:text-14 focus:font-medium focus:shadow-lg"
@@ -91,9 +95,14 @@ export function WorkShell({
           </div>
         </div>
       </header>
-      <main id="main" className={flush ? "" : "mx-auto max-w-[1440px] px-4 py-8 lg:px-8"}>
+      <main id="main" className={`${flush ? "" : "mx-auto w-full max-w-[1440px] px-4 py-8 lg:px-8"} ${band ? "flex-1" : ""}`}>
         {children}
       </main>
+      {band ? (
+        <div className="flex h-24 justify-center overflow-hidden print:hidden" aria-hidden="true">
+          <PageBand anchor="bottom" cols={480} rows={24} />
+        </div>
+      ) : null}
     </div>
   );
 }

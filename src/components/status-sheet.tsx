@@ -66,6 +66,7 @@ export function StatusSheet({
   steps = [],
   stepsTitle = "Or go to",
   mark,
+  band,
 }: {
   code: string;
   title: string;
@@ -78,9 +79,11 @@ export function StatusSheet({
   stepsTitle?: string;
   /** The page's mark, from a server page (PlainMark); the error boundary runs in the browser and has none. */
   mark?: React.ReactNode;
+  /** Its band along the foot, from the same server page (PlainBand). */
+  band?: React.ReactNode;
 }) {
   return (
-    <PlainFrame width="max-w-[1120px]" mark={mark}>
+    <PlainFrame width="max-w-[1120px]" mark={mark} band={band}>
       <div className="grid gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,440px)] lg:gap-20">
         <div className="md:pt-6">
           <p className="label-mono text-accent-ink">{code}</p>

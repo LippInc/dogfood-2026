@@ -4,21 +4,23 @@ import { ModeToggle } from "@/components/mode-toggle";
 /**
  * The markup of PlainShell (plain-shell.tsx), which pages use. It stays free of
  * server-only code so the error boundary, a client component, can wear the same frame;
- * `mark` is the slot PlainShell fills with the page's mark.
+ * `mark` is the slot PlainShell fills with the page's mark, `band` the one for its band along the foot.
  */
 export function PlainFrame({
   children,
   width = "max-w-[1040px]",
   account,
   mark,
+  band,
 }: {
   children: React.ReactNode;
   width?: string;
   account?: { name: string } | null;
   mark?: React.ReactNode;
+  band?: React.ReactNode;
 }) {
   return (
-    <div className="public min-h-dvh">
+    <div className="public flex min-h-dvh flex-col">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:border focus:border-ink focus:bg-surface focus:px-4 focus:py-2 focus:text-14 focus:font-medium focus:shadow-lg"
@@ -52,9 +54,14 @@ export function PlainFrame({
           {mark}
         </div>
       ) : null}
-      <main id="main" className={`mx-auto ${width} px-4 py-12 wrap-anywhere sm:px-8 md:py-20`}>
+      <main id="main" className={`mx-auto w-full flex-1 ${width} px-4 py-12 wrap-anywhere sm:px-8 md:py-20`}>
         {children}
       </main>
+      {band ? (
+        <div className="flex h-24 justify-center overflow-hidden print:hidden" aria-hidden="true">
+          {band}
+        </div>
+      ) : null}
     </div>
   );
 }
