@@ -6,7 +6,7 @@ import { outbox } from "../db/schema";
 import { guardRead } from "../mutate";
 import { eventFacts, requireEvent } from "./events";
 
-// The outbox, read side: what the portal mailed, or would have mailed while email is off. An
+// The outbox, read side: what the portal mailed or tried to mail (nothing is recorded while email is off). An
 // event's messages are for its organizers (and administrators); portal messages (password resets,
 // administrator setup) for administrators only. Refused reads answer 401 or 403 and a 403 is
 // audited, as on every other organizer page.

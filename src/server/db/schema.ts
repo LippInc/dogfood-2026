@@ -790,9 +790,9 @@ export type MailKind = (typeof MAIL_KINDS)[number];
 export const OUTBOX_STATUSES = ["sent", "failed", "off"] as const;
 export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
 
-// One row per message the portal mailed, or would have mailed while email is off
-// (SMTP_URL unset). event_id is null for portal mail (password resets, administrator
-// setup); created_by is null when the system made the message at start.
+// One row per message the portal mailed or tried to mail, its link blanked so no working
+// key is kept; nothing is recorded while email is off (SMTP_URL unset). event_id is null
+// for portal mail (password resets); created_by is null when the system made the message.
 export const outbox = sqliteTable(
   "outbox",
   {
