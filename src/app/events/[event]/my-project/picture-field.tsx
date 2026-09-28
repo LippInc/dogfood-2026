@@ -56,7 +56,8 @@ export function PictureField({
   const message = error?.[0];
   return (
     <div className="flex flex-col gap-1.5 sm:col-span-2">
-      <label htmlFor="picture-file" className="text-14 font-medium">
+      {/* before the first save there is no file input yet: the label names the address box instead */}
+      <label htmlFor={projectId ? "picture-file" : "thumbnailUrl"} className="text-14 font-medium">
         Picture
       </label>
       <p id="picture-help" className="text-13 text-ink-3">
@@ -89,7 +90,7 @@ export function PictureField({
               ) : null}
             </div>
           ) : (
-            <p id="picture-file" className="text-13 text-ink-2">
+            <p className="text-13 text-ink-2">
               Save the project once, then upload its picture here.
             </p>
           )}
