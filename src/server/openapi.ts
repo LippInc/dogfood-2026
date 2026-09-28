@@ -216,6 +216,17 @@ export const OPERATIONS: Operation[] = [
   { method: "POST", path: "/api/events/{event}/voting/voters", tag: "Community vote", summary: "Add people to the voter list: one personal link each, returned once", access: "organizer", body: In.VoterList, ok: 201, also: [409], note: "With email on (SMTP_URL), each link is also mailed as it is made; the answer's mail says to whom and whether it went, and the outbox keeps the message with its link blanked." },
   {
     method: "POST",
+    path: "/api/events/{event}/voting/voters/new-link",
+    tag: "Community vote",
+    summary: "A new personal link for one address on the voter list, returned once; the old link stops working",
+    access: "organizer",
+    body: In.VoterAddress,
+    ok: 201,
+    also: [404, 409],
+    note: "For a link that was mistyped, bounced or lost. An address not on the list is 404; a ballot set aside is 409 voter_set_aside until it is counted again. With email on (SMTP_URL), the new link is also mailed; the answer's mail says whether it went.",
+  },
+  {
+    method: "POST",
     path: "/api/events/{event}/voting/voters/{voter}/void",
     tag: "Community vote",
     summary: "Set a ballot aside as a suspected duplicate, with a reason",

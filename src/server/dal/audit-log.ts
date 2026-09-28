@@ -281,6 +281,8 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" set aside the ballot of "), voter(target), t(`: ${quote(after.reason)}`)];
     case "voter.restore":
       return [actor, t(" counted the ballot of "), voter(target), t(" again")];
+    case "voter.new_link":
+      return [actor, t(" made a new voting link for "), voter(target), t("; the old one stopped working")];
     case "comment.post":
       return [actor, t(" commented on "), project(target)];
     case "project.image_taken_down":

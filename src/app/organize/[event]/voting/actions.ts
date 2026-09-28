@@ -7,6 +7,8 @@ import {
   currentActor,
   mailVoterLinks,
   makeVotingLink,
+  newVoterLink,
+  NotFoundError,
   restoreVoter,
   saveVotingSettings,
   voidVoter,
@@ -66,6 +68,28 @@ export async function votersAction(_prev: ListResult, form: FormData): Promise<L
       message: `${note ? `${note} ` : ""}${links.length} personal ${links.length === 1 ? "link" : "links"} made${skipped ? `, ${skipped} already on the list` : ""}. Copy them now: each is shown only once.`,
     };
   } catch (err) {
+    return actionError(err);
+  }
+}
+
+/** One address already on the list gets a new link: its old one was mistyped, bounced or lost. */
+export async function newVoterLinkAction(_prev: LinkResult, form: FormData): Promise<LinkResult> {
+  const actor = await currentActor();
+  const slug = String(form.get("event") ?? "");
+  try {
+    const link = newVoterLink(actor, slug, { email: form.get("email") ?? "" });
+    refresh(slug);
+    const note = mailNote(await mailVoterLinks(actor, slug, [link]));
+    return {
+      ok: true,
+      message: `${note ? `${note} ` : ""}New link for ${link.email}; the old one stopped working. Copy it now: it is shown only once.`,
+      path: link.path,
+    };
+  } catch (err) {
+    // An address not on the list is a problem with what was typed: say it at the field.
+    if (err instanceof NotFoundError) {
+      return { ok: false, message: null, fieldErrors: { email: ["No one on the voter list has this address. Check the spelling, or add it above."] } };
+    }
     return actionError(err);
   }
 }

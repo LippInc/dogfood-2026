@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/server/dal";
 import { CopyButton } from "../judges/forms";
-import { restoreAction, votersAction, votingLinkAction, votingSettingsAction, voidAction, type LinkResult, type ListResult } from "./actions";
+import { newVoterLinkAction, restoreAction, votersAction, votingLinkAction, votingSettingsAction, voidAction, type LinkResult, type ListResult } from "./actions";
 
 const idle: ActionResult = { ok: false, message: null };
 
@@ -180,6 +180,39 @@ export function VoterListForm({ eventSlug }: { eventSlug: string }) {
           <CopyButton text={text} label="Copy all as CSV" />
         </div>
       ) : null}
+    </form>
+  );
+}
+
+/** One address already on the list: a new link when its old one was mistyped, bounced or lost. */
+export function NewVoterLinkForm({ eventSlug }: { eventSlug: string }) {
+  const [state, form, pending] = useFormAction<LinkResult>(newVoterLinkAction, idle);
+  const link = state.ok && state.path && typeof window !== "undefined" ? `${window.location.origin}${state.path}` : null;
+  return (
+    <form {...form} className="flex flex-col gap-3 border-t border-rule pt-4">
+      <input type="hidden" name="event" value={eventSlug} />
+      <Field
+        id="relink-email"
+        label="A link got lost?"
+        help="Type the address as it is on the list: it gets a new link, and its old one stops working."
+        error={state.fieldErrors?.email}
+      >
+        {(a) => (
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Input {...a} name="email" type="email" inputMode="email" autoComplete="off" spellCheck={false} className="sm:flex-1" />
+            <Button variant="outline" disabled={pending} className="shrink-0 max-sm:self-start">
+              {pending ? "Making the link…" : "Make a new link"}
+            </Button>
+          </div>
+        )}
+      </Field>
+      {link ? (
+        <div className="flex flex-col gap-2 rounded-sm border border-rule bg-sunken p-3">
+          <p className="font-mono text-12 break-all">{link}</p>
+          <CopyButton text={link} label="Copy link" />
+        </div>
+      ) : null}
+      <Status state={state} />
     </form>
   );
 }

@@ -6,7 +6,7 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc } from "@/lib/format";
 import { guardPage, utcInput } from "@/lib/page-guard";
 import { currentActor, emailIsOn, getVotingAdmin } from "@/server/dal";
-import { VoidForm, VoterListForm, VotingLinkForm, VotingSettingsForm } from "./forms";
+import { NewVoterLinkForm, VoidForm, VoterListForm, VotingLinkForm, VotingSettingsForm } from "./forms";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Community vote" };
@@ -162,6 +162,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             </div>
           ) : null}
           {closed || over ? null : <VoterListForm eventSlug={event.slug} />}
+          {closed || over || !v.listed.length ? null : <NewVoterLinkForm eventSlug={event.slug} />}
           {closed || over || v.settings.modes.includes("listed") ? null : <MethodOff method="People on a voter list" then="these links refuse" />}
         </section>
       </div>

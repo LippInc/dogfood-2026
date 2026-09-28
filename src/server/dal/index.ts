@@ -92,6 +92,7 @@ export {
   getCommunityResults,
   getVotingAdmin,
   makeVotingLink,
+  newVoterLink,
   restoreVoter,
   saveVotingSettings,
   voidVoter,

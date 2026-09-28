@@ -590,6 +590,33 @@ export function addListedVoters(actor: Actor | null, eventIdOrSlug: string, body
   });
 }
 
+export const VoterAddress = z.object({ email: z.string().trim().toLowerCase().pipe(z.email("not an email address")) });
+
+/**
+ * A fresh personal link for one address already on the voter list, when its link was mistyped, bounced
+ * or lost: the old link stops working at once, and the new one is returned this once. A ballot set aside
+ * stays set aside, so its voter gets no new link until it is counted again.
+ */
+export function newVoterLink(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
+  return organizer(actor, eventIdOrSlug, (tx, event) => {
+    voteFinal(event);
+    const { email } = parse(VoterAddress, body);
+    const v = tx
+      .select({ id: voters.id, voidedAt: voters.voidedAt })
+      .from(voters)
+      .where(and(eq(voters.eventId, event.id), eq(voters.kind, "listed"), eq(voters.email, email)))
+      .get();
+    if (!v) throw new NotFoundError("An address on the voter list like this");
+    if (v.voidedAt) throw new ConflictError("voter_set_aside", `The ballot of ${email} is set aside: count it again before making a new link.`);
+    const token = newSecret(24);
+    tx.update(voters).set({ tokenHash: sha256(token) }).where(eq(voters.id, v.id)).run();
+    return {
+      result: { email, path: `/vote/${token}` },
+      audit: { action: "voter.new_link", eventId: event.id, targetType: "voter", targetId: v.id },
+    };
+  });
+}
+
 export const VoidInput = z.object({ voterId: z.string().min(1), reason: z.string().trim().min(3, "say why, in a few words").max(500) });
 
 /** Set a ballot aside (a suspected duplicate), with a reason; its votes stop counting. */
