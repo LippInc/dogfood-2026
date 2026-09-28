@@ -24,7 +24,7 @@ import {
   setWebhookEnabled,
   testWebhook,
 } from "@/server/dal/webhooks";
-import { MAX_ATTEMPTS, RETRY_DELAYS_S, deliverDue, privateAddress, verifySignature } from "@/server/webhooks";
+import { CLAIM_MS, MAX_ATTEMPTS, RETRY_DELAYS_S, deliverDue, privateAddress, verifySignature } from "@/server/webhooks";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -346,6 +346,32 @@ describe("webhooks", () => {
     const idle = await deliverDue({ now: new Date(t.getTime() + 3_600_000), fetchImpl: stubFetch });
     expect(idle.attempted).toBe(0);
     expect(received).toHaveLength(MAX_ATTEMPTS);
+  });
+
+  it("two delivery passes at once (two portal processes on one database) send a due delivery once", async () => {
+    process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
+    await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["comment.post"] });
+    postComment(participant(), "prj_01", { body: "Only once" });
+
+    const t0 = soon();
+    const [a, b] = await Promise.all([deliverDue({ now: t0, fetchImpl: stubFetch }), deliverDue({ now: t0, fetchImpl: stubFetch })]);
+    expect(received).toHaveLength(1);
+    expect(a.attempted + b.attempted).toBe(1);
+    expect(theDelivery().status).toBe("delivered");
+  });
+
+  it("a pass that dies mid-send keeps the delivery claimed for CLAIM_MS, then it goes out (at least once, never lost)", async () => {
+    process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
+    await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["comment.post"] });
+    postComment(participant(), "prj_01", { body: "Sent once the claim runs out" });
+
+    const t0 = soon();
+    // claims the delivery, then never finishes, like a process that died while sending
+    void deliverDue({ now: t0, fetchImpl: () => new Promise<Response>(() => {}) });
+    expect((await deliverDue({ now: new Date(t0.getTime() + CLAIM_MS - 1000), fetchImpl: stubFetch })).attempted).toBe(0);
+    const out = await deliverDue({ now: new Date(t0.getTime() + CLAIM_MS + 1000), fetchImpl: stubFetch });
+    expect(out).toEqual({ attempted: 1, delivered: 1, retrying: 0, failed: 0 });
+    expect(received).toHaveLength(1);
   });
 
   it("a failed delivery can be retried by hand; a delivered one cannot", async () => {

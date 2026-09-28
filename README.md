@@ -172,7 +172,8 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   audited action to your URL (ballot picks, scores and pairwise answers left
   out: who acted and when, never the values), signed with
   HMAC-SHA256 and retried with backoff; each delivery is written in the same
-  transaction as the change, so none is lost or invented.
+  transaction as the change, so none is lost or invented, and claimed before it
+  is sent, so two portal processes on one database do not both send it.
 - **Import and export.** Every stage exports as CSV (the download buttons add a
   UTF-8 byte-order mark so Excel reads accented names; the API adds it only with
   `?bom=1`), and a whole event as

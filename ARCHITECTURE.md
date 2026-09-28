@@ -29,7 +29,7 @@ The rule: nothing outside `src/server/` touches the database. `tests/dal-boundar
 - Append-only is enforced by the database: triggers reject UPDATE and DELETE (`src/server/db/triggers.ts`), made by the migrations (`drizzle/0012_triggers.sql`) and re-asserted at every boot, where one whose SQL was replaced is dropped and restored.
 - Each row stores the hash of the row before it; its own hash is `sha256(prevHash + "\n" + canonicalJson(row))` over its fields (`chainHash`, `src/server/audit.ts`). `verifyAuditChain()` recomputes the chain and names the row where it breaks.
 - An organizer reads the log on the audit page (`src/app/organize/[event]/audit/page.tsx`, through `getAuditLog`) and exports it as `audit.csv` with the other exports (`src/server/dal/exports.ts`, `GET /api/events/{event}/export/{file}`).
-- Webhooks ride on it: `appendAudit()` calls `enqueueForAudit()` (`src/server/webhooks.ts`), which inserts one `webhook_deliveries` row per subscribed webhook. The outbox commits exactly when the change does — none lost, none invented.
+- Webhooks ride on it: `appendAudit()` calls `enqueueForAudit()` (`src/server/webhooks.ts`), which inserts one `webhook_deliveries` row per subscribed webhook. The outbox commits exactly when the change does — none lost, none invented. The worker claims each delivery before sending it (its next attempt moves a minute ahead, only if no other pass moved it first), so two portal processes on one database do not both send it; a pass that dies mid-send leaves it to go out after that minute.
 
 ## Boot
 

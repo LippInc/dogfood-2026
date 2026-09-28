@@ -16,6 +16,9 @@ import { newId } from "./util";
 export const RETRY_DELAYS_S = [10, 60, 300, 1800, 7200] as const;
 export const MAX_ATTEMPTS = RETRY_DELAYS_S.length + 1;
 const TIMEOUT_MS = 5000;
+/** A delivery is claimed for this long before it is sent: longer than any send takes, so a pass that dies mid-send
+ *  leaves the delivery to go out again once the claim runs out (at least once, never lost). */
+export const CLAIM_MS = 60_000;
 
 export type AuditRowForHook = {
   id: number;
@@ -159,7 +162,10 @@ export async function targetProblem(url: string, opts: { forDelivery?: boolean }
 /** delivered: arrived; retrying: failed this time, tried again later; failed: failed for good. */
 export type DeliveryOutcome = { attempted: number; delivered: number; retrying: number; failed: number };
 
-/** Send every due delivery once (oldest first); a failure is retried later, the last one is final. */
+/**
+ * Send every due delivery once (oldest first); a failure is retried later, the last one is final. Each delivery is
+ * claimed before it is sent, so two passes at once, or two portal processes on one database, do not both send it.
+ */
 export async function deliverDue(opts: { now?: Date; limit?: number; fetchImpl?: typeof fetch } = {}): Promise<DeliveryOutcome> {
   const db = getDb();
   const now = opts.now ?? new Date();
@@ -171,8 +177,17 @@ export async function deliverDue(opts: { now?: Date; limit?: number; fetchImpl?:
     .orderBy(asc(webhookDeliveries.nextAttemptAt))
     .limit(opts.limit ?? 20)
     .all();
-  const out: DeliveryOutcome = { attempted: due.length, delivered: 0, retrying: 0, failed: 0 };
+  const out: DeliveryOutcome = { attempted: 0, delivered: 0, retrying: 0, failed: 0 };
   for (const { d, url, secret, disabledAt } of due) {
+    // The claim: move the next attempt CLAIM_MS ahead, only if no other pass has moved it since this one read the
+    // row. Both passes see the row as due; SQLite takes one write at a time, so one claim lands and the other skips.
+    const claim = db
+      .update(webhookDeliveries)
+      .set({ nextAttemptAt: new Date(now.getTime() + CLAIM_MS).toISOString() })
+      .where(and(eq(webhookDeliveries.id, d.id), eq(webhookDeliveries.status, "pending"), eq(webhookDeliveries.nextAttemptAt, d.nextAttemptAt!)))
+      .run();
+    if (claim.changes !== 1) continue;
+    out.attempted++;
     const attempt = d.attempts + 1;
     let status: number | null = null;
     let text = "";
