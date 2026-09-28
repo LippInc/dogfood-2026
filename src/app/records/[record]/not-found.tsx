@@ -1,11 +1,15 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { PlainBand, PlainMark } from "@/components/shell/plain-shell";
 import { AskedPath, StatusSheet } from "@/components/status-sheet";
 import { buttonVariants } from "@/components/ui/button";
+import { PAGE_PATH_HEADER } from "@/lib/page-mark";
 import { LookAlikes } from "./look-alikes";
 
 /** A record id this portal never issued: still a real 404, with what to check on this kind of link. */
-export default function NotFound() {
+export default async function NotFound() {
+  // the path this page was asked for, from src/proxy.ts: drawn on the server, so the sheet does not change once the browser takes over
+  const asked = (await headers()).get(PAGE_PATH_HEADER);
   return (
     <StatusSheet
       code="404 · No such record"
@@ -17,7 +21,7 @@ export default function NotFound() {
             <span className="font-mono text-15">1</span> or <span className="font-mono text-15">l</span>, so
             a copy read off paper can be checked for those. Each portal serves only the records it signed: a record from another portal opens there.
           </p>
-          <LookAlikes />
+          <LookAlikes initial={asked} />
         </>
       }
       status="404"
@@ -25,7 +29,7 @@ export default function NotFound() {
       band={<PlainBand />}
       spoil={{ hollow: [1] }}
       rows={[
-        { label: "Asked for", value: <AskedPath />, mono: true },
+        { label: "Asked for", value: <AskedPath initial={asked} />, mono: true },
         { label: "Looked in", value: "The signed records this portal issued" },
         { label: "Answer", value: "HTTP 404, sent as a real status, never a redirect" },
       ]}

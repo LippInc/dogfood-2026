@@ -13,6 +13,8 @@ vi.mock("next/navigation", () => ({
 
 const { UtcNow } = await import("@/components/utc-now");
 const { Deadline } = await import("@/components/deadline");
+const { AskedPath } = await import("@/components/status-sheet");
+const { LookAlikes } = await import("@/app/records/[record]/look-alikes");
 
 const paragraphs = (html: string) => [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map((m) => m[1]!);
 
@@ -31,5 +33,16 @@ describe("first paint holds the room of what the browser fills in", () => {
     // a plain space collapses to a line of no height; a no-break space keeps one
     expect(local).toBe("\u00a0");
     expect(countdown).toBe("\u00a0");
+  });
+
+  it("draws the asked-for path on the server when the page passes it", () => {
+    expect(renderToStaticMarkup(h(AskedPath, { initial: "/events/nope" }))).toBe("/events/nope");
+    // positive control: with nothing to go on it still says something
+    expect(renderToStaticMarkup(h(AskedPath))).toBe("this address");
+  });
+
+  it("puts a record's look-alike note in the first paint", () => {
+    expect(renderToStaticMarkup(h(LookAlikes, { initial: "/records/rec_0bcdefghijk2mnpq" }))).toContain("misread");
+    expect(renderToStaticMarkup(h(LookAlikes, { initial: "/records/rec_abcdefghijk2mnpq" }))).toBe("");
   });
 });

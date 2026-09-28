@@ -9,8 +9,9 @@ const NEVER = ["0", "o", "1", "l"];
  * When the id someone asked for holds a character no record id ever uses, say which:
  * it is almost always a misread from a printed certificate.
  */
-export function LookAlikes() {
-  const path = useAskedPath();
+export function LookAlikes({ initial = null }: { initial?: string | null }) {
+  // seeded with the server's path, so the note is in the first paint and does not push the page down after load
+  const path = useAskedPath(initial);
   let id = "";
   try {
     id = path ? decodeURIComponent(path.split("/").pop() ?? "").replace(/^rec_/, "") : "";

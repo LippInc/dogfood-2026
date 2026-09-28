@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { DitherDigits } from "@/components/dither-digits";
 import { PlainFrame } from "@/components/shell/plain-frame";
@@ -9,16 +10,18 @@ import { buttonVariants } from "@/components/ui/button";
 const noSubscription = () => () => {};
 
 /**
- * The address the browser asked for, read after hydration only: the server may have drawn
- * this page ahead of time, so its idea of the path is not the reader's.
+ * The address the browser asked for. The server passes the path it was asked for (src/proxy.ts puts it in a header),
+ * and the router knows it too, so the first paint already shows it and nothing on the page changes size or moves
+ * when the browser takes over; the browser's own address wins only where the two differ.
  */
-export function useAskedPath(): string | null {
-  return useSyncExternalStore(noSubscription, () => window.location.pathname, () => null);
+export function useAskedPath(initial: string | null = null): string | null {
+  const routerPath = usePathname();
+  return useSyncExternalStore(noSubscription, () => window.location.pathname, () => initial ?? routerPath ?? null);
 }
 
-/** The asked-for path as text; "this address" until the browser has said which. */
-export function AskedPath() {
-  const path = useAskedPath();
+/** The asked-for path as text; "this address" only when neither the server nor the browser can say which. */
+export function AskedPath({ initial = null }: { initial?: string | null }) {
+  const path = useAskedPath(initial);
   return <>{path ?? "this address"}</>;
 }
 
