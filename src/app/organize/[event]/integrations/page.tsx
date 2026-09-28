@@ -7,11 +7,12 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { countBeyondReach, countWithoutPassword, currentActor, EXPORT_FILES, listDeliveries, listWebhooks } from "@/server/dal";
+import { countBeyondReach, countWithoutPassword, currentActor, emailIsOn, EXPORT_FILES, listDeliveries, listOutbox, listWebhooks } from "@/server/dal";
 import { CopyButton } from "../judges/forms";
 import { retry, sendTest, toggleWebhook } from "./actions";
 import { AddWebhookForm, ClaimLinksForm, RotateSecretForm } from "./forms";
 import { exportHref } from "@/lib/export-href";
+import { OutboxTable } from "@/components/outbox-table";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Integrations" };
@@ -42,6 +43,9 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
   const waiting = countWithoutPassword(actor, key);
   const elsewhere = countBeyondReach(actor, key);
   const on = webhooks.filter((w) => w.enabled).length;
+  const mail = listOutbox(actor, key);
+  const mailOn = emailIsOn();
+  const mailFailed = mail.filter((m) => m.status === "failed").length;
   const totals = webhooks.reduce((t, w) => ({ delivered: t.delivered + w.counts.delivered, failed: t.failed + w.counts.failed }), { delivered: 0, failed: 0 });
 
   return (
@@ -70,6 +74,16 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
                   ? [`${on} of ${webhooks.length} on`, totals.failed ? `${totals.failed} failed` : `${totals.delivered} delivered`].join(" · ")
                   : "none yet",
                 mark: totals.failed ? "flag" : on ? "set" : "open",
+              },
+              {
+                id: "mail-title",
+                title: "Email",
+                holds: mail.length
+                  ? [`${mail.length - mailFailed} sent`, mailFailed ? `${mailFailed} failed` : null].filter(Boolean).join(" · ")
+                  : mailOn
+                    ? "on, nothing mailed yet"
+                    : "off",
+                mark: mail[0]?.status === "failed" ? "flag" : mailOn ? "set" : "open",
               },
               {
                 id: "io-title",
@@ -155,10 +169,25 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
           </div>
         </section>
 
+        <section aria-labelledby="mail-title" className="flex flex-col gap-4">
+          <div>
+            <h2 id="mail-title" className="scroll-mt-6 text-20 font-semibold">
+              <SectionNo n={3} />
+              Email
+            </h2>
+            <p className="mt-1 max-w-[760px] text-15 text-ink-2">
+              {mailOn
+                ? "Judge invitations with an address, voter links and account links are mailed the moment they are made. The copy kept here has its link blanked, so a message cannot be sent again: make a new link instead."
+                : "Email is off: each link shows once on the screen that makes it, to copy and send yourself. With SMTP_URL and MAIL_FROM set, the portal mails them as they are made."}
+            </p>
+          </div>
+          <OutboxTable mail={mail} />
+        </section>
+
         <section aria-labelledby="io-title" className="flex flex-col gap-4">
           <div>
             <h2 id="io-title" className="scroll-mt-6 text-20 font-semibold">
-              <SectionNo n={3} />
+              <SectionNo n={4} />
             Import and export
             </h2>
             <p className="mt-1 max-w-[760px] text-15 text-ink-2">
@@ -186,8 +215,10 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
             <div className="flex min-w-0 flex-col gap-2">
               <h3 className="text-15 font-semibold">Personal links for imported people</h3>
               <p className="max-w-[760px] text-14 text-ink-2">
-                People who came in through an import have an account but no password. The portal sends no mail: make each of them a personal link
-                here and send it; it lets that one person set a password, once, within 14 days.
+                People who came in through an import have an account but no password.{" "}
+                {mailOn
+                  ? "Make each of them a personal link here: the portal mails it to them, and it lets that one person set a password, once, within 14 days."
+                  : "The portal sends no mail: make each of them a personal link here and send it; it lets that one person set a password, once, within 14 days."}
               </p>
               <ClaimLinksForm eventSlug={event.slug} waiting={waiting} elsewhere={elsewhere} />
             </div>
@@ -197,7 +228,7 @@ export default async function IntegrationsPage({ params }: PageProps<"/organize/
         <section aria-labelledby="share-title" className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-4">
             <h2 id="share-title" className="scroll-mt-6 text-20 font-semibold">
-              <SectionNo n={4} />
+              <SectionNo n={5} />
             Put the gallery on your site
             </h2>
             <Link href={`/embed/${event.slug}`} className="text-13 underline underline-offset-4">
@@ -230,14 +261,14 @@ function SectionNo({ n }: { n: number }) {
 type ContentsEntry = { id: string; title: string; holds: string; mark: "set" | "open" | "flag" };
 
 /**
- * The page's four parts in one row, each saying what it holds now, drawn as the
+ * The page's five parts in one row, each saying what it holds now, drawn as the
  * overview's pipeline stations: a filled square for a part in use, an open one for
  * a part not set up yet, orange for one that needs you (a delivery that failed).
  */
 function Contents({ entries }: { entries: ContentsEntry[] }) {
   return (
     <nav aria-label="On this page" className="mt-6">
-      <ol className="grid grid-cols-2 gap-y-5 md:grid-cols-4">
+      <ol className="grid grid-cols-2 gap-y-5 md:grid-cols-5">
         {entries.map((e, i) => (
           <li key={e.id} className="relative pt-5 pr-3">
             <span aria-hidden className="absolute top-[4px] right-0 left-0 h-[2px] bg-rule" />
