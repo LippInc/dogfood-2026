@@ -92,6 +92,11 @@ rules, the assignment engine, the normalization engine and its Monte Carlo
 validation, the pairwise engine and its Monte Carlo proof, voting and comments, the audit log's append-only triggers and hash
 chain, and the triggers that keep published results final.
 
+For developers, a check that nothing on screen jumps, shakes or shifts while people type, hover, open menus
+or wait through a live refresh: `node tools/stability-check.mjs http://localhost:8080 --container <the portal's container>`
+(needs Chrome or Chromium; `--self-test` first proves it catches planted bugs). It changes a judge's scores, so
+run it on a scratch portal; how it works and its options are at the top of the file.
+
 How it is built: `ARCHITECTURE.md` (a request's path through the one permission
 check, the audit log, boot, the API) and `DATA-MODEL.md` (every table, its
 constraints and what personal data it keeps). How judging works and why:
