@@ -106,6 +106,8 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             <strong>{METHOD_LABEL}.</strong>{" "}
             {!n.variance.measured
               ? "No project has two counted reviews yet, so this run cannot measure leniency or review noise: it ranks by the plain mean of each project's reviews, with no ±."
+              : !n.variance.leniencyMeasured
+              ? "No judge has two reviews of projects someone else reviewed too, so this run cannot estimate how lenient each judge is: scores are used as given, and each project ranks by the plain mean of its counted reviews."
               : n.variance.k === null
               ? "This run found no steady leniency (β̂² = 0), so it ranks by the plain mean of each project's counted reviews."
               : `This run: k = ${n.variance.k.toFixed(1)} (β̂² = ${n.variance.beta2.toFixed(3)}, σ̂² = ${n.variance.sigma2.toFixed(3)}), so a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.`}{" "}

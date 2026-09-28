@@ -196,7 +196,7 @@ export default async function OverviewPage({
           label: "Ranking",
           value: o.pairwise
             ? `${o.pairwise.placed} of ${o.pairwise.total} placed, ${plural(o.pairwise.answers, "answer")}`
-            : `${plural(nz.ranked, "project")}, ${nz.k === null ? "no leniency found" : `k = ${nz.k.toFixed(1)}`}`,
+            : `${plural(nz.ranked, "project")}, ${!nz.leniencyMeasured ? "too few reviews to measure leniency" : nz.k === null ? "no leniency found" : `k = ${nz.k.toFixed(1)}`}`,
         },
         {
           label: "Decisions",
@@ -360,7 +360,9 @@ export default async function OverviewPage({
                       {nz.k === null ? "0.00" : `±${nz.maxLeniency.toFixed(2)}`}
                     </span>
                     <span className="text-14 text-ink-2">
-                      {nz.k === null
+                      {!nz.leniencyMeasured
+                        ? "too few reviews to measure judge leniency"
+                        : nz.k === null
                         ? "no judge leniency found"
                         : "the most any judge moves a score"}
                     </span>
@@ -371,7 +373,9 @@ export default async function OverviewPage({
                     label={`Leniency of ${plural(nz.points.length, "judge")}: plain averages against what the data supports`}
                   />
                   <p className="text-13 leading-5 text-ink-2">
-                    {nz.k === null
+                    {!nz.leniencyMeasured
+                      ? "Too few reviews to estimate how lenient each judge is, so scores are used as given: the engine corrects nothing and ranks by the plain mean."
+                      : nz.k === null
                       ? "The scores show no steady difference between lenient and harsh judges, so the engine corrects nothing and ranks by the plain mean."
                       : `${nz.minReviews} to ${nz.maxReviews} reviews per judge is too few to tell a lenient judge from a strong batch: at k = ${nz.k.toFixed(1)} half a judge's tilt counts after ${plural(Math.round(nz.k), "review")}, so the engine keeps at most ${Math.round(nz.keptShare * 100)} % of how far any judge's reviews sit from the projects' fitted levels.`}
                     {nz.excludedNames.length

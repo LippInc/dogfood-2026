@@ -109,11 +109,89 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
   const drawn = judges.filter((j) => !j.excluded && k !== null);
   const columns = 6 + (drawn.length ? 1 : 0) + (published ? 0 : 1);
   const span = leniencySpan(drawn.flatMap((j) => [j.tilt ?? 0, j.leniency + 2 * (j.se ?? 0), j.leniency - 2 * (j.se ?? 0)]));
+  // Two judges on one project, say: nothing measures leniency, so the table would be noise; it stays one click away for the override.
+  const unsupported = !n.variance.leniencyMeasured;
+  const table = (
+    <div className="overflow-x-auto rounded-sm border border-rule bg-surface">
+      <table className="w-full text-14 max-md:block">
+        <thead className="max-md:hidden">
+          <tr className="border-b border-rule text-left text-13 text-ink-2">
+            <th className="px-3 py-2 font-medium">Judge</th>
+            <th className="px-3 py-2 text-right font-medium">Reviews counted</th>
+            <th className="px-3 py-2 text-right font-medium">Plain tilt</th>
+            <th className="px-3 py-2 text-right font-medium">Leniency ± error</th>
+            {drawn.length ? (
+              <th className="px-3 py-2 font-medium">
+                <span className="sr-only">Leniency, drawn</span>
+                <LeniencyAxis span={span} />
+              </th>
+            ) : null}
+            <th className="px-3 py-2 text-right font-medium">Tilt kept</th>
+            <th className="px-3 py-2 font-medium">If flipped</th>
+            {published ? null : <th className="px-3 py-2 font-medium">Override</th>}
+          </tr>
+        </thead>
+        <tbody className="max-md:block">
+          {judges.map((j, i) => (
+            <Fragment key={j.id}>
+            {grouped && (i === 0 || groupOf(judges[i - 1]!) !== groupOf(j)) ? (
+              <tr className="border-b border-rule bg-sunken max-md:block">
+                <td colSpan={columns} className="px-3 py-1.5 max-md:block">
+                  <span className={`label-mono ${groupOf(j) === 0 ? "text-flag" : "text-ink-2"}`}>
+                    {GROUPS[groupOf(j)]} · {judges.filter((x) => groupOf(x) === groupOf(j)).length}
+                  </span>
+                </td>
+              </tr>
+            ) : null}
+            <tr className="border-b border-rule align-top last:border-b-0 max-md:grid max-md:grid-cols-[1fr_auto] max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
+              <td className="px-3 py-2 max-md:p-0">
+                <p className="font-medium">{j.name}</p>
+                <p className="text-12 text-ink-2 md:hidden">
+                  {j.excluded ? `0 of ${j.nAll} reviews counted` : `${j.n} ${j.n === 1 ? "review" : "reviews"}`}
+                  {j.tilt === null || j.excluded ? "" : ` · plain tilt ${signed(j.tilt)}`}
+                  {j.kept === null ? "" : ` · tilt kept ${pct(j.kept)}`}
+                </p>
+                <Standing j={j} />
+              </td>
+              <td className="px-3 py-2 text-right tnum max-md:hidden">{j.excluded ? `0 of ${j.nAll}` : j.n}</td>
+              <td className="px-3 py-2 text-right tnum max-md:hidden">{j.tilt === null || j.excluded ? "–" : signed(j.tilt)}</td>
+              <td className="px-3 py-2 text-right whitespace-nowrap tnum max-md:p-0">
+                <span className="block text-12 text-ink-2 md:hidden">leniency ± error</span>
+                {j.excluded ? "left out" : k === null ? "not corrected" : j.se === null ? "–" : `${signed(j.leniency)} ± ${f2(j.se)}`}
+              </td>
+              {drawn.length ? (
+                <td className="px-3 py-2 max-md:hidden">
+                  {j.excluded || k === null ? null : <LeniencyRow tilt={j.tilt} leniency={j.leniency} se={j.se} span={span} />}
+                </td>
+              ) : null}
+              <td className="px-3 py-2 text-right tnum max-md:hidden">{j.kept === null ? "–" : pct(j.kept)}</td>
+              <td className="min-w-[220px] px-3 py-2 text-13 max-md:col-span-2 max-md:min-w-0 max-md:p-0">{j.influence ? <IfFlipped inf={j.influence} /> : "–"}</td>
+              {published ? null : (
+                <td className="min-w-[180px] px-3 py-2 max-md:col-span-2 max-md:min-w-0 max-md:p-0">
+                  <div className="flex items-start">
+                    <Action j={j} eventSlug={eventSlug} />
+                  </div>
+                </td>
+              )}
+            </tr>
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
   return (
     <section aria-labelledby="ledger-title" className="flex flex-col gap-3">
       <h2 id="ledger-title" className="text-17 font-semibold">
         Judge ledger
       </h2>
+      {unsupported ? (
+        <p className="max-w-[860px] text-14">
+          Too few reviews to estimate how lenient each judge is: no judge has two reviews of projects someone else reviewed too. Scores are used as given, so
+          there is nothing to read here yet.
+          {published ? "" : " A judge can still be left out, with a reason, from their row."}
+        </p>
+      ) : (
       <p className="max-w-[860px] text-14 text-ink-2">
         A judge&rsquo;s leniency is what the engine takes off each of their reviews. It starts from how far the judge&rsquo;s reviews sit from the projects&rsquo;
         fitted levels and keeps n ÷ (n + k) of that. The plain tilt beside it is measured against the other reviewers&rsquo; raw scores, which carry their own
@@ -123,8 +201,9 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
         flipped, so you see what an override would change before you make it.
         {published ? " The results are published, so the judge set is final." : ""}
       </p>
-      <Summary judges={judges} />
-      {drawn.length ? (
+      )}
+      {unsupported ? null : <Summary judges={judges} />}
+      {!unsupported && drawn.length ? (
         <p className="flex flex-wrap items-center gap-x-5 gap-y-1 text-12 text-ink-2 max-md:hidden" aria-hidden>
           <span className="label-mono text-ink">Fig. 04 — Leniency, drawn</span>
           <span className="flex items-center gap-1.5">
@@ -138,73 +217,16 @@ export function JudgeLedger({ n, eventSlug, published }: { n: Normalized; eventS
           </span>
         </p>
       ) : null}
-      <div className="overflow-x-auto rounded-sm border border-rule bg-surface">
-        <table className="w-full text-14 max-md:block">
-          <thead className="max-md:hidden">
-            <tr className="border-b border-rule text-left text-13 text-ink-2">
-              <th className="px-3 py-2 font-medium">Judge</th>
-              <th className="px-3 py-2 text-right font-medium">Reviews counted</th>
-              <th className="px-3 py-2 text-right font-medium">Plain tilt</th>
-              <th className="px-3 py-2 text-right font-medium">Leniency ± error</th>
-              {drawn.length ? (
-                <th className="px-3 py-2 font-medium">
-                  <span className="sr-only">Leniency, drawn</span>
-                  <LeniencyAxis span={span} />
-                </th>
-              ) : null}
-              <th className="px-3 py-2 text-right font-medium">Tilt kept</th>
-              <th className="px-3 py-2 font-medium">If flipped</th>
-              {published ? null : <th className="px-3 py-2 font-medium">Override</th>}
-            </tr>
-          </thead>
-          <tbody className="max-md:block">
-            {judges.map((j, i) => (
-              <Fragment key={j.id}>
-              {grouped && (i === 0 || groupOf(judges[i - 1]!) !== groupOf(j)) ? (
-                <tr className="border-b border-rule bg-sunken max-md:block">
-                  <td colSpan={columns} className="px-3 py-1.5 max-md:block">
-                    <span className={`label-mono ${groupOf(j) === 0 ? "text-flag" : "text-ink-2"}`}>
-                      {GROUPS[groupOf(j)]} · {judges.filter((x) => groupOf(x) === groupOf(j)).length}
-                    </span>
-                  </td>
-                </tr>
-              ) : null}
-              <tr className="border-b border-rule align-top last:border-b-0 max-md:grid max-md:grid-cols-[1fr_auto] max-md:gap-x-3 max-md:gap-y-2 max-md:px-3 max-md:py-3">
-                <td className="px-3 py-2 max-md:p-0">
-                  <p className="font-medium">{j.name}</p>
-                  <p className="text-12 text-ink-2 md:hidden">
-                    {j.excluded ? `0 of ${j.nAll} reviews counted` : `${j.n} ${j.n === 1 ? "review" : "reviews"}`}
-                    {j.tilt === null || j.excluded ? "" : ` · plain tilt ${signed(j.tilt)}`}
-                    {j.kept === null ? "" : ` · tilt kept ${pct(j.kept)}`}
-                  </p>
-                  <Standing j={j} />
-                </td>
-                <td className="px-3 py-2 text-right tnum max-md:hidden">{j.excluded ? `0 of ${j.nAll}` : j.n}</td>
-                <td className="px-3 py-2 text-right tnum max-md:hidden">{j.tilt === null || j.excluded ? "–" : signed(j.tilt)}</td>
-                <td className="px-3 py-2 text-right whitespace-nowrap tnum max-md:p-0">
-                  <span className="block text-12 text-ink-2 md:hidden">leniency ± error</span>
-                  {j.excluded ? "left out" : k === null ? "not corrected" : j.se === null ? "–" : `${signed(j.leniency)} ± ${f2(j.se)}`}
-                </td>
-                {drawn.length ? (
-                  <td className="px-3 py-2 max-md:hidden">
-                    {j.excluded || k === null ? null : <LeniencyRow tilt={j.tilt} leniency={j.leniency} se={j.se} span={span} />}
-                  </td>
-                ) : null}
-                <td className="px-3 py-2 text-right tnum max-md:hidden">{j.kept === null ? "–" : pct(j.kept)}</td>
-                <td className="min-w-[220px] px-3 py-2 text-13 max-md:col-span-2 max-md:min-w-0 max-md:p-0">{j.influence ? <IfFlipped inf={j.influence} /> : "–"}</td>
-                {published ? null : (
-                  <td className="min-w-[180px] px-3 py-2 max-md:col-span-2 max-md:min-w-0 max-md:p-0">
-                    <div className="flex items-start">
-                      <Action j={j} eventSlug={eventSlug} />
-                    </div>
-                  </td>
-                )}
-              </tr>
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {unsupported ? (
+        <details className="border-t border-rule pt-3">
+          <summary className="cursor-pointer text-13 font-medium text-ink-2 hover:text-ink">
+            {published ? "Show each judge’s row" : "Show each judge’s row, to leave a judge out"}
+          </summary>
+          <div className="mt-3">{table}</div>
+        </details>
+      ) : (
+        table
+      )}
       {idle ? (
         <p className="text-13 text-ink-2">
           {idle} {idle === 1 ? "judge has" : "judges have"} no finished review yet and {idle === 1 ? "is" : "are"} not listed.

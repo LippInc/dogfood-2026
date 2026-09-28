@@ -64,6 +64,7 @@ export function plainSummary(n: Normalized, opts: { open: number; published: boo
   else lines.push(`In ${close.length} of the ${leads} ${tracksLed} first place leads by less than the margin of error (±), so read those leads as ties: ${names(close)}.`);
 
   if (!n.variance.measured) lines.push("No project has two counted reviews yet, so nothing is evened out: places come from the plain averages.");
+  else if (!n.variance.leniencyMeasured) lines.push("Too few reviews to estimate how lenient each judge is, so scores are used as given: places come from the plain averages.");
   else if (n.variance.k === null) lines.push("The judges show no steady leniency, so places come from the plain averages.");
   else {
     const moves = ranked

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
-import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
+import { FixtureSchema, importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { requireEvent } from "@/server/dal/events";
@@ -220,5 +220,39 @@ describe("the judge ledger", () => {
   it("known-bad: comparing a run with itself finds nothing to predict", () => {
     const n = computeNormalization(h.db, requireEvent(h.db, "evt_01"));
     expect(compare(n, n)).toEqual({ moved: 0, unranked: 0, largest: 0, changed: [] });
+  });
+});
+
+describe("an event too small to measure leniency", () => {
+  /** Two judges, one project: the noise between their two reviews is measured, no judge's leniency can be. */
+  function tiny(projects: number) {
+    const fixture = FixtureSchema.parse({
+      event: { id: "evt_tiny", name: "Pizza night", submissions_close: "2026-03-01T18:00:00Z" },
+      tracks: [{ id: "trk_all", name: "General" }],
+      judges: [
+        { id: "jdg_tom", name: "Tom", email: "tom@example.org", tracks: ["trk_all"] },
+        { id: "jdg_pri", name: "Priya", email: "priya@example.org", tracks: ["trk_all"] },
+      ],
+      teams: Array.from({ length: projects }, (_, i) => ({ id: `tm_${i}`, name: `Team ${i}`, members: [`m${i}@example.org`] })),
+      projects: Array.from({ length: projects }, (_, i) => ({ id: `prj_t${i}`, team: `tm_${i}`, track: "trk_all", title: `Pizza ${i}`, summary: "x", repo_url: "", submitted_at: "2026-02-27T04:08:00Z" })),
+      scores: Array.from({ length: projects }, (_, i) => [
+        { judge: "jdg_tom", project: `prj_t${i}`, criteria: { functionality: 5, quality: 4, innovation: 5 + (i % 2) - 1 }, comment: "" },
+        { judge: "jdg_pri", project: `prj_t${i}`, criteria: { functionality: 2, quality: 3, innovation: 3 }, comment: "" },
+      ]).flat(),
+    });
+    importFixtures(h.db, fixture, { source: "tiny.json", sha256: `tiny-${projects}`, now: NOW });
+    ensureDemoOrganizer(h.db, "evt_tiny", NOW);
+    return computeNormalization(h.db, requireEvent(h.db, "evt_tiny"));
+  }
+
+  it("says leniency could not be measured, where the sample event can (known-bad: the same two judges on two projects can)", () => {
+    const one = tiny(1);
+    expect(one.variance).toMatchObject({ measured: true, leniencyMeasured: false, k: null });
+    expect(one.judges.map((j) => Math.abs(j.tilt!))).toEqual([expect.closeTo(1.667, 2), expect.closeTo(1.667, 2)]);
+    expect(computeNormalization(h.db, requireEvent(h.db, "evt_01")).variance.leniencyMeasured).toBe(true);
+  });
+
+  it("with two shared projects the same judges measure it", () => {
+    expect(tiny(2).variance.leniencyMeasured).toBe(true);
   });
 });

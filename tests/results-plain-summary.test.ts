@@ -44,7 +44,7 @@ function run(o: Partial<Normalized> = {}): Normalized {
     row({ id: "Salt Loom", trackId: "t2", score: 3.9, se: 0.2, trackRank: 2, rankKept: 4, rankNormalized: 4, rankRaw: 3, n: 1, underReviewed: true }),
   ];
   return {
-    variance: { W: 1, beta2: 0.05, sigma2: 0.4, k: 8, measured: true },
+    variance: { W: 1, beta2: 0.05, sigma2: 0.4, k: 8, measured: true, leniencyMeasured: true },
     projects,
     judges: [judge({ id: "Ana" }), judge({ id: "Ben", n: 4 }), judge({ id: "Iva Petrova", excluded: true, flag: { judgeId: "Iva Petrova", reviews: 5, vector: [3, 3, 3] } })],
     ranked: 4,
@@ -124,11 +124,18 @@ describe("plainSummary", () => {
     );
   });
 
+  const TOO_FEW = "Too few reviews to estimate how lenient each judge is, so scores are used as given: places come from the plain averages.";
+
   it("says plainly when leniency could not be measured or was not there", () => {
-    const unmeasured = run({ variance: { W: 0, beta2: 0, sigma2: 0, k: null, measured: false } });
+    const unmeasured = run({ variance: { W: 0, beta2: 0, sigma2: 0, k: null, measured: false, leniencyMeasured: false } });
     expect(say(unmeasured)).toContain("No project has two counted reviews yet, so nothing is evened out: places come from the plain averages.");
-    const flat = run({ variance: { W: 1, beta2: 0, sigma2: 0.4, k: null, measured: true } });
+    // Two judges on one project: the noise is measured, but no judge's leniency can be.
+    const tooFew = run({ variance: { W: 1, beta2: 0, sigma2: 1, k: null, measured: true, leniencyMeasured: false } });
+    expect(say(tooFew)).toContain(TOO_FEW);
+    expect(say(tooFew)).not.toContain("The judges show no steady leniency");
+    const flat = run({ variance: { W: 1, beta2: 0, sigma2: 0.4, k: null, measured: true, leniencyMeasured: true } });
     expect(say(flat)).toContain("The judges show no steady leniency, so places come from the plain averages.");
+    expect(say(flat)).not.toContain(TOO_FEW);
   });
 
   it("names the judges left out and why, and the under-reviewed projects", () => {

@@ -44,6 +44,12 @@ export type Variance = {
    * floor, and no ± is reported rather than the floor posing as a standard error
    */
   measured: boolean;
+  /**
+   * judges whose reviews measure leniency at all: two or more reviews of projects someone
+   * else reviewed too. With none, β̂² has no data (it is 0 for want of evidence, not
+   * because judges were found alike), and no judge's leniency can be told from noise.
+   */
+  leniencyJudges: number;
 };
 
 export type Fit = {
@@ -83,9 +89,11 @@ export function estimateVariance(obs: readonly Obs[]): Variance {
 
   let num = 0;
   let den = 0;
+  let leniencyJudges = 0;
   for (const list of groupBy(deviations, (x) => x.judgeId).values()) {
     const n = list.length;
     if (n < 2) continue;
+    leniencyJudges++;
     let cn = 0;
     let cd = 0;
     for (let a = 0; a < n; a++) {
@@ -113,7 +121,7 @@ export function estimateVariance(obs: readonly Obs[]): Variance {
   }
   const W = wd ? wn / wd : 0;
   const sigma2 = Math.max(SIGMA2_FLOOR, W - beta2);
-  return { beta2, W, sigma2, k: beta2 > 0 ? sigma2 / beta2 : null, measured: wd > 0 };
+  return { beta2, W, sigma2, k: beta2 > 0 ? sigma2 / beta2 : null, measured: wd > 0, leniencyJudges };
 }
 
 /** The Cholesky factor L of a symmetric positive-definite A (A = L Lᵀ). */

@@ -37,6 +37,8 @@ export type Overview = {
   };
   normalization: {
     k: number | null;
+    /** false while too few reviews overlap to estimate any judge's leniency: scores are used as given */
+    leniencyMeasured: boolean;
     beta2: number;
     maxLeniency: number;
     minReviews: number;
@@ -134,7 +136,9 @@ function eventStatus(db: Db, event: EventRow) {
             : "waiting"
           : n.ranked === 0
             ? "waiting"
-            : n.variance.k === null
+            : !n.variance.leniencyMeasured
+              ? "scores as given"
+              : n.variance.k === null
               ? "no leniency found"
               : `k = ${n.variance.k.toFixed(1)}`,
       open: openAt("07"),
@@ -204,6 +208,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
     },
     normalization: {
       k: n.variance.k,
+      leniencyMeasured: n.variance.leniencyMeasured,
       beta2: n.variance.beta2,
       maxLeniency: kept.reduce((m, j) => Math.max(m, Math.abs(j.leniency)), 0),
       minReviews: kept.length ? Math.min(...kept.map((j) => j.n)) : 0,

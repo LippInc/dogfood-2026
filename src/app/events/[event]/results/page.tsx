@@ -147,9 +147,10 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </p>
                 ) : (
                   <p>
-                    Each project&rsquo;s score is its judges&rsquo; weighted rubric average, adjusted for how lenient each judge proved to be across the
-                    event{results.k !== null ? ` (k = ${results.k.toFixed(1)})` : ""}. The ± under each score is one standard error: scores closer than
-                    about two of them are not told apart.
+                    {results.k !== null
+                      ? `Each project’s score is its judges’ weighted rubric average, adjusted for how lenient each judge proved to be across the event (k = ${results.k.toFixed(1)}).`
+                      : "Each project’s score is the plain average of its judges’ weighted rubric totals: the reviews showed no steady leniency to take out, or were too few to measure one."}{" "}
+                    The ± under each score is one standard error: scores closer than about two of them are not told apart.
                   </p>
                 )}
                 {results.yardstick ? (

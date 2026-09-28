@@ -101,8 +101,12 @@ export type JudgeStanding = {
 };
 
 export type Normalized = {
-  /** measured: false while no project has two counted reviews (β̂² and σ̂² then have no data) */
-  variance: { W: number; beta2: number; sigma2: number; k: number | null; measured: boolean };
+  /**
+   * measured: false while no project has two counted reviews (β̂² and σ̂² then have no data);
+   * leniencyMeasured: false while no judge has two reviews of projects someone else reviewed
+   * too, so no judge's leniency can be estimated and scores are used as given
+   */
+  variance: { W: number; beta2: number; sigma2: number; k: number | null; measured: boolean; leniencyMeasured: boolean };
   projects: ProjectRow[];
   judges: JudgeStanding[];
   ranked: number;
@@ -339,7 +343,7 @@ function normalizationRun(db: DbOrTx, event: EventRow, opts: NormalizationOption
   }
 
   return {
-    variance: { W: fit.W, beta2: fit.beta2, sigma2: fit.sigma2, k: fit.kUsed, measured: fit.measured },
+    variance: { W: fit.W, beta2: fit.beta2, sigma2: fit.sigma2, k: fit.kUsed, measured: fit.measured, leniencyMeasured: fit.leniencyJudges > 0 },
     projects: rows,
     judges,
     ranked: score.size,
