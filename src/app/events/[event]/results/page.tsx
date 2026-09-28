@@ -72,7 +72,10 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
         ]
       : []),
   ];
-  const topVotes =community.tally?.reduce((m, t) => Math.max(m, t.votes), 0) ?? 0;
+  // a project with a counted vote (or an open-link one, shown apart) gets a row; the rest are named in one fold
+  const voted = community.tally?.filter((t) => t.votes > 0 || t.openLink > 0) ?? [];
+  const unvoted = community.tally?.filter((t) => t.votes === 0 && t.openLink === 0) ?? [];
+  const topVotes = community.tally?.reduce((m, t) => Math.max(m, t.votes), 0) ?? 0;
 
   return (
     <PublicShell event={event} active="results" signedInAs={actor?.name ?? null} links={actorNav(actor, event.id)}>
@@ -302,9 +305,14 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
         <section aria-labelledby="community-title" className="mt-20 max-w-[860px] border-t border-rule pt-8 pb-16">
           <p className="label-mono text-accent-ink">Community vote</p>
           <h2 id="community-title" className="mt-2 text-24 font-semibold">
-            {community.tally ? "The community's favourites" : "Hidden until voting closes"}
+            {community.tally ? (voted.length ? "The community's favourites" : "No community favourite this time") : "Hidden until voting closes"}
           </h2>
-          {community.tally ? (
+          {community.tally && !voted.length ? (
+            <p className="mt-3 text-17 text-ink-2">
+              Voting closed{community.closesAt ? ` on ${formatUtc(community.closesAt, { weekday: true })}` : ""} with no votes counted, so no project has a
+              community place.
+            </p>
+          ) : community.tally ? (
             <>
               {linkVotes ? (
                 <p className="mt-3 text-15 text-ink-2">
@@ -313,7 +321,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                 </p>
               ) : null}
               <ol className="mt-4 divide-y divide-rule border-y border-rule">
-                {community.tally.map((t) => (
+                {voted.map((t) => (
                   <li key={t.projectId} className={`tile grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 py-2.5 sm:grid-cols-[48px_48px_minmax(0,1fr)_minmax(120px,220px)_auto] ${t.place === 1 ? "lit" : ""}`}>
                     <span className={`font-display tnum ${t.place === 1 ? "text-24 text-accent-ink" : "text-20"}`}>{t.place ?? "–"}</span>
                     <span className="max-sm:hidden">
@@ -332,7 +340,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                       />
                     </span>
                     <span className="col-start-3 row-start-1 flex items-baseline justify-end gap-3 sm:col-start-5">
-                      <span className="text-15 font-semibold tnum">
+                      <span className="w-[4.5rem] text-right text-15 font-semibold tnum">
                         {t.votes} {t.votes === 1 ? "vote" : "votes"}
                       </span>
                       {linkVotes ? (
@@ -344,12 +352,39 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </li>
                 ))}
               </ol>
+              {unvoted.length ? (
+                // the projects nobody picked, named in one fold rather than a row of zeros each
+                <details className="group mt-3 text-14 text-ink-2">
+                  <summary className="inline-flex cursor-pointer list-none items-center gap-2 py-1 [&::-webkit-details-marker]:hidden">
+                    {plural(unvoted.length, "more project")} got no votes
+                    <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+                  </summary>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                    {unvoted.map((t) => (
+                      <li key={t.projectId}>
+                        <Link href={`/events/${event.slug}/projects/${t.projectId}`} className="hover:underline">
+                          {t.title}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
             </>
           ) : (
-            <p className="mt-3 text-17 text-ink-2">
-              Voting {community.state === "upcoming" ? "has not opened yet" : "is open"}; only the organizers see the count until it closes
-              {community.closesAt ? ` on ${formatUtc(community.closesAt, { weekday: true })}` : ""}.
-            </p>
+            <>
+              <p className="mt-3 text-17 text-ink-2">
+                Voting {community.state === "upcoming" ? "has not opened yet" : "is open"}; only the organizers see the count until it closes
+                {community.closesAt ? ` on ${formatUtc(community.closesAt, { weekday: true })}` : ""}.
+              </p>
+              {community.state === "open" ? (
+                <p className="mt-4">
+                  <Link href={`/events/${event.slug}/vote`} className="text-15 font-semibold text-ink underline underline-offset-4 hover:text-accent-ink">
+                    Pick your favourites on the ballot
+                  </Link>
+                </p>
+              ) : null}
+            </>
           )}
         </section>
       )}
