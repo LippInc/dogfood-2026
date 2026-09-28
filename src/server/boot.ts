@@ -182,7 +182,8 @@ export async function boot(): Promise<void> {
 function announceWhenWarm(event: { id: string; slug: string } | null, url: string, bootMs: number): void {
   const warmStarted = Date.now();
   void warmUp(selfBase(), warmUpSteps(event), (results) => {
-    const failed = results.filter((r) => r.status === null || r.status >= 500);
+    // /api/health answers 503 until the warm-up is done, by design
+    const failed = results.filter((r) => r.status === null || (r.status >= 500 && !(r.path === "/api/health" && r.status === 503)));
     if (failed.length) {
       console.warn(
         `[boot] warm-up: ${failed.map((r) => `${r.method} ${r.path} ${r.status === null ? "did not answer" : `answered ${r.status}`}`).join(", ")}; the first real request there may be slow`,
