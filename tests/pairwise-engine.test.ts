@@ -244,4 +244,18 @@ describe("a judge's agreement with the rest of the panel", () => {
     expect(judgeAgreement(tr, all, "tier")).toMatchObject({ ties: 10, z: null });
     expect(judgeAgreement(tr, [...panel, ...honest.slice(0, 5)], "honest").z).toBeNull();
   });
+
+  it("scores an answer as agreeing exactly when it names the project the rest of the panel favours, whichever side it was on", () => {
+    const tr = one(ids);
+    // The same verdicts asked with the sides swapped: "b vs a, right wins" names a, as "a vs b, left wins" does.
+    const swapped = pairs.map(([a, b]) => pick(b, a, 0, "swapped"));
+    const against = pairs.map(([a, b]) => pick(b, a, 1, "against"));
+    const all = [...panel, ...swapped, ...against];
+    expect(judgeAgreement(tr, all, "swapped").share).toBe(1);
+    expect(judgeAgreement(tr, all, "against").share).toBe(0);
+    const honest = pairs.map(([a, b]) => pick(a, b, 1, "honest"));
+    const contrary = pairs.map(([a, b]) => pick(a, b, 0, "contrary"));
+    expect(judgeAgreement(tr, [...panel, ...honest], "honest").share).toBe(1);
+    expect(judgeAgreement(tr, [...panel, ...contrary], "contrary").share).toBe(0);
+  });
 });

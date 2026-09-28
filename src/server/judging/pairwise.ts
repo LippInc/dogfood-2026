@@ -362,7 +362,7 @@ export function judgeAgreement(tracks: { trackId: string; projectIds: string[] }
   for (const c of mine) {
     const p = sigmoid((s.get(c.a) ?? 0) - (s.get(c.b) ?? 0));
     const w = Math.abs(2 * p - 1);
-    const agree = c.y === 0.5 ? 0.5 : (c.y === 1) === p > 0.5 ? 1 : 0;
+    const agree = c.y === 0.5 ? 0.5 : (c.y === 1) === (p > 0.5) ? 1 : 0;
     W += w;
     A += w * agree;
     // Under coin flips a pick agrees with probability 1/2 (variance w^2/4); a tie always earns w/2, so it adds no variance.
