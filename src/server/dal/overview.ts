@@ -8,7 +8,8 @@ import { guardRead } from "../mutate";
 import { latestAudit, type AuditLine } from "./audit-log";
 import { eventFacts, getGallery, requireEvent, type EventRow } from "./events";
 import { judgeRows } from "./judges";
-import { computeNormalization, decisions, eventDecisions, type Decision } from "./normalization";
+import { computeNormalization } from "./normalization";
+import { decisions, eventDecisions, type Decision } from "./decisions";
 import { computePairwise, judgingModeOf, pairwiseProgress, pullShare } from "./pairwise";
 import { voteSummary, type VoteSummary } from "./voting";
 

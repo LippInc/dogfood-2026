@@ -10,7 +10,8 @@ import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { assignByHand, getAssignments, runAssignment } from "@/server/dal/assignments";
 import { judgeSet } from "@/server/dal/judging";
-import { acceptUnderReviewed, dismissDuplicate, publishResults, setJudgeOverride } from "@/server/dal/normalization";
+import { acceptUnderReviewed, dismissDuplicate, setJudgeOverride } from "@/server/dal/decisions";
+import { publishResults } from "@/server/dal/results";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";

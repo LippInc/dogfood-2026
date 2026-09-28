@@ -9,23 +9,20 @@ import { verifyAuditChain } from "@/server/audit";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { requireEvent } from "@/server/dal/events";
+import { METHOD, computeNormalization } from "@/server/dal/normalization";
 import {
-  METHOD,
   acceptUnderReviewed,
-  computeNormalization,
   decisions,
   dismissDuplicate,
-  getNormalization,
-  getPublishedResults,
   mergeDuplicate,
-  publishResults,
   revokeJudgeOverride,
   setJudgeOverride,
   undoAcceptUnderReviewed,
   undoNotDuplicate,
   unmergeDuplicate,
   type Decision,
-} from "@/server/dal/normalization";
+} from "@/server/dal/decisions";
+import { getNormalization, getPublishedResults, publishResults } from "@/server/dal/results";
 import { getSubmissions } from "@/server/dal/submissions";
 import { castBallot, enterVoting, getCommunityResults, makeVotingLink, saveVotingSettings } from "@/server/dal/voting";
 import { getAuditLog } from "@/server/dal/audit-log";

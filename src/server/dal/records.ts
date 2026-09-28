@@ -11,7 +11,7 @@ import { guardRead, mutate } from "../mutate";
 import { ensureSigningKey, publishedKeys, signRecord, verifyEnvelope, type PublishedKey, type Verification } from "../signing";
 import { canonicalJson, newId, nowIso } from "../util";
 import { eventFacts, requireEvent, type PublicEvent } from "./events";
-import { getPublishedResults } from "./normalization";
+import { getPublishedResults } from "./results";
 import { parse } from "./parse";
 import { getCommunityResults } from "./voting";
 

@@ -8,7 +8,7 @@ import { userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import type { Actor } from "@/server/authz";
 import { saveRubric } from "@/server/dal/organize";
-import { getNormalization } from "@/server/dal/normalization";
+import { getNormalization } from "@/server/dal/results";
 
 const NOW = "2026-09-26T12:00:00.000Z";
 let h: Handle;

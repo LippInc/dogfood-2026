@@ -58,27 +58,31 @@ export {
 } from "./reviews";
 export type { Criterion } from "./judging";
 export {
+  METHOD_LABEL,
+  type Influence,
+  type JudgeStanding,
+  type Normalized,
+  type ProjectRow,
+  type Receipt,
+} from "./normalization";
+export {
   acceptUnderReviewed,
   dismissDuplicate,
-  getNormalization,
-  getPublishedResults,
   mergeDuplicate,
-  METHOD_LABEL,
-  publishResults,
   revokeJudgeOverride,
   setJudgeOverride,
   undoAcceptUnderReviewed,
   undoNotDuplicate,
   unmergeDuplicate,
   type Decision,
-  type Influence,
-  type JudgeStanding,
-  type Normalized,
+} from "./decisions";
+export {
+  getNormalization,
+  getPublishedResults,
+  publishResults,
   type PrivateNote,
-  type ProjectRow,
   type PublishedResults,
-  type Receipt,
-} from "./normalization";
+} from "./results";
 export { getOverview, type Overview, type Stage } from "./overview";
 export { addOrganizer, listOrganizers, removeOrganizer, type Organizer } from "./organizers";
 export { getAuditEntries, getAuditLog, getPortalEntries, getPortalLog, type AuditEntryView, type AuditLine, type Part } from "./audit-log";

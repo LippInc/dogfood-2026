@@ -10,7 +10,7 @@ import { mutate } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, participantEventView, requireEvent, type EventRow, type ParticipantEventView } from "./events";
 import { finishedReviews, judgeSet, rubricOf, weightedTotal } from "./judging";
-import { getPublishedResults } from "./normalization";
+import { getPublishedResults } from "./results";
 import { myTeam, type MyTeam } from "./teams";
 import { issuesOf } from "./parse";
 import { discardUpload, UPLOAD_PATH } from "../uploads";

@@ -5,7 +5,7 @@ import { getDb } from "../db/client";
 import { assignments, projects, teamMembers, teams, tracks } from "../db/schema";
 import { guardRead } from "../mutate";
 import { eventFacts, requireEvent } from "./events";
-import { decisions } from "./normalization";
+import { decisions } from "./decisions";
 
 // The organizer's list of every project, drafts included, with its review progress.
 

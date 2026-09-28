@@ -9,7 +9,8 @@ import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { requireEvent } from "@/server/dal/events";
 import { saveRubric, updateEventDetails } from "@/server/dal/organize";
-import { acceptUnderReviewed, dismissDuplicate, publishResults, setJudgeOverride } from "@/server/dal/normalization";
+import { acceptUnderReviewed, dismissDuplicate, setJudgeOverride } from "@/server/dal/decisions";
+import { publishResults } from "@/server/dal/results";
 import type { Actor } from "@/server/authz";
 
 // The event settings an organizer edits: the rubric and the event's details. Both are

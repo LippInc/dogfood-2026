@@ -24,7 +24,7 @@ import {
   type Client,
 } from "@/server/dal/voting";
 import { auditCsv, getAuditLog } from "@/server/dal/audit-log";
-import { mergeDuplicate, unmergeDuplicate } from "@/server/dal/normalization";
+import { mergeDuplicate, unmergeDuplicate } from "@/server/dal/decisions";
 import { createTeam, joinTeam } from "@/server/dal/teams";
 import type { Actor } from "@/server/authz";
 

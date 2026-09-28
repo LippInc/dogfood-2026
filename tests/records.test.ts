@@ -9,7 +9,8 @@ import { auditLog, userRoles } from "@/server/db/schema";
 import { verifyAuditChain } from "@/server/audit";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
-import { acceptUnderReviewed, getPublishedResults, mergeDuplicate, publishResults, setJudgeOverride } from "@/server/dal/normalization";
+import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
+import { getPublishedResults, publishResults } from "@/server/dal/results";
 import { issueAllRecords, issueOwnRecord, issueOwnRecordRequest, getRecord, keysDocument, listRecords, verifyRecord } from "@/server/dal/records";
 import type { Actor } from "@/server/authz";
 

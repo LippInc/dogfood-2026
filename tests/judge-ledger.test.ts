@@ -7,17 +7,14 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { requireEvent } from "@/server/dal/events";
+import { computeNormalization, type Normalized } from "@/server/dal/normalization";
 import {
   acceptUnderReviewed,
-  computeNormalization,
-  getNormalization,
-  getPublishedResults,
   mergeDuplicate,
-  publishResults,
   revokeJudgeOverride,
   setJudgeOverride,
-  type Normalized,
-} from "@/server/dal/normalization";
+} from "@/server/dal/decisions";
+import { getNormalization, getPublishedResults, publishResults } from "@/server/dal/results";
 import type { Actor } from "@/server/authz";
 
 // The judge ledger on the fixture: each judge's leniency ± its standard error, the
