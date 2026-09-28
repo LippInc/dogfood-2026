@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 const tooLarge = () => new HttpError(413, "image_too_large", "The image is over 2 MB. Save a smaller one (1600 pixels wide is plenty) and try again.");
 
-/** The request body, read only up to the limit: a larger upload is refused without reading the rest. */
+/** The request body, counted as it arrives and refused past the limit (Next's proxy in front of /api may already hold up to 10 MB of it). */
 async function bodyBytes(req: Request): Promise<Uint8Array> {
   if (Number(req.headers.get("content-length") ?? 0) > MAX_IMAGE_BYTES) throw tooLarge();
   if (!req.body) return new Uint8Array(0);

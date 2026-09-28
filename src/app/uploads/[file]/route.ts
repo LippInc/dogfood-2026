@@ -16,8 +16,9 @@ export async function GET(_req: Request, { params }: RouteContext<"/uploads/[fil
       "content-length": String(file.bytes.length),
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
-      // a picture's name never changes its bytes: a new upload is a new name
-      "cache-control": "public, max-age=31536000, immutable",
+      // a name never changes its bytes (a new upload is a new name), but a taken-down picture should not
+      // outlive its take-down in a shared cache for long
+      "cache-control": "public, max-age=3600",
     },
   });
 }

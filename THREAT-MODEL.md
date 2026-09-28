@@ -56,9 +56,9 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 ## Uploaded files
 
-**What is built:** only a project's picture is uploaded, by its team while submissions are open, through the same permission check and audit row as any edit. The portal reads the kind from the file's first bytes (PNG, JPEG or WebP; never the name or the declared type), so no SVG or HTML is stored, refuses anything over 2 MB before reading the rest, names each file with 128 random bits, and serves only names it made, as the image type, with `nosniff`. A refused upload leaves no file.
+**What is built:** only a project's picture is uploaded, by its team while submissions are open, through the same permission check and audit row as any edit; the refusal comes before the file is looked at or written. The portal reads the kind from the file's first bytes (PNG, JPEG or WebP; never the name or the declared type), so no SVG or HTML is stored; removes the metadata (a phone photo's location); refuses anything over 2 MB, counting the body as it arrives; names each file with 128 random bits; and serves only names it made, as the image type, with `nosniff`. A refused upload leaves no file, and a replaced or cleared picture's file is deleted unless another project shows it.
 
-**What is not:** a limit on how often a team replaces its picture (each replacement deletes the old file), and a scan of what an image shows.
+**What is not:** a limit on how often a team replaces its picture; a cap below Next's own in front of the API, which holds up to 10 MB of any request body; a way for an organizer to take a picture down; and a scan of what an image shows.
 
 ## Filling the audit log
 

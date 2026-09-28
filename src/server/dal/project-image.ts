@@ -56,7 +56,7 @@ function setThumbnail(actor: Actor | null, projectId: string, next: (() => strin
 
 /** Upload a team's project picture: PNG, JPEG or WebP, told by its bytes, at most 2 MB. */
 export function setProjectImage(actor: Actor | null, projectId: string, bytes: Uint8Array) {
-  // no session is a 401 whatever was sent, before the bytes are looked at (the route does not count a body for it)
+  // no session is a 401 whatever was sent, before the bytes are looked at (the route does not read a body for it)
   if (!actor) throw new AuthzError(unauthenticated);
   let stored: string | null = null;
   try {

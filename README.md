@@ -237,7 +237,7 @@ same secret salts the hashes of voters' network addresses (`DATA-MODEL.md`,
 |---|---|
 | `SEED_CHECKER_SESSIONS` | `"true"` seeds the checker's four sessions and the demo sign-in buttons; `"false"` for a real event (boot then removes any left from before) |
 | `DOGFOOD_SEED_SECRET` | Derives the checker sessions, salts the voters' address hashes and seals the signing key in the database; set your own, and keep it: under a new one the portal starts a new signing key (records signed before still verify) |
-| `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
+| `PUBLIC_URL` | The address people use (for example `https://hack.example.org`): it goes into the reminder messages for judges, the API reference, the embed code, an exported uploaded picture's address, and every signed record as its issuer, so set it before issuing records. Links made on screen (invitations, voter and claim links) use the address in the organizer's browser |
 | `COOKIE_SECURE` | `"true"` marks every cookie `Secure`; set it when the portal is served over HTTPS |
 | `TRUST_PROXY_HOPS` | How many reverse proxies stand in front of the portal, each appending to `X-Forwarded-For` (usually `1`). Unset, the client address is the connection's own and any `X-Forwarded-For` a client sends is ignored; set it only when that many proxies really are in front, or a client can name its own address |
 | `WEBHOOKS_ALLOW_PRIVATE` | `"true"` lets webhooks reach private and local addresses; leave it unset unless the receiver is on your own network |
@@ -274,9 +274,9 @@ start, and the fixture import never overwrites what the organizers changed.
 
 ## What it does not do yet
 
-- Only a project's gallery picture is uploaded (PNG, JPEG or WebP up to 2 MB, in
-  `/data/uploads`, which the backup below does not copy: copy that folder too);
-  its image gallery is links to the team's own host, loaded without a referrer.
+- Only a project's gallery picture is uploaded (PNG, JPEG or WebP up to 2 MB, its
+  metadata such as a photo's location removed, in `/data/uploads`, which the backup
+  above does not copy); an organizer cannot take one down; image galleries are links.
 - Webhook targets on private or local addresses are refused, when added and at
   every delivery (`WEBHOOKS_ALLOW_PRIVATE=true` lifts that for a receiver on the
   same machine), but a host name whose DNS answer changes between the check and
