@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Circle, Lock } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFormAction } from "@/components/use-form-action";
 import type { ActionResult, Question } from "@/server/dal";
 import { saveProjectAction } from "./actions";
+
+/** The labels a refused save names, for the fields a person sees on this form. */
+const LABELS: Record<string, string> = {
+  title: "Title",
+  summary: "One-line summary",
+  trackId: "Track",
+  description: "What you built",
+  repoUrl: "Repository",
+  videoUrl: "Demo video",
+  liveUrl: "Live demo",
+  thumbnailUrl: "Thumbnail",
+  tags: "Tech tags",
+  galleryUrls: "Image gallery",
+};
 
 export type FormProject = {
   id: string;
@@ -79,6 +93,15 @@ export function ProjectForm({
   const [state, form, pending] = useFormAction<ActionResult>(saveProjectAction, { ok: false, message: null }, { resetOnSuccess: false });
   const [checklist, setChecklist] = useState<Needed[]>(() => needed(null, questions, project));
   const e = state.fieldErrors ?? {};
+  // A refused save names the refused fields and moves focus to the first: the reason sits under its
+  // field, often below the fold, and a tester was left guessing field by field from "not valid".
+  const refused = Object.keys(e)
+    .filter((k) => k !== "request")
+    .map((k) => (k.startsWith("answers.") ? (questions.find((q) => q.id === k.slice(8))?.label ?? "an answer") : (LABELS[k] ?? k)));
+  useEffect(() => {
+    const first = Object.keys(state.fieldErrors ?? {}).find((k) => k !== "request");
+    if (!state.ok && first) document.getElementById(first.startsWith("answers.") ? `answer-${first.slice(8)}` : first)?.focus();
+  }, [state]);
   const submitted = project?.status === "submitted";
   const ready = checklist.every((n) => n.done);
 
@@ -203,6 +226,7 @@ export function ProjectForm({
         </fieldset>
         <p role="status" aria-live="polite" className={state.ok ? "text-14 font-medium text-ok" : "text-14 font-medium text-flag"}>
           {state.message ?? ""}
+          {!state.ok && refused.length ? ` Check ${refused.join(", ")}.` : ""}
         </p>
       </form>
       <aside className="flex flex-col gap-8 lg:sticky lg:top-6 lg:self-start">
