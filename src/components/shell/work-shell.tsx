@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HelpSlot } from "@/components/help/help-slot";
 import { ModeToggle } from "@/components/mode-toggle";
 import { PageBand, PageMark } from "@/components/page-mark";
 
@@ -11,6 +12,7 @@ export type WorkTab = { href: string; label: string; active?: boolean };
  * bar leaves (none, no mark); on a phone, where the bar wraps, it closes the brand row.
  * Below the page the mark runs out as a band along the foot, as on the public pages, except
  * on the judge console, whose phone layout keeps its answer buttons at the bottom of the screen.
+ * Help sits beside the mode toggle; on the judge console its ? key stays the console's (the list of keys).
  */
 export function WorkShell({
   eventName,
@@ -37,6 +39,8 @@ export function WorkShell({
 }) {
   // on the judge console the mark is the judge's own
   const markExtra = role === "Judge" ? person : undefined;
+  // the event in view, for Help's links
+  const slug = slugFromHref(eventHref);
   return (
     <div className={band ? "work flex min-h-dvh flex-col" : "work min-h-dvh"}>
       <a
@@ -85,6 +89,7 @@ export function WorkShell({
             {/* on a phone the name and role give way, so the mode toggle and Sign out stay on screen */}
             <span className="text-14 font-medium whitespace-nowrap max-sm:hidden">{person}</span>
             <span className="text-14 whitespace-nowrap text-ink-3 max-sm:hidden">{role}</span>
+            <HelpSlot event={slug ? { slug, name: eventName } : null} variant="work" questionKey={role !== "Judge"} />
             <ModeToggle />
             <form action="/api/auth/sign-out" method="post">
               <button className="h-8 rounded-sm px-2 text-13 text-ink-2 hover:bg-raised hover:text-ink">Sign out</button>
@@ -107,6 +112,12 @@ export function WorkShell({
       ) : null}
     </div>
   );
+}
+
+/** The event an event page's link names: /organize/<slug>, /judge/<slug> or /events/<slug>; null for the portal's own pages. */
+export function slugFromHref(href: string): string | null {
+  const m = /^\/(?:organize|judge|events)\/([^/?#]+)/.exec(href);
+  return m && m[1] !== "new" && m[1] !== "accounts" && m[1] !== "log" ? decodeURIComponent(m[1]) : null;
 }
 
 export function organizerTabs(slug: string, active: string): WorkTab[] {

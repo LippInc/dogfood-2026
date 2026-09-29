@@ -154,6 +154,7 @@ export { deleteComment, hideComment, listComments, postComment, unhideComment, t
 export { RateLimitedError } from "../errors";
 export { actionError, json, route, type ActionResult } from "../http";
 export { actorNav, type NavLink } from "./nav";
+export { helpViewer } from "./help";
 export {
   demoIdentities,
   healthCheck,

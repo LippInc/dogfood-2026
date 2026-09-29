@@ -64,6 +64,34 @@ function DialogContent({
   );
 }
 
+/**
+ * The same dialog as a sheet from the right, full screen on a phone, for a panel people read beside the page (Help).
+ * `container` renders it inside the page's own frame (.public or .work), so it wears that side's tokens; it traps
+ * focus, closes on Esc and gives focus back to its trigger like every dialog here.
+ */
+function DialogSheet({
+  className,
+  children,
+  container,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { container?: HTMLElement | null }) {
+  return (
+    <DialogPortal container={container ?? undefined}>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        data-slot="dialog-sheet"
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 flex h-dvh w-full flex-col bg-surface text-ink shadow-overlay outline-none sm:w-[440px] sm:border-l sm:border-rule data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-right-8 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 motion-reduce:animate-none",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  );
+}
+
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return <div data-slot="dialog-header" className={cn("flex flex-col gap-1.5 pr-8", className)} {...props} />;
 }
@@ -89,6 +117,7 @@ export {
   DialogHeader,
   DialogOverlay,
   DialogPortal,
+  DialogSheet,
   DialogTitle,
   DialogTrigger,
 };

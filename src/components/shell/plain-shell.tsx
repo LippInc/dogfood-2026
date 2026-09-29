@@ -1,3 +1,4 @@
+import { HelpSlot } from "@/components/help/help-slot";
 import { PageBand, PageMark } from "@/components/page-mark";
 import { PlainFrame } from "./plain-frame";
 
@@ -24,6 +25,7 @@ export function PlainShell({
       width={width}
       account={account}
       mark={<PlainMark extra={mark} />}
+      help={<HelpSlot variant="public" />}
       band={<PageBand anchor="bottom" cols={480} rows={24} />}
     >
       {children}

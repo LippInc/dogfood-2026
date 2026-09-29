@@ -174,6 +174,8 @@ Each item in full, with its rules: [`docs/FEATURES.md`](docs/FEATURES.md).
 - **Signed certificates and judging records,** checkable in the browser, on `/verify` or offline.
 - **API and webhooks** for every action; **import and export** in the organizers' fixture format.
 - **Audit log:** append-only, hash-chained, readable by organizers and exportable as CSV.
+- **Help:** a Help button in every top bar (or the `?` key) answers questions about the portal's pages, tasks and
+  judging ideas from its own guide, matched in the browser, what the reader can do first; not an AI model.
 
 How it is built: [`ARCHITECTURE.md`](ARCHITECTURE.md) (a request's path through the one permission check, the
 audit log, boot, the API) and [`DATA-MODEL.md`](DATA-MODEL.md) (every table, its constraints and the personal data
@@ -243,6 +245,8 @@ webhook deliveries and the voters' address hashes are yours to clear with `scrip
   which the operator can) and the duplicate-ballot flags key on the client's network address, so people behind
   one address (an office, a venue's wifi) share a limit.
 - **Results cannot be unpublished.**
+- **Help is not an AI model.** It finds pages and answers only in the portal's own guide (`src/lib/help/index.ts`) by
+  matching words; a question the guide does not cover gets "no match" and the main places, never a guess.
 - **One person cannot be erased:** nothing in the portal deletes an account, and a judge's started reviews, the audit
   log's entries and signed records stay for good (published scores are final and the audit log is append-only).
   What the operator can clear, and how: [`docs/OPERATIONS.md`, "Personal data"](docs/OPERATIONS.md#personal-data).

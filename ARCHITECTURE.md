@@ -198,7 +198,8 @@ The README's "Beyond the checker" table says what exists and who reaches it; `TH
 
 - `src/app/` — pages, server actions and route handlers; the JSON API under `src/app/api`.
 - `src/components/` — UI: page shells, forms, figures, and shadcn-style primitives under `ui/`.
-- `src/lib/` — helpers for app code, client utilities, and `page-guard.ts` (server side).
+- `src/lib/` — helpers for app code, client utilities, `page-guard.ts` (server side), and `help/`: the Help panel's guide
+  and its matcher, which run in the browser (the reader's roles come with the page, from `helpViewer` in the DAL).
 - `src/fonts/` — self-hosted woff2 fonts, each with its OFL licence file.
 - `src/server/` — everything private:
   - the data access layer (`dal/`);
@@ -226,3 +227,5 @@ The README's "Beyond the checker" table says what exists and who reaches it; `TH
 - Add a rate limit: a key and a `Limit` in `LIMITS` (`src/server/rate-limit.ts`).
 - Change sessions, cookies, API tokens or passwords: `src/server/session.ts`.
 - Add a boot step: `boot()` in `src/server/boot.ts`.
+- Add or rename a page: its entry in the Help guide, `src/lib/help/index.ts` (`tests/help.test.ts` checks every link against
+  the route files and every doc heading against its file).

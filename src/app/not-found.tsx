@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import Link from "next/link";
+import { HelpSlot } from "@/components/help/help-slot";
 import { PlainBand, PlainMark } from "@/components/shell/plain-shell";
 import { AskedPath, StatusSheet } from "@/components/status-sheet";
 import { buttonVariants } from "@/components/ui/button";
@@ -26,6 +27,7 @@ export default async function NotFound() {
       status="404"
       mark={<PlainMark extra="404" />}
       band={<PlainBand />}
+      help={<HelpSlot variant="public" />}
       spoil={{ hollow: [1] }}
       rows={[
         { label: "Asked for", value: <AskedPath initial={asked} />, mono: true },

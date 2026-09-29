@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { HelpButton } from "@/components/help/help-panel";
 import { AskedPath, CopyValue, StatusSheet } from "@/components/status-sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
 
@@ -15,6 +16,8 @@ export default function ErrorPage({ error, retry }: { error: Error & { digest?: 
   return (
     <StatusSheet
       code="500 · Something broke"
+      // the page broke, so it cannot ask who is reading: Help offers what everyone can use
+      help={<HelpButton viewer={{ signedIn: false, roles: [], event: null }} variant="public" />}
       title="This page hit an error"
       lead={
         <p>

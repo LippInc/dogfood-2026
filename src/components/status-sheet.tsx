@@ -73,6 +73,7 @@ export function StatusSheet({
   stepsTitle = "Or go to",
   mark,
   band,
+  help,
 }: {
   code: string;
   title: string;
@@ -87,9 +88,11 @@ export function StatusSheet({
   mark?: React.ReactNode;
   /** Its band along the foot, from the same server page (PlainBand). */
   band?: React.ReactNode;
+  /** The Help button: HelpSlot from a server page; the error boundary hands a HelpButton that knows no one. */
+  help?: React.ReactNode;
 }) {
   return (
-    <PlainFrame width="max-w-[1120px]" mark={mark} band={band}>
+    <PlainFrame width="max-w-[1120px]" mark={mark} band={band} help={help}>
       <div className="grid gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,440px)] lg:gap-20">
         <div className="md:pt-6">
           <p className="label-mono text-accent-ink">{code}</p>

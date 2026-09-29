@@ -382,7 +382,7 @@ export function JudgeConsoleView({
 
   if (!current || !review) {
     return (
-      <div className="mx-auto max-w-[680px] px-4 py-16">
+      <div data-question-key className="mx-auto max-w-[680px] px-4 py-16">
         <p className="label-mono text-ink-3">Your batch</p>
         <h1 className="mt-3 text-24 font-semibold">No projects are assigned to you yet</h1>
         <p className="mt-3 text-15 text-ink-2">
@@ -407,7 +407,8 @@ export function JudgeConsoleView({
   const recused = review.status === "recused";
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-3rem)] lg:grid-cols-[288px_minmax(0,1fr)_416px]">
+    // data-question-key: ? here lists the console's keys, so the top bar's Help leaves the key alone
+    <div data-question-key className="grid grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-3rem)] lg:grid-cols-[288px_minmax(0,1fr)_416px]">
       <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {switched}
       </p>
@@ -1008,6 +1009,7 @@ function KeysDialog({
           Single-key shortcuts (letters, digits and ?) are on
         </label>
         <p className="text-13 text-ink-2">Turn them off if you use speech input or they get in your way. Arrows, Esc and Ctrl + Enter keep working.</p>
+        <p className="text-13 text-ink-2">Questions about the portal: Help, in the top bar.</p>
       </DialogContent>
     </Dialog>
   );

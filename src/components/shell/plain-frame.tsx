@@ -4,7 +4,8 @@ import { ModeToggle } from "@/components/mode-toggle";
 /**
  * The markup of PlainShell (plain-shell.tsx), which pages use. It stays free of
  * server-only code so the error boundary, a client component, can wear the same frame;
- * `mark` is the slot PlainShell fills with the page's mark, `band` the one for its band along the foot.
+ * `mark` is the slot PlainShell fills with the page's mark, `band` the one for its band along the foot,
+ * `help` the one for the Help button (HelpSlot from a server page, a plain HelpButton from the error boundary).
  */
 export function PlainFrame({
   children,
@@ -12,12 +13,14 @@ export function PlainFrame({
   account,
   mark,
   band,
+  help,
 }: {
   children: React.ReactNode;
   width?: string;
   account?: { name: string } | null;
   mark?: React.ReactNode;
   band?: React.ReactNode;
+  help?: React.ReactNode;
 }) {
   return (
     <div className="public flex min-h-dvh flex-col">
@@ -32,7 +35,10 @@ export function PlainFrame({
           <Link href="/" className="font-display text-20 uppercase">
             Dogfood portal
           </Link>
-          <ModeToggle className="ml-auto" />
+          <div className="ml-auto flex items-center gap-2">
+            {help}
+            <ModeToggle />
+          </div>
           {account === undefined ? null : account ? (
             <>
               <span title={account.name} className="hidden max-w-56 truncate text-14 font-medium sm:block">

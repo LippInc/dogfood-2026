@@ -153,7 +153,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
 
   if (!track) {
     return (
-      <div className="mx-auto max-w-[680px] px-6 py-16">
+      <div data-question-key className="mx-auto max-w-[680px] px-6 py-16">
         <h1 className="font-serif text-38 font-semibold">Nothing to compare yet</h1>
         <p className="mt-3 text-15 text-ink-2">
           You have no projects in this event&rsquo;s tracks. The organizers assign them; this page fills in once they do.
@@ -178,7 +178,8 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
   };
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-3rem)] lg:grid-cols-[288px_minmax(0,1fr)]">
+    // data-question-key: ? here lists the keys, so the top bar's Help leaves the key alone
+    <div data-question-key className="grid grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-3rem)] lg:grid-cols-[288px_minmax(0,1fr)]">
       {/* Rail: the judge's list so far, best first */}
       <aside aria-label="Your list" className="flex flex-col border-b border-rule bg-surface lg:min-h-0 lg:border-r lg:border-b-0">
         {data.tracks.length > 1 ? (
@@ -675,6 +676,7 @@ function CompareKeys({ open, onOpenChange, lettersOn }: { open: boolean; onOpenC
           Single-key shortcuts (T, U and ?) are on
         </label>
         <p className="text-13 text-ink-2">Turn them off if you use speech input or they get in your way. The arrow keys keep working.</p>
+        <p className="text-13 text-ink-2">Questions about the portal: Help, in the top bar.</p>
       </DialogContent>
     </Dialog>
   );

@@ -220,6 +220,30 @@ team's). Files up
 to 64 MB, which holds the portal's own export of 1,000 projects and 8,000 reviews with every field at its
 longest (5,000 when each review also carries the longest private note), before its ballots and comments; people who come in that way get one-time personal links to set a password (Integrations tab).
 
+## Help
+
+Every top bar has a Help button; the `?` key opens it too, outside text boxes (the judge console and the compare
+page keep `?` for their own lists of keys, which point at Help, and the panel has a switch that turns the key off
+in that browser). It opens a panel beside the page, full screen on a phone: a question box, three to five suggested
+questions for the reader's roles, and the answers as a short thread that lasts while the page is open and is stored
+nowhere.
+
+- **What it answers from.** The portal's own guide, `src/lib/help/index.ts`: every page a person can reach, the
+  tour's tasks and the ideas behind the judging (the leniency correction and its ±, the flat-judge rule, the signal
+  check, pairwise mode, the audit chain, the freeze after publishing, ballots, open-link votes, demo mode, backups,
+  the API).
+- **Each answer** is the best one to three entries: a sentence or two, a link to the page for the event in view,
+  who can use it, and for an idea the document and heading to read. What the reader can do ranks first; the rest
+  says who can. When nothing matches well enough it says so and offers the main places; it never guesses.
+- **How it matches.** In the browser, with nothing sent: word stems, synonyms and the words people type, a slip of
+  one letter forgiven, BM25 over each entry's title, keywords and answer, and a floor below which the answer is
+  "no match". The reader's roles come with the page, read on the server through the data access layer.
+- **Its limit.** It finds pages and answers from the portal's own guide; it is not an AI model.
+
+`tests/help.test.ts` holds the guide to the code (each link to a route file, each role to a real one, each
+document heading to its file) and the matcher to over 60 questions as people type them, with nonsense answered
+"no match".
+
 ## Audit log
 
 Every change, and every request refused to someone signed in or holding a voting link, is recorded in the same

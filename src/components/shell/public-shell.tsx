@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DemoTour } from "@/components/demo-tour";
+import { HelpSlot } from "@/components/help/help-slot";
 import { ModeToggle } from "@/components/mode-toggle";
 import { PageBand, PageMark } from "@/components/page-mark";
 import { PhoneMenu } from "@/components/shell/phone-menu";
@@ -67,6 +68,7 @@ export function PublicShell({
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            <HelpSlot event={{ slug: event.slug, name: event.name }} variant="public" />
             <ModeToggle />
             {takePart ? (
               <Link href={takePart} className="hidden h-10 items-center rounded-sm bg-primary px-4 text-15 font-medium text-on-primary hover:opacity-90 md:inline-flex">
