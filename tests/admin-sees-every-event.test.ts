@@ -86,6 +86,13 @@ describe("a portal administrator sees every event", () => {
     expect(organizedEvents(actor("usr_org2")).events.map((e) => e.id)).toEqual(["evt_01"]);
   });
 
+  it("offers New event on Your events to an administrator only", () => {
+    expect(organizedEvents(actor("usr_admin2")).canCreate).toBe(true);
+    // an organizer who is not an administrator reads that an administrator creates events, with no button
+    expect(organizedEvents(actor("usr_org2")).canCreate).toBe(false);
+    expect(organizedEvents(null).canCreate).toBe(false);
+  });
+
   it("shows the organizer link on any event's own pages", () => {
     const links = actorNav(actor("usr_admin2"), "evt_01").map((l) => l.href);
     expect(links).toContain("/organize/sample-hack-2026");

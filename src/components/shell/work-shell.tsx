@@ -26,6 +26,7 @@ export function WorkShell({
   children,
   flush = false,
   band = role !== "Judge",
+  allEventsHref,
 }: {
   eventName: string;
   eventHref: string;
@@ -37,11 +38,14 @@ export function WorkShell({
   children: React.ReactNode;
   flush?: boolean;
   band?: boolean;
+  /** where "All events" goes; organizer pages of one event get /organize without asking */
+  allEventsHref?: string;
 }) {
   // on the judge console the mark is the judge's own
   const markExtra = role === "Judge" ? person : undefined;
   // the event in view, for Help's links
   const slug = slugFromHref(eventHref);
+  const allEvents = allEventsLink(eventHref, allEventsHref);
   return (
     <div className={band ? "work flex min-h-dvh flex-col" : "work min-h-dvh"}>
       <a
@@ -57,7 +61,22 @@ export function WorkShell({
             controls on the next, the tabs on a scrolling row of their own, so the account menu and the
             mode toggle never sit off-screen or under the mark. */}
         <div className="flex flex-wrap items-stretch gap-x-4 px-4 sm:h-12 sm:flex-nowrap sm:overflow-x-auto lg:px-8 2xl:gap-x-6">
-          <Link href={eventHref} className="flex min-w-0 shrink-0 items-center gap-3 self-center py-3 max-sm:basis-full max-sm:pr-16 sm:shrink sm:py-0">
+          <div className="flex min-w-0 shrink-0 items-center gap-3 self-center py-3 max-sm:basis-full max-sm:pr-16 sm:shrink sm:py-0">
+          {/* the way out of an event to the list of them, before the event's name (an organizer found no other) */}
+          {allEvents ? (
+            <>
+              <Link
+                href={allEvents}
+                className="shrink-0 text-14 whitespace-nowrap text-ink-2 underline decoration-transparent underline-offset-4 hover:text-ink hover:decoration-ink"
+              >
+                All events
+              </Link>
+              <span className="shrink-0 text-15 text-ink-3" aria-hidden>
+                /
+              </span>
+            </>
+          ) : null}
+          <Link href={eventHref} className="flex min-w-0 items-center gap-3">
             <span className="size-3 shrink-0 bg-accent" aria-hidden />
             <span title={eventName} className="max-w-[20rem] min-w-0 truncate text-15 font-semibold sm:max-w-[28rem]">
               {eventName}
@@ -71,6 +90,7 @@ export function WorkShell({
               </span>
             ) : null}
           </Link>
+          </div>
           {tabs.length ? (
             <nav aria-label="Sections" className="flex items-stretch gap-5 max-sm:order-last max-sm:-mx-4 max-sm:h-11 max-sm:w-[calc(100%+2rem)] max-sm:overflow-x-auto max-sm:border-t max-sm:border-rule max-sm:px-4 2xl:gap-6">
               {tabs.map((t) => (
@@ -115,6 +135,16 @@ export function WorkShell({
 export function slugFromHref(href: string): string | null {
   const m = /^\/(?:organize|judge|events)\/([^/?#]+)/.exec(href);
   return m && m[1] !== "new" && m[1] !== "accounts" && m[1] !== "log" ? decodeURIComponent(m[1]) : null;
+}
+
+/**
+ * Where the top bar's "All events" leads: the page's own choice when it makes one (the judge console, for a judge
+ * with more than one event), else /organize from any page of one event on the organizer side; none on the portal's
+ * own pages (/organize itself, New event, Accounts, the portal log), whose name already links to the list.
+ */
+export function allEventsLink(eventHref: string, override?: string): string | null {
+  if (override) return override;
+  return eventHref.startsWith("/organize/") && slugFromHref(eventHref) ? "/organize" : null;
 }
 
 export function organizerTabs(slug: string, active: string): WorkTab[] {

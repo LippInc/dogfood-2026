@@ -39,6 +39,7 @@ export default async function JudgePage({ params, searchParams }: PageProps<"/ju
       tools={<JudgeTools actor={actor} event={data.event} judged={data.items.some((i) => i.status === "done")} keys />}
       person={actor.name}
       role="Judge"
+      allEventsHref={eventsList(actor)}
       flush
     >
       <JudgeConsoleView data={data} faces={faces} startProject={typeof project === "string" ? project : null} />
@@ -68,11 +69,17 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
       tools={<JudgeTools actor={actor} event={state.event} judged={state.tracks.some((t) => t.answered > 0)} keys={!state.readOnly} />}
       person={actor.name}
       role="Judge"
+      allEventsHref={eventsList(actor)}
       flush
     >
       <CompareView initial={state} faces={faces} />
     </WorkShell>
   );
+}
+
+/** The portal home lists every event with the reader's part in each: the way to a judge's other events, when they have any. */
+function eventsList(actor: Actor): string | undefined {
+  return new Set(actor.roles.map((r) => r.eventId)).size > 1 ? "/" : undefined;
 }
 
 type JudgeEvent = { slug: string; judgingCloseAt: string | null; resultsPublishedAt: string | null };

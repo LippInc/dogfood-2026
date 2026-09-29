@@ -64,6 +64,9 @@ export default async function OrganizeHome() {
                 New event
               </Link>
             </div>
+          ) : events.length > 0 ? (
+            // an organizer who is not an administrator looks here for New event too: say who makes one
+            <p className="max-w-[360px] text-13 text-ink-2 sm:text-right">An administrator of this portal creates new events.</p>
           ) : null}
         </div>
         {events.length === 0 ? (
