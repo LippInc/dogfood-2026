@@ -1,4 +1,3 @@
-import { connection } from "next/server";
 import { currentActor, helpViewer } from "@/server/dal";
 import { HelpButton } from "./help-panel";
 
@@ -16,8 +15,8 @@ export async function HelpSlot({
   variant: "public" | "work" | "menu";
   questionKey?: boolean;
 }) {
-  // it reads the session: never at build time
-  await connection();
+  // reading the session (cookies, headers) keeps it out of the build; no connection() of its own, so a page
+  // rendered outside a request (tests/judges-not-started.test.ts renders the Judges page so) still renders
   const viewer = helpViewer(await currentActor(), event);
   return <HelpButton viewer={viewer} variant={variant} questionKey={questionKey} />;
 }
