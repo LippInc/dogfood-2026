@@ -1,20 +1,59 @@
 # How judging works
 
-This document states how the portal turns judge scores into results, and defends the choices with measurements. The scores pass through three steps: assignment of projects to judges, scoring against the organizer's rubric, and normalization, which estimates each judge's leniency from the event's own scores and subtracts it. An organizer can instead have judges answer "which of these two is better?"; that mode has its own section, "Pairwise mode". It also states what the engine does not do and where the audit trail stops.
+This document states how the portal turns judge scores into results, and defends the choices with measurements.
 
-The evidence is checkable. `tests/normalization-mc.test.ts` builds simulated events on the sample event's own 126 judge–project pairs and scores the engine against the raw mean; `npx vitest run tests/normalization-mc.test.ts --silent=false` (Node 24, after `npm ci`; a few seconds) prints the Monte Carlo table under "Validation" exactly as it stands there, and vitest prints nothing of it without `--silent=false`; `tests/normalize-oracle.test.ts` checks the fit against the planning run's numbers and against planted leniency; `tests/normalize-errors.test.ts` checks the ± on every score by simulation; `tests/judge-ledger.test.ts` holds the single-judge influence check to what an override then does; the organizers' acceptance suite re-checks the score-refusal rule. On a running instance the organizer can export `normalized.csv`, `audit.csv` and `event.json`. Every number below about the sample event is recomputable from those exports. That includes the signal check's shuffles: the published run in `event.json` stores its seed, the shuffles draw from the same seeded generator as assignment runs, and `tests/signal-from-export.test.ts` rebuilds the published share exactly from `event.json` alone (finished reviews in order of score id, one observation per judge and project in the order of its first review, the run's excluded judges left out). Where each feature beyond the organizers' checker stands (community voting and the rest of T3, and T4) is in the README's "Beyond the checker" table, with the hand-check output in `isolation-report.txt`.
+The scores pass through three steps:
+
+1. assignment of projects to judges;
+2. scoring against the organizer's rubric;
+3. normalization, which estimates each judge's leniency from the event's own scores and subtracts it.
+
+An organizer can instead have judges answer "which of these two is better?"; that mode has its own section, "Pairwise mode". The document also states what the engine does not do and where the audit trail stops.
+
+**The evidence is checkable.**
+
+- `tests/normalization-mc.test.ts` builds simulated events on the sample event's own 126 judge–project pairs and scores the engine against the raw mean. `npx vitest run tests/normalization-mc.test.ts --silent=false` (Node 24, after `npm ci`; a few seconds) prints the Monte Carlo table under "Validation" exactly as it stands there; vitest prints nothing of it without `--silent=false`.
+- `tests/normalize-oracle.test.ts` checks the fit against the planning run's numbers and against planted leniency.
+- `tests/normalize-errors.test.ts` checks the ± on every score by simulation.
+- `tests/judge-ledger.test.ts` holds the single-judge influence check to what an override then does.
+- The organizers' acceptance suite re-checks the score-refusal rule.
+
+On a running instance the organizer can export `normalized.csv`, `audit.csv` and `event.json`. Every number below about the sample event is recomputable from those exports. That includes the signal check's shuffles: the published run in `event.json` stores its seed, the shuffles draw from the same seeded generator as assignment runs, and `tests/signal-from-export.test.ts` rebuilds the published share exactly from `event.json` alone (finished reviews in order of score id, one observation per judge and project in the order of its first review, the run's excluded judges left out).
+
+Where each feature beyond the organizers' checker stands (community voting and the rest of T3, and T4) is in the README's "Beyond the checker" table, with the hand-check output in `isolation-report.txt`.
 
 ## The finding on the sample event
 
 The sample event (`fixtures.json`) has 41 projects and 126 finished reviews. Four findings drive the design.
 
-The numbers in this section are the sample event as imported, with only the flat-judge rule applied. The README's tour then settles the other two open decisions (the duplicate prj_41 merged into prj_07, Small Relay's single review accepted) and publishes, so the run a judge sees after the tour, on the organizer's Results page, has 40 projects and moves a little: k = 36.1 (β̂² = 0.0113, σ̂² = 0.4065), the largest kept leniency 0.072 (Wei Lindqvist), permutation share 0.7285 (2,000 shuffles, same seed), and Small Relay from 13th on the raw mean to 30th. The engine computes both from the data; neither is typed in.
+The numbers in this section are the sample event as imported, with only the flat-judge rule applied.
+
+The README's tour then settles the other two open decisions (the duplicate prj_41 merged into prj_07, Small Relay's single review accepted) and publishes. So the run a judge sees after the tour, on the organizer's Results page, has 40 projects and moves a little:
+
+- k = 36.1 (β̂² = 0.0113, σ̂² = 0.4065);
+- the largest kept leniency 0.072 (Wei Lindqvist);
+- permutation share 0.7285 (2,000 shuffles, same seed);
+- Small Relay from 13th on the raw mean to 30th.
+
+The engine computes both from the data; neither is typed in.
 
 **One flat judge matters.** Judge Iva Petrova (jdg_07) scored all 3 assigned projects 4 / 4 / 4 — the identical vector on every project, so those reviews rank nothing. The flat-judge rule leaves Iva Petrova out as a whole judge, with a visible flag and its reason. That exclusion alone moves 19 of 41 projects by at least one place; the largest move is Small Relay (prj_19), 14th to 30th.
 
-**Why little else moves.** The estimated leniency is about 2 % of judge disagreement: β̂² = 0.0100 against σ̂² = 0.4276, so the engine keeps from 2 % (a judge with one review) to 21 % (a judge with eleven) of how far a judge's reviews sit from the fitted project levels, and no kept judge's leniency exceeds 0.062 in size. The signal check — a permutation test that shuffles the review totals and counts how often the shuffled project means spread at least as far as the real ones — finds no project differences beyond chance: permutation share 0.7645 (1,529 of 2,000 shuffles), where a share near 0 would mean real differences. Its positive control, planted project differences, is detected. On this event the engine's job is not to change the ranking; it is to bound and disclose what bias could have done.
+**Why little else moves.** The estimated leniency is about 2 % of judge disagreement: β̂² = 0.0100 against σ̂² = 0.4276. So the engine keeps from 2 % (a judge with one review) to 21 % (a judge with eleven) of how far a judge's reviews sit from the fitted project levels, and no kept judge's leniency exceeds 0.062 in size.
 
-**The organizers' yardstick.** The event page measures a normalization by the spread of the judges' own averages (the standard deviation of per-judge means: 0.42 for the fixture's 30 judges). On the 29 judges the engine counts it is 0.416, and with each judge's estimated leniency taken out, 0.398. That the engine moves it so little is the finding, not a failure: judges with no tilt at all, scoring these same 123 judge–project pairs with this event's own project spread and review noise, are about 0.37 apart by luck alone (90 % of 400 seeded runs between 0.28 and 0.48, and 20 % reach 0.416 or more), because each judge saw about four projects. A normalization that squeezed the spread towards 0 would be moving projects on luck. When the tilt is real, the yardstick shows it: with three judges made 0.6 more generous, the spread rises to 0.52, above that band, and the engine brings it back to 0.38 (`tests/yardstick.test.ts`). Both results pages show these numbers for any event (the public one under "How these scores were made", one click from the top), computed by `src/server/judging/yardstick.ts` from the run they describe.
+The signal check — a permutation test that shuffles the review totals and counts how often the shuffled project means spread at least as far as the real ones — finds no project differences beyond chance: permutation share 0.7645 (1,529 of 2,000 shuffles), where a share near 0 would mean real differences. Its positive control, planted project differences, is detected.
+
+On this event the engine's job is not to change the ranking; it is to bound and disclose what bias could have done.
+
+**The organizers' yardstick.** The event page measures a normalization by the spread of the judges' own averages (the standard deviation of per-judge means: 0.42 for the fixture's 30 judges). On the 29 judges the engine counts it is 0.416, and with each judge's estimated leniency taken out, 0.398.
+
+That the engine moves it so little is the finding, not a failure:
+
+- Judges with no tilt at all, scoring these same 123 judge–project pairs with this event's own project spread and review noise, are about 0.37 apart by luck alone (90 % of 400 seeded runs between 0.28 and 0.48, and 20 % reach 0.416 or more), because each judge saw about four projects.
+- A normalization that squeezed the spread towards 0 would be moving projects on luck.
+- When the tilt is real, the yardstick shows it: with three judges made 0.6 more generous, the spread rises to 0.52, above that band, and the engine brings it back to 0.38 (`tests/yardstick.test.ts`).
+
+Both results pages show these numbers for any event (the public one under "How these scores were made", one click from the top), computed by `src/server/judging/yardstick.ts` from the run they describe.
 
 | Rank | Project | Track | Reviews counted | Raw, all judges (rank) | Raw, without flat judge (rank) | Normalized | Move, raw → normalized |
 |---|---|---|---|---|---|---|---|
@@ -64,41 +103,167 @@ The last column is the change from the rank on the raw mean with every judge to 
 
 **The duplicate is the measured noise floor.** The same project entered twice by team CopperLedger as "Dry Harbour" (prj_07 and prj_41) ranks 31.5th and 9th of 41 unmerged on raw means; merged, it ranks 22nd of 40 after normalization (25.5th on the raw mean). Consequence: read neighbouring ranks as ties; the public results page shows scores next to places.
 
-**One judge can move many places.** The single-judge influence check reruns the whole engine with one judge's status flipped. Leaving out any one of the 29 counted judges moves between 3 and 34 of the 41 projects by a place or more (median 20), and for 11 of them some track's first place changes. It is the signal check's finding seen from the judges' side: on scores this close, one review in three decides places. The organizer sees this for every judge in the judge ledger before making any override, and each score carries its ± (0.38 for a project with three counted reviews), so neighbouring places read as ties.
+**One judge can move many places.** The single-judge influence check reruns the whole engine with one judge's status flipped. Leaving out any one of the 29 counted judges moves between 3 and 34 of the 41 projects by a place or more (median 20), and for 11 of them some track's first place changes.
+
+It is the signal check's finding seen from the judges' side: on scores this close, one review in three decides places. The organizer sees this for every judge in the judge ledger before making any override, and each score carries its ± (0.38 for a project with three counted reviews), so neighbouring places read as ties.
 
 ## Assignment
 
-A fresh run starts with a bridge pre-pass: every judge with two or more tracks gets `bridgePerTrack` projects, default 2, in each of its tracks, fewest seats filled first. Then a greedy pass picks the most constrained open project (fewest spare eligible judges) and gives it the least-loaded eligible judge from its own track; ties are broken by a seeded random draw. The seed and every parameter are stored with the run, and the same seed on the same data gives the same assignment (tested). A top-up run keeps every existing pair and fills only missing reviews. A seat counts as filled by a finished review, or by an open one its judge can still finish: an open review of a project that is no longer in any of its judge's tracks (the project moved, or the judge lost the track) never reaches that judge's console, so the next top-up gives the project another judge from its track; the old pair stays in the data.
+This section says how projects are given to judges, what keeps a judge off a project, and how tracks bound it all.
 
-Conflicts: a judge on a project's team never gets it; a judge assigned to a project cannot join its team afterwards (403 `conflict_of_interest`) unless they first declare the conflict; and a judge can declare a conflict of interest, which removes the assignment from the engine. An organizer can undo a recusal clicked by mistake (the review comes back as it was, finished if it was), and can take back an assignment its judge has saved nothing on (no score, no feedback and, in pairwise mode, no answer comparing its project), for a judge picked by mistake; no run gives a taken-back pair again, though an organizer still can by hand. Both need a reason, are audited, and stop once the results are published; a started review and a recusal are never taken back, since they are the judge's own work and word. The engine never assigns across tracks. A project with fewer than two eligible judges in its track is flagged under-reviewed, and only an organizer can give it a judge by hand, with a reason that goes into the audit log; choosing a judge from another track adds that track to the judge in the same transaction. The track then reaches every project in it (later top-ups, pairwise questions), so the grant is written as its own row (`judge.tracks`, naming the hand assignment, the project and the reason) beside the assignment's, the log says which track was added, and the Judges page marks the track "by hand" with the project it came with, for as long as that hand assignment is the judge's latest grant of the track (taken off and given again with the tracks form, it is no longer marked). No judge ever sees a project outside their own tracks, and that is checked on every judge-facing read and save, not only by the assignment run: once judges are assigned, the team can no longer change the project's track (an organizer can move it, with an audited reason: unstarted reviews by judges who do not judge the new track are withdrawn (a pairwise answer about the project counts as started), finished ones stay and keep counting, a started one stays in the record out of its judge's console, and the next top-up brings judges from the new track; since places compare within a track, a move can change a track's winner, so the published run keeps every move and the public results and the project's page show it next to the project, with the date and the reason), and a project in a track the organizer takes away from a judge leaves that judge's console and refuses their saves (403 `outside_your_tracks`); a review already finished stays in the data. Each judge's projects come in a seeded random order, so no project is always read first or last.
+A fresh run has two passes:
+
+1. A bridge pre-pass: every judge with two or more tracks gets `bridgePerTrack` projects, default 2, in each of its tracks, fewest seats filled first.
+2. A greedy pass picks the most constrained open project (fewest spare eligible judges) and gives it the least-loaded eligible judge from its own track; ties are broken by a seeded random draw.
+
+The seed and every parameter are stored with the run, and the same seed on the same data gives the same assignment (tested).
+
+A top-up run keeps every existing pair and fills only missing reviews. A seat counts as filled by a finished review, or by an open one its judge can still finish. An open review of a project that is no longer in any of its judge's tracks (the project moved, or the judge lost the track) never reaches that judge's console, so the next top-up gives the project another judge from its track; the old pair stays in the data.
+
+**Conflicts:**
+
+- a judge on a project's team never gets it;
+- a judge assigned to a project cannot join its team afterwards (403 `conflict_of_interest`) unless they first declare the conflict;
+- a judge can declare a conflict of interest, which removes the assignment from the engine.
+
+**Mistakes an organizer can undo:**
+
+- a recusal clicked by mistake (the review comes back as it was, finished if it was);
+- an assignment its judge has saved nothing on (no score, no feedback and, in pairwise mode, no answer comparing its project), for a judge picked by mistake; no run gives a taken-back pair again, though an organizer still can by hand.
+
+Both need a reason, are audited, and stop once the results are published. A started review and a recusal are never taken back, since they are the judge's own work and word.
+
+**Tracks.** The engine never assigns across tracks.
+
+- A project with fewer than two eligible judges in its track is flagged under-reviewed, and only an organizer can give it a judge by hand, with a reason that goes into the audit log.
+- Choosing a judge from another track adds that track to the judge in the same transaction. The track then reaches every project in it (later top-ups, pairwise questions), so:
+  - the grant is written as its own row (`judge.tracks`, naming the hand assignment, the project and the reason) beside the assignment's, and the log says which track was added;
+  - the Judges page marks the track "by hand" with the project it came with, for as long as that hand assignment is the judge's latest grant of the track (taken off and given again with the tracks form, it is no longer marked).
+
+No judge ever sees a project outside their own tracks, and that is checked on every judge-facing read and save, not only by the assignment run:
+
+- Once judges are assigned, the team can no longer change the project's track.
+- An organizer can move it, with an audited reason:
+  - unstarted reviews by judges who do not judge the new track are withdrawn (a pairwise answer about the project counts as started);
+  - finished ones stay and keep counting;
+  - a started one stays in the record out of its judge's console;
+  - the next top-up brings judges from the new track;
+  - since places compare within a track, a move can change a track's winner, so the published run keeps every move and the public results and the project's page show it next to the project, with the date and the reason.
+- A project in a track the organizer takes away from a judge leaves that judge's console and refuses their saves (403 `outside_your_tracks`); a review already finished stays in the data.
+
+Each judge's projects come in a seeded random order, so no project is always read first or last.
 
 Why bridges: normalized ranks compare within a track; tracks compare only through judges who score in both.
 
 ## Scoring
 
-The organizer defines the rubric: criteria with weights (the sample event uses equal weights), each scored on the criterion's scale (1 to 5 here). The set of criteria is fixed once the first score arrives. A weight can still change after that, to fix a mistake, but only with a written reason: the change is audited and the published results show it (the weights before and after, when, and why), so nobody re-weights the ranking quietly with the standings in view. Before judging starts, the rubric form says so in red. Labels and prompts can be reworded until publishing. A review's total is Σ weight × score ÷ Σ weight, and the judge sees the formula filled in. A review counts only when every criterion is scored; a missing criterion is stored as absent, never as zero, and the review is shown as unfinished.
+The organizer defines the rubric: criteria with weights (the sample event uses equal weights), each scored on the criterion's scale (1 to 5 here).
 
-Judges see only their own scores ("your ranking so far" lists their own finished reviews; an organizer who wants each project scored against the rubric rather than against the ones before it hides that list in Settings, "How judges judge", an audited switch); the server refuses any other judge's scores with 403 (tested, and checked by the organizers' own acceptance suite). Scoring closes when judging closes or when results are published.
+- The set of criteria is fixed once the first score arrives.
+- A weight can still change after that, to fix a mistake, but only with a written reason: the change is audited and the published results show it (the weights before and after, when, and why), so nobody re-weights the ranking quietly with the standings in view. Before judging starts, the rubric form says so in red.
+- Labels and prompts can be reworded until publishing.
+- A review's total is Σ weight × score ÷ Σ weight, and the judge sees the formula filled in.
+- A review counts only when every criterion is scored; a missing criterion is stored as absent, never as zero, and the review is shown as unfinished.
+
+Judges see only their own scores. "Your ranking so far" lists their own finished reviews; an organizer who wants each project scored against the rubric rather than against the ones before it hides that list in Settings, "How judges judge", an audited switch. The server refuses any other judge's scores with 403 (tested, and checked by the organizers' own acceptance suite).
+
+Scoring closes when judging closes or when results are published.
 
 ## Normalization
 
-Each counted review's weighted total y = project level + judge leniency + noise. Project levels are not shrunk: a project with fewer reviews is never pulled to the middle for it. Each judge's leniency is shrunk by n ÷ (n + k), with k = σ̂² ÷ β̂² estimated from the event's own scores on every run. In plain words: each judge's deviations from the other reviewers of the same projects are compared with each other; if they lean the same way across projects more than chance allows, the judge has a leniency, and pairs of projects that share reviewers count for less because their deviations agree partly by construction. The estimator: d is a review minus the mean of the other reviews of the same project; for each judge with two or more such deviations, C = Σ over pairs of their deviations d_r × d_s ÷ Σ over the same pairs [1 + shared ÷ ((m_r − 1)(m_s − 1))], where shared is the number of other judges who reviewed both projects and m is the reviews per project; β̂² = max(0, Σ (n_j − 1) C_j ÷ Σ (n_j − 1)); W is the pooled within-project variance and σ̂² = max(0.05, W − β̂²). If β̂² is 0, no leniency is corrected and each project's score is its plain mean. When no judge has two reviews of projects someone else reviewed too (two judges on one project, say), β̂² has no data at all: the pages then say the reviews are too few to estimate how lenient each judge is and that scores are used as given, rather than that no leniency was found, and the judge ledger stays folded away, one click from the override (tested). The fit solves the normal equations directly. The project levels, which are not shrunk, are eliminated exactly first, which leaves one system with a row per judge, solved by one Cholesky; the full system and an alternating solver reach the same answer to within 1e-10 and 1e-11 (tested). So the cost grows with the number of judges, not projects: on a simulated event of 1,000 projects and 150 judges one fit with its errors takes about 25 ms, and the judge ledger's 150 reruns about 1.4 s (`tests/normalize-scale.test.ts` prints these on the machine that built this; the test asserts only a loose ceiling, since timings vary by machine). On the fixture: W = 0.4376, β̂² = 0.0100, σ̂² = 0.4276, k = 42.59, so a judge needs about 43 reviews before half their tilt counts; no kept judge's leniency exceeds 0.062 in size. A project's normalized score is exactly the mean of its reviews after each judge's leniency is subtracted, and the organizer's results page shows that receipt for every project, with the change from the raw mean split into what leaving judges out did and what the leniency correction did.
+This section is the method: the model, how it is estimated and solved, the ± on every score, and the organizer's tools around it (the judge ledger, the flat-judge rule, removing a judge, duplicates, publishing).
 
-Each score and each fitted leniency carries a ± of one standard error from the same fit: √(σ̂² × that estimate's entry on the diagonal of the inverse of the matrix the fit solves). It counts both the ordinary scatter of the reviews and the extra doubt from having to estimate each judge's leniency from those same reviews (in statistics terms, the mixed-model equations with the leniencies as the random part), so a score's ± is never below σ̂ ÷ √n. On the fixture a score's ± is 0.66 with one counted review, 0.47 with two, 0.38 with three, 0.33 with four and 0.30 with five. Every kept judge's leniency carries ±0.09 to ±0.10, against at most 0.062 of leniency: no single judge's leniency stands out from its own ±, though the panel as a whole shows some, which is what β̂² = 0.0100 measures. A judge's ± is shown only when leniency is fitted (β̂² > 0). When no project has two counted reviews, nothing measures the review noise (W has no data), so no ± is shown at all: the 0.05 floor alone would pose as a measurement. The scores are computed as usual. Publishing stores each score's ± with the run, and the public results page and each team's own page show it next to the score.
+**The model.** Each counted review's weighted total y = project level + judge leniency + noise.
 
-The judge ledger, on the organizer's results page, lists every judge with a finished review: reviews counted, plain tilt, leniency ± error, the share of the plain tilt the engine actually takes off (leniency ÷ plain tilt, left blank under a tilt of 0.05, where the ratio would divide by noise; not the n ÷ (n + k) above, because the fitted project levels the engine starts from already allow for the co-reviewers' own leniency: on the sample event one judge with a plain tilt of +0.33 keeps 14 % of it where n ÷ (n + k) says 19 %, tested), any flag or override, and the single-judge influence check. The check reruns the whole engine with that judge's status flipped (left out if counted, counted again if left out) and reports how many projects move a place or more, the largest move, and any track whose first place changes. The override is made from the same row, with a required reason, until results are published. On the fixture, a test flips every judge in turn and checks that the override moves as many projects as the check predicted, with the same largest move and the same changes of first place.
+- Project levels are not shrunk: a project with fewer reviews is never pulled to the middle for it.
+- Each judge's leniency is shrunk by n ÷ (n + k), with k = σ̂² ÷ β̂² estimated from the event's own scores on every run.
 
-The flat-judge rule: a judge with at least 3 finished reviews and the identical score vector on every project is left out as a whole judge, with a visible flag and its reason. In simulation the rule flags an honest judge in 7.7 % (no bias), 8.0 % (moderate bias) and 6.2 % (moderate bias, noisy judges) of 1,000 panels on the fixture's pairs. That is why it is a reversible flag and never a silent deletion: the organizer can reinstate a flagged judge or exclude any judge, only with a written reason, and can undo either. Every override is audited and stored with the run.
+In plain words: each judge's deviations from the other reviewers of the same projects are compared with each other. If they lean the same way across projects more than chance allows, the judge has a leniency. Pairs of projects that share reviewers count for less, because their deviations agree partly by construction.
 
-Removing a judge: an invitation accepted by the wrong account, or a judge who has to go, is undone on the Judges page (the judge's name), with a reason, audited as `judge.remove`, until the results are published. The judge's role and tracks end, so the console and every judge route refuse them; open reviews they never started (no score saved and no pairwise answer about the project) are withdrawn and a top-up fills those seats. Nothing they saved is deleted: if they saved anything (a review, a draft, a pairwise answer), an exclusion carrying the reason ("Removed as a judge: ...") leaves all of it out of the ranking, the same mechanism as a hand exclusion, so the receipts and the ledger show those reviews struck through and name the judge as removed, and the published run's parameters keep the reason. Teams never see a removed judge's review. The exclusion cannot be undone while the person is out (409 `judge_removed`); only if they join again through a new invitation can an organizer count those reviews again, by reinstating them with a reason.
+**The estimator:**
 
-Duplicates: the organizer can merge two copies. The kept copy inherits the other's reviews, a judge who scored both counts once (their average), no score is deleted, and which copy is kept does not change the merged result (tested). A project left with fewer than 2 counted reviews is flagged under-reviewed; the organizer can top up its reviews or publish it as it is, marked under-reviewed on the public results. Until the results are published, each of these decisions can be undone from the overview, and the undo is logged like the decision. A community vote on a merged copy counts for the copy kept, so a merge or unmerge after the voting window closed moves a count that is already public: it is not refused (a duplicate found late still has to be handled), but when it moves any vote, its audit row records each project's votes before and after, and the count, public and the organizers', lists it beside the tally. Publishing is refused while submissions are still open (a project sent later would be missing from the results) and while any of these decisions is open, and it stores the exact run it publishes; from then on `normalized.csv` is read from that stored run (the engine's whole table, kept with the run), not worked out again, so a later engine or anything that moved since cannot change it, and a pairwise run exports its own columns (judges, win rate, win %, its ±, ranks, track place). The organizers' results page (and `GET /api/events/{event}/normalization`) still works the score ranking out live, for its working; after publishing it compares that with the stored run, and should any project's score or rank differ (a later engine), it says so and stops calling the view the published run. After publishing, the scoring rubric, the event's dates, the tracks (their names and order, which group and head the published results) and the judge assignments are final too (409), so every live view, export and judge's console keeps matching what was published.
+- d is a review minus the mean of the other reviews of the same project;
+- for each judge with two or more such deviations, C = Σ over pairs of their deviations d_r × d_s ÷ Σ over the same pairs [1 + shared ÷ ((m_r − 1)(m_s − 1))], where shared is the number of other judges who reviewed both projects and m is the reviews per project;
+- β̂² = max(0, Σ (n_j − 1) C_j ÷ Σ (n_j − 1));
+- W is the pooled within-project variance and σ̂² = max(0.05, W − β̂²).
 
-The public results page ends with "How this ranking was reached" (linked from the top of the page), for anyone who wonders how far to trust the places. It is read from the published run, never worked out again, and gives totals only: the method (with k, or the judges' answers and the pairs implied by scores, each kind counted apart, how many judges gave them, and, when the pairs implied by scores outnumber the answers, that more of the comparisons come from scores than from answers: the page's reading points and its "How these win % were made" say it in the same words, so no one takes the scores' pairs for answers; the two pulls the fit measured and corrected for, or that there were too few answers to measure them); how many counted judges the correction moved by at least 0.005 points of a review's total (the page states that number), with the largest and the median correction in size; how many judges were left out as a whole; how many projects stand at a different place in their track than the plain average of every review (or, pairwise, the plain share of wins) would put them; the signal check's verdict in one sentence (a pairwise run stores no signal check, so it has no such line); and the audit entry the run was published as, with its hash. It never names a judge or shows a judge's own figure, beyond the size of the largest correction; `tests/results-evidence.test.ts` holds it to that. The same numbers are the `evidence` field of `GET /api/events/{event}/results`.
+If β̂² is 0, no leniency is corrected and each project's score is its plain mean. When no judge has two reviews of projects someone else reviewed too (two judges on one project, say), β̂² has no data at all: the pages then say the reviews are too few to estimate how lenient each judge is and that scores are used as given, rather than that no leniency was found, and the judge ledger stays folded away, one click from the override (tested).
+
+**How it is solved.** The fit solves the normal equations directly. The project levels, which are not shrunk, are eliminated exactly first, which leaves one system with a row per judge, solved by one Cholesky; the full system and an alternating solver reach the same answer to within 1e-10 and 1e-11 (tested).
+
+So the cost grows with the number of judges, not projects: on a simulated event of 1,000 projects and 150 judges one fit with its errors takes about 25 ms, and the judge ledger's 150 reruns about 1.4 s (`tests/normalize-scale.test.ts` prints these on the machine that built this; the test asserts only a loose ceiling, since timings vary by machine).
+
+**On the fixture:** W = 0.4376, β̂² = 0.0100, σ̂² = 0.4276, k = 42.59, so a judge needs about 43 reviews before half their tilt counts; no kept judge's leniency exceeds 0.062 in size.
+
+**The receipt.** A project's normalized score is exactly the mean of its reviews after each judge's leniency is subtracted. The organizer's results page shows that receipt for every project, with the change from the raw mean split into what leaving judges out did and what the leniency correction did.
+
+**The ±.** Each score and each fitted leniency carries a ± of one standard error from the same fit: √(σ̂² × that estimate's entry on the diagonal of the inverse of the matrix the fit solves).
+
+- It counts both the ordinary scatter of the reviews and the extra doubt from having to estimate each judge's leniency from those same reviews (in statistics terms, the mixed-model equations with the leniencies as the random part), so a score's ± is never below σ̂ ÷ √n.
+- On the fixture a score's ± is 0.66 with one counted review, 0.47 with two, 0.38 with three, 0.33 with four and 0.30 with five.
+- Every kept judge's leniency carries ±0.09 to ±0.10, against at most 0.062 of leniency: no single judge's leniency stands out from its own ±, though the panel as a whole shows some, which is what β̂² = 0.0100 measures.
+- A judge's ± is shown only when leniency is fitted (β̂² > 0).
+- When no project has two counted reviews, nothing measures the review noise (W has no data), so no ± is shown at all: the 0.05 floor alone would pose as a measurement. The scores are computed as usual.
+- Publishing stores each score's ± with the run, and the public results page and each team's own page show it next to the score.
+
+**The judge ledger,** on the organizer's results page, lists every judge with a finished review:
+
+- reviews counted, plain tilt, leniency ± error;
+- the share of the plain tilt the engine actually takes off (leniency ÷ plain tilt, left blank under a tilt of 0.05, where the ratio would divide by noise). This is not the n ÷ (n + k) above, because the fitted project levels the engine starts from already allow for the co-reviewers' own leniency: on the sample event one judge with a plain tilt of +0.33 keeps 14 % of it where n ÷ (n + k) says 19 % (tested);
+- any flag or override;
+- the single-judge influence check. The check reruns the whole engine with that judge's status flipped (left out if counted, counted again if left out) and reports how many projects move a place or more, the largest move, and any track whose first place changes.
+
+The override is made from the same row, with a required reason, until results are published. On the fixture, a test flips every judge in turn and checks that the override moves as many projects as the check predicted, with the same largest move and the same changes of first place.
+
+**The flat-judge rule:** a judge with at least 3 finished reviews and the identical score vector on every project is left out as a whole judge, with a visible flag and its reason.
+
+In simulation the rule flags an honest judge in 7.7 % (no bias), 8.0 % (moderate bias) and 6.2 % (moderate bias, noisy judges) of 1,000 panels on the fixture's pairs. That is why it is a reversible flag and never a silent deletion: the organizer can reinstate a flagged judge or exclude any judge, only with a written reason, and can undo either. Every override is audited and stored with the run.
+
+**Removing a judge:** an invitation accepted by the wrong account, or a judge who has to go, is undone on the Judges page (the judge's name), with a reason, audited as `judge.remove`, until the results are published.
+
+- The judge's role and tracks end, so the console and every judge route refuse them.
+- Open reviews they never started (no score saved and no pairwise answer about the project) are withdrawn and a top-up fills those seats.
+- Nothing they saved is deleted. If they saved anything (a review, a draft, a pairwise answer), an exclusion carrying the reason ("Removed as a judge: ...") leaves all of it out of the ranking, the same mechanism as a hand exclusion. So the receipts and the ledger show those reviews struck through and name the judge as removed, and the published run's parameters keep the reason.
+- Teams never see a removed judge's review.
+- The exclusion cannot be undone while the person is out (409 `judge_removed`); only if they join again through a new invitation can an organizer count those reviews again, by reinstating them with a reason.
+
+**Duplicates:** the organizer can merge two copies. The kept copy inherits the other's reviews, a judge who scored both counts once (their average), no score is deleted, and which copy is kept does not change the merged result (tested).
+
+- A project left with fewer than 2 counted reviews is flagged under-reviewed; the organizer can top up its reviews or publish it as it is, marked under-reviewed on the public results.
+- Until the results are published, each of these decisions can be undone from the overview, and the undo is logged like the decision.
+- A community vote on a merged copy counts for the copy kept, so a merge or unmerge after the voting window closed moves a count that is already public. It is not refused (a duplicate found late still has to be handled), but when it moves any vote, its audit row records each project's votes before and after, and the count, public and the organizers', lists it beside the tally.
+
+**Publishing** is refused while submissions are still open (a project sent later would be missing from the results) and while any of these decisions is open, and it stores the exact run it publishes.
+
+- From then on `normalized.csv` is read from that stored run (the engine's whole table, kept with the run), not worked out again, so a later engine or anything that moved since cannot change it. A pairwise run exports its own columns (judges, win rate, win %, its ±, ranks, track place).
+- The organizers' results page (and `GET /api/events/{event}/normalization`) still works the score ranking out live, for its working. After publishing it compares that with the stored run, and should any project's score or rank differ (a later engine), it says so and stops calling the view the published run.
+- After publishing, the scoring rubric, the event's dates, the tracks (their names and order, which group and head the published results) and the judge assignments are final too (409), so every live view, export and judge's console keeps matching what was published.
+
+**"How this ranking was reached."** The public results page ends with this section (linked from the top of the page), for anyone who wonders how far to trust the places. It is read from the published run, never worked out again, and gives totals only:
+
+- the method: with k, or the judges' answers and the pairs implied by scores, each kind counted apart, how many judges gave them, and, when the pairs implied by scores outnumber the answers, that more of the comparisons come from scores than from answers (the page's reading points and its "How these win % were made" say it in the same words, so no one takes the scores' pairs for answers); the two pulls the fit measured and corrected for, or that there were too few answers to measure them;
+- how many counted judges the correction moved by at least 0.005 points of a review's total (the page states that number), with the largest and the median correction in size;
+- how many judges were left out as a whole;
+- how many projects stand at a different place in their track than the plain average of every review (or, pairwise, the plain share of wins) would put them;
+- the signal check's verdict in one sentence (a pairwise run stores no signal check, so it has no such line);
+- the audit entry the run was published as, with its hash.
+
+It never names a judge or shows a judge's own figure, beyond the size of the largest correction; `tests/results-evidence.test.ts` holds it to that. The same numbers are the `evidence` field of `GET /api/events/{event}/results`.
 
 ## Validation
 
-The Monte Carlo (`tests/normalization-mc.test.ts`): 1,000 fixed-seed runs per scenario on the fixture's own 126 judge–project pairs. Each run draws true project qualities, judge offsets and scales and review noise, rounds and clips to 1–5, and keeps the flat judge's real 4 / 4 / 4. Methods: the raw mean; the raw mean with the flat judge left out, as the engine leaves it out, so that the engine's gain over it is the leniency correction alone; the engine at k = 3 (the earlier default, kept as the comparison row); the engine with k estimated (what ships). Score: Kendall tau-b against the truth, over pairs in the same track and over all pairs. 1,000 runs per scenario, seed 20260923:
+This section is the evidence that normalization helps where it should and costs little where it should not.
+
+The Monte Carlo (`tests/normalization-mc.test.ts`): 1,000 fixed-seed runs per scenario on the fixture's own 126 judge–project pairs. Each run draws true project qualities, judge offsets and scales and review noise, rounds and clips to 1–5, and keeps the flat judge's real 4 / 4 / 4.
+
+Methods:
+
+- the raw mean;
+- the raw mean with the flat judge left out, as the engine leaves it out, so that the engine's gain over it is the leniency correction alone;
+- the engine at k = 3 (the earlier default, kept as the comparison row);
+- the engine with k estimated (what ships).
+
+Score: Kendall tau-b against the truth, over pairs in the same track and over all pairs. 1,000 runs per scenario, seed 20260923:
 
 | scenario | method | within-track tau | pooled tau |
 |---|---|---|---|
@@ -119,13 +284,58 @@ The Monte Carlo (`tests/normalization-mc.test.ts`): 1,000 fixed-seed runs per sc
 | batch confound (known-bad for leniency) | k = 3 | 0.833 (sd 0.062) | 0.843 (sd 0.040) |
 | batch confound (known-bad for leniency) | engine | 0.842 (sd 0.060) | 0.856 (sd 0.037) |
 
-The test enforces three assertions, with margins declared before the run: (1) with no bias, the engine loses to the raw mean by no more than the run-to-run spread of the difference, within-track and pooled; (2) in the batch-confound case — a harsh judge given a genuinely stronger batch, a lenient judge a weaker one, the case a leniency model can get wrong — the engine's pooled tau is not below the raw mean's; (3) with moderate bias, with and without noisy judges, it trails k = 3 by no more than 0.010 within-track and 0.020 pooled. The raw mean in (1) and (2) keeps the flat judge, whom the engine leaves out, so part of the engine's edge there is that exclusion. Two more assertions, (1b) and (2b), repeat (1) and (2) against the raw mean with the flat judge left out too; they were declared before their first run, and both hold. With no bias the engine gives up 0.004 within-track and 0.006 pooled to it, inside the margin. (1) and (1b) take the run-to-run spread of the difference as their margin, not the error of its mean over 1,000 runs, which the third outside reading rightly called loose; so (1c) adds the tighter form: with no bias, the 95 % lower bound of the engine's mean difference from the raw mean with the flat judge out must be above −0.010. Measured: −0.0046 within-track (lower bound −0.0053) and −0.0059 pooled (−0.0064). That margin was set after these runs were seen, so it states the measurement more tightly rather than predicting it; its job is to fail on a regression. In the batch confound it is 0.045 pooled ahead of it: of the engine's 0.062 pooled gain over the raw mean there, 0.017 is the flat judge's exclusion and 0.045 the leniency correction (with moderate bias, 0.015 and 0.026). Its known-bad: an engine fed shifted project ids fails assertion (1) (mean within-track difference −0.961). All of these are one-sided, so the raw mean passed off as the engine would pass them, as an outside reading pointed out; two more make the engine show its gain, with margins set after these runs were seen, like (1c). (4): where judges differ in leniency, the 95 % lower bound of the engine's gain over the raw mean with the flat judge out must be above about half the gain measured: 0.008 within-track and 0.012 pooled with moderate bias (measured 0.018 and 0.026), 0.020 for both in the batch confound (0.041 and 0.045); with noisy judges the halo swamps the leniency and there is no gain to assert. (5): every other assertion is a mean over 1,000 runs, which would dilute one disastrous run, so in no single run of any scenario may the engine fall more than 0.20 below that raw mean (the worst measured is 0.136 below). Their known-bads: the engine with its leniency correction switched off (k = 10⁹) fails (4), its gain about zero, and one run in 1,000 turned upside down passes (4) and fails (5). The engine's own self-test: planted leniency is recovered (`tests/normalize-oracle.test.ts`), and with none planted β̂² comes out at 0.0000.
+The test enforces three assertions, with margins declared before the run:
 
-The ± (`tests/normalize-errors.test.ts`) is checked on simulated events of 40 projects and 12 judges, with three reviews per project and 1,500 events per setting. With the variances known, 95 % intervals built from it cover the true project levels between 94 % and 96 % of the time (asserted), and the true leniencies between 93 % and 97 %. That holds for strong leniency (k = 1.6) and for the fixture's size of leniency (k = 43). With the variances estimated from each event's own scores, as the portal runs, the intervals cover projects 94.5 % (strong) and 94.4 % (fixture-like) of the time. They cover judges 93.0 % and 93.2 % of the time in the events where leniency is fitted: slightly short, because the two variances are themselves estimated from the same event's scores and that extra wobble is not in the ±. Its known-bad: a halved or a doubled ± fails the same check.
+1. With no bias, the engine loses to the raw mean by no more than the run-to-run spread of the difference, within-track and pooled.
+2. In the batch-confound case — a harsh judge given a genuinely stronger batch, a lenient judge a weaker one, the case a leniency model can get wrong — the engine's pooled tau is not below the raw mean's.
+3. With moderate bias, with and without noisy judges, it trails k = 3 by no more than 0.010 within-track and 0.020 pooled.
+
+The raw mean in (1) and (2) keeps the flat judge, whom the engine leaves out, so part of the engine's edge there is that exclusion. So more assertions compare against the raw mean with the flat judge left out too:
+
+- **(1b) and (2b)** repeat (1) and (2) against it; they were declared before their first run, and both hold. With no bias the engine gives up 0.004 within-track and 0.006 pooled to it, inside the margin.
+- **(1c)** is the tighter form of (1). (1) and (1b) take the run-to-run spread of the difference as their margin, not the error of its mean over 1,000 runs, which the third outside reading rightly called loose. So (1c) asks that, with no bias, the 95 % lower bound of the engine's mean difference from the raw mean with the flat judge out be above −0.010. Measured: −0.0046 within-track (lower bound −0.0053) and −0.0059 pooled (−0.0064). That margin was set after these runs were seen, so it states the measurement more tightly rather than predicting it; its job is to fail on a regression.
+- In the batch confound the engine is 0.045 pooled ahead of it: of the engine's 0.062 pooled gain over the raw mean there, 0.017 is the flat judge's exclusion and 0.045 the leniency correction (with moderate bias, 0.015 and 0.026).
+- Known-bad: an engine fed shifted project ids fails assertion (1) (mean within-track difference −0.961).
+
+All of these are one-sided, so the raw mean passed off as the engine would pass them, as an outside reading pointed out. Two more make the engine show its gain, with margins set after these runs were seen, like (1c):
+
+- **(4)** Where judges differ in leniency, the 95 % lower bound of the engine's gain over the raw mean with the flat judge out must be above about half the gain measured: 0.008 within-track and 0.012 pooled with moderate bias (measured 0.018 and 0.026), 0.020 for both in the batch confound (0.041 and 0.045). With noisy judges the halo swamps the leniency and there is no gain to assert.
+- **(5)** Every other assertion is a mean over 1,000 runs, which would dilute one disastrous run, so in no single run of any scenario may the engine fall more than 0.20 below that raw mean (the worst measured is 0.136 below).
+- Their known-bads: the engine with its leniency correction switched off (k = 10⁹) fails (4), its gain about zero, and one run in 1,000 turned upside down passes (4) and fails (5).
+
+The engine's own self-test: planted leniency is recovered (`tests/normalize-oracle.test.ts`), and with none planted β̂² comes out at 0.0000.
+
+**The ±** (`tests/normalize-errors.test.ts`) is checked on simulated events of 40 projects and 12 judges, with three reviews per project and 1,500 events per setting.
+
+- With the variances known, 95 % intervals built from it cover the true project levels between 94 % and 96 % of the time (asserted), and the true leniencies between 93 % and 97 %. That holds for strong leniency (k = 1.6) and for the fixture's size of leniency (k = 43).
+- With the variances estimated from each event's own scores, as the portal runs, the intervals cover projects 94.5 % (strong) and 94.4 % (fixture-like) of the time.
+- They cover judges 93.0 % and 93.2 % of the time in the events where leniency is fitted: slightly short, because the two variances are themselves estimated from the same event's scores and that extra wobble is not in the ±.
+- Its known-bad: a halved or a doubled ± fails the same check.
 
 ## Pairwise mode
 
-An event can be judged by pairwise answers instead of rubric scores. The organizer switches the mode on Settings, with a reason, until results are published; after that the mode and every answer are final. In this mode a judge never gives a number. They answer, about two of the projects they were given at a time, which is better: left, right, or "too close to call". Each project is placed into the judge's own ranked list, one at a time: the new project is compared with the middle of the range it can still take (binary insertion), so placing a project into a list of n takes at most ⌈log₂(n + 1)⌉ answers (tested) and six projects take at most eleven; "too close to call" places it right below the project it tied with. The judge can take back their latest answer in a track, and its question comes back. The list and the next question are replayed from the judge's own answers on every read and every write, so there is no second copy of that state to drift: an answer is accepted only for the exact question the server would ask now (409 `question_changed`, nothing stored), except that the judge's latest answer in the track sent again unchanged (a double click, a retry on a bad connection) is answered as taken and stays stored once (tested), and an answer that no longer fits the replay (its project was merged away or left the judge's tracks) is skipped instead of breaking the list, so the judge's later answers still count (tested). Which project sits on the left is a seeded coin per judge and question: the question (judge, project being placed, project it is compared with) is hashed into a seed for the portal's one seeded generator, the one the assignment runs and the signal check draw from, so a question asked again shows the same sides, and the new project is on the left in about half the questions. It is tested on the fixture's own ids that one question's side tells nothing about another's, across projects and across judges. The first version kept only the lowest bit of the hash, which is an XOR of one bit per id: on the fixture's ids, 8 of its 27 judges would have seen the new project on the same side in every question they could be asked, so for them the side pull and the pull of the project just opened could not be told apart. An answer stored with the sides the other way round (given under that first rule) still counts, read by the sides it was shown with (tested). Only the event's judges answer, and only an organizer sees the ranking or switches the mode; every refusal has a positive control (`tests/pairwise-dal.test.ts`).
+An event can be judged by pairwise answers instead of rubric scores. This section says how judges answer, how the answers become a ranking, what the organizer sees and settles, and the proof.
+
+The organizer switches the mode on Settings, with a reason, until results are published; after that the mode and every answer are final. Only the event's judges answer, and only an organizer sees the ranking or switches the mode; every refusal has a positive control (`tests/pairwise-dal.test.ts`).
+
+**How a judge answers.** In this mode a judge never gives a number. They answer, about two of the projects they were given at a time, which is better: left, right, or "too close to call".
+
+- Each project is placed into the judge's own ranked list, one at a time: the new project is compared with the middle of the range it can still take (binary insertion). So placing a project into a list of n takes at most ⌈log₂(n + 1)⌉ answers (tested) and six projects take at most eleven.
+- "Too close to call" places it right below the project it tied with.
+- The judge can take back their latest answer in a track, and its question comes back.
+
+**One copy of the state.** The list and the next question are replayed from the judge's own answers on every read and every write, so there is no second copy of that state to drift.
+
+- An answer is accepted only for the exact question the server would ask now (409 `question_changed`, nothing stored).
+- Except: the judge's latest answer in the track sent again unchanged (a double click, a retry on a bad connection) is answered as taken and stays stored once (tested).
+- An answer that no longer fits the replay (its project was merged away or left the judge's tracks) is skipped instead of breaking the list, so the judge's later answers still count (tested).
+
+**Which side.** Which project sits on the left is a seeded coin per judge and question.
+
+- The question (judge, project being placed, project it is compared with) is hashed into a seed for the portal's one seeded generator, the one the assignment runs and the signal check draw from. So a question asked again shows the same sides, and the new project is on the left in about half the questions.
+- It is tested on the fixture's own ids that one question's side tells nothing about another's, across projects and across judges.
+- The first version kept only the lowest bit of the hash, which is an XOR of one bit per id: on the fixture's ids, 8 of its 27 judges would have seen the new project on the same side in every question they could be asked, so for them the side pull and the pull of the project just opened could not be told apart.
+- An answer stored with the sides the other way round (given under that first rule) still counts, read by the sides it was shown with (tested).
 
 Why: a judge's scale stops being a problem by not existing. Normalization has to estimate each judge's leniency from the event's own scores; here the judge is never asked for a number, only for an order of the projects they were assigned, so there is no leniency to estimate and no 4 from one judge to set against a 3 from another.
 
@@ -133,25 +343,70 @@ The model: every project has a strength s, and the chance that the left project 
 
     logit P(left wins) = s_left − s_right + h + ν · (+1 if the project just opened is on the left, −1 if on the right)
 
-where h is the pull of the left side and ν the pull of the project the judge has just opened: the two ways the frame of a question could tilt an answer, both estimated from the event's own answers and reported with their ±. "Too close to call" counts as half a win each way. The priors are s ~ N(0, 2²), which also keeps a project that won everything finite, and h, ν ~ N(0, 0.5²). One fit over every comparison maximizes the log-posterior with Newton's method, which finds its one maximum because the log-posterior is concave; each strength's ± comes from the inverse of the negative Hessian at the maximum (the Laplace approximation). No comparison crosses tracks, so each Newton step and the ± are solved one track at a time with the two pulls eliminated (the Schur complement): the dense solve of the whole matrix gives the same answer to within 1e-9 (tested against it), and an event of 1,000 projects in 8 tracks fits in about 0.4 s where the dense solve took about 6 s. The engine is pure (it reads no database), so the same answers always give the same ranking.
+where h is the pull of the left side and ν the pull of the project the judge has just opened: the two ways the frame of a question could tilt an answer, both estimated from the event's own answers and reported with their ±.
 
-**Why this model, and not Crowd-BT.** The organizers point to Gavel, which fits Crowd-BT: Bradley-Terry with a reliability number for each judge, fitted from the answers, that down-weights (or even reverses) a judge the model finds unreliable, and a next pair chosen for each judge to learn the most. We keep plain Bradley-Terry for three reasons. First, reliability: a judge here answers about log₂(k!) questions for k projects (eleven at most for six), too few to estimate a weight that quietly decides how much their word counts; so the portal measures each judge's agreement with the rest of the panel and flags, and the organizer decides with a written reason (the flag's error rates are measured in "The proof"). Second, pair choice: judges here have an assigned batch (see "Assignment"), not a room to walk, so each judge places the projects they were given by binary search: every answer is used, the answers always form one consistent order per judge, and it takes about log₂(k!) of them. Third, the frame of the question: the two pulls, the side a project is shown on and the project just opened, are estimated and corrected for rather than assumed away (in part: the fit reads them low, see (c) under "The proof"). The ranking is global in the sense the bonus asks: one fit over every comparison in the event, from judges who each saw only part of it. It is reported per track because judges compare projects only within a track, so no answer links two tracks, and an order across them would be the prior's, not evidence (the same reason a track split into groups says so).
+- "Too close to call" counts as half a win each way.
+- The priors are s ~ N(0, 2²), which also keeps a project that won everything finite, and h, ν ~ N(0, 0.5²).
+- One fit over every comparison maximizes the log-posterior with Newton's method, which finds its one maximum because the log-posterior is concave; each strength's ± comes from the inverse of the negative Hessian at the maximum (the Laplace approximation).
+- No comparison crosses tracks, so each Newton step and the ± are solved one track at a time with the two pulls eliminated (the Schur complement): the dense solve of the whole matrix gives the same answer to within 1e-9 (tested against it), and an event of 1,000 projects in 8 tracks fits in about 0.4 s where the dense solve took about 6 s.
+- The engine is pure (it reads no database), so the same answers always give the same ranking.
 
-The organizer's Results tab shows, per track: **win %**, each project's chance of beating an average project of its track, σ(s − the track's mean strength), with a ± computed from the full covariance; **ahead of the next**, the chance this place really is ahead of the one below it, given only when the two are linked by comparisons; **groups**: projects joined through comparisons share a group, and a track split into groups says so, because nothing was measured across the gap; projects never compared come last; and a **receipt** per project listing every comparison that entered the fit, judge by judge, with its result and weight. The two pulls are shown in plain words ("the project shown on the left wins 56 % between two equal projects"), but only once each is known within 6 points; before that the card says it is not measured yet, with the answer count and the current ±, because a pull read off a handful of answers is the prior's, not a finding.
+**Why this model, and not Crowd-BT.** The organizers point to Gavel, which fits Crowd-BT: Bradley-Terry with a reliability number for each judge, fitted from the answers, that down-weights (or even reverses) a judge the model finds unreliable, and a next pair chosen for each judge to learn the most. We keep plain Bradley-Terry for three reasons:
 
-Finished rubric reviews count too, as orders: a judge's k reviews in one track say "this is my order of these k projects", and every two of them become a comparison, the higher total winning (equal totals: too close to call), each weighted 2/k. A judge's order of k projects so weighs k − 1 comparisons in total: their say grows with how many projects they ordered, not with its square (tested). A judge's answers replace their score order where they cover it: a pair implied by scores drops out once that judge has placed both of its projects by answers. Excluded judges (the flat-judge rule and the organizer's own decisions) are left out of the fit, and a merged duplicate counts for the copy kept.
+1. **Reliability.** A judge here answers about log₂(k!) questions for k projects (eleven at most for six), too few to estimate a weight that quietly decides how much their word counts. So the portal measures each judge's agreement with the rest of the panel and flags, and the organizer decides with a written reason (the flag's error rates are measured in "The proof").
+2. **Pair choice.** Judges here have an assigned batch (see "Assignment"), not a room to walk, so each judge places the projects they were given by binary search: every answer is used, the answers always form one consistent order per judge, and it takes about log₂(k!) of them.
+3. **The frame of the question.** The two pulls, the side a project is shown on and the project just opened, are estimated and corrected for rather than assumed away (in part: the fit reads them low, see (c) under "The proof").
 
-The coin-flip flag: a judge with at least six answers whose answers agree with the rest of the panel no better than coin flips would (z below 0), or who calls "too close to call" more than half the time. Agreement is measured against a fit of everyone else's comparisons, each of the judge's answers weighted by how sure the rest of the panel is about that pair; a tie always earns half, so ties add nothing to the variance of z. How often it fires, on 120 simulated panels of the fixture's own assignments (`tests/pairwise-mc.test.ts`, check (e)): on 70 of 958 honest judges (7.3 %, held at or under 15 %), and on the judge who answers at random in 61 of 120 panels (51 %). A bar at z = 0 sits at a random judge's median, so the flag alone misses such a judge about half the time: it is a prompt for the organizer, not a detector. A higher bar would catch more random judges and flag more honest ones. The test holds that it fires on a random judge at least three times as often as on an honest one (7.0 times, measured).
+The ranking is global in the sense the bonus asks: one fit over every comparison in the event, from judges who each saw only part of it. It is reported per track because judges compare projects only within a track, so no answer links two tracks, and an order across them would be the prior's, not evidence (the same reason a track split into groups says so).
 
-Before publishing, the organizer settles, in the same list as the scores mode's decisions: each flagged judge, kept or left out with a written reason (a flag is a question for the organizer, never an automatic exclusion); each project that fewer than two judges compared, published as it is with a reason; and any duplicate entry. Publishing stores the run in the same tables as a score run (method `bradley-terry-v1`): the fitted win % where the normalized score goes, the plain share of comparisons won (ties half) where the raw mean goes, the ±, both ranks (average ranks, as in scores mode: equal values share a place, tested), and how many judges compared the project where the review count goes. The results page, the team's page, the records and the exports read a pairwise event like any other, and say how its places were made. The fit stops after 100 Newton steps; on the sample event it settles in 6. Should it ever stop before settling, the organizer's Results tab and Publish panel say so and suggest more comparisons, publishing it as it is needs a written reason (409 `fit_not_settled` without one), and the reason is stored with the run, in the audit row and on the public results (tested).
+**What the organizer sees.** The organizer's Results tab shows, per track:
 
-In scores mode the organizer's Results tab carries the same engine as a cross-check: the event's reviews read only as each judge's order of the projects they reviewed, fitted as above, and set against the normalized order per track (Kendall's tau-b, 1 for the same order) with the projects whose places differ most. Because it never compares one judge's number with another's, no leniency can move it. On the sample event it agrees at τ = 0.78 across tracks (0.33 to 1.00 per track; the lowest in the three-project Climate track), and it places the two copies of the project entered twice apart, as their different judges did.
+- **win %**, each project's chance of beating an average project of its track, σ(s − the track's mean strength), with a ± computed from the full covariance;
+- **ahead of the next**, the chance this place really is ahead of the one below it, given only when the two are linked by comparisons;
+- **groups**: projects joined through comparisons share a group, and a track split into groups says so, because nothing was measured across the gap; projects never compared come last;
+- a **receipt** per project listing every comparison that entered the fit, judge by judge, with its result and weight.
+
+The two pulls are shown in plain words ("the project shown on the left wins 56 % between two equal projects"), but only once each is known within 6 points. Before that the card says it is not measured yet, with the answer count and the current ±, because a pull read off a handful of answers is the prior's, not a finding.
+
+**Finished rubric reviews count too, as orders.** A judge's k reviews in one track say "this is my order of these k projects", and every two of them become a comparison, the higher total winning (equal totals: too close to call), each weighted 2/k.
+
+- A judge's order of k projects so weighs k − 1 comparisons in total: their say grows with how many projects they ordered, not with its square (tested).
+- A judge's answers replace their score order where they cover it: a pair implied by scores drops out once that judge has placed both of its projects by answers.
+- Excluded judges (the flat-judge rule and the organizer's own decisions) are left out of the fit, and a merged duplicate counts for the copy kept.
+
+**The coin-flip flag:** a judge with at least six answers whose answers agree with the rest of the panel no better than coin flips would (z below 0), or who calls "too close to call" more than half the time.
+
+- Agreement is measured against a fit of everyone else's comparisons, each of the judge's answers weighted by how sure the rest of the panel is about that pair; a tie always earns half, so ties add nothing to the variance of z.
+- How often it fires, on 120 simulated panels of the fixture's own assignments (`tests/pairwise-mc.test.ts`, check (e)): on 70 of 958 honest judges (7.3 %, held at or under 15 %), and on the judge who answers at random in 61 of 120 panels (51 %).
+- A bar at z = 0 sits at a random judge's median, so the flag alone misses such a judge about half the time: it is a prompt for the organizer, not a detector. A higher bar would catch more random judges and flag more honest ones.
+- The test holds that it fires on a random judge at least three times as often as on an honest one (7.0 times, measured).
+
+**Before publishing,** the organizer settles, in the same list as the scores mode's decisions:
+
+- each flagged judge, kept or left out with a written reason (a flag is a question for the organizer, never an automatic exclusion);
+- each project that fewer than two judges compared, published as it is with a reason;
+- any duplicate entry.
+
+**Publishing** stores the run in the same tables as a score run (method `bradley-terry-v1`): the fitted win % where the normalized score goes, the plain share of comparisons won (ties half) where the raw mean goes, the ±, both ranks (average ranks, as in scores mode: equal values share a place, tested), and how many judges compared the project where the review count goes. The results page, the team's page, the records and the exports read a pairwise event like any other, and say how its places were made.
+
+The fit stops after 100 Newton steps; on the sample event it settles in 6. Should it ever stop before settling, the organizer's Results tab and Publish panel say so and suggest more comparisons, publishing it as it is needs a written reason (409 `fit_not_settled` without one), and the reason is stored with the run, in the audit row and on the public results (tested).
+
+In scores mode the organizer's Results tab carries the same engine as a cross-check: the event's reviews read only as each judge's order of the projects they reviewed, fitted as above, and set against the normalized order per track (Kendall's tau-b, 1 for the same order) with the projects whose places differ most. Because it never compares one judge's number with another's, no leniency can move it.
+
+On the sample event it agrees at τ = 0.78 across tracks (0.33 to 1.00 per track; the lowest in the three-project Climate track), and it places the two copies of the project entered twice apart, as their different judges did.
 
 ### The proof
 
-`tests/pairwise-mc.test.ts` builds simulated events on the fixture's real tracks and judge–project pairs: every simulated judge places their assigned projects by binary insertion exactly as the Compare screen asks, with the sides the portal gives each question, answering from known project qualities, their own discrimination, and planted pulls h = 0.3 and ν = 0.2. The assertions were declared before the first run (2026-09-27). Run it with `npx vitest run tests/pairwise-mc.test.ts --silent=false` (a few seconds); without `--silent=false` vitest runs it but prints nothing of the numbers below.
+`tests/pairwise-mc.test.ts` builds simulated events on the fixture's real tracks and judge–project pairs. Every simulated judge places their assigned projects by binary insertion exactly as the Compare screen asks, with the sides the portal gives each question, answering from known project qualities, their own discrimination, and planted pulls h = 0.3 and ν = 0.2.
 
-Two changes on 2026-09-29, both from an outside reading, moved these numbers. First, the score: it is Kendall's tau-b against the true order, over pairs of projects in the same track, so a pair the estimate ties counts against it and a ranking that cannot tell two projects apart pays for that. The test used to drop tied pairs, which is Goodman-Kruskal gamma, and reported it under the name tau. The engine never ties two projects, so its figures did not move; the plain win rate often does (two projects that each won half their comparisons), and gamma had flattered it. Second, the sides: each question's side now comes from a seeded coin (see "Pairwise mode" above), and since the simulated judges answer the sides the portal gives them, every simulated answer changed with it. The same declared runs, step by step:
+The assertions were declared before the first run (2026-09-27). Run it with `npx vitest run tests/pairwise-mc.test.ts --silent=false` (a few seconds); without `--silent=false` vitest runs it but prints nothing of the numbers below.
+
+Two changes on 2026-09-29, both from an outside reading, moved these numbers:
+
+1. **The score.** It is Kendall's tau-b against the true order, over pairs of projects in the same track, so a pair the estimate ties counts against it and a ranking that cannot tell two projects apart pays for that. The test used to drop tied pairs, which is Goodman-Kruskal gamma, and reported it under the name tau. The engine never ties two projects, so its figures did not move; the plain win rate often does (two projects that each won half their comparisons), and gamma had flattered it.
+2. **The sides.** Each question's side now comes from a seeded coin (see "Pairwise mode" above), and since the simulated judges answer the sides the portal gives them, every simulated answer changed with it.
+
+The same declared runs, step by step:
 
 | | engine | win rate | difference | h | ν |
 |---|---|---|---|---|---|
@@ -162,17 +417,57 @@ Two changes on 2026-09-29, both from an outside reading, moved these numbers. Fi
 | (b) tau-b, one bit of a hash | 0.674 | 0.676 | −0.002 | | |
 | (b) tau-b, seeded coin (what ships) | 0.677 | 0.679 | −0.002 | | |
 
-- (a) Declared: the engine's mean Kendall tau with the true order is above the plain win rate's. Measured over 200 runs with the pulls present: 0.675 (sd 0.089) against 0.677 (sd 0.087), a difference of −0.002 with a run-to-run sd of 0.044 (error of the mean 0.003). **The declared assertion now fails**, by less than one error of the mean. It stays as declared; the test marks it as failing (`it.fails`), so it turns red should it ever hold again. To see whether the seed decides it, the test also reports eight blocks of 200 runs with the same pulls (not asserted, added after the failure was seen): the difference is 0.000 over 1,600 runs (error of the mean 0.001), the blocks ranging from −0.003 to +0.003. The same eight blocks under the old side rule also average 0.000, so the coin did not cost the engine anything; the declared seed's earlier pass (+0.002, then +0.011) was the luck of that seed. The honest reading: at putting projects in order the engine **matches** the win rate, no better. What it adds is the two pulls measured and corrected for (in part, see (c)), a ± that is calibrated (d), the chance each place is ahead of the next, groups said out loud, the flag and the receipts. Known-bad: the same fit with the projects' labels shuffled must fail (a); it scores a tau of −0.011.
-- (b) With no pulls planted, 200 runs: engine 0.677, win rate 0.679, a difference of −0.002 (sd 0.041): the engine trails by no more than the run-to-run sd, as declared. That margin is loose (the error of the mean over 200 runs is 0.003), so (b2), added after the third outside reading, asks for a 95 % lower bound above −0.020: measured −0.008. The margin was set after the first run was seen and stays where it was; it is there to fail on a regression. Planted, on the same 200 runs and seeds (the test's "(b2) known-bad", which prints these figures): a strength prior eight times too tight (sd 0.25 for 2) costs the engine 0.017 (0.660) and (b2) fails it, difference −0.019, lower bound −0.025; the test asserts that it fails, and it turns red should (b2) ever stop catching it. A prior four times too tight (sd 0.5) costs 0.007 (0.670) and **(b2) does not catch it**: difference −0.010, lower bound −0.015 (printed, not asserted). In the first run (gamma, the first side rule) that four-times defect cost 0.020 and (b2) caught it (lower bound −0.025, measured by hand at the time; the repository cannot reproduce it now). So (b2) guards against a gross regression only.
-- (c) Declared: the mean pull estimates land within 0.1 of the truth. h 0.255 (true 0.3, sd 0.187) holds; **ν 0.099 (true 0.2, sd 0.196) fails, by 0.001**, and is marked failing like (a). Over the 1,600 runs the fit reads both pulls low, h 0.230 (about a quarter low) and ν 0.129 (about a third low) (not looked into further; the prior N(0, 0.5²), which pulls toward zero, is one candidate). The fit corrects every strength by the pulls it measured, so part of each real pull stays in the strengths, and the plain-words pull on the Results tab tends to understate the real one. The balanced side coin (tested) keeps what stays of the side pull from favouring any one project; what stays of the just-opened pull depends on the order each judge opened their projects in, and how far that moves a place is not measured.
-- (d) The 95 % intervals for win % cover the truth 0.951 of the time over 6,150 project-runs (declared window 90 to 99 %).
-- (e) 120 panels, each with one judge answering at random and one answering honestly except that every answer their favourite would lose becomes "too close to call": the flag fires on 61 of 120 random answerers (50.8 %) and on 70 of 958 honest judges (7.3 %, declared bound 15 %). The strategic judge is not caught reliably: flagged in 14 of 120 panels, their ties bought the favourite 0.26 places on average, at most 3.
+- **(a)** Declared: the engine's mean Kendall tau with the true order is above the plain win rate's.
+  - Measured over 200 runs with the pulls present: 0.675 (sd 0.089) against 0.677 (sd 0.087), a difference of −0.002 with a run-to-run sd of 0.044 (error of the mean 0.003). **The declared assertion now fails**, by less than one error of the mean. It stays as declared; the test marks it as failing (`it.fails`), so it turns red should it ever hold again.
+  - To see whether the seed decides it, the test also reports eight blocks of 200 runs with the same pulls (not asserted, added after the failure was seen): the difference is 0.000 over 1,600 runs (error of the mean 0.001), the blocks ranging from −0.003 to +0.003. The same eight blocks under the old side rule also average 0.000, so the coin did not cost the engine anything; the declared seed's earlier pass (+0.002, then +0.011) was the luck of that seed.
+  - The honest reading: at putting projects in order the engine **matches** the win rate, no better. What it adds is the two pulls measured and corrected for (in part, see (c)), a ± that is calibrated (d), the chance each place is ahead of the next, groups said out loud, the flag and the receipts.
+  - Known-bad: the same fit with the projects' labels shuffled must fail (a); it scores a tau of −0.011.
+- **(b)** With no pulls planted, 200 runs: engine 0.677, win rate 0.679, a difference of −0.002 (sd 0.041): the engine trails by no more than the run-to-run sd, as declared.
+  - That margin is loose (the error of the mean over 200 runs is 0.003), so (b2), added after the third outside reading, asks for a 95 % lower bound above −0.020: measured −0.008. The margin was set after the first run was seen and stays where it was; it is there to fail on a regression.
+  - Planted, on the same 200 runs and seeds (the test's "(b2) known-bad", which prints these figures): a strength prior eight times too tight (sd 0.25 for 2) costs the engine 0.017 (0.660) and (b2) fails it, difference −0.019, lower bound −0.025; the test asserts that it fails, and it turns red should (b2) ever stop catching it.
+  - A prior four times too tight (sd 0.5) costs 0.007 (0.670) and **(b2) does not catch it**: difference −0.010, lower bound −0.015 (printed, not asserted). In the first run (gamma, the first side rule) that four-times defect cost 0.020 and (b2) caught it (lower bound −0.025, measured by hand at the time; the repository cannot reproduce it now). So (b2) guards against a gross regression only.
+- **(c)** Declared: the mean pull estimates land within 0.1 of the truth. h 0.255 (true 0.3, sd 0.187) holds; **ν 0.099 (true 0.2, sd 0.196) fails, by 0.001**, and is marked failing like (a).
+  - Over the 1,600 runs the fit reads both pulls low, h 0.230 (about a quarter low) and ν 0.129 (about a third low) (not looked into further; the prior N(0, 0.5²), which pulls toward zero, is one candidate).
+  - The fit corrects every strength by the pulls it measured, so part of each real pull stays in the strengths, and the plain-words pull on the Results tab tends to understate the real one.
+  - The balanced side coin (tested) keeps what stays of the side pull from favouring any one project; what stays of the just-opened pull depends on the order each judge opened their projects in, and how far that moves a place is not measured.
+- **(d)** The 95 % intervals for win % cover the truth 0.951 of the time over 6,150 project-runs (declared window 90 to 99 %).
+- **(e)** 120 panels, each with one judge answering at random and one answering honestly except that every answer their favourite would lose becomes "too close to call". The flag fires on 61 of 120 random answerers (50.8 %) and on 70 of 958 honest judges (7.3 %, declared bound 15 %). The strategic judge is not caught reliably: flagged in 14 of 120 panels, their ties bought the favourite 0.26 places on average, at most 3.
 
-**Tried and not built: the engine choosing each judge's next question.** Instead of placing projects by binary insertion, the engine could ask each judge about the pair the panel is least sure of, weighted toward each track's top three. It was simulated before any code, on the Monte Carlo's scenario (a), 400 runs per policy, against gates declared before the run: the right winner more often by at least 0.03 and by more than two standard errors, Kendall tau no worse by more than 0.01, no more answers than insertion, and no more projects left with fewer than two judges. The version that could ship (each question fixed from the log as of the judge's previous answer, no repeated pair, every project asked about at least once, insertion's answer count) passed none of the accuracy gates: the right winner 0.014 more often (se 0.011, inside the noise), tau +0.010. A variant that refreshed its fit across all judges in rounds and kept asking about the top did clear the winner gate (+0.036, se 0.011), but only by leaving 1.7 % of projects compared by fewer than two judges. The Compare screen keeps binary insertion. (These figures were measured before the score and side changes of 2026-09-29 described under "The proof", and were not re-run: the simulation that produced them is not in the repository.)
+**Tried and not built: the engine choosing each judge's next question.** Instead of placing projects by binary insertion, the engine could ask each judge about the pair the panel is least sure of, weighted toward each track's top three.
+
+It was simulated before any code, on the Monte Carlo's scenario (a), 400 runs per policy, against gates declared before the run:
+
+- the right winner more often by at least 0.03 and by more than two standard errors;
+- Kendall tau no worse by more than 0.01;
+- no more answers than insertion;
+- no more projects left with fewer than two judges.
+
+Results:
+
+- The version that could ship (each question fixed from the log as of the judge's previous answer, no repeated pair, every project asked about at least once, insertion's answer count) passed none of the accuracy gates: the right winner 0.014 more often (se 0.011, inside the noise), tau +0.010.
+- A variant that refreshed its fit across all judges in rounds and kept asking about the top did clear the winner gate (+0.036, se 0.011), but only by leaving 1.7 % of projects compared by fewer than two judges.
+
+The Compare screen keeps binary insertion. (These figures were measured before the score and side changes of 2026-09-29 described under "The proof", and were not re-run: the simulation that produced them is not in the repository.)
 
 ## The audit trail
 
-Every change is written in the same database transaction as the change, and so is every refusal of someone the portal knows: a signed-in person or a voter holding a link (403). A request with no valid session (401) leaves no row, since anyone can make those without end; and past 60 refusals in 10 minutes a person is answered 429 with no row, so one account cannot fill the log. Triggers refuse UPDATE and DELETE on the log, and they are re-created at every start. Each row carries the hash of the row before it. The organizer's audit page and `audit.csv` show the head hash. A hash never gives away what its row keeps from a reader: the row of a ballot, a score or a pairwise answer is hashed with its own random salt, shown in `audit.csv` only together with the values (a ballot's once voting closes) and never sent in a webhook, so nobody can hash guessed picks or scores to find the one that matches; once shown, the row can be recomputed from its own line (`DATA-MODEL.md`, the chain). Limits, stated plainly: the triggers stop the application, not someone holding the database file; the chain is tamper-evident only against a head hash kept outside the portal. The portal spreads such heads as it goes: each signed certificate and judging record carries the newest entry's number and hash inside its signature (the record's page says whether the log still holds that entry as signed), and the public results page shows the entry that published the results. The signing key itself is sealed under the portal's secret, so a copy of the database cannot sign new records to match a rewritten log.
+This section says what the audit log records, what protects it, and where that protection stops.
+
+**What is written.** Every change is written in the same database transaction as the change, and so is every refusal of someone the portal knows: a signed-in person or a voter holding a link (403).
+
+- A request with no valid session (401) leaves no row, since anyone can make those without end.
+- Past 60 refusals in 10 minutes a person is answered 429 with no row, so one account cannot fill the log.
+
+**What protects it.**
+
+- Triggers refuse UPDATE and DELETE on the log, and they are re-created at every start.
+- Each row carries the hash of the row before it. The organizer's audit page and `audit.csv` show the head hash.
+- A hash never gives away what its row keeps from a reader: the row of a ballot, a score or a pairwise answer is hashed with its own random salt, shown in `audit.csv` only together with the values (a ballot's once voting closes) and never sent in a webhook, so nobody can hash guessed picks or scores to find the one that matches. Once shown, the row can be recomputed from its own line (`DATA-MODEL.md`, the chain).
+
+**Limits, stated plainly:** the triggers stop the application, not someone holding the database file; the chain is tamper-evident only against a head hash kept outside the portal.
+
+- The portal spreads such heads as it goes: each signed certificate and judging record carries the newest entry's number and hash inside its signature (the record's page says whether the log still holds that entry as signed), and the public results page shows the entry that published the results.
+- The signing key itself is sealed under the portal's secret, so a copy of the database cannot sign new records to match a rewritten log.
 
 ## Threat model
 
@@ -180,4 +475,7 @@ In its own file, `THREAT-MODEL.md`: Sybil votes, ballot stuffing, submission scr
 
 ## What it does not do
 
-No calibrated prize probabilities or rank intervals: each score carries a ± of one standard error, and the portal does not turn it into rank intervals or prize odds. A method that produced them was tried in planning and cut: on simulated events with no real differences it named a 50 %+ favourite in 46 of 80 tracks (planning simulation of 2026-09-24, not re-run in this repository). Places are decided within a track; the overall ranking (the organizer's table, and the table above) is a convenience view, since tracks compare only through judges who score in both, so read the order across tracks loosely. With few reviews per judge the engine corrects little, by design. No automatic cross-track assignment.
+- **No calibrated prize probabilities or rank intervals:** each score carries a ± of one standard error, and the portal does not turn it into rank intervals or prize odds. A method that produced them was tried in planning and cut: on simulated events with no real differences it named a 50 %+ favourite in 46 of 80 tracks (planning simulation of 2026-09-24, not re-run in this repository).
+- **Places are decided within a track;** the overall ranking (the organizer's table, and the table above) is a convenience view, since tracks compare only through judges who score in both, so read the order across tracks loosely.
+- **With few reviews per judge the engine corrects little,** by design.
+- **No automatic cross-track assignment.**
