@@ -174,7 +174,7 @@ export {
   type RecordView,
 } from "./records";
 export type { Verification } from "../signing";
-export { OPERATIONS, openApiDocument, operationId, type Access, type Operation } from "../openapi";
+export { OPERATIONS, openApiDocument, operationId, STATUS_MEANING, type Access, type Operation } from "../openapi";
 export {
   createWebhook,
   listDeliveries,

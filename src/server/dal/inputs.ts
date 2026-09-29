@@ -9,7 +9,7 @@ export { CorrectionInput, MoveInput } from "./corrections";
 export { CommentInput, HideInput } from "./comments";
 export { BatchInviteInput, InviteInput, RankingInput, TrackIds } from "./judges";
 export { AcceptInput, MergeInput, OverrideInput, PairInput, RevokeInput, UndoPairInput, UnmergeInput } from "./decisions";
-export { Details, NewEvent, PrizeRows, QuestionRows, RubricBody, RubricRows, TrackRows } from "./organize";
+export { Details, NewEvent, PrizeRows, QuestionRows, RubricBody, RubricInput, RubricRows, TrackRows } from "./organize";
 export { ProjectInput } from "./projects";
 export { ProjectFieldsInput } from "./project-fields";
 export { RecordRequest } from "./records";

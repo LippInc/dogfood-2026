@@ -96,7 +96,7 @@ export const RubricRows = z
  * existed) is still taken as the rows with no reason.
  */
 export const RubricBody = z.object({ criteria: RubricRows, reason: z.string().trim().max(500).optional() });
-const RubricInput = z.union([RubricRows, RubricBody]);
+export const RubricInput = z.union([RubricRows, RubricBody]);
 
 export const NewEvent = z.object({
   details: Details,

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlainShell } from "@/components/shell/plain-shell";
-import { openApiDocument, OPERATIONS, operationId, type Operation } from "@/server/dal";
+import { openApiDocument, OPERATIONS, operationId, STATUS_MEANING, type Operation } from "@/server/dal";
 import { SectionMarker } from "./section-marker";
 
 export const dynamic = "force-dynamic";
@@ -86,12 +86,12 @@ export default function ApiDocsPage() {
   const doc = openApiDocument(process.env.PUBLIC_URL ?? "http://localhost:8080");
   const base = doc.servers[0]!.url;
   const tags = [...new Set(OPERATIONS.map((o) => o.tag))];
-  // every answer the document names, with its meaning and how many operations can give it
+  // every answer the document names, with its general meaning and how many operations can give it
   const answers = new Map<number, { description: string; count: number }>();
   for (const methods of Object.values(doc.paths)) {
     for (const entry of Object.values(methods) as Documented[]) {
-      for (const [code, r] of Object.entries(entry.responses ?? {})) {
-        const a = answers.get(Number(code)) ?? { description: r.description, count: 0 };
+      for (const code of Object.keys(entry.responses ?? {})) {
+        const a = answers.get(Number(code)) ?? { description: STATUS_MEANING[Number(code)] ?? "", count: 0 };
         a.count += 1;
         answers.set(Number(code), a);
       }
@@ -242,7 +242,7 @@ export default function ApiDocsPage() {
                       const entry = doc.paths[op.path]?.[op.method.toLowerCase()] as Documented | undefined;
                       const schema = op.body ? entry?.requestBody?.content["application/json"].schema : undefined;
                       const codes = Object.keys(entry?.responses ?? {}).map(Number);
-                      const ok = codes.filter((c) => c < 300);
+                      const ok = codes.filter((c) => c < 400);
                       const refusals = codes.filter((c) => c >= 400);
                       return (
                         <li key={operationId(op)} id={operationId(op)} className="grid scroll-mt-6 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 py-4 sm:grid-cols-[64px_minmax(0,1fr)]">

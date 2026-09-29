@@ -64,10 +64,12 @@ describe("the API reference matches the route handlers", () => {
     expect(new Set(ids).size).toBe(ids.length);
     for (const [p, methods] of Object.entries(doc.paths)) {
       const names = [...p.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
-      for (const op of Object.values(methods) as { parameters?: { name: string }[]; requestBody?: { content: Record<string, { schema: { type?: string; contentMediaType?: string } }> } }[]) {
+      type Schema = { type?: string; contentMediaType?: string; anyOf?: Schema[] };
+      for (const op of Object.values(methods) as { parameters?: { name: string }[]; requestBody?: { content: Record<string, { schema: Schema }> } }[]) {
         expect((op.parameters ?? []).map((x) => x.name)).toEqual(names);
         const json = op.requestBody?.content["application/json"];
-        if (json) expect(["object", "array"]).toContain(json.schema.type);
+        // a body of one shape, or one of several (the rubric: an object, or a bare list of rows)
+        if (json) for (const shape of json.schema.anyOf ?? [json.schema]) expect(["object", "array"]).toContain(shape.type);
         // a file body (the project picture) names its media types instead
         else if (op.requestBody) for (const [type, media] of Object.entries(op.requestBody.content)) expect(media.schema).toEqual({ type: "string", contentMediaType: type });
       }

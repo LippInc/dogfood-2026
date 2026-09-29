@@ -22,6 +22,14 @@ export type Operation = {
   ok?: number;
   /** extra refusals beyond the ones implied by access, path parameters and a body */
   also?: number[];
+  /** implied refusals this operation never gives (a route that needs a session and nothing more refuses no one with 403) */
+  never?: number[];
+  /** answers besides ok and the refusals, each with what it means here */
+  answers?: Record<number, string>;
+  /** the body is read field by field, not validated as a whole: no 422 (the note says what a bad one gets) */
+  lenient?: boolean;
+  /** the body may be left out */
+  bodyOptional?: boolean;
   note?: string;
 };
 
@@ -30,15 +38,15 @@ const credentials = z.object({ email: z.string(), password: z.string() });
 
 export const OPERATIONS: Operation[] = [
   // Portal
-  { method: "GET", path: "/api/health", tag: "Portal", summary: "Liveness and database check", access: "anyone" },
+  { method: "GET", path: "/api/health", tag: "Portal", summary: "Liveness and database check: { ok, events }", access: "anyone", answers: { 503: "Not ready: warming up, the data folder cannot be written, or no event yet; the same report with ok: false and the problem" } },
   { method: "GET", path: "/api/openapi.json", tag: "Portal", summary: "This document", access: "anyone" },
   { method: "GET", path: "/api/audit", tag: "Portal", summary: "The portal's own audit log: the entries no event owns (accounts, sign-ins, API tokens, the signing key, demo mode), newest first, each as a sentence with its row id and hash, and the chain's state; ?limit= up to 5000 (default 500)", access: "administrator" },
 
   // Accounts
   { method: "POST", path: "/api/auth/sign-up", tag: "Accounts", summary: "Create an account and sign in (sets the session cookie)", access: "anyone", body: In.SignUp, ok: 201, also: [403, 409, 429], note: "An address named in ADMIN_EMAILS signs up only with the one-time setup code from the server log (403 without it). One network address gets 300 sign-ups and password sign-ins per 10 minutes by default (SIGN_IN_LIMIT_PER_ADDRESS), then 429. A browser request from another origin is 403 cross_origin." },
-  { method: "POST", path: "/api/auth/sign-in", tag: "Accounts", summary: "Sign in with email and password (sets the session cookie)", access: "anyone", body: credentials, also: [401, 403, 429], note: "403 cross_origin for a browser request from another origin (login CSRF)." },
-  { method: "POST", path: "/api/auth/sign-out", tag: "Accounts", summary: "End the session", access: "anyone" },
-  { method: "POST", path: "/api/auth/demo-sign-in", tag: "Accounts", summary: "While demo mode is on, sign in as one of the four demo identities, as the sign-in page's demo buttons do (sets the session cookie)", access: "anyone", body: z.object({ as: z.enum(["organizer", "judge_a", "judge_b", "participant"]) }), also: [403], note: "403 demo_sign_in_off when the portal runs with SEED_CHECKER_SESSIONS off (a real event), or refuses demo mode on a public address (unless PUBLIC_DEMO=true with an own secret). A browser request from another origin is 403 cross_origin." },
+  { method: "POST", path: "/api/auth/sign-in", tag: "Accounts", summary: "Sign in with email and password (sets the session cookie)", access: "anyone", body: credentials, lenient: true, also: [401, 403, 429], note: "A missing or wrong email or password is 401 bad_credentials, never 422. 403 cross_origin for a browser request from another origin (login CSRF)." },
+  { method: "POST", path: "/api/auth/sign-out", tag: "Accounts", summary: "End the session: { signedOut: true }", access: "anyone", answers: { 303: "A browser's own form post (Accept: text/html) is sent to the front page instead" }, note: "The session cookie is cleared either way; the four checker sessions are never ended." },
+  { method: "POST", path: "/api/auth/demo-sign-in", tag: "Accounts", summary: "While demo mode is on, sign in as one of the four demo identities, as the sign-in page's demo buttons do (sets the session cookie)", access: "anyone", body: z.object({ as: z.enum(["organizer", "judge_a", "judge_b", "participant"]) }), lenient: true, also: [403], note: "A label not among the four is 403 demo_sign_in_off too, never 422. 403 demo_sign_in_off when the portal runs with SEED_CHECKER_SESSIONS off (a real event), or refuses demo mode on a public address (unless PUBLIC_DEMO=true with an own secret). A browser request from another origin is 403 cross_origin." },
 
   { method: "GET", path: "/api/tokens", tag: "Accounts", summary: "Your API tokens (never the tokens themselves)", access: "signed in", note: "From a signed-in session; an API token cannot manage tokens." },
   {
@@ -57,7 +65,7 @@ export const OPERATIONS: Operation[] = [
   { method: "GET", path: "/api/events", tag: "Events", summary: "Every event, public fields only", access: "anyone" },
   { method: "POST", path: "/api/events", tag: "Events", summary: "Create an event", access: "administrator", body: In.NewEvent, ok: 201 },
   { method: "GET", path: "/api/events/{event}", tag: "Events", summary: "One event, public fields only", access: "anyone" },
-  { method: "PUT", path: "/api/events/{event}", tag: "Events", summary: "Save the event's name, description and dates", access: "organizer", body: In.Details },
+  { method: "PUT", path: "/api/events/{event}", tag: "Events", summary: "Save the event's name, description and dates", access: "organizer", body: In.Details, also: [409], note: "409 judging_started when the submission deadline would move later (or reopen) after a judge saved a review or answered a pairwise question; 409 results_published for the dates or the places that earn a certificate once results are out." },
   { method: "PUT", path: "/api/events/{event}/tracks", tag: "Events", summary: "Replace the event's tracks", access: "organizer", body: In.TrackRows, also: [409], note: "The rows in order, each with its id to keep a track (a row without one is a new track). A track with projects or judges cannot be removed (409 track_in_use). Once the results are published the tracks are final (409 results_published); sending them unchanged is still fine. The audit row keeps every track's id, name and position before and after." },
   { method: "PUT", path: "/api/events/{event}/prizes", tag: "Events", summary: "Replace the event's prizes", access: "organizer", body: In.PrizeRows },
   { method: "GET", path: "/api/events/{event}/project-fields", tag: "Events", summary: "What teams fill in on the project form: each built-in field (title, summary, trackId, description, repoUrl, videoUrl, liveUrl, thumbnailUrl, galleryUrls, tags) required, optional or hidden, and how many tracks the event has", access: "anyone" },
@@ -70,8 +78,8 @@ export const OPERATIONS: Operation[] = [
     body: In.ProjectFieldsInput,
     note: "Answers the modes in force. A required field is refused on submit when empty (422, keyed by the field); the title and the track, when required, on every save. An optional title left empty is the team's name; while the title is hidden, every project is shown under its team's name (a title typed before stays stored). The track is never optional, and is hidden only while the event has one track (422 otherwise): the team then gets that track. A hidden field is ignored when a team sends it and is empty wherever the project is shown to others; what a team entered before stays stored and shows again if the field is turned back on.",
   },
-  { method: "PUT", path: "/api/events/{event}/questions", tag: "Events", summary: "Replace the custom submission questions", access: "organizer", body: In.QuestionRows },
-  { method: "PUT", path: "/api/events/{event}/rubric", tag: "Events", summary: "Replace the weighted scoring rubric", access: "organizer", body: In.RubricBody, also: [409], note: "The body is { criteria, reason }; a bare list of rows still works. Once any score exists the set of criteria is fixed (409 rubric_in_use), and a weight change needs a reason (422 without one): it is audited and the published results list it (weightChanges). Labels and prompts can change until the results are published (409 results_published)." },
+  { method: "PUT", path: "/api/events/{event}/questions", tag: "Events", summary: "Replace the custom submission questions", access: "organizer", body: In.QuestionRows, also: [409], note: "409 question_answered: a question teams have answered cannot be removed; edit it instead." },
+  { method: "PUT", path: "/api/events/{event}/rubric", tag: "Events", summary: "Replace the weighted scoring rubric", access: "organizer", body: In.RubricInput, also: [409], note: "The body is { criteria, reason }, or a bare list of rows (the rows with no reason). Once any score exists the set of criteria is fixed (409 rubric_in_use), and a weight change needs a reason (422 without one): it is audited and the published results list it (weightChanges). Labels and prompts can change until the results are published (409 results_published)." },
   { method: "GET", path: "/api/events/{event}/overview", tag: "Events", summary: "Progress, open decisions and the latest audit lines", access: "organizer" },
   { method: "GET", path: "/api/events/{event}/audit", tag: "Events", summary: "The event's audit log, newest first, as its log page shows it (a ballot's picks sealed until voting closes), each entry a sentence with its row id and hash, and the chain's state; ?limit= up to 5000 (default 500)", access: "organizer" },
   {
@@ -111,8 +119,8 @@ export const OPERATIONS: Operation[] = [
   { method: "POST", path: "/api/teams/{team}/members", tag: "Teams and projects", summary: "Put someone with an account on the team, with a reason, until results are published (after the close too)", access: "organizer", body: In.AddMemberInput, ok: 201, also: [409], note: "The rules of a join hold: 409 already_on_a_team (one team per person per event), team_full (the event's team size) or conflict_of_interest (they are assigned to judge this team's project). 422 when no account has the address. 403 results_published once results are out: certificates name the members." },
   { method: "POST", path: "/api/teams/{team}/members/{user}/remove", tag: "Teams and projects", summary: "Take someone off the team, with a reason, until results are published (after the close too); a captain taken off hands the captaincy to the member who joined first", access: "organizer", body: In.RemoveMemberInput, also: [409], note: "409 last_member: a team is never left with nobody." },
   { method: "PUT", path: "/api/teams/{team}/captain", tag: "Teams and projects", summary: "Hand the captaincy to another member while submissions are open; the old captain becomes a member", access: "captain", body: In.CaptainInput, also: [409] },
-  { method: "POST", path: "/api/join/{code}", tag: "Teams and projects", summary: "Join a team with its invite code", access: "signed in" },
-  { method: "GET", path: "/api/events/{event}/me", tag: "Teams and projects", summary: "Your team and project in this event", access: "signed in" },
+  { method: "POST", path: "/api/join/{code}", tag: "Teams and projects", summary: "Join a team with its invite code", access: "signed in", also: [409], note: "403 already_on_a_team (one team per person per event), conflict_of_interest (you are assigned to judge this team's project) or while submissions are closed; 409 team_full at the event's team size." },
+  { method: "GET", path: "/api/events/{event}/me", tag: "Teams and projects", summary: "Your team and project in this event", access: "signed in", never: [403, 429] },
   { method: "GET", path: "/api/events/{event}/projects", tag: "Teams and projects", summary: "The submitted projects (the gallery)", access: "anyone" },
   {
     method: "POST",
@@ -122,8 +130,10 @@ export const OPERATIONS: Operation[] = [
     access: "team member",
     body: In.ProjectInput,
     ok: 201,
+    also: [409],
+    note: "409 team_has_project: a team has one project; edit it with PUT /api/projects/{project}.",
   },
-  { method: "PUT", path: "/api/projects/{project}", tag: "Teams and projects", summary: "Edit your team's project until submissions close", access: "team member", body: In.ProjectInput, note: "Which fields are required, optional or hidden is the event's choice (GET /api/events/{event}/project-fields); the body shown is an event's with the defaults. A hidden field is ignored and keeps what is stored." },
+  { method: "PUT", path: "/api/projects/{project}", tag: "Teams and projects", summary: "Edit your team's project until submissions close", access: "team member", body: In.ProjectInput, also: [409], note: "Which fields are required, optional or hidden is the event's choice (GET /api/events/{event}/project-fields); the body shown is an event's with the defaults. A hidden field is ignored and keeps what is stored. 409 track_locked: once judges are assigned to the project in its track, only an organizer moves it." },
   {
     method: "POST",
     path: "/api/projects/{project}/image",
@@ -140,13 +150,13 @@ export const OPERATIONS: Operation[] = [
 
   // Judging
   { method: "GET", path: "/api/events/{event}/organizers", tag: "Events", summary: "The event's organizers", access: "organizer" },
-  { method: "POST", path: "/api/events/{event}/organizers", tag: "Events", summary: "Make an existing account an organizer too (201 added, 200 already one; 403 account_in_other_event when it has a place in an event you do not run, unless you are an administrator)", access: "organizer", body: In.OrganizerInput, ok: 201, also: [404] },
+  { method: "POST", path: "/api/events/{event}/organizers", tag: "Events", summary: "Make an existing account an organizer too (201 added, 200 already one; 403 account_in_other_event when it has a place in an event you do not run, unless you are an administrator)", access: "organizer", body: In.OrganizerInput, ok: 201, answers: { 200: "Already an organizer: nothing changed" }, also: [404] },
   { method: "DELETE", path: "/api/events/{event}/organizers/{user}", tag: "Events", summary: "Remove an organizer; the last one stays", access: "organizer", also: [404, 409] },
   { method: "GET", path: "/api/events/{event}/judges", tag: "Judging", summary: "Judges, invitations, tracks and loads", access: "organizer" },
-  { method: "POST", path: "/api/events/{event}/judges/invites", tag: "Judging", summary: "Invite a judge: returns the invitation link once", access: "organizer", body: In.InviteInput, ok: 201, note: "With email on (SMTP_URL), each link is also mailed as it is made; the answer's mail says to whom and whether it went, and the outbox keeps the message with its link blanked." },
+  { method: "POST", path: "/api/events/{event}/judges/invites", tag: "Judging", summary: "Invite a judge: returns the invitation link once", access: "organizer", body: In.InviteInput, ok: 201, also: [409], note: "409 already_a_judge for an address that judges the event already. With email on (SMTP_URL), each link is also mailed as it is made; the answer's mail says to whom and whether it went, and the outbox keeps the message with its link blanked." },
   { method: "POST", path: "/api/events/{event}/judges/invites/batch", tag: "Judging", summary: "Invite many judges from a pasted list: one link each, returned once", access: "organizer", body: In.BatchInviteInput, ok: 201, note: "One judge per line: \"name, email\", \"email\", or a name alone for an open link; a third field names that line's own tracks, separated by \";\", else trackIds apply. Commas or tabs separate fields. Up to 200 lines; any bad line is a 422 naming its line, and nothing is made. An address that already judges the event is skipped (skipped lists it). One judge.invite audit row per link. With email on, each link with an address is mailed; mail says to whom and whether it went." },
-  { method: "POST", path: "/api/events/{event}/judges/invites/{invite}/revoke", tag: "Judging", summary: "Revoke an unused invitation", access: "organizer" },
-  { method: "POST", path: "/api/judge-invites/{code}/accept", tag: "Judging", summary: "Accept a judge invitation", access: "signed in" },
+  { method: "POST", path: "/api/events/{event}/judges/invites/{invite}/revoke", tag: "Judging", summary: "Revoke an unused invitation", access: "organizer", also: [409], note: "409 invite_used once accepted: remove the judge instead." },
+  { method: "POST", path: "/api/judge-invites/{code}/accept", tag: "Judging", summary: "Accept a judge invitation", access: "signed in", also: [409], note: "409 invite_used for a link already used; 409 judge_removed when an organizer removed you as a judge of the event." },
   { method: "POST", path: "/api/events/{event}/judges/{judge}/remove", tag: "Judging", summary: "Remove a judge from the event, with a reason", access: "organizer", body: In.CorrectionInput, also: [409], note: "Their role and tracks end, so every judge route refuses them; open reviews they never started are withdrawn. Whatever they saved stays on record and leaves the ranking by an exclusion carrying the reason (the receipts name them as removed). Answers { removed, withdrawn, kept, voided }. 409 results_published after publishing." },
   { method: "PUT", path: "/api/events/{event}/judges/{judge}/tracks", tag: "Judging", summary: "Set which tracks a judge reviews", access: "organizer", body: In.TrackIds },
   {
@@ -171,6 +181,8 @@ export const OPERATIONS: Operation[] = [
     tag: "Judging",
     summary: "Your own scores; ?judge=<id> for anyone else's is refused with 403, never answered with yours",
     access: "judge",
+    also: [422],
+    note: "One ?judge= at a time: the parameter given twice is 422.",
   },
   { method: "PUT", path: "/api/judge/reviews/{assignment}", tag: "Judging", summary: "Save a review (autosave; submitted: true finishes it)", access: "judge", body: In.ReviewInput },
   { method: "POST", path: "/api/judge/reviews/{assignment}/recuse", tag: "Judging", summary: "Declare a conflict: the project leaves your list", access: "judge", body: In.RecuseInput },
@@ -182,14 +194,15 @@ export const OPERATIONS: Operation[] = [
     summary: "Pairwise mode: answer the current question (409 if it is not the current one)",
     access: "judge",
     body: In.PickInput,
+    also: [409],
   },
-  { method: "POST", path: "/api/judge/{event}/pairwise/undo", tag: "Judging", summary: "Pairwise mode: take back your latest answer in a track", access: "judge", body: In.UndoInput },
+  { method: "POST", path: "/api/judge/{event}/pairwise/undo", tag: "Judging", summary: "Pairwise mode: take back your latest answer in a track", access: "judge", body: In.UndoInput, also: [409], note: "409 nothing_to_undo when the track has no answer of yours." },
 
   // Results
   { method: "GET", path: "/api/events/{event}/normalization", tag: "Results", summary: "The normalization run with its working, judge by judge", access: "organizer", note: "Worked out again on every read. After publishing, published gives the stored run's id and time and differs lists each project whose score or rank here differs from it (empty unless the engine changed since); the published ranking is the stored run, as normalized.csv and the public results give it." },
   { method: "GET", path: "/api/events/{event}/pairwise", tag: "Results", summary: "The live pairwise ranking: receipts, the two pulls and the flagged judges", access: "organizer" },
-  { method: "PUT", path: "/api/events/{event}/judge-ranking", tag: "Results", summary: "Whether each judge's console shows their own ranking so far (409 once published)", access: "organizer", body: In.RankingInput, note: "Answers { show, changed }: saving what the event already has writes no audit row." },
-  { method: "PUT", path: "/api/events/{event}/judging-mode", tag: "Results", summary: "How the judges judge: scores or pairwise (409 once published)", access: "organizer", body: In.ModeInput, note: "Answers { mode, changed }: saving the mode the event already has changes nothing, needs no reason and writes no audit row (changed: false); a switch needs its reason (422 without)." },
+  { method: "PUT", path: "/api/events/{event}/judge-ranking", tag: "Results", summary: "Whether each judge's console shows their own ranking so far (409 once published)", access: "organizer", body: In.RankingInput, also: [409], note: "Answers { show, changed }: saving what the event already has writes no audit row." },
+  { method: "PUT", path: "/api/events/{event}/judging-mode", tag: "Results", summary: "How the judges judge: scores or pairwise (409 once published)", access: "organizer", body: In.ModeInput, also: [409], note: "Answers { mode, changed }: saving the mode the event already has changes nothing, needs no reason and writes no audit row (changed: false); a switch needs its reason (422 without)." },
   {
     method: "POST",
     path: "/api/events/{event}/judges/{judge}/override",
@@ -228,6 +241,7 @@ export const OPERATIONS: Operation[] = [
     summary: "Publish the results (409 while submissions or decisions are open); an open community vote closes with it",
     access: "organizer",
     body: In.PublishInput,
+    bodyOptional: true,
     also: [409, 422],
     note: "No body is needed. In pairwise mode, a ranking fit that stopped at its step limit before settling is refused (409 fit_not_settled) unless the body gives { reason }; the reason is stored with the run and shown on the results.",
   },
@@ -261,11 +275,11 @@ export const OPERATIONS: Operation[] = [
   { method: "POST", path: "/api/events/{event}/voting/voters/{voter}/restore", tag: "Community vote", summary: "Count a set-aside ballot again", access: "organizer", also: [409] },
   { method: "POST", path: "/api/vote/{code}", tag: "Community vote", summary: "Enter voting with an open or personal link (sets the voter cookie)", access: "anyone", also: [403, 429], note: "One ballot per browser: a browser that already holds a ballot in the event (its voter cookie) gets that ballot back instead of a new one. A new entry through the open link after the window closed is 403 voting_closed; a browser request from another origin is 403 cross_origin." },
   { method: "GET", path: "/api/events/{event}/ballot", tag: "Community vote", summary: "Your ballot: the projects in your own shuffled order, and your picks", access: "anyone" },
-  { method: "PUT", path: "/api/events/{event}/ballot", tag: "Community vote", summary: "Replace your picks while the window is open", access: "voter", body: In.BallotInput, also: [429] },
+  { method: "PUT", path: "/api/events/{event}/ballot", tag: "Community vote", summary: "Replace your picks while the window is open", access: "voter", body: In.BallotInput, also: [409, 429], note: "409 already_voted: someone who voted one way (signed in, or with a personal link) changes the picks there, not with a second ballot. 403 outside the window or for a ballot set aside; 422 over the votes per voter or for a project of your own team." },
   { method: "GET", path: "/api/events/{event}/community", tag: "Community vote", summary: "The community count: null for everyone here until the window closes (organizers see it live on /voting)", access: "anyone", note: "ruleChanges lists every change to who may vote or the votes per voter made after the first ballot, with the organizers' reason. countChanges lists every duplicate merge or unmerge made after the window closed that moved the count: which copies, and each project's votes before and after (null: a merged copy, with no row of its own)." },
 
   // Comments
-  { method: "GET", path: "/api/projects/{project}/comments", tag: "Comments", summary: "A project's comments; hidden ones keep their place and reason", access: "anyone" },
+  { method: "GET", path: "/api/projects/{project}/comments", tag: "Comments", summary: "A project's comments; hidden ones keep their place and reason", access: "anyone", never: [404], note: "An unknown project has no comments: 200 with an empty list." },
   { method: "POST", path: "/api/projects/{project}/comments", tag: "Comments", summary: "Comment on a submitted project", access: "signed in", body: In.CommentInput, ok: 201, also: [429] },
   { method: "DELETE", path: "/api/comments/{comment}", tag: "Comments", summary: "Delete your own comment, for good (the audit log keeps that it was, not its words)", access: "signed in", note: "403 not_your_comment for anyone but its author; 403 comment_hidden while the organizers keep it hidden." },
   { method: "POST", path: "/api/comments/{comment}/unhide", tag: "Comments", summary: "Show a hidden comment again", access: "organizer" },
@@ -311,10 +325,11 @@ export const OPERATIONS: Operation[] = [
     access: "signed in",
     body: In.RecordRequest,
     ok: 201,
+    answers: { 200: "The record existed already: the same one again" },
   },
   { method: "POST", path: "/api/events/{event}/records/all", tag: "Records", summary: "Issue every record not issued yet", access: "organizer" },
   { method: "GET", path: "/api/records/{record}", tag: "Records", summary: "One signed record and the portal's check of it", access: "anyone" },
-  { method: "POST", path: "/api/records/verify", tag: "Records", summary: "Check any signed record against the published keys", access: "anyone", body: envelope },
+  { method: "POST", path: "/api/records/verify", tag: "Records", summary: "Check any signed record against the published keys", access: "anyone", body: envelope, lenient: true, note: "Any body answers 200: { valid: true, keyId }, or { valid: false, reason, message } with reason malformed, unknown_key or bad_signature. Open to any origin." },
   { method: "GET", path: "/.well-known/dogfood-keys.json", tag: "Records", summary: "The public keys that sign records (Ed25519, JWK), open to any origin", access: "anyone" },
 ];
 
@@ -338,7 +353,16 @@ const REFUSAL: Record<number, string> = {
   413: "The body is too large",
   415: "The body is not a kind of file this operation takes",
   422: "The body failed validation; details lists the fields (a body of the wrong shape as a whole under request)",
-  429: "Too many requests; wait the Retry-After seconds",
+  429: "Too many requests; wait the Retry-After seconds (also once a signed-in person has been refused 60 times in ten minutes)",
+  503: "Not ready yet; try again shortly",
+};
+
+/** What each status means in general, for the reference's table of answers; an operation's own answers say more. */
+export const STATUS_MEANING: Record<number, string> = {
+  200: "OK",
+  201: "Created",
+  303: "See Other: a browser is sent on to a page",
+  ...REFUSAL,
 };
 
 export function operationId(op: Operation): string {
@@ -358,10 +382,13 @@ export function openApiDocument(serverUrl: string) {
   for (const op of OPERATIONS) {
     const params = [...op.path.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!);
     const refusals = new Set<number>(op.also ?? []);
-    if (op.access !== "anyone") refusals.add(401).add(403);
+    // a caller refused (403) past the per-person limit is answered 429 instead (src/server/mutate.ts)
+    if (op.access !== "anyone") refusals.add(401).add(403).add(429);
     if (params.length) refusals.add(404);
-    if (op.body) refusals.add(422);
+    if (op.body && !op.lenient) refusals.add(422);
+    for (const code of op.never ?? []) refusals.delete(code);
     const ok = op.ok ?? 200;
+    for (const code of [ok, ...refusals]) if (!STATUS_MEANING[code]) throw new Error(`${op.method} ${op.path}: status ${code} has no meaning in STATUS_MEANING (src/server/openapi.ts)`);
     paths[op.path] ??= {};
     paths[op.path]![op.method.toLowerCase()] = {
       operationId: operationId(op),
@@ -369,12 +396,13 @@ export function openApiDocument(serverUrl: string) {
       summary: op.summary,
       description: `Who may call it: ${WHO[op.access]}${op.note ? ` ${op.note}` : ""}`,
       ...(params.length ? { parameters: params.map((name) => ({ name, in: "path", required: true, schema: { type: "string" } })) } : {}),
-      ...(op.body ? { requestBody: { required: true, content: { "application/json": { schema: schemaOf(op.body) } } } } : {}),
+      ...(op.body ? { requestBody: { required: !op.bodyOptional, content: { "application/json": { schema: schemaOf(op.body) } } } } : {}),
       ...(op.upload
         ? { requestBody: { required: true, content: Object.fromEntries(op.upload.map((type) => [type, { schema: { type: "string", contentMediaType: type } }])) } }
         : {}),
       responses: {
-        [ok]: { description: ok === 201 ? "Created" : "OK" },
+        [ok]: { description: STATUS_MEANING[ok] },
+        ...Object.fromEntries(Object.entries(op.answers ?? {}).map(([code, description]) => [code, { description }])),
         ...Object.fromEntries(
           [...refusals].sort().map((code) => [code, { description: REFUSAL[code], content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } }]),
         ),
@@ -389,7 +417,7 @@ export function openApiDocument(serverUrl: string) {
       version: "1.0.0",
       description:
         "Every action in the portal's interface, as JSON. Authenticate with the session cookie, or with Authorization: Bearer <token>: an API token (made at /account/tokens or POST /api/tokens) or a session token. " +
-        "Refusals are real 401 and 403 answers with a JSON error code, never redirects.",
+        "Refusals are real 401 and 403 answers with a JSON error code, never redirects. Every answer is JSON; the one redirect is sign-out's, for a browser's own form post.",
     },
     servers: [{ url: serverUrl }],
     paths,
