@@ -8,7 +8,7 @@ type PublishedCheck = ReturnType<typeof getNormalization>["published"];
 /** The one sentence under the heading: what the page is, in an organizer's words, before any statistic. */
 export function scoreLead(state: { published: boolean; differs: number }): string {
   if (!state.published) return "Each track's ranking as it will be published, with every judge's leniency evened out so a strict or generous judge does not decide a place.";
-  if (state.differs) return "Each track's ranking worked out again from today's data, with every judge's leniency evened out; the published ranking stands until you publish again.";
+  if (state.differs) return "Each track's ranking worked out again from today's data, with every judge's leniency evened out; the published ranking stands: publishing happens once, and the public results and exports keep reading it.";
   return "Each track's ranking as published, with every judge's leniency evened out so a strict or generous judge does not decide a place.";
 }
 

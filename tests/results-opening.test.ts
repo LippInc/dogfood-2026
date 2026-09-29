@@ -10,7 +10,7 @@ import { getNormalization, METHOD_LABEL } from "@/server/dal";
 import { getPairwiseRanking, setJudgingMode } from "@/server/dal/pairwise";
 import { actorForToken } from "@/server/session";
 import { plainSummary } from "@/app/organize/[event]/results/plain-summary";
-import { ScoreOpening } from "@/app/organize/[event]/results/score-opening";
+import { ScoreOpening, scoreLead } from "@/app/organize/[event]/results/score-opening";
 import { PairwiseResults } from "@/app/organize/[event]/results/pairwise-results";
 
 // The organizer's Results tab opened with a bold formula paragraph (METHOD_LABEL, k, β̂², σ̂²) right under
@@ -59,6 +59,16 @@ function fold(html: string) {
 }
 
 describe("The Results tab opens in plain words, the formula one click away", () => {
+  it("the lead sentence fits each state and never promises a second publish (publishing happens once)", () => {
+    const preview = scoreLead({ published: false, differs: 0 });
+    const same = scoreLead({ published: true, differs: 0 });
+    const again = scoreLead({ published: true, differs: 3 });
+    expect(preview).toContain("as it will be published");
+    expect(same).toContain("as published");
+    expect(again).toContain("the published ranking stands");
+    for (const s of [preview, same, again]) expect(s).not.toMatch(/publish again|republish/i);
+  });
+
   it("scoring mode: plain sentence, then the numbered lines, then the formula in a closed fold, then the flat-judge rule", () => {
     const actor = organizer();
     const { event, normalization: n, decisions, published } = getNormalization(actor, "evt_01");
