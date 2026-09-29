@@ -228,6 +228,7 @@ export function TagPicker({
                 className="flex min-h-9 cursor-default items-center justify-between gap-3 rounded-xs px-2 py-1.5 text-15 aria-selected:bg-raised"
               >
                 <span className="min-w-0 wrap-anywhere">{o.source === "custom" ? `Add “${o.label}”` : o.label}</span>
+                {/* the space keeps a screen reader from reading "rustin this event" */}{" "}
                 {o.source === "event" ? <span className="shrink-0 text-12 text-ink-3">in this event</span> : null}
               </li>
             ))
