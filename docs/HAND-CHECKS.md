@@ -7,6 +7,24 @@ B15 on T3, and Section C, C1 to C12, in `tests/isolation_t4.py`; the output of a
 `evt_01`), on `http://localhost:8080`. The voting rules themselves are stated once, in [`FEATURES.md`, "Community
 vote"](FEATURES.md#community-vote).
 
+## Running the hand check
+
+`python tests/isolation_check.py .dogfood.toml` runs all 35 checks against the portal at the `base_url` that
+`.dogfood.toml` names.
+
+- It needs the standard library only; Section C, for T4 and pairwise judging, is in `tests/isolation_t4.py`; Node,
+  when installed, adds the offline record check.
+- It writes votes and comments and publishes the sample event's results, so run it on a fresh portal, after run.py;
+  it takes under a minute.
+- Checks B2, B5, B11 to B15, C1, C2, C6, C7 and C9 to C12 were each shown to fail on a copy of the portal with the
+  defect they look for planted, so their passes mean the feature works, not only that a page answered.
+
+**The signed webhook request itself** needs a receiver the portal may reach, and the portal refuses private targets
+unless `WEBHOOKS_ALLOW_PRIVATE=true`, which would make C3 wrong. So a second script checks it:
+`python tests/webhook_live_check.py .dogfood.toml`, on a portal started with that setting, runs a receiver and
+checks what arrives (the header in the script says how; on Linux, give the portal service
+`extra_hosts: ["host.docker.internal:host-gateway"]` and run the check with `--host 0.0.0.0`).
+
 ## T3: Community voting (email gated, link based or authenticated)
 
 - **Where:** organizer, Voting tab; voters, `/events/sample-hack-2026/vote` and `/vote/<code>`.
@@ -101,3 +119,10 @@ vote"](FEATURES.md#community-vote).
 - **By hand:** export `fixtures.json` from the Integrations tab and import it on a fresh portal: the same tables
   and a byte-identical `normalized.csv`, as long as no decision has been made (`tests/import-claims.test.ts` does
   exactly this).
+
+## The stability check
+
+For developers: `node tools/stability-check.mjs http://localhost:8080 --container <the portal's container>` checks
+that nothing on screen jumps, shakes or shifts while people type, hover, open menus or wait through a live refresh
+(needs Chrome or Chromium; `--self-test` first proves it catches planted bugs; it changes a judge's scores, so use a
+scratch portal).

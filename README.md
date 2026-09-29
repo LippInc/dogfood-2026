@@ -25,11 +25,13 @@ change lands in an append-only audit log.
 3. Open `http://localhost:8080/sign-in` and pick a one-click demo identity: **Demo Organizer** (organizer and
    administrator), **Judge A** (Diego Herrera), **Judge B** (Jonas Vogel) or **priya1** (participant).
 
-No network is needed at run time; the image build downloads npm packages once. `docker compose down -v` resets
-everything. The start prints the four `Cookie: session=...` headers the acceptance checker uses; they are the same
-on every start. If port 8080 is taken, change the `ports` line in `docker-compose.yml` to
-`"127.0.0.1:8081:8080"` and `PUBLIC_URL` to `http://localhost:8081`, and give `run.py` and the hand check a copy of
-`.dogfood.toml` whose `base_url` says 8081.
+- No network is needed at run time; the image build downloads npm packages once.
+- `docker compose down -v` resets everything.
+- The start prints the four `Cookie: session=...` headers the acceptance checker uses; they are the same on every
+  start.
+- If port 8080 is taken, change the `ports` line in `docker-compose.yml` to `"127.0.0.1:8081:8080"` and
+  `PUBLIC_URL` to `http://localhost:8081`, and give `run.py` and the hand check a copy of `.dogfood.toml` whose
+  `base_url` says 8081.
 
 The sample event is the organizers' `fixtures.json`, imported as given: its submissions closed on 1 March 2026 (the
 checker needs a closed event), and all 41 projects carry the fixture's placeholder summary "One line of what it
@@ -37,13 +39,12 @@ does."
 
 ## A guided tour
 
-About twenty minutes, in this order; nothing needs a restart.
+About ten minutes, in this order; nothing needs a restart.
 
 1. **Decisions.** Sign in as the organizer. The **Overview** lists the three decisions that stand between the
    sample event's scores and published results: a judge who scored every project 4 / 4 / 4, a project entered
-   twice, a project with one counted review. Each shows its evidence and is settled by one audited action, with a
-   written reason wherever it overrides a rule. Leave them open for now.
-2. **How the ranking is worked out.** **Results** (a preview until you publish) shows the ranking; open any
+   twice, a project with one counted review. Each shows its evidence. Leave them open for now.
+2. **How the ranking is worked out.** **Results** (a preview until you publish) shows the ranking. Open any
    project for its receipt: each review, the judge's leniency, the arithmetic, the change from the raw mean and
    the score's margin of error (±). The **judge ledger** below gives every judge's leniency ± error and what
    leaving that judge out would move.
@@ -53,21 +54,18 @@ About twenty minutes, in this order; nothing needs a restart.
    three favourites at `/events/sample-hack-2026/vote`, or use the open link the start prints
    (`community vote (demo): ...`) in a private window. The organizer's **Voting** tab shows the count live; nobody
    else sees it until the vote closes. The rules: [`docs/FEATURES.md`, "Community vote"](docs/FEATURES.md#community-vote).
-5. **Pairwise judging (optional).** As the organizer, **Settings**, "How judges judge": choose Pairwise and give a
-   reason. As a judge, the console now asks "which is better?" about two projects at a time: answer with ← and →,
-   try **T** (too close to call) and **U** (undo). The organizer's **Results** then shows each project's win % with
-   its ±, the chance it is ahead of the next place, and its receipt. Switch back to Scores (with a reason) before
-   step 6: the scored ranking comes back unchanged, and the judge's record will count the answers given.
-6. **Publish.** On the Overview, settle the three decisions (keep the flat judge out, merge the duplicate, publish
-   the thinly reviewed project as it is, with a reason), tick the box and **Publish results**. Publishing closes the
-   community vote, so nobody votes with the judged ranking in view. `/events/sample-hack-2026/results` now shows
-   every place with its score ± error. On **Results**, "Issue every record"; signed in as priya1, **My project**
-   shows the team its reviews and a signed certificate, which `/verify` checks.
-7. **The record.** **Audit log** lists every change and every refusal of a signed-in user (up to 60 refusals of
+5. **Publish.** On the Overview, settle the three decisions (keep the flat judge out, merge the duplicate, publish
+   the thinly reviewed project as it is, with a reason). Each is one audited action, with a written reason
+   wherever it overrides a rule. Tick the box and **Publish results**.
+   - Publishing closes the community vote, so nobody votes with the judged ranking in view.
+   - `/events/sample-hack-2026/results` now shows every place with its score ± error.
+   - On **Results**, "Issue every record"; signed in as priya1, **My project** shows the team its reviews and a
+     signed certificate, which `/verify` checks.
+6. **The record.** **Audit log** lists every change and every refusal of a signed-in user (up to 60 refusals of
    one person in 10 minutes; past that they get 429 and no row: [`docs/FEATURES.md`, "Audit log"](docs/FEATURES.md#audit-log)),
-   with the hash chain's head; **Integrations** has webhooks, the `fixtures.json` export and a link to your API
+   with the hash chain's head. **Integrations** has webhooks, the `fixtures.json` export and a link to your API
    tokens; `/api-docs` is the API reference.
-8. **Hand in a project.** The sample event is closed on purpose, so try the participant side on an event of your
+7. **Hand in a project.** The sample event is closed on purpose, so try the participant side on an event of your
    own (about two minutes, and the sample event is untouched): as the organizer, **Your events**, **New event**,
    with a name, a close date in the future and one track. Sign out, open `/events/<its web address>`, **Take part**,
    create an account, **Start a team**, fill in the title and one-line summary, **Save draft**, then **Submit
@@ -77,6 +75,9 @@ About twenty minutes, in this order; nothing needs a restart.
 <img src="docs/tour-hand-in-1440.png" alt="A team's project page after it handed in: submitted, with the team, submissions close, judging and results steps below" width="72%">
 <img src="docs/tour-hand-in-390.png" alt="The same page on a phone" width="22%">
 </p>
+
+**Optional, before step 5: pairwise judging,** where judges answer "which is better?" instead of scoring. The
+steps: [`docs/FEATURES.md`, "Pairwise judging (optional)"](docs/FEATURES.md#pairwise-judging-optional).
 
 ## Check it
 
@@ -91,19 +92,15 @@ npm ci && npm test                             # vitest, on Node 24 like the ima
 `claimed but not verified: T3 T4`, because run.py checks T1 and T2 only.
 
 **T3 and T4** are judged by hand (the organizers said so on their Discord, 2026-09-25), so we claim them on our own
-check, which you can rerun: `tests/isolation_check.py` (standard library only; Section C, for T4 and pairwise
-judging, is in `tests/isolation_t4.py`; Node, when installed, adds the offline record check). It writes votes and
-comments and publishes the sample event's results, so run it on a fresh portal, after run.py; it takes under a
-minute. `isolation-report.txt` is its output from a clean `docker compose down -v && docker compose up`, with the
-commit it ran on in its first lines; each of its lines starts with the check's number, the names used below.
-Checks B2, B5, B11 to B15, C1, C2, C6, C7 and C9 to C12 were each shown to fail on a copy of the portal with the
-defect they look for planted, so their passes mean the feature works, not only that a page answered. The signed
-webhook request itself needs a receiver the portal may reach, and
-the portal refuses private targets unless `WEBHOOKS_ALLOW_PRIVATE=true`, which would make C3 wrong:
-`python tests/webhook_live_check.py .dogfood.toml`, on a portal started with that setting, runs a receiver and
-checks what arrives (the header in the script says how; on Linux, give the portal service
-`extra_hosts: ["host.docker.internal:host-gateway"]` and run the check with `--host 0.0.0.0`). Each T3 and T4 bullet, mapped to its checks:
-[Beyond the checker](#beyond-the-checker).
+check, which you can rerun: `tests/isolation_check.py`.
+
+- `isolation-report.txt` is its output from a clean `docker compose down -v && docker compose up`, with the commit
+  it ran on in its first lines; each of its lines starts with the check's number, the names used below.
+- It writes votes and comments and publishes the sample event's results, so run it on a fresh portal, after
+  run.py; it takes under a minute.
+- What it needs, which checks were shown to fail on a planted defect, and the live webhook check:
+  [`docs/HAND-CHECKS.md`, "Running the hand check"](docs/HAND-CHECKS.md#running-the-hand-check).
+- Each T3 and T4 bullet, mapped to its checks: [Beyond the checker](#beyond-the-checker).
 
 **Our own tests** (`npm test`; Node 24, since passwords use its built-in argon2) cover the permission rules, the
 assignment engine, the normalization engine and its Monte Carlo validation, the pairwise engine and its proof,
@@ -112,10 +109,7 @@ results final. `JUDGING.md`'s Monte Carlo table comes out of
 `npx vitest run tests/normalization-mc.test.ts --silent=false` exactly as printed there (1,000 runs per scenario,
 fixed seed; about 3 s of test time, 6 s in all, here); `--silent=false` is what makes vitest print it.
 
-For developers: `node tools/stability-check.mjs http://localhost:8080 --container <the portal's container>` checks
-that nothing on screen jumps, shakes or shifts while people type, hover, open menus or wait through a live refresh
-(needs Chrome or Chromium; `--self-test` first proves it catches planted bugs; it changes a judge's scores, so use a
-scratch portal).
+For developers, a check that nothing on screen jumps or shakes: [`docs/HAND-CHECKS.md`, "The stability check"](docs/HAND-CHECKS.md#the-stability-check).
 
 ## Beyond the checker
 
@@ -222,46 +216,46 @@ webhook deliveries and the voters' address hashes are yours to clear with `scrip
 
 ## What it does not do yet
 
-- Only a project's gallery picture is uploaded (PNG, JPEG or WebP up to 8 MB, redrawn as a WebP without metadata
+- **Uploads.** Only a project's gallery picture is uploaded (PNG, JPEG or WebP up to 8 MB, redrawn as a WebP without metadata
   such as a photo's location; an organizer can take one down); image galleries are links.
-- Webhook secrets are kept in the database as they are, because the portal signs with them. (Webhook targets on
+- **Webhook secrets** are kept in the database as they are, because the portal signs with them. Webhook targets on
   private or local addresses are refused when added and at every delivery, on the very addresses the delivery
   connects to, so a DNS answer that changes after the check cannot slip through; `WEBHOOKS_ALLOW_PRIVATE=true`
-  lifts that for a receiver on your own network.)
-- Email leaves out judges' reminders and the administrator's setup link (the link stays in the log).
-- Accounts are not email-verified, so an invitation addressed to someone with no account yet can be taken by
+  lifts that for a receiver on your own network.
+- **Email** leaves out judges' reminders and the administrator's setup link (the link stays in the log).
+- **Accounts are not email-verified,** so an invitation addressed to someone with no account yet can be taken by
   whoever holds its link and signs up with that address first; the Judges page names the account that accepted
   each invitation.
-- A forgotten password is reset only by a portal administrator's one-time link, never by an event's organizer. An
+- **Password resets and personal links.** A forgotten password is reset only by a portal administrator's one-time link, never by an event's organizer. An
   organizer's personal links for imported people, and making someone a co-organizer, reach only people who hold
   no role and no team seat in any event that organizer does not run (checked again when a link is used), so one
   event's organizer cannot take over accounts that matter in another.
-- The per-address limits (open-link entries, which the organizer can raise for a venue; sign-ups and sign-ins,
+- **Shared network addresses.** The per-address limits (open-link entries, which the organizer can raise for a venue; sign-ups and sign-ins,
   which the operator can) and the duplicate-ballot flags key on the client's network address, so people behind
   one address (an office, a venue's wifi) share a limit.
-- Results cannot be unpublished.
-- One person cannot be erased: nothing in the portal deletes an account, and a judge's started reviews, the audit
+- **Results cannot be unpublished.**
+- **One person cannot be erased:** nothing in the portal deletes an account, and a judge's started reviews, the audit
   log's entries and signed records stay for good (published scores are final and the audit log is append-only).
   What the operator can clear, and how: [`docs/OPERATIONS.md`, "Personal data"](docs/OPERATIONS.md#personal-data).
-- A team is never left with nobody: its last member cannot leave, and an organizer cannot take them off. A team
+- **Teams.** A team is never left with nobody: its last member cannot leave, and an organizer cannot take them off. A team
   with a submitted project cannot be dissolved, so someone who handed in alone under the wrong team stays on it;
   the organizers can add them to the right team only after taking them off this one, which needs another member
   on it first.
-- Organizers are trusted with their own event: nothing stops an organizer from also being on a team in it. The
+- **Organizers are trusted with their own event:** nothing stops an organizer from also being on a team in it. The
   portal logs every organizer decision (a judge left out or reinstated, a merge, a project published as it is, an
   assignment taken back, a recusal undone, a project moved to another track, a judge removed, publishing) with its
   reason, where co-organizers can read it.
-- A team that entered the same project three or more times: the overview merges two copies; merge the others over
+- **Three or more copies.** A team that entered the same project three or more times: the overview merges two copies; merge the others over
   the API (`POST /api/events/<event>/duplicates/merge`).
-- The portal imports only `fixtures.json`, so settings, pairwise answers and the organizer's decisions (a merge, a
+- **Moving an event.** The portal imports only `fixtures.json`, so settings, pairwise answers and the organizer's decisions (a merge, a
   reinstated judge, a project published as it is) do not move to another portal; `event.json` keeps them as a
   record, and `comparisons.csv` lists every pairwise answer, taken-back ones included.
-- Signed records cannot be revoked, and the signing key cannot be rotated from the interface (a new
+- **Signed records cannot be revoked,** and the signing key cannot be rotated from the interface (a new
   `DOGFOOD_SEED_SECRET` makes the next start use a new one); a record keeps what was true when it was issued.
-- No calibrated prize probabilities or rank intervals: normalized ranks compare within a track, and close scores
+- **No calibrated prize probabilities or rank intervals:** normalized ranks compare within a track, and close scores
   should be read as ties. Pairwise mode gives each place its chance of being ahead of the next one, not a full
   interval.
-- Pairwise mode flags a judge who answers like a coin flip, but not one who calls "too close to call" whenever a
+- **Tactical pairwise answers.** Pairwise mode flags a judge who answers like a coin flip, but not one who calls "too close to call" whenever a
   favourite would lose (flagged in 14 of 120 simulated panels; the ties bought the favourite 0.258 places on
   average, at most 3; `THREAT-MODEL.md`, "Tactical pairwise answers").
 

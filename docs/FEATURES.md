@@ -77,6 +77,13 @@ receipt of the comparisons behind it, and scores given before the switch still c
 Judges whose answers look like coin flips are flagged for the organizer to settle before publishing. The method,
 its limits and its Monte Carlo proof: `JUDGING.md`, "Pairwise mode".
 
+**Try it on the sample event** (the README tour's optional step, before step 5 publishes): as the organizer,
+**Settings**, "How judges judge": choose Pairwise and give a reason. As a judge, the console now asks "which is
+better?" about two projects at a time: answer with ← and →, try **T** (too close to call) and **U** (undo). The
+organizer's **Results** then shows each project's win % with its ±, the chance it is ahead of the next place, and its
+receipt. Switch back to Scores (with a reason) before publishing: the scored ranking comes back unchanged, and the
+judge's record will count the answers given.
+
 ## Results and exports
 
 Publishing is locked until every decision is made; it stores the exact normalization run it publishes, and the
