@@ -17,8 +17,8 @@ vote"](FEATURES.md#community-vote).
 ## T3: Project comments
 
 - **Where:** each project page; `GET/POST /api/projects/<id>/comments`.
-- **Checks:** B8: post, the organizer hides it with a reason, the reason stays in place; unhide; only the author
-  deletes, and not while hidden.
+- **Checks:** B8: post, the organizer hides it with a reason, the reason stays in place for the author; a visitor and
+  another judge get one comment fewer; unhide; only the author deletes, and not while hidden.
 
 ## T3: Results hidden during the voting window
 

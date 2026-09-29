@@ -121,7 +121,7 @@ Every T3 and T4 bullet from the event site. All are built; the by-hand steps for
 | Tier | Bullet | Where | Checks in `isolation_check.py` |
 |---|---|---|---|
 | T3 | Community voting: email gated, link based or authenticated | Voting tab; `/events/<event>/vote`, `/vote/<code>` | B1, B3, B4, B6 |
-| T3 | Project comments | Each project page | B8 |
+| T3 | Project comments | Each project page; a hidden one shows its place and reason only to the organizers and its author | B8 |
 | T3 | Results hidden during the voting window | Count `null` to all but organizers until it closes | B2, B5, B10, B11 |
 | T3 | Randomized project ordering on ballots | Each voter's own seeded order | B4, B13 |
 | T3 | Anti abuse: rate limits, duplicate detection, audit trail | Limits, flags on the Voting tab, audit log | B3, B5, B7, B9, B10, B12, B14, B15 |

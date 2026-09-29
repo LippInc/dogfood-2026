@@ -101,7 +101,8 @@ This section is the one place the voting rules are stated.
 ## Comments
 
 Signed-in visitors can comment on projects and delete their own comments; an organizer can hide a comment with a
-reason that stays in its place (its author cannot delete it then), and unhide it again. Comments cannot be
+reason, and unhide it again. While it is hidden, the organizers and its author see its place and the reason, never
+its text (its author cannot delete it then); everyone else sees one comment fewer. Comments cannot be
 edited: delete and post again.
 
 ## Signed certificates and judging records
