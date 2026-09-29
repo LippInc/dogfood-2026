@@ -7,7 +7,7 @@ hand in projects, judges score them and the community votes. Before anything is 
 evened out for how lenient that judge is; every score, average and place can show how it was reached, and every
 change lands in an append-only audit log.
 
-- **Watch:** [the 5-minute walkthrough](https://youtu.be/LPVKtQlKvgY).
+- **Watch:** [the 5-minute walkthrough](https://youtu.be/LPVKtQlKvgY) and [the short trailer](https://youtu.be/3B2jBLL34x8).
 - **Run it:** `docker compose up`, then `http://localhost:8080/sign-in` (below).
 - **T1 and T2:** the organizers' `run.py`; its output is [`acceptance-report.txt`](acceptance-report.txt).
 - **T3 and T4:** our hand check, `tests/isolation_check.py`; its output is [`isolation-report.txt`](isolation-report.txt).
