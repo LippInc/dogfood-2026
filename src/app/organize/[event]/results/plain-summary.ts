@@ -1,6 +1,5 @@
 import { plural } from "@/lib/format";
-import type { Normalized, ProjectRow } from "@/server/dal";
-import { closeCall } from "@/server/judging/decision";
+import { closeCall, type Normalized, type ProjectRow } from "@/server/dal";
 
 /** 1st, 2nd, 3rd, 4th, 11th, 12th, 13th, 21st */
 function ordinal(n: number): string {
