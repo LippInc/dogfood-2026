@@ -45,7 +45,7 @@ Each is an environment variable in `docker-compose.yml`.
 | `SESSION_DAYS` | How many days a password sign-in lasts before the person signs in again; default `14`, up to `366`. Set it to cover the judging window when judges work over a month, so nobody is signed out mid-review. It counts from the sign-in, and a change applies to sign-ins made after it. A value that is not a whole number from 1 to 366 stops the portal at start |
 | `WEBHOOKS_ALLOW_PRIVATE` | `"true"` lets webhooks reach private and local addresses; leave it unset unless the receiver is on your own network |
 | `ADMIN_EMAILS` | Addresses (comma separated) for the portal's administrators, who create and import events and see every event as its organizers do (the organizers' published role matrix gives ADMIN every column, and each column there is a right to read); changing an event stays with its organizers. Each signs up through the one-time setup link the portal prints in its log at start; a link works once, and each start prints a new one while a named address has no account yet. The sign-up's audit row records it |
-| `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file the first start imports (once per file: a start with the same file imports nothing, so edits and removals stand; a changed file adds only its new rows, and nothing to an event whose results are published: the start logs that and goes on); `"none"` starts without the sample event |
+| `DATABASE_PATH`, `FIXTURES_PATH` | Where the database lives (default `/data/portal.db`, in the volume) and which fixture file the first start imports (once per file: a start with the same file imports nothing, so edits and removals stand; a changed file adds only its new rows. A changed file the event here refuses (a team past its size, a second project for a team, a judge on the team they review, a new criterion after scoring, a rubric or questions past the Rubric and Questions tabs' limits) or one that adds to an event whose results are published imports nothing at all: the start logs the file, the row and the rule, and the portal starts with the data it has. A file refused while its event is not here yet (a fresh volume) stops the start once, naming the file, the row and the rule: fix the file or point `FIXTURES_PATH` at another. A missing file or one that is not JSON stops the start); `"none"` starts without the sample event |
 
 ## Network and health
 
@@ -96,4 +96,6 @@ removes it.
 ## Upgrading
 
 `git pull` and `docker compose up --build`: migrations run at every start, and a fixture file is imported once, so
-what the organizers changed or removed stands; a changed fixture file imports only its new rows.
+what the organizers changed or removed stands; a changed fixture file imports only its new rows. A fixture file is
+recognised by its SHA-256 before its format is checked, so a file an earlier version imported never stops a later
+start, even when the newer portal holds imports to tighter limits.

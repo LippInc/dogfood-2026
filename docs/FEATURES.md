@@ -141,11 +141,15 @@ projects, judges, scores and rubric, and the same ranking as before any decision
 decisions stay in `event.json`, the record to keep). A file for an event already here adds to it only for that
 event's organizers and never once its results are published, never changes the criteria of an event judges have
 scored (409 `rubric_in_use`), keeps the forms' team rules there (409 `team_full`, `team_has_project`,
-`conflict_of_interest`, naming the row), and ids another event holds are renamed, never shared; the import's
-audit row names each judge, review and judge's track it added, and `scores.csv` marks each imported review in its
-`source` column. Files up to 64 MB, which holds the portal's own
-export of 1,000 projects and 8,000 reviews with every field at its longest; people who come in that way get
-one-time personal links to set a password (Integrations tab).
+`conflict_of_interest`, naming the row), holds the criteria and questions it brings to the Rubric and Questions
+tabs' limits (at most 16 criteria with labels of 2 to 60 characters and prompts of at most 200; at most 20
+questions with labels of 3 to 200 characters and help of at most 300; past one, 422 naming the row), renames an
+id another event holds rather than share it (409 `id_taken` when the new name is taken too), never writes into a
+review the portal handed out (pending, a draft or finished, it stays the judge's own; the report's `skipped`
+names the file's row), and imports an event's own export back unchanged; the import's audit row names each judge,
+review and judge's track it added, and `scores.csv` marks each imported review in its `source` column. Files up
+to 64 MB, which holds the portal's own export of 1,000 projects and 8,000 reviews with every field at its
+longest; people who come in that way get one-time personal links to set a password (Integrations tab).
 
 ## Audit log
 
