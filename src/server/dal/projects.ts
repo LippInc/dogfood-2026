@@ -15,7 +15,7 @@ import { isSolo, myTeam, organizerChangedAfterClose, type MyTeam } from "./teams
 import { issuesOf } from "./parse";
 import { discardUpload, shownElsewhere, UPLOAD_PATH } from "../uploads";
 import { DEFAULT_FIELD_MODES, PROJECT_FIELDS, REQUIRED_MESSAGES, withoutHidden, type FieldModes } from "@/lib/project-fields";
-import { competitionPlaces, tieDecided } from "@/lib/places";
+import { publishedPlaces, tieDecided } from "@/lib/places";
 import { fieldModes, shownTitle } from "./project-fields";
 import { MAX_GALLERY_IMAGES, MAX_TAGS, MAX_TAG_LENGTH } from "../project-limits";
 
@@ -445,7 +445,7 @@ function teamFeedback(db: DbOrTx, event: EventRow, projectId: string): TeamFeedb
   if (!published.published) return null;
   const track = published.tracks.find((t) => t.rows.some((r) => r.projectId === projectId));
   const row = track?.rows.find((r) => r.projectId === projectId);
-  const standing = track && row ? competitionPlaces(track.rows)[track.rows.indexOf(row)]! : null;
+  const standing = track && row ? publishedPlaces(track.rows)[track.rows.indexOf(row)]! : null;
   const criteria = rubricOf(db, event.id);
   const merged = new Set([projectId, ...db.select({ id: projects.id }).from(projects).where(eq(projects.duplicateOf, projectId)).all().map((x) => x.id)]);
   const excluded = new Set(judgeSet(db, event.id).excluded);

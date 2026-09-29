@@ -18,6 +18,7 @@ import {
   standardError,
 } from "@/server/dal/finals";
 import { getPublishedResults, publishResults } from "@/server/dal/results";
+import { getMyWork } from "@/server/dal/projects";
 import { setTieBreak } from "@/server/dal/tiebreak";
 import { actorById, expectHttpError, organizer, sqlAll, sqlRun, withFixtureEvent } from "./support/fixture-harness";
 
@@ -315,5 +316,26 @@ describe("finalsTrackIds: the tracks a finals round decides", () => {
     const tracks = new Set(sqlAll<{ t: string }>(`SELECT DISTINCT track_id AS t FROM projects WHERE id IN (${round.finalists.map(() => "?").join(",")})`, ...round.finalists).map((r) => r.t));
     expect(tracks.size).toBeGreaterThan(1);
     expect(finalsTrackIds(handle().db, "evt_01")).toEqual(tracks);
+  });
+});
+
+describe("the team's own My project page after the finals", () => {
+  it("reads the published place: two finalists tied in the finals are joint 1st there, whatever their first-round scores", () => {
+    settleDecisions();
+    const { round, a, b, c } = openPanel();
+    const [first, second, third] = round.finalists;
+    for (const j of [a, b, c]) {
+      saveFinalsScore(j, "evt_01", { finals: round.id, project: third!, values: all("max") });
+      saveFinalsScore(j, "evt_01", { finals: round.id, project: first!, values: all("max") });
+      saveFinalsScore(j, "evt_01", { finals: round.id, project: second!, values: all("min") });
+    }
+    closeFinals(organizer(), "evt_01", round.id, {});
+    publishResults(organizer(), "evt_01");
+    const member = (project: string) => sqlAll<{ id: string }>("SELECT tm.user_id AS id FROM projects p JOIN team_members tm ON tm.team_id = p.team_id WHERE p.id = ? ORDER BY tm.user_id", project)[0]!.id;
+    const rows = published().tracks.find((t) => t.id === "trk_01")!.rows;
+    const at = (id: string) => publishedPlaces(rows)[rows.findIndex((r) => r.projectId === id)]!;
+    expect(at(third!)).toEqual({ place: 1, joint: true });
+    expect(at(second!)).toEqual({ place: 3, joint: false });
+    for (const id of [first!, third!, second!]) expect(getMyWork(actorById(member(id)), "evt_01").feedback!.standing).toEqual(at(id));
   });
 });
