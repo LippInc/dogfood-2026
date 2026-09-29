@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BallotSaver, type SaverView, type SendResult } from "@/app/events/[event]/vote/ballot-saver";
+import { BallotSaver, isConnectionLost, type SaverView, type SendResult } from "@/app/events/[event]/vote/ballot-saver";
 
 // The ballot's save line (items 2 and 3 of the night's UI pass): picks save one at a
 // time and always end on the latest, a lost connection says so and retries, a refusal
@@ -123,6 +123,54 @@ describe("BallotSaver", () => {
     // the queued change is dropped with it, nothing more is sent
     expect(h.calls).toHaveLength(1);
     expect(h.saver.unsaved()).toBe(false);
+  });
+
+  it("stops and says to reload when the server answers with an error, instead of retrying forever", async () => {
+    vi.useFakeTimers();
+    const h = harness(["x"]);
+    h.saver.want(["x", "a"]);
+    // what the page gets when the action throws on the server (SQLITE_BUSY, a bug): an Error with a digest
+    h.calls[0]!.answer.reject(Object.assign(new Error("An error occurred in the Server Components render."), { digest: "123" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.last()).toEqual({ phase: "failed", picks: ["x"] });
+    expect(h.saver.unsaved()).toBe(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.calls).toHaveLength(1);
+  });
+
+  it("treats an action the server no longer knows (a new build mid-vote) as a server fault too", async () => {
+    vi.useFakeTimers();
+    const h = harness();
+    h.saver.want(["a"]);
+    class UnrecognizedActionError extends Error {}
+    h.calls[0]!.answer.reject(new UnrecognizedActionError('Server Action "abc" was not found on the server.'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.last()).toEqual({ phase: "failed", picks: [] });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.calls).toHaveLength(1);
+  });
+
+  it("a pick after a server fault tries again, and a quick pick queued behind the fault is dropped with it", async () => {
+    const h = harness();
+    h.saver.want(["a"]);
+    h.saver.want(["a", "b"]);
+    h.calls[0]!.answer.reject(new Error("An unexpected response was received from the server."));
+    await tick();
+    expect(h.last()).toEqual({ phase: "failed", picks: [] });
+    expect(h.calls).toHaveLength(1);
+    h.saver.want(["c"]);
+    expect(h.calls.map((c) => c.picks)).toEqual([["a"], ["c"]]);
+    h.calls[1]!.answer.resolve({ ok: true, picks: ["c"] });
+    await tick();
+    expect(h.last()).toEqual({ phase: "saved", picks: ["c"] });
+  });
+
+  it("positive control: only a fetch that never answered (TypeError) counts as a lost connection", () => {
+    expect(isConnectionLost(new TypeError("Failed to fetch"))).toBe(true);
+    expect(isConnectionLost(new TypeError("Load failed"))).toBe(true);
+    expect(isConnectionLost(Object.assign(new Error("x"), { digest: "1" }))).toBe(false);
+    expect(isConnectionLost(new Error("An unexpected response was received from the server."))).toBe(false);
+    expect(isConnectionLost("nope")).toBe(false);
   });
 
   it("draws the server's answer when it differs from what was sent", async () => {

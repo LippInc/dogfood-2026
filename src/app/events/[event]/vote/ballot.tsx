@@ -82,7 +82,9 @@ export function Ballot({
       ? { ok: true, text: "Saving…" }
       : view.phase === "offline"
         ? { ok: false, text: "Not saved yet: the connection dropped. Trying again…" }
-        : view.phase === "refused"
+        : view.phase === "failed"
+          ? { ok: false, text: "Not saved: the portal answered with an error. Reload the page to see your ballot and try again." }
+          : view.phase === "refused"
           ? { ok: false, text: view.message }
           : view.phase === "saved"
             ? {
@@ -140,9 +142,21 @@ export function Ballot({
             </p>
           </div>
           {canVote || !cta ? (
-            <p role="status" aria-live="polite" className={`text-14 ${status && view.phase !== "saving" ? (status.ok ? "text-ok" : "text-flag") : "text-ink-2"}`}>
-              {status?.text ?? ""}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p role="status" aria-live="polite" className={`text-14 ${status && view.phase !== "saving" ? (status.ok ? "text-ok" : "text-flag") : "text-ink-2"}`}>
+                {status?.text ?? ""}
+              </p>
+              {/* a server fault does not mend by itself (see ballot-saver.ts): a fresh page shows what the server holds */}
+              {view.phase === "failed" && !note ? (
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="inline-flex h-9 items-center rounded-sm border border-edge px-3 text-14 font-medium hover:bg-raised"
+                >
+                  Reload
+                </button>
+              ) : null}
+            </div>
           ) : "href" in cta ? (
             <Link
               href={cta.href}

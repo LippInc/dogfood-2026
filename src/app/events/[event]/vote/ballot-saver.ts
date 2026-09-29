@@ -5,10 +5,14 @@
  *
  * - a pick made while a save is on its way is sent right after it, so a quick second
  *   pick is never lost and two saves never race each other to the server;
- * - a lost connection (the call throws) keeps the picks on screen, says they are not
- *   saved yet and tries again, waiting a little longer each time;
+ * - a lost connection (the request never got an answer) keeps the picks on screen, says
+ *   they are not saved yet and tries again, waiting a little longer each time;
  * - a refusal (the server answers, but no) puts the ballot back to what the server
- *   last accepted and shows the server's words.
+ *   last accepted and shows the server's words;
+ * - a server fault (the server answered with an error: a database busy past its timeout,
+ *   a bug, or a new build of the portal that no longer knows this page's action) will not
+ *   mend by itself, so the saver does not retry: the ballot goes back to what the server
+ *   last accepted and the page says the pick was not saved and to reload.
  */
 
 export type SendResult = { ok: boolean; message?: string | null; picks?: string[] };
@@ -18,7 +22,19 @@ export type SaverView =
   | { phase: "saving"; picks: string[] }
   | { phase: "saved"; picks: string[] }
   | { phase: "offline"; picks: string[] }
-  | { phase: "refused"; picks: string[]; message: string };
+  | { phase: "refused"; picks: string[]; message: string }
+  | { phase: "failed"; picks: string[] };
+
+/**
+ * True when a server action's call failed before any answer came back. The browser's fetch
+ * rejects with a TypeError then ("Failed to fetch", "Load failed", "NetworkError ..."), also when
+ * the connection breaks while the answer is read. Everything else Next hands the page is an
+ * answer: an error the action threw (an Error with a digest), an action the server does not
+ * know (UnrecognizedActionError), or a response that is not the action's (a plain Error).
+ */
+export function isConnectionLost(err: unknown): boolean {
+  return err instanceof TypeError;
+}
 
 export class BallotSaver {
   private desired: string[];
@@ -77,8 +93,17 @@ export class BallotSaver {
     let res: SendResult;
     try {
       res = await this.send(sent);
-    } catch {
+    } catch (err) {
       this.inflight = false;
+      if (!isConnectionLost(err)) {
+        // The server answered, with an error: retrying the same call will not help. Like a refusal,
+        // it answers for the whole ballot, so anything queued behind it goes too.
+        this.dirty = false;
+        this.delay = 0;
+        this.desired = this.saved;
+        this.onChange({ phase: "failed", picks: this.saved });
+        return;
+      }
       if (this.dirty) {
         // a newer pick arrived meanwhile: send that one straight away
         void this.flush();
