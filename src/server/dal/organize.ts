@@ -22,7 +22,7 @@ import {
 } from "../db/schema";
 import { ConflictError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
-import { BUILTIN_CRITERIA, DEFAULT_CRITERIA } from "../rubric-defaults";
+import { BUILTIN_CRITERIA, DEFAULT_CRITERIA, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
 import { newId, slugify } from "../util";
 import { allowedModes, PROJECT_FIELDS, type FieldModes } from "@/lib/project-fields";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -77,7 +77,7 @@ export const QuestionRows = z
 export const DEFAULT_CERTIFICATE_PLACES = 3;
 
 /** Criteria in one rubric: room for a detailed rubric; the judge console and the results lay out this many. */
-export const MAX_CRITERIA = 16;
+export { MAX_CRITERIA };
 export const RubricRows = z
   .array(
     z.object({
@@ -491,7 +491,7 @@ export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown)
           .where(eq(rubricCriteria.eventId, e.id))
           .get()!.n;
         if (scored > 0 && !sameSet)
-          throw new ConflictError("rubric_in_use", "Judges have scored already: the set of criteria is fixed. Labels, prompts and, with a reason, weights can change.");
+          throw new ConflictError("rubric_in_use", RUBRIC_IN_USE);
         if (scored > 0) {
           if (reason.length < 3)
             throw new ValidationError("Judges have scored already, so a weight change needs a reason: the published results will show it.", {

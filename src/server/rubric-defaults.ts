@@ -4,6 +4,12 @@ import "server-only";
 // fixture import and a newly created event both start from these; the organizer
 // edits labels, prompts and weights afterwards.
 
+/** The most criteria a rubric has: the Rubric tab and an import into an event that is here both hold to it. */
+export const MAX_CRITERIA = 16;
+
+/** Why the set of criteria cannot change once judges have scored: saveRubric and an import refuse in these words. */
+export const RUBRIC_IN_USE = "Judges have scored already: the set of criteria is fixed. Labels, prompts and, with a reason, weights can change.";
+
 export const BUILTIN_CRITERIA: Record<string, { prompt: string; anchors: Record<string, string> }> = {
   functionality: {
     prompt: "Does it do what it promises?",

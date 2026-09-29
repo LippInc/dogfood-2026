@@ -2,12 +2,13 @@ import "server-only";
 // Idempotent, non-destructive import of fixtures.json: every insert is
 // INSERT OR IGNORE, so an organizer's later edits survive the next boot's import.
 import fs from "node:fs";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./client";
 import { appendAudit } from "../audit";
 import { MAX_GALLERY_IMAGES, MAX_TAGS, MAX_TAG_LENGTH } from "../project-limits";
-import { BUILTIN_CRITERIA } from "../rubric-defaults";
+import { BUILTIN_CRITERIA, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
+import { ConflictError, ValidationError } from "../errors";
 import { allowedModes, FIELD_MODES, PROJECT_FIELDS } from "../../lib/project-fields";
 import { newSecret, nowIso, sha256, slugify } from "../util";
 import {
@@ -226,7 +227,7 @@ export type ImportReport = {
    * made judges of the event, and every review it brought in or added to (the judge's account, the
    * project, whether the file's review is finished, the scores and feedback it added).
    */
-  added: { judges: string[]; reviews: ImportedReview[]; judgeTracks: { judge: string; track: string }[] };
+  added: { judges: string[]; reviews: ImportedReview[]; judgeTracks: { judge: string; track: string }[]; criteria: string[] };
 };
 
 export type ImportedReview = { judge: string; project: string; finished: boolean; values: Record<string, number>; feedback?: string };
@@ -286,7 +287,7 @@ export function importFixtures(
     skipped: [],
     conflicts: [],
     renamed: [],
-    added: { judges: [], reviews: [], judgeTracks: [] },
+    added: { judges: [], reviews: [], judgeTracks: [], criteria: [] },
   };
   const bump = (table: TableKey, changes: number) => {
     if (changes > 0) report.inserted[table] += 1;
@@ -394,6 +395,58 @@ export function importFixtures(
         if (!criteriaKeys.includes(key)) criteriaKeys.push(key);
       }
     }
+    // An event that is here keeps its rubric the way the Rubric tab does (saveRubric): once judges have scored,
+    // the set of criteria is fixed, so a file that would add one (through its rubric or its reviews' scores) or
+    // whose rubric leaves one out is refused whole; a new criterion would stop every finished review counting.
+    // Before the first score new criteria come in, held to the tab's limits. Labels, prompts and weights of the
+    // criteria here stay the event's own (a weight change after scoring needs a reason, given on the tab).
+    let adding: string[] = []; // keys new to an event that is here: they go after its own criteria
+    let firstFree = 0;
+    if (here) {
+      const present = tx
+        .select({ key: rubricCriteria.key, label: rubricCriteria.label, prompt: rubricCriteria.prompt, weight: rubricCriteria.weight, position: rubricCriteria.position })
+        .from(rubricCriteria)
+        .where(eq(rubricCriteria.eventId, eventId))
+        .all();
+      const known = new Set(present.map((c) => c.key));
+      adding = criteriaKeys.filter((k) => !known.has(k));
+      firstFree = Math.max(-1, ...present.map((c) => c.position)) + 1;
+      const leavesOut = fixture.rubric !== undefined && present.some((c) => !given.has(c.key));
+      const scored =
+        tx
+          .select({ n: sql<number>`count(*)` })
+          .from(scoreItems)
+          .innerJoin(rubricCriteria, eq(rubricCriteria.id, scoreItems.criterionId))
+          .where(eq(rubricCriteria.eventId, eventId))
+          .get()!.n > 0;
+      if (scored && (adding.length > 0 || leavesOut)) throw new ConflictError("rubric_in_use", RUBRIC_IN_USE);
+      if (adding.length > 0) {
+        if (present.length + adding.length > MAX_CRITERIA) {
+          throw new ValidationError(`A rubric has at most ${MAX_CRITERIA} criteria; with this file's, this event would have ${present.length + adding.length}.`, {
+            rubric: [`at most ${MAX_CRITERIA} criteria`],
+          });
+        }
+        const labels = new Set(present.map((c) => c.label.toLowerCase()));
+        for (const key of adding) {
+          const label = given.get(key)?.label ?? labelFor(key);
+          if (labels.has(label.toLowerCase())) throw new ValidationError(`Two criteria are called "${label}".`, { rubric: [`"${label}" appears twice`] });
+          labels.add(label.toLowerCase());
+        }
+        report.added.criteria.push(...adding);
+      }
+      for (const c of present) {
+        const theirs = given.get(c.key);
+        if (theirs && (theirs.label !== c.label || theirs.prompt !== c.prompt || Math.abs(theirs.weight - c.weight) > 1e-9)) {
+          report.skipped.push({
+            kind: "criterion",
+            id: c.key,
+            reason: "this event's own label, prompt and weight stay; change them on its Rubric tab (after the first score a weight change needs a reason there)",
+          });
+        } else if (fixture.rubric !== undefined && !theirs) {
+          report.skipped.push({ kind: "criterion", id: c.key, reason: "not in the file's rubric; an import never removes a criterion" });
+        }
+      }
+    }
     criteriaKeys.forEach((key, position) => {
       const own = given.get(key);
       const builtin = own ? { prompt: own.prompt, anchors: own.anchors } : (BUILTIN_CRITERIA[key] ?? { prompt: "", anchors: {} });
@@ -412,12 +465,24 @@ export function importFixtures(
               scaleMin: 1,
               scaleMax: 5,
               anchors: builtin.anchors,
-              position,
+              position: here ? firstFree + adding.indexOf(key) : position,
             })
             .onConflictDoNothing(),
         ),
       );
     });
+    // The event's criteria as they now stand, by key: a criterion made on the Rubric tab has an id of its own, and a
+    // review is finished only with a score for every criterion the event has, not only for those the file names.
+    const criterionOf = new Map(
+      tx
+        .select({ key: rubricCriteria.key, id: rubricCriteria.id })
+        .from(rubricCriteria)
+        .where(eq(rubricCriteria.eventId, eventId))
+        .orderBy(asc(rubricCriteria.position), asc(rubricCriteria.key))
+        .all()
+        .map((c) => [c.key, c.id]),
+    );
+    const eventKeys = [...criterionOf.keys()];
 
     // Judges: a user row, a judge role, and one track claim per listed track
     const judgeByEmail = new Map<string, string>(); // email -> the account that judges
@@ -698,7 +763,7 @@ export function importFixtures(
         continue;
       }
 
-      const complete = criteriaKeys.every((k) => typeof s.criteria[k] === "number");
+      const complete = eventKeys.every((k) => typeof s.criteria[k] === "number");
       const projectId = projectOf.get(s.project)!;
       const assignmentId = `asg_${s.judge}_${projectId}`;
       const scoreId = `scr_${s.judge}_${projectId}`;
@@ -741,13 +806,13 @@ export function importFixtures(
       if (scoreChanges) broughtAny = true;
       if (conflicted && scoreChanges > 0) report.conflicts.push(scoreId);
 
-      for (const key of criteriaKeys) {
+      for (const key of eventKeys) {
         const value = s.criteria[key];
         if (typeof value !== "number") continue; // missing or null: not scored, never a zero
         const item = insertOnce(
           tx
             .insert(scoreItems)
-            .values({ scoreId, criterionId: criterionId(eventId, key), value })
+            .values({ scoreId, criterionId: criterionOf.get(key)!, value })
             .onConflictDoNothing(),
         );
         bump("scoreItems", item);
@@ -800,6 +865,8 @@ export function importFixtures(
             judges: report.added.judges,
             reviews: report.added.reviews,
             judgeTracks: report.added.judgeTracks,
+            // the criteria it added to the rubric of an event that was here already (only before its first score)
+            ...(report.added.criteria.length ? { criteria: report.added.criteria } : {}),
           },
         },
         now,

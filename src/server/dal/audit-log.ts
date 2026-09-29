@@ -180,12 +180,14 @@ function sentence(r: Row, n: Names): Part[] {
       const finished = reviews.filter((x) => x.finished).length;
       const judges = after.judges.length;
       const grants = Array.isArray(after.judgeTracks) ? after.judgeTracks.length : 0;
+      const criteria = Array.isArray(after.criteria) ? after.criteria.length : 0;
       return [
         actor,
         t(
           ` imported ${file}: ${judges} ${judges === 1 ? "judge" : "judges"} and ${reviews.length} ${reviews.length === 1 ? "review" : "reviews"}` +
             (reviews.length ? ` (${finished} finished)` : "") +
             (grants ? `; ${grants} ${grants === 1 ? "track" : "tracks"} given to a judge` : "") +
+            (criteria ? `; ${criteria} ${criteria === 1 ? "criterion" : "criteria"} added to the rubric` : "") +
             ", each listed in this entry",
         ),
       ];
