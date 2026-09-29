@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogDescription, DialogSheet, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { accessLabel, ask, resolveHref, suggestionsFor, type HelpAnswer, type HelpEntry, type HelpViewer } from "@/lib/help";
-import { HELP_KEY_STORAGE, helpKeyWanted } from "@/lib/help/key";
+import { HELP_KEY_STORAGE, helpKeyWanted, ownsHelpKey } from "@/lib/help/key";
 
 /** The reader's choice for the ? key, in this browser only; on unless they turned it off. */
 let keyInMemory = true;
@@ -69,13 +69,15 @@ export function HelpButton({ viewer, variant, questionKey = true }: { viewer: He
     if (!questionKey) return;
     function onKey(e: KeyboardEvent) {
       if (!helpKeyWanted(e, document, helpKey.get())) return;
+      // the bar's Help and the phone menu's both listen; only the one on screen opens
+      if (!ownsHelpKey(variant, trigger.current)) return;
       e.preventDefault();
       setContainer((trigger.current?.closest(".public, .work") as HTMLElement | null) ?? null);
       setOpen(true);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [questionKey]);
+  }, [questionKey, variant]);
 
   // The work side's bar is full on busy pages (the overview's tools), so there Help is an icon beside the mode
   // toggle's, as quiet as it; the public side has room for the word from lg up, and below md Help is a row of the

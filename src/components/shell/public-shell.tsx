@@ -111,8 +111,8 @@ export function PublicShell({
                   {s.label}
                 </Link>
               ))}
-              {/* the ? key stays with the bar's Help, which is only hidden here, so it opens once */}
-              <HelpSlot event={{ slug: event.slug, name: event.name }} variant="menu" questionKey={false} />
+              {/* below md this row takes the ? key (the bar's Help is hidden then); ownsHelpKey keeps it to one */}
+              <HelpSlot event={{ slug: event.slug, name: event.name }} variant="menu" />
               <div className="my-2 border-t border-rule" />
               {takePart ? (
                 <Link href={takePart} className="flex h-11 items-center rounded-sm px-3 text-15 font-semibold hover:bg-raised">

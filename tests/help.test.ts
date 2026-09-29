@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { accessLabel, ask, canUse, HELP_ENTRIES, HELP_SUGGESTIONS, placesFor, reach, resolveHref, suggestionsFor, type HelpEntry, type HelpRole } from "@/lib/help";
 import { buildMatcher, MATCH_FLOOR, stem, tokens, WORD_SHARE_FLOOR } from "@/lib/help/match";
-import { helpKeyWanted } from "@/lib/help/key";
+import { helpKeyWanted, ownsHelpKey } from "@/lib/help/key";
 
 // The Help panel (src/components/help): its guide, its matcher, its key. The guide must be true of the portal,
 // the matcher must find the entry a person means from the words they really type, and it must say "no match"
@@ -606,5 +606,34 @@ describe("the third pass: partial hits count for less, strong matches stay first
     expect(s.length).toBeGreaterThanOrEqual(3);
     expect(s.length).toBeLessThanOrEqual(5);
     for (const { q, expect: id } of HELP_SUGGESTIONS.admin) expect(top(q, { signedIn: true, roles: ["admin"] }), q).toBe(id);
+  });
+});
+
+describe("the ? key below md goes to the Help on screen", () => {
+  const box = (shown: boolean) => ({ getClientRects: () => ({ length: shown ? 1 : 0 }) });
+  // the bar's Help: inside `hidden md:contents`, so no boxes below md
+  const bar = (shown: boolean) => ({ ...box(shown), closest: () => null });
+  // the phone menu's Help row: inside a closed <details> (no boxes), whose Menu button is on screen below md only
+  const menuRow = (menuButtonShown: boolean) => ({ ...box(false), closest: (s: string) => (s === "details" ? { querySelector: () => box(menuButtonShown) } : null) });
+
+  it("below md the menu's Help row takes the key and the hidden bar's Help does not; from md up, the other way round", () => {
+    // phone: bar hidden, Menu button shown
+    expect(ownsHelpKey("public", bar(false))).toBe(false);
+    expect(ownsHelpKey("menu", menuRow(true))).toBe(true);
+    // desktop: bar shown, Menu button hidden (md:hidden)
+    expect(ownsHelpKey("public", bar(true))).toBe(true);
+    expect(ownsHelpKey("menu", menuRow(false))).toBe(false);
+    // the work side's single Help, and no trigger yet
+    expect(ownsHelpKey("work", bar(true))).toBe(true);
+    expect(ownsHelpKey("public", null)).toBe(false);
+  });
+
+  it("the panel asks ownsHelpKey before opening, and the phone menu's Help listens for the key", () => {
+    const panel = fs.readFileSync(path.join(process.cwd(), "src/components/help/help-panel.tsx"), "utf8");
+    expect(panel).toMatch(/if \(!ownsHelpKey\(variant, trigger\.current\)\) return;/);
+    const shell = fs.readFileSync(path.join(process.cwd(), "src/components/shell/public-shell.tsx"), "utf8");
+    const menuSlot = shell.match(/<HelpSlot[^>]*variant="menu"[^>]*\/>/)?.[0];
+    expect(menuSlot).toBeDefined();
+    expect(menuSlot).not.toMatch(/questionKey=\{false\}/);
   });
 });
