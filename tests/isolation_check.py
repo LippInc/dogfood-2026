@@ -637,9 +637,10 @@ def run_checks(cfg):
                    organizer, "GET", export_url, f"row {row!r}", "the hidden comment's row with its reason")
             expect(c, "isolation check: first comment" not in body, organizer, "GET", export_url,
                    "the hidden comment's words in the file", "no words of a hidden comment")
-        for who, code in ((participant, 403), (judge_a, 403), (visitor, 401)):
+        # (not "code": B9 probes the open link with the code B4 left in that name)
+        for who, want in ((participant, 403), (judge_a, 403), (visitor, 401)):
             s, _, _ = who.request("GET", export_url)
-            expect(c, s == code, who, "GET", export_url, s, str(code))
+            expect(c, s == want, who, "GET", export_url, s, str(want))
         # everyone else sees one comment fewer: no placeholder with the author's name and the reason
         for who in (visitor, judge_a):
             s, body, _ = who.request("GET", comments_url)
@@ -814,9 +815,9 @@ def run_checks(cfg):
     c = Check("B10", "closed tally counts every ballot but the voided one, the open link's apart")
     # votes.csv, organizers only: one row per ballot, the picks sealed while the window is open
     votes_url = u(f"/api/events/{EVENT_ID}/export/votes.csv")
-    for who, code in ((participant, 403), (judge_a, 403), (visitor, 401)):
+    for who, want in ((participant, 403), (judge_a, 403), (visitor, 401)):
         s, _, _ = who.request("GET", votes_url)
-        expect(c, s == code, who, "GET", votes_url, s, str(code))
+        expect(c, s == want, who, "GET", votes_url, s, str(want))
     s, body, _ = organizer.request("GET", votes_url)
     if expect(c, s == 200, organizer, "GET", votes_url, s, "200"):
         rows = csv_rows(body)
