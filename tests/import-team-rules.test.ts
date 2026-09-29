@@ -61,6 +61,14 @@ const importRows = () => n("SELECT count(*) AS n FROM audit_log WHERE action = '
 const team = (file: File, id: string) => file.teams.find((t) => t.id === id)!;
 const FULL = { criteria: { functionality: 3, quality: 3, innovation: 3 } };
 
+/** A voter listed by address (no account yet) who voted for one project. */
+function listedVoteFor(email: string, projectId: string) {
+  h.sqlite
+    .prepare("INSERT INTO voters (id, event_id, kind, user_id, email, token_hash, order_seed, created_at) VALUES ('vtr_outside', ?, 'listed', NULL, ?, 'hash-outside', 1, ?)")
+    .run(EVENT, email, NOW);
+  h.sqlite.prepare("INSERT INTO votes (voter_id, project_id, created_at) VALUES ('vtr_outside', ?, ?)").run(projectId, NOW);
+}
+
 function refused(file: File, code: string, names: string[]) {
   const rowsBefore = importRows();
   let caught: unknown;
@@ -87,6 +95,26 @@ describe("an import into an event that is here keeps the forms' team rules", () 
     const report = importEventFile(actor(), file);
     expect(report.inserted.projects).toBe(1);
     expect(report.inserted.teamMembers).toBe(2);
+  });
+
+  it("known-bad: a member with a community vote for the team is refused, 409 vote_would_change, naming the team and the address", () => {
+    const file = exported();
+    const roomy = file.teams.find((t) => t.members.length < 4 && file.projects.some((p) => p.team === t.id))!;
+    const project = file.projects.find((p) => p.team === roomy.id)!;
+    listedVoteFor("outside.voter@example.org", project.id);
+    roomy.members.push("outside.voter@example.org");
+    refused(file, "vote_would_change", [roomy.id, "outside.voter@example.org"]);
+    expect(n("SELECT count(*) AS n FROM team_members tm JOIN users u ON u.id = tm.user_id WHERE u.email = ?", "outside.voter@example.org")).toBe(0);
+  });
+
+  it("positive control: the same member with a vote for another team comes in", () => {
+    const file = exported();
+    const roomy = file.teams.find((t) => t.members.length < 4 && file.projects.some((p) => p.team === t.id))!;
+    const other = file.projects.find((p) => p.team !== roomy.id)!;
+    listedVoteFor("outside.voter@example.org", other.id);
+    roomy.members.push("outside.voter@example.org");
+    const report = importEventFile(actor(), file);
+    expect(report.inserted.teamMembers).toBe(1);
   });
 
   it("known-bad: a member that takes a team past the event's size is refused, 409 team_full, naming the team", () => {

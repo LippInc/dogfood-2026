@@ -6,6 +6,7 @@ import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./client";
 import { appendAudit } from "../audit";
+import { votedForTeam } from "../team-votes";
 import { DEFAULT_MAX_TEAM_SIZE, MAX_GALLERY_IMAGES, MAX_QUESTIONS, MAX_TAGS, MAX_TAG_LENGTH, QUESTION_HELP_MAX, QUESTION_LABEL } from "../project-limits";
 import { BUILTIN_CRITERIA, CRITERION_LABEL, CRITERION_PROMPT_MAX, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
 import { ConflictError, ValidationError } from "../errors";
@@ -893,8 +894,9 @@ export function importFixtures(
     }
 
     // An event that was here keeps the rules its forms keep (the team pages, the project form, hand assignment): a
-    // team never grows past the event's size, a team has one project, and a judge never gets a project whose team
-    // they are on, from either side. A file that would break one is refused whole, naming its row. A new event's
+    // team never grows past the event's size, a team has one project, a judge never gets a project whose team
+    // they are on, from either side, and nobody joins a team they have a community vote for (the count leaves
+    // out a member's votes for their own team, so the join would change it). A file that would break one is refused whole, naming its row. A new event's
     // file is the organizers' data as given: its conflicted reviews come in flagged (scores.conflicted).
     if (here) {
       const max = tx.select({ settings: events.settings }).from(events).where(eq(events.id, eventId)).get()!.settings.maxTeamSize ?? DEFAULT_MAX_TEAM_SIZE;
@@ -932,6 +934,9 @@ export function importFixtures(
           .get();
         if (judging) {
           throw new ConflictError("conflict_of_interest", `The file's team ${m.file}: ${m.email} is assigned to judge this team's project. Reassign that review first. Nothing was imported.`);
+        }
+        if (votedForTeam(tx, eventId, m.user, m.team)) {
+          throw new ConflictError("vote_would_change", `The file's team ${m.file}: ${m.email} has a community vote for this team's project, and the count leaves out a member's votes for their own team, so adding them would change it. Nothing was imported.`);
         }
       }
     }
