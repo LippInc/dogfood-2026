@@ -16,6 +16,7 @@ export async function createEventAction(_prev: ActionResult, form: FormData): Pr
   try {
     slug = createEvent(await currentActor(), {
       slug: form.get("slug"),
+      sourceEventId: form.get("sourceEventId"),
       details: {
         name: form.get("name"),
         description: form.get("description"),

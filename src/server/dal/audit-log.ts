@@ -202,8 +202,10 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" signed in")];
     case "session.sign_in_demo":
       return [actor, t(" signed in with a demo identity")];
-    case "event.create":
-      return [actor, t(" created the event")];
+    case "event.create": {
+      const from = (after as { from?: { name?: unknown } }).from;
+      return from && typeof from.name === "string" ? [actor, t(` created the event from the settings of ${from.name}`)] : [actor, t(" created the event")];
+    }
     case "event.update":
       return [actor, t(` changed the event's ${Object.keys(after).join(", ") || "details"}`)];
     case "event.tracks": {

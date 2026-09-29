@@ -42,6 +42,7 @@ export {
 export { signUp } from "./accounts";
 export {
   createEvent,
+  eventsToStartFrom,
   getOrganizerEvent,
   organizedEvents,
   savePrizes,

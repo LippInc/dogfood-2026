@@ -17,6 +17,14 @@ An administrator creates an event on **Your events** (dates, tracks, prizes, rub
 `fixtures.json`-format file (up to 2,000 projects and 16,000 reviews per file; a bigger event goes in over several
 files).
 
+Running the same event again (next month, next year): **Your events**, **New event**, and pick last time's event
+under "Start from the settings of". Give the new one its name and dates; its tracks, rubric, questions to teams,
+what teams fill in, team size, prizes, certificate places, judging mode and voting rules come from the old one
+(details in [`FEATURES.md`](FEATURES.md#events-and-teams)), and nothing of its people, teams, projects or scores
+does. The list shows only events you organize: an administrator who does not organize last year's event asks one
+of its organizers to add them first. Re-importing an event's own `fixtures.json` is not the way: the file keeps the
+event's id, so it adds to that same event.
+
 ## Demo mode off
 
 Why `SEED_CHECKER_SESSIONS: "false"`: the checker's four session tokens are public in `.dogfood.toml`. They are

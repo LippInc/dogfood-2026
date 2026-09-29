@@ -1,7 +1,7 @@
 # Checking T3 and T4 by hand
 
 The README's "Beyond the checker" table in full: for every T3 and T4 bullet from the event site, where it lives,
-which checks of `tests/isolation_check.py` cover it (34 checks: A1 to A7 on who may read and change judging, B1 to
+which checks of `tests/isolation_check.py` cover it (35 checks: A1 to A8 on who may read and change judging and start an event from another's settings, B1 to
 B15 on T3, and Section C, C1 to C12, in `tests/isolation_t4.py`; the output of a clean run is
 `isolation-report.txt`, each line starting with its check's number), and how to see it yourself. Paths assume the seeded event, `sample-hack-2026` (id
 `evt_01`), on `http://localhost:8080`. The voting rules themselves are stated once, in [`FEATURES.md`, "Community

@@ -4,8 +4,9 @@ import { RowsEditor } from "@/components/rows-editor";
 import { SectionForm } from "@/components/section-form";
 import { WorkShell } from "@/components/shell/work-shell";
 import { UtcNow } from "@/components/utc-now";
-import { currentActor } from "@/server/dal";
+import { currentActor, eventsToStartFrom } from "@/server/dal";
 import { createEventAction } from "../actions";
+import { BlankOnly, StartFrom } from "./start-from";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "New event" };
@@ -26,23 +27,27 @@ const FIELD_LABELS = {
   maxTeamSize: "Most people on one team",
   tracks: "Tracks",
   prizes: "Prizes",
+  sourceEventId: "Start from the settings of",
 };
 
 export default async function NewEventPage() {
   const actor = await currentActor();
   if (!actor) unauthorized();
   if (!actor.isAdmin) forbidden();
+  const sources = eventsToStartFrom(actor).map((e) => ({ id: e.id, name: e.name }));
   return (
     <WorkShell eventName="Dogfood portal" eventHref="/organize" crumb="New event" person={actor.name} role="Administrator">
       <div className="mx-auto flex max-w-[960px] flex-col gap-6">
         <div>
           <h1 className="text-24 font-semibold">New event</h1>
           <p className="mt-1 text-14 text-ink-2">
-            You become its organizer. The rubric starts as functionality, quality and innovation with equal weights; change
-            it in the event&apos;s settings. Times are in UTC.
+            You become its organizer. A blank event&apos;s rubric starts as functionality, quality and innovation with equal
+            weights; an event started from another one takes that event&apos;s settings. Change either in the event&apos;s
+            settings. Times are in UTC.
           </p>
         </div>
         <SectionForm id="new-event" title="The event" action={createEventAction} submitLabel="Create event" fieldLabels={FIELD_LABELS}>
+          <StartFrom events={sources}>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-13 text-ink-2">
               Name
@@ -68,12 +73,15 @@ export default async function NewEventPage() {
               Judging closes (UTC, optional)
               <input type="datetime-local" name="judgingCloseAt" className={input} />
             </label>
-            <label className="flex flex-col gap-1 text-13 text-ink-2">
-              Most people on one team
-              <input type="number" name="maxTeamSize" min={1} max={20} defaultValue={4} className={input} />
-            </label>
+            <BlankOnly>
+              <label className="flex flex-col gap-1 text-13 text-ink-2">
+                Most people on one team
+                <input type="number" name="maxTeamSize" min={1} max={20} defaultValue={4} className={input} />
+              </label>
+            </BlankOnly>
           </div>
           <UtcNow />
+          <BlankOnly className="flex flex-col gap-5">
           <div className="flex flex-col gap-3 border-t border-rule pt-5">
             <div>
               <h3 className="text-15 font-semibold">Tracks</h3>
@@ -105,6 +113,8 @@ export default async function NewEventPage() {
               grid="lg:grid-cols-[20px_minmax(0,14rem)_minmax(0,1fr)_92px]"
             />
           </div>
+          </BlankOnly>
+          </StartFrom>
         </SectionForm>
       </div>
     </WorkShell>

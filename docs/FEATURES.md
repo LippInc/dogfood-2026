@@ -10,6 +10,15 @@ sign up, form a team, share an invite link and draft and edit a project until th
 description, repository, demo video and live links, a picture, an image gallery, tech tags, the track and the
 organizer's questions); the server refuses changes after it.
 
+- **A second event from the first one's settings.** On New event, "Start from the settings of" lists the events
+  the administrator organizes; the new event takes that event's tracks, rubric (labels, prompts, weights, anchor
+  text), questions to teams, what teams fill in, team size, prizes, certificate places, judging mode, reviews per
+  project, the judges' own-ranking switch, the accent colour and the voting rules, and nothing else: never its dates, people, teams, projects, reviews, votes, comments or invitations, nor
+  the history kept with its settings (weight and vote rule changes, the published run) or its open voting link.
+  The name and dates come from the form. Starting from an event you do not organize is refused (403), and the
+  create and the copy are one audited change whose log line names the source (`sourceEventId` on
+  `POST /api/events` does the same).
+
 - **What teams fill in.** The organizer makes each of those fields required, optional or hidden (Settings, "What
   teams fill in"), so an event where everyone builds the same thing can ask for a repository link and nothing
   else. A project with no title of its own is called by its team's name, and so is every project while the title

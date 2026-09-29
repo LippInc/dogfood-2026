@@ -367,6 +367,23 @@ def run_checks(cfg):
         expect(c, s == wanted, person, "GET", judging_url, s, str(wanted))
     checks.append(c)
 
+    # A8 -- a new event from the sample event's settings: only an administrator who organizes the sample event.
+    # Nothing is made here: past both gates the organizer's body has no name or dates, so the answer is a 422.
+    # (An administrator who does not organize the source is refused with 403 too; no checker session is one, so
+    # vitest covers that: tests/event-from-settings.test.ts.)
+    c = Check("A8", "a new event from an event's settings is for its organizers only")
+    create_url = u("/api/events")
+    from_sample = {"sourceEventId": EVENT_ID}
+    for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403)):
+        s, _, _ = person.request("POST", create_url, from_sample)
+        expect(c, s == wanted, person, "POST", create_url, s, str(wanted))
+    s, body, _ = organizer.request("POST", create_url, from_sample)
+    expect(c, s == 422, organizer, "POST", create_url, s, "422 (past both gates, no name or dates given)")
+    s, body, _ = organizer.request("POST", create_url, {"sourceEventId": "evt_no_such_event"})
+    ok = s == 422 and "sourceEventId" in (as_json(body) or {}).get("details", {})
+    expect(c, ok, organizer, "POST", create_url, s, "422 naming sourceEventId (no such event)")
+    checks.append(c)
+
     # ================= Section B: T3 community voting & comments =================
 
     # B1 -- open a window as the organizer, and only as the organizer

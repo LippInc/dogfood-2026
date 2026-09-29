@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
-import type { Actor, Resource } from "../authz";
+import { authorize, type Actor, type Resource } from "../authz";
 import { getDb, type Tx } from "../db/client";
 import {
   assignments,
@@ -18,15 +18,16 @@ import {
   comparisons,
   tracks,
   userRoles,
+  type EventSettings,
   type WeightChange,
 } from "../db/schema";
-import { ConflictError, ValidationError } from "../errors";
+import { AuthzError, ConflictError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
 import { BUILTIN_CRITERIA, CRITERION_LABEL, CRITERION_PROMPT_MAX, DEFAULT_CRITERIA, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
 import { MAX_QUESTIONS, QUESTION_HELP_MAX, QUESTION_LABEL } from "../project-limits";
 import { newId, slugify } from "../util";
 import { allowedModes, PROJECT_FIELDS, type FieldModes } from "@/lib/project-fields";
-import { eventFacts, requireEvent, type EventRow } from "./events";
+import { eventFacts, findEvent, requireEvent, type EventRow } from "./events";
 import { parse, utcTime, utcTimeOrEmpty } from "./parse";
 import { fieldModes, ProjectFieldsInput, trackCount } from "./project-fields";
 
@@ -110,16 +111,31 @@ export const NewEvent = z.object({
     .or(z.literal("")),
   tracks: TrackRows,
   prizes: PrizeRows.default([]),
+  /** an event the caller may manage (its id or web address): the new event takes its settings instead of tracks, prizes and team size */
+  sourceEventId: z.string().trim().max(100).optional().nullable(),
 });
+
+/** With a source event, its settings stand in for the tracks, prizes and team size: only the name and dates are needed. */
+const NewEventFromSource = NewEvent.extend({ tracks: z.unknown().optional(), prizes: z.unknown().optional() });
+
+/** The event whose settings a new event starts from, as sent (its id or its web address), or null for none. */
+function sourceRefOf(body: unknown): string | null {
+  const raw = body && typeof body === "object" ? (body as { sourceEventId?: unknown }).sourceEventId : undefined;
+  if (raw === undefined || raw === null || raw === "") return null;
+  if (typeof raw !== "string" || raw.trim().length > 100) {
+    throw new ValidationError("Check the highlighted fields.", { sourceEventId: ["the id or web address of an event you organize"] });
+  }
+  return raw.trim();
+}
 
 /**
  * The name and dates arrive nested under `details`, so a refusal is keyed by the field's own name
  * (submissionsOpenAt), the name the form's input carries and an API caller can act on; keyed by the
  * envelope, "details: expected string" left six fields to guess from and marked none of them.
  */
-function parseNewEvent(body: unknown): z.output<typeof NewEvent> {
-  const parsed = NewEvent.safeParse(body);
-  if (parsed.success) return parsed.data;
+function parseNewEvent(body: unknown, fromSource: boolean): z.output<typeof NewEvent> {
+  const parsed = (fromSource ? NewEventFromSource : NewEvent).safeParse(body);
+  if (parsed.success) return { ...parsed.data, tracks: (parsed.data.tracks ?? []) as z.output<typeof TrackRows>, prizes: (parsed.data.prizes ?? []) as z.output<typeof PrizeRows> };
   const fields: Record<string, string[]> = {};
   for (const { path, message } of parsed.error.issues) {
     const [top, sub] = path;
@@ -140,14 +156,96 @@ function uniqueNames(rows: { name: string }[], what: string) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * The events a person may start a new event from: the ones they may manage (change), decided by authorize() event by
+ * event, so the list and the refusal on creating ask the same question. An administrator who does not organize an
+ * event reads it but does not see it here.
+ */
+export function eventsToStartFrom(actor: Actor | null): { id: string; slug: string; name: string }[] {
+  if (!actor) return [];
+  const now = new Date();
+  return getDb()
+    .select()
+    .from(events)
+    .orderBy(asc(events.name))
+    .all()
+    .filter((e) => authorize(actor, "event.manage", { kind: "event", event: eventFacts(e) }, now, "write").ok)
+    .map((e) => ({ id: e.id, slug: e.slug, name: e.name }));
+}
+
+/**
+ * The settings a second event takes from the first: never its dates, people, teams, projects, reviews, votes,
+ * comments or invitations, nor the history kept with its settings (weight and vote rule changes, the published run,
+ * the organizer's rulings on duplicates and under-reviewed projects) or its open voting link.
+ */
+function copiedSettings(s: EventSettings): EventSettings {
+  const out: EventSettings = {};
+  if (s.maxTeamSize !== undefined) out.maxTeamSize = s.maxTeamSize;
+  if (s.certificatePlaces !== undefined) out.certificatePlaces = s.certificatePlaces;
+  if (s.accent !== undefined) out.accent = s.accent;
+  if (s.judgeRanking !== undefined) out.judgeRanking = s.judgeRanking;
+  if (s.reviewsPerProject !== undefined) out.reviewsPerProject = s.reviewsPerProject;
+  if (s.judgingMode !== undefined) out.judgingMode = s.judgingMode;
+  if (s.voting) {
+    const { modes, votesPerVoter, countLink, linkPerAddress } = s.voting;
+    out.voting = { modes: [...modes], votesPerVoter, linkHash: null, ...(countLink !== undefined ? { countLink } : {}), ...(linkPerAddress !== undefined ? { linkPerAddress } : {}) };
+  }
+  return out;
+}
+
+/** Copy the source event's settings rows into the new event, inside the create's transaction; returns what was copied. */
+function copySettingsRows(tx: Tx, from: EventRow, to: string) {
+  const srcTracks = tx.select().from(tracks).where(eq(tracks.eventId, from.id)).orderBy(asc(tracks.position)).all();
+  srcTracks.forEach((t, position) => tx.insert(tracks).values({ id: newId("trk"), eventId: to, name: t.name, position }).run());
+  const srcPrizes = tx.select().from(prizes).where(eq(prizes.eventId, from.id)).orderBy(asc(prizes.position)).all();
+  srcPrizes.forEach((p, position) => tx.insert(prizes).values({ id: newId("prz"), eventId: to, name: p.name, description: p.description, position }).run());
+  const criteria = tx.select().from(rubricCriteria).where(eq(rubricCriteria.eventId, from.id)).orderBy(asc(rubricCriteria.position)).all();
+  criteria.forEach((c, position) =>
+    tx
+      .insert(rubricCriteria)
+      .values({ id: `crit_${to}_${c.key}`, eventId: to, key: c.key, label: c.label, prompt: c.prompt, weight: c.weight, scaleMin: c.scaleMin, scaleMax: c.scaleMax, anchors: c.anchors, position })
+      .run(),
+  );
+  const questions = tx.select().from(customQuestions).where(eq(customQuestions.eventId, from.id)).orderBy(asc(customQuestions.position)).all();
+  questions.forEach((q, position) =>
+    tx.insert(customQuestions).values({ id: newId("q"), eventId: to, label: q.label, help: q.help, type: q.type, required: q.required, position }).run(),
+  );
+  const fields = tx.select().from(projectFields).where(eq(projectFields.eventId, from.id)).all();
+  fields.forEach((f) => tx.insert(projectFields).values({ eventId: to, field: f.field, mode: f.mode }).run());
+  return { tracks: srcTracks.length, prizes: srcPrizes.length, criteria: criteria.length, questions: questions.length, fields: fields.length };
+}
+
+/**
+ * Create an event, and make its creator its organizer. With `sourceEventId` (an event the person may manage), the new
+ * event starts from that event's settings (copiedSettings and copySettingsRows say which) instead of the body's
+ * tracks, prizes and team size; the name, web address, description and dates always come from the body. The create
+ * and the copy commit in one transaction with one event.create audit row that names the source.
+ */
 export function createEvent(actor: Actor | null, body: unknown) {
+  const sourceRef = sourceRefOf(body);
+  let source: EventRow | undefined;
+  if (sourceRef) {
+    // Decided (and a refusal audited) before anything is read from the source; decided again inside the transaction.
+    guardRead(actor, "event.create", { kind: "platform" }, new Date(), "write");
+    source = findEvent(getDb(), sourceRef);
+    if (!source) throw new ValidationError("Check the highlighted fields.", { sourceEventId: ["no event has that id or web address"] });
+    guardRead(actor, "event.manage", { kind: "event", event: eventFacts(source) }, new Date(), "write");
+  }
   return mutate({
     actor,
     action: "event.create",
     load: () => ({ kind: "platform" }),
     run: (tx) => {
-      const input = parseNewEvent(body);
-      uniqueNames(input.tracks, "tracks");
+      const input = parseNewEvent(body, Boolean(source));
+      let from: EventRow | undefined;
+      if (source) {
+        from = findEvent(tx, source.id);
+        if (!from) throw new ValidationError("Check the highlighted fields.", { sourceEventId: ["no event has that id or web address"] });
+        const again = authorize(actor, "event.manage", { kind: "event", event: eventFacts(from) }, new Date(), "write");
+        if (!again.ok) throw new AuthzError(again);
+      } else {
+        uniqueNames(input.tracks, "tracks");
+      }
       const slug = input.slug || slugify(input.details.name);
       if (tx.select({ id: events.id }).from(events).where(eq(events.slug, slug)).get()) {
         throw new ValidationError("That web address is taken.", { slug: [`/events/${slug} already exists`] });
@@ -164,33 +262,47 @@ export function createEvent(actor: Actor | null, body: unknown) {
           submissionsOpenAt: d.submissionsOpenAt,
           submissionsCloseAt: d.submissionsCloseAt,
           judgingCloseAt: d.judgingCloseAt,
-          settings: { maxTeamSize: d.maxTeamSize, ...(d.certificatePlaces ? { certificatePlaces: d.certificatePlaces } : {}) },
+          settings: from
+            ? copiedSettings(from.settings)
+            : { maxTeamSize: d.maxTeamSize, ...(d.certificatePlaces ? { certificatePlaces: d.certificatePlaces } : {}) },
           createdAt: now,
         })
         .run();
-      input.tracks.forEach((t, position) => tx.insert(tracks).values({ id: newId("trk"), eventId: id, name: t.name, position }).run());
-      input.prizes.forEach((p, position) =>
-        tx.insert(prizes).values({ id: newId("prz"), eventId: id, name: p.name, description: p.description, position }).run(),
-      );
-      DEFAULT_CRITERIA.forEach((key, position) =>
-        tx
-          .insert(rubricCriteria)
-          .values({
-            id: `crit_${id}_${key}`,
-            eventId: id,
-            key,
-            label: key[0].toUpperCase() + key.slice(1),
-            prompt: BUILTIN_CRITERIA[key].prompt,
-            anchors: BUILTIN_CRITERIA[key].anchors,
-            weight: 1,
-            position,
-          })
-          .run(),
-      );
+      let copied: ReturnType<typeof copySettingsRows> | null = null;
+      if (from) {
+        copied = copySettingsRows(tx, from, id);
+      } else {
+        input.tracks.forEach((t, position) => tx.insert(tracks).values({ id: newId("trk"), eventId: id, name: t.name, position }).run());
+        input.prizes.forEach((p, position) =>
+          tx.insert(prizes).values({ id: newId("prz"), eventId: id, name: p.name, description: p.description, position }).run(),
+        );
+        DEFAULT_CRITERIA.forEach((key, position) =>
+          tx
+            .insert(rubricCriteria)
+            .values({
+              id: `crit_${id}_${key}`,
+              eventId: id,
+              key,
+              label: key[0].toUpperCase() + key.slice(1),
+              prompt: BUILTIN_CRITERIA[key].prompt,
+              anchors: BUILTIN_CRITERIA[key].anchors,
+              weight: 1,
+              position,
+            })
+            .run(),
+        );
+      }
       tx.insert(userRoles).values({ userId: actor!.userId, eventId: id, role: "organizer", createdAt: now }).run();
       return {
         result: { id, slug },
-        audit: { eventId: id, targetType: "event", targetId: id, after: { name: d.name, slug, tracks: input.tracks.length } },
+        audit: {
+          eventId: id,
+          targetType: "event",
+          targetId: id,
+          after: from
+            ? { name: d.name, slug, tracks: copied!.tracks, from: { id: from.id, slug: from.slug, name: from.name }, copied }
+            : { name: d.name, slug, tracks: input.tracks.length },
+        },
       };
     },
   });
