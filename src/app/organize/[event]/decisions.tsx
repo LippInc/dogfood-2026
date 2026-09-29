@@ -7,7 +7,7 @@ import { useFormAction } from "@/components/use-form-action";
 import { useRescueFocus } from "@/components/use-rescue-focus";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { formatUtc } from "@/lib/format";
+import { formatUtc, votesIn } from "@/lib/format";
 import type { ActionResult, Decision } from "@/server/dal";
 import {
   acceptAction,
@@ -666,7 +666,7 @@ export function PublishPanel({
             {vote && (vote.state === "open" || vote.state === "upcoming") ? (
               <p className="rounded-sm border border-rule border-l-[3px] border-l-flag-bar p-3 text-14">
                 {vote.state === "open"
-                  ? `The community vote is open until ${formatUtc(vote.closesAt)}, with ${vote.ballots} ${vote.ballots === 1 ? "ballot" : "ballots"}. Publishing closes it: its count becomes final and public with the results, so nobody votes with the ranking in view.`
+                  ? `The community vote is open until ${formatUtc(vote.closesAt)}; ${votesIn(vote.ballots)}. Publishing closes it: its count becomes final and public with the results, so nobody votes with the ranking in view.`
                   : `A community vote is set to open ${formatUtc(vote.opensAt)}. Publishing calls it off, so nobody votes with the ranking in view.`}
               </p>
             ) : null}

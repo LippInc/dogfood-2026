@@ -11,6 +11,20 @@ export function plural(n: number, noun: string, many = `${noun}s`): string {
 }
 
 /**
+ * How many community votes are in, in the organizer's words: "no votes are in yet", "1 vote is in",
+ * "8 votes are in". A vote here is one ballot; never "people have voted", since ballots through the
+ * open link cannot prove they come from different people.
+ */
+export function votesIn(n: number): string {
+  return n === 0 ? "no votes are in yet" : n === 1 ? "1 vote is in" : `${n} votes are in`;
+}
+
+/** A closed vote's count, as a fact: "no votes", "1 vote", "8 votes". */
+export function votesCount(n: number): string {
+  return n === 0 ? "no votes" : plural(n, "vote");
+}
+
+/**
  * A form's result line: the message, then the field's detail when the message does not already say it
  * ("Check the highlighted fields. say why, in a few words"; a message that names the problem stands alone).
  */
