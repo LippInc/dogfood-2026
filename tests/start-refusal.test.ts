@@ -7,8 +7,9 @@ import { DEFAULT_SEED_SECRET, startRefusal } from "@/server/checker";
 
 // The public default DOGFOOD_SEED_SECRET seals the signing key and salts the voters' address hashes, so a
 // portal that others can reach must not run on it, demo mode or not: judge's-eye reading 6 found that
-// nothing refused it once demo mode was off. On this machine's own address (the judges' `docker compose up`,
-// local development) it stays the documented default.
+// nothing refused it once demo mode was off. Reading 9 found that a portal behind a reverse proxy, with
+// PUBLIC_URL unset, still ran on it: so outside demo mode it is refused whatever PUBLIC_URL says, and only the
+// local demo (the judges' `docker compose up`, SEED_CHECKER_SESSIONS=true on this machine's own address) keeps it.
 
 const HUB = "https://hack.example.org";
 /** An environment holding only the settings named (the type also wants NODE_ENV, which the refusal never reads). */
@@ -25,16 +26,35 @@ describe("startRefusal", () => {
     expect(startRefusal(env({ PUBLIC_URL: "not a url" }))).toMatch(/not a local address/);
   });
 
-  it("lets an operator's own secret start anywhere, and the default start on this machine's own address", () => {
-    expect(startRefusal(env({ PUBLIC_URL: HUB, DOGFOOD_SEED_SECRET: "an operator's own secret" }))).toBeNull();
+  it("lets an operator's own secret start anywhere, demo mode or not", () => {
+    for (const demo of [undefined, "true", "false"]) {
+      for (const url of [HUB, undefined, "http://localhost:8080"]) {
+        expect(startRefusal(env({ PUBLIC_URL: url, DOGFOOD_SEED_SECRET: "an operator's own secret", SEED_CHECKER_SESSIONS: demo }))).toBeNull();
+      }
+    }
+  });
+
+  it("lets the default start the local demo (SEED_CHECKER_SESSIONS=true, the shipped compose file) on this machine's own address", () => {
     for (const local of [undefined, "http://localhost:8080", "http://127.0.0.1:8096", "http://[::1]:8080", "http://portal.localhost"]) {
-      expect([local, startRefusal(env({ PUBLIC_URL: local, DOGFOOD_SEED_SECRET: DEFAULT_SEED_SECRET }))]).toEqual([local, null]);
+      expect([local, startRefusal(env({ PUBLIC_URL: local, DOGFOOD_SEED_SECRET: DEFAULT_SEED_SECRET, SEED_CHECKER_SESSIONS: "true" }))]).toEqual([local, null]);
+    }
+  });
+
+  it("refuses the default secret, or none, with demo mode off, whatever PUBLIC_URL says (unset: a portal behind a reverse proxy)", () => {
+    for (const secret of [undefined, "", DEFAULT_SEED_SECRET]) {
+      for (const demo of [undefined, "false", "TRUE"]) {
+        for (const local of [undefined, "http://localhost:8080", "http://portal.localhost"]) {
+          expect(startRefusal(env({ PUBLIC_URL: local, DOGFOOD_SEED_SECRET: secret, SEED_CHECKER_SESSIONS: demo }))).toMatch(
+            /demo mode is off.*set DOGFOOD_SEED_SECRET to a long random string of your own/,
+          );
+        }
+      }
     }
   });
 });
 
-describe("boot with the default secret on a public address", () => {
-  const saved = { url: process.env.PUBLIC_URL, secret: process.env.DOGFOOD_SEED_SECRET, db: process.env.DATABASE_PATH };
+describe("boot with the default secret outside the local demo", () => {
+  const saved = { url: process.env.PUBLIC_URL, secret: process.env.DOGFOOD_SEED_SECRET, db: process.env.DATABASE_PATH, demo: process.env.SEED_CHECKER_SESSIONS };
   let dir: string;
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), "start-refusal-"));
@@ -43,7 +63,7 @@ describe("boot with the default secret on a public address", () => {
     delete process.env.DOGFOOD_SEED_SECRET;
   });
   afterEach(() => {
-    for (const [key, value] of [["PUBLIC_URL", saved.url], ["DOGFOOD_SEED_SECRET", saved.secret], ["DATABASE_PATH", saved.db]] as const) {
+    for (const [key, value] of [["PUBLIC_URL", saved.url], ["DOGFOOD_SEED_SECRET", saved.secret], ["DATABASE_PATH", saved.db], ["SEED_CHECKER_SESSIONS", saved.demo]] as const) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
@@ -53,6 +73,13 @@ describe("boot with the default secret on a public address", () => {
 
   it("refuses to start, saying why and what to set, before it opens or creates the database", async () => {
     await expect(boot()).rejects.toThrow(/refusing to start: PUBLIC_URL \(https:\/\/hack\.example\.org\) is not a local address.*set DOGFOOD_SEED_SECRET/);
+    expect(fs.readdirSync(dir)).toEqual([]);
+  });
+
+  it("with PUBLIC_URL unset and demo mode off, refuses too, before it opens the database", async () => {
+    delete process.env.PUBLIC_URL;
+    delete process.env.SEED_CHECKER_SESSIONS;
+    await expect(boot()).rejects.toThrow(/refusing to start: DOGFOOD_SEED_SECRET is not set, so the public default and demo mode is off.*long random string/);
     expect(fs.readdirSync(dir)).toEqual([]);
   });
 });

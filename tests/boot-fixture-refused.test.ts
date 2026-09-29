@@ -283,9 +283,11 @@ describe("a fixture file the import refuses for an event not here yet", () => {
 
   /** boot() to the end (or to its refusal) with SEED_CHECKER_SESSIONS as given; what it threw, warned and logged. */
   async function bootWith(flag: "true" | "false") {
-    const env = { db: process.env.DATABASE_PATH, flag: process.env.SEED_CHECKER_SESSIONS };
+    const env = { db: process.env.DATABASE_PATH, flag: process.env.SEED_CHECKER_SESSIONS, secret: process.env.DOGFOOD_SEED_SECRET };
     process.env.DATABASE_PATH = ":memory:";
     process.env.SEED_CHECKER_SESSIONS = flag;
+    // with demo mode off the public default secret is refused at start (startRefusal): an operator's own, as a real one sets
+    if (flag === "false") process.env.DOGFOOD_SEED_SECRET = "an operator's own secret for this test";
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
@@ -296,7 +298,7 @@ describe("a fixture file the import refuses for an event not here yet", () => {
       const text = (spy: typeof warn) => spy.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
       return { failed, warned: text(warn), logged: text(log) };
     } finally {
-      for (const [k, v] of [["DATABASE_PATH", env.db], ["SEED_CHECKER_SESSIONS", env.flag]] as const) {
+      for (const [k, v] of [["DATABASE_PATH", env.db], ["SEED_CHECKER_SESSIONS", env.flag], ["DOGFOOD_SEED_SECRET", env.secret]] as const) {
         if (v === undefined) delete process.env[k];
         else process.env[k] = v;
       }

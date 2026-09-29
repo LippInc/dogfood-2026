@@ -59,15 +59,21 @@ export function demoModeRefusal(env: NodeJS.ProcessEnv = process.env): string | 
 }
 
 /**
- * Why the portal will not start at all, or null. On an address other than this machine's, the public
- * default secret would seal the signing key (a copy of the database could then sign certificates) and
- * salt the voters' address hashes (every IPv4 address could be tried against them), demo mode or not.
+ * Why the portal will not start at all, or null. The public default secret would seal the signing key (a copy
+ * of the database could then sign certificates) and salt the voters' address hashes (every IPv4 address could
+ * be tried against them). It runs only the local demo: SEED_CHECKER_SESSIONS=true (the shipped compose file) on
+ * this machine's own address. Outside demo mode it is refused whatever PUBLIC_URL says, since a portal behind a
+ * reverse proxy may leave PUBLIC_URL unset and still be reached by others; on another address it is refused
+ * demo mode or not.
  */
 export function startRefusal(env: NodeJS.ProcessEnv = process.env): string | null {
   if (ownSecret(env)) return null;
   const url = env.PUBLIC_URL ?? "http://localhost:8080";
-  if (isLocalUrl(url)) return null;
-  return `PUBLIC_URL (${url}) is not a local address and DOGFOOD_SEED_SECRET is the public default, which seals the signing key and salts the voters' address hashes: set DOGFOOD_SEED_SECRET to a long random string of your own, and keep it`;
+  if (!isLocalUrl(url)) {
+    return `PUBLIC_URL (${url}) is not a local address and DOGFOOD_SEED_SECRET is the public default, which seals the signing key and salts the voters' address hashes: set DOGFOOD_SEED_SECRET to a long random string of your own, and keep it`;
+  }
+  if (env.SEED_CHECKER_SESSIONS === "true") return null;
+  return `DOGFOOD_SEED_SECRET is ${env.DOGFOOD_SEED_SECRET ? "the public default" : "not set, so the public default"} and demo mode is off (SEED_CHECKER_SESSIONS is not true); the default, which anyone can read in this repository, would seal the signing key and salt the voters' address hashes: set DOGFOOD_SEED_SECRET to a long random string of your own (for example the output of openssl rand -hex 32), and keep it. Only the local demo (SEED_CHECKER_SESSIONS=true on this machine's own address) runs on the default`;
 }
 
 const ownSecret = (env: NodeJS.ProcessEnv) => Boolean(env.DOGFOOD_SEED_SECRET) && env.DOGFOOD_SEED_SECRET !== DEFAULT_SEED_SECRET;

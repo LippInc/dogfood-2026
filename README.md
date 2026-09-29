@@ -192,8 +192,9 @@ On a fresh volume, set these in `docker-compose.yml` and start it:
 The portal starts without the sample event and prints, in its own log, a one-time link:
 `administrator setup: open https://hack.example.org/sign-up?setup=...`. Open it and sign up with the address in
 `ADMIN_EMAILS`: that account is an administrator, and on **Your events** it creates your event or imports one.
-Demo mode must be off wherever the portal can be reached: the checker's session tokens are public, and the portal
-refuses to start with the default secret on an address that is not local.
+Demo mode must be off wherever the portal can be reached: the checker's session tokens are public. The portal
+refuses to start with the default secret unless it runs as the local demo (demo mode on, on a local address), so
+with demo mode off it needs your own secret (`openssl rand -hex 32` makes one).
 
 | Setting | In short |
 |---|---|

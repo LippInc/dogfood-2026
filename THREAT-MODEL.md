@@ -68,9 +68,9 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 ## The public default secret
 
-**What is built:** `DOGFOOD_SEED_SECRET` derives the checker's sessions, salts the voters' address hashes and seals the signing key, and its default is published so that `docker compose up` works with no setup. With that default (or none), a portal whose `PUBLIC_URL` is not this machine's own address (localhost, a name under `.localhost`, 127.x.x.x, ::1) refuses to start and says what to set, before it opens the database, demo mode or not; with demo mode on it also refuses the checker's sessions. Demo mode itself is refused on such an address whatever the secret, since its sign-in page makes anyone the demo organizer, an administrator, with one click; `PUBLIC_DEMO=true` (with an own secret) runs a public demo on purpose.
+**What is built:** `DOGFOOD_SEED_SECRET` derives the checker's sessions, salts the voters' address hashes and seals the signing key, and its default is published so that `docker compose up` works with no setup. With that default (or none) the portal starts only as the local demo: with demo mode off it refuses to start whatever `PUBLIC_URL` says (a portal behind a reverse proxy may leave it unset; judge's-eye reading 9), and a portal whose `PUBLIC_URL` is not this machine's own address (localhost, a name under `.localhost`, 127.x.x.x, ::1) refuses demo mode or not; each refusal comes before it opens the database and says what to set. With demo mode on it also refuses the checker's sessions there. Demo mode itself is refused on such an address whatever the secret, since its sign-in page makes anyone the demo organizer, an administrator, with one click; `PUBLIC_DEMO=true` (with an own secret) runs a public demo on purpose.
 
-**What is not:** a check that an operator's own secret is long or random; and a portal served to others while its `PUBLIC_URL` still names this machine, which the portal cannot tell apart from local use.
+**What is not:** a check that an operator's own secret is long or random; and a portal in demo mode served to others while its `PUBLIC_URL` still names this machine or is unset, which the portal cannot tell apart from local use.
 
 ## Mail
 
