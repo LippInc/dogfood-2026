@@ -23,7 +23,8 @@ export async function createEventAction(_prev: ActionResult, form: FormData): Pr
         submissionsOpenAt: form.get("submissionsOpenAt"),
         submissionsCloseAt: form.get("submissionsCloseAt"),
         judgingCloseAt: form.get("judgingCloseAt"),
-        maxTeamSize: form.get("maxTeamSize"),
+        // absent while a source event is chosen (its fieldset is disabled): left out, not null, which would read as 0
+        maxTeamSize: form.get("maxTeamSize") ?? undefined,
       },
       tracks: rows(form, "tracks"),
       prizes: rows(form, "prizes"),

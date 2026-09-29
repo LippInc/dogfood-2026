@@ -37,7 +37,7 @@ export function StartFrom({ events, children }: { events: Source[]; children: Re
           </label>
           <p id={`${id}-note`} className="text-13 text-ink-2">
             {chosen
-              ? `The new event takes ${chosen.name}'s tracks, rubric (labels, prompts, weights), questions to teams, what teams fill in, team size, prizes, certificate places and voting rules. Its dates, people, teams, projects, reviews, votes, comments and invitations stay behind. Change any of it in the new event's settings.`
+              ? `The new event takes ${chosen.name}'s tracks, rubric (labels, prompts, weights), questions to teams, what teams fill in, team size, prizes, certificate places, judging mode, accent colour and voting rules. Its dates, people, teams, projects, reviews, votes, comments and invitations stay behind. Change any of it in the new event's settings.`
               : "An event you organize: the new one takes its settings, never its people or projects."}
           </p>
         </div>
