@@ -1,28 +1,6 @@
-import { currentActor, HttpError, json, MAX_IMAGE_BYTES, removeProjectImage, route, setProjectImage } from "@/server/dal";
+import { currentActor, json, readImageBody, removeProjectImage, route, setProjectImage } from "@/server/dal";
 
 export const dynamic = "force-dynamic";
-
-const tooLarge = () => new HttpError(413, "image_too_large", "The image is over 8 MB. Save a smaller one and try again.");
-
-/** The request body, counted as it arrives and refused past the limit (Next's proxy in front of /api may already hold up to 10 MB of it). */
-async function bodyBytes(req: Request): Promise<Uint8Array> {
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_IMAGE_BYTES) throw tooLarge();
-  if (!req.body) return new Uint8Array(0);
-  const reader = req.body.getReader();
-  const parts: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.length;
-    if (size > MAX_IMAGE_BYTES) {
-      await reader.cancel();
-      throw tooLarge();
-    }
-    parts.push(value);
-  }
-  return Buffer.concat(parts);
-}
 
 /**
  * POST /api/projects/[project]/image, the image file itself as the body (PNG, JPEG or WebP, told by its
@@ -33,7 +11,7 @@ async function bodyBytes(req: Request): Promise<Uint8Array> {
 export async function POST(req: Request, { params }: RouteContext<"/api/projects/[project]/image">) {
   return route(async () => {
     const actor = await currentActor();
-    const bytes = actor ? await bodyBytes(req) : new Uint8Array(0);
+    const bytes = actor ? await readImageBody(req) : new Uint8Array(0);
     return json(await setProjectImage(actor, (await params).project, bytes), 201);
   });
 }

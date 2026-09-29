@@ -13,7 +13,7 @@ import { finishedReviews, formerJudges, judgeSet, rubricOf, weightedTotal } from
 import { getPublishedResults } from "./results";
 import { isSolo, myTeam, organizerChangedAfterClose, type MyTeam } from "./teams";
 import { issuesOf } from "./parse";
-import { discardUpload, UPLOAD_PATH } from "../uploads";
+import { discardUpload, shownElsewhere, UPLOAD_PATH } from "../uploads";
 import { DEFAULT_FIELD_MODES, PROJECT_FIELDS, REQUIRED_MESSAGES, withoutHidden, type FieldModes } from "@/lib/project-fields";
 import { fieldModes, shownTitle } from "./project-fields";
 import { MAX_GALLERY_IMAGES, MAX_TAGS, MAX_TAG_LENGTH } from "../project-limits";
@@ -50,6 +50,37 @@ const tagList = z
   .pipe(z.array(z.string()).max(MAX_TAGS, `at most ${MAX_TAGS} tags`));
 
 /**
+ * A project's image gallery, in the order it shows: each an image uploaded here (its /uploads/ address, which only
+ * the project holding it may send back: checkGalleryUploads) or on the team's own host, http(s) only. The same
+ * image twice is kept once.
+ */
+export const galleryList = z
+  .array(
+    z
+      .string()
+      .trim()
+      .max(500)
+      .refine((v) => UPLOAD_PATH.test(v) || webUrl.safeParse(v).success, WEB_URL.message),
+  )
+  .transform((list) => [...new Set(list)])
+  .pipe(z.array(z.string()).max(MAX_GALLERY_IMAGES, `at most ${MAX_GALLERY_IMAGES} images`));
+
+/**
+ * An uploaded gallery image is added only by uploading it: its address is public on the project page, so a list that
+ * took any /uploads/ address would let a team show another team's file, and then delete it by removing it. A list may
+ * hold only the uploads the project's gallery holds already (`held`); a new project, none.
+ */
+export function checkGalleryUploads(sent: readonly string[], held: readonly string[]) {
+  if (sent.some((u) => u.startsWith("/uploads/") && !held.includes(u)))
+    throw new ValidationError("The project is not valid.", { galleryUrls: ["Use Upload to add an image: an uploaded image's address cannot be typed in."] });
+}
+
+/** The uploads a gallery held and no longer does, that no other project shows: their files go after the commit. */
+export function droppedGalleryUploads(tx: DbOrTx, before: readonly string[], after: readonly string[], projectId: string): string[] {
+  return before.filter((u) => u.startsWith("/uploads/") && !after.includes(u) && !shownElsewhere(tx, u, projectId));
+}
+
+/**
  * The project form's body. Which built-in fields must be filled is the organizer's choice
  * (src/lib/project-fields.ts): a required title or track is needed even for a draft, as always;
  * the other required fields are checked on submit (assertSubmittable). Optional and hidden ones
@@ -73,7 +104,7 @@ function projectInput(modes: FieldModes) {
       .refine((v) => v === "" || UPLOAD_PATH.test(v) || webUrl.safeParse(v).success, WEB_URL.message)
       .optional()
       .transform((v) => (v ? v : null)),
-    galleryUrls: z.array(webUrl).max(MAX_GALLERY_IMAGES, `at most ${MAX_GALLERY_IMAGES} images`).default([]),
+    galleryUrls: galleryList.default([]),
     tags: tagList,
     answers: z.record(z.string(), z.string().trim().max(5_000)).default({}),
     status: z.enum(["draft", "submitted"]).default("submitted"),
@@ -228,6 +259,7 @@ export function createProject(actor: Actor | null, eventIdOrSlug: string, body: 
       const t = team!;
       const values = resolve(tx, event.id, input, modes, null, t.name);
       if (values.thumbnailUrl?.startsWith("/uploads/")) throw typedUpload();
+      checkGalleryUploads(values.galleryUrls, []);
       const existing = tx.select({ id: projects.id }).from(projects).where(eq(projects.teamId, t.id)).get();
       if (existing) {
         throw new ConflictError("team_has_project", `Team ${t.name} already has project ${existing.id}; edit it instead.`);
@@ -276,8 +308,8 @@ const sameField = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray
 export function updateProject(actor: Actor | null, projectId: string, body: unknown) {
   let project: typeof projects.$inferSelect;
   let teamName = "";
-  // an uploaded picture the save changes or clears is deleted after the commit, unless another project shows it
-  let dropped: string | null = null;
+  // an uploaded picture or gallery image the save changes or clears is deleted after the commit, unless another project shows it
+  const dropped: string[] = [];
   const result = mutate({
     actor,
     action: "project.edit",
@@ -303,6 +335,7 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
       const input = parse(body, modes);
       const values = resolve(tx, project.eventId, input, modes, project, teamName);
       if (values.thumbnailUrl?.startsWith("/uploads/") && values.thumbnailUrl !== project.thumbnailUrl) throw typedUpload();
+      checkGalleryUploads(values.galleryUrls, project.galleryUrls);
       requireTrack(tx, values.trackId, project.eventId);
       if (values.trackId !== project.trackId) {
         // Judges assigned in the old track would lose it (a track judge never sees another track).
@@ -320,11 +353,8 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
       if (status === "submitted") assertSubmittable(tx, project.eventId, values, { ...storedAnswers(tx, project.id), ...input.answers }, modes);
       const now = new Date().toISOString();
       const next = { ...values, status };
-      if (project.thumbnailUrl !== next.thumbnailUrl) {
-        const old = project.thumbnailUrl;
-        const shown = old && tx.select({ id: projects.id }).from(projects).where(and(eq(projects.thumbnailUrl, old), ne(projects.id, project.id))).get();
-        dropped = shown ? null : old;
-      }
+      if (project.thumbnailUrl && project.thumbnailUrl !== next.thumbnailUrl && !shownElsewhere(tx, project.thumbnailUrl, project.id)) dropped.push(project.thumbnailUrl);
+      dropped.push(...droppedGalleryUploads(tx, project.galleryUrls, next.galleryUrls, project.id));
       const before: Record<string, unknown> = {};
       const after: Record<string, unknown> = {};
       for (const k of EDITABLE) {
@@ -353,7 +383,7 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
       };
     },
   });
-  discardUpload(dropped);
+  for (const u of dropped) discardUpload(u);
   return result;
 }
 

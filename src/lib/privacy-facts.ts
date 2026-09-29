@@ -110,9 +110,9 @@ export const KEPT: KeptFact[] = [
     removedBy: "nothing",
   },
   {
-    what: "Project pictures, re-encoded without their metadata",
+    what: "Project pictures and gallery images, re-encoded without their metadata",
     where: "the uploads folder",
-    kept: "until the team replaces it or the organizers take it down",
+    kept: "until the team replaces or removes it, or the organizers take it down",
     removedBy: "the team, the organizers",
   },
   {

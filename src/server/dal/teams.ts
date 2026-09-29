@@ -21,7 +21,7 @@ import {
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
 import { DEFAULT_MAX_TEAM_SIZE } from "../project-limits";
-import { discardUpload } from "../uploads";
+import { discardUpload, shownElsewhere } from "../uploads";
 import { votedForTeam } from "../team-votes";
 import { newId, newSecret } from "../util";
 import { auditOfTarget, type AuditLine } from "./audit-log";
@@ -245,11 +245,11 @@ export function leaveTeam(actor: Actor | null, teamId: string) {
  * The team's only member dissolves it, while submissions are open: someone who started a team by
  * mistake can then join the one they meant to. A submitted project keeps its team (it is in the
  * gallery and may be judged), so only a team with no project or a draft can go; the draft goes with
- * it, answers and uploaded picture included, and the audit row keeps its id and title.
+ * it, answers and uploaded pictures (its picture and gallery images) included, and the audit row keeps its id and title.
  */
 export function dissolveTeam(actor: Actor | null, teamId: string) {
   let team: { id: string; name: string; eventId: string };
-  let picture: string | null = null;
+  let pictures: string[] = [];
   const result = mutate({
     actor,
     action: "team.dissolve",
@@ -264,7 +264,7 @@ export function dissolveTeam(actor: Actor | null, teamId: string) {
         throw new ConflictError("others_on_the_team", "Others are still on this team. Only its last member can dissolve it; to go, leave it instead.");
       }
       const project = tx
-        .select({ id: projects.id, title: projects.title, status: projects.status, thumbnailUrl: projects.thumbnailUrl })
+        .select({ id: projects.id, title: projects.title, status: projects.status, thumbnailUrl: projects.thumbnailUrl, galleryUrls: projects.galleryUrls })
         .from(projects)
         .where(eq(projects.teamId, team.id))
         .get();
@@ -291,11 +291,8 @@ export function dissolveTeam(actor: Actor | null, teamId: string) {
         if (used) throw new ConflictError("project_in_use", "This team's draft is already part of the judging, so the team stays. Ask the organizers.");
         tx.delete(customAnswers).where(eq(customAnswers.projectId, project.id)).run();
         tx.delete(projects).where(eq(projects.id, project.id)).run();
-        // the file goes after the commit, and only if no other project shows it
-        const shared = project.thumbnailUrl
-          ? tx.select({ id: projects.id }).from(projects).where(eq(projects.thumbnailUrl, project.thumbnailUrl)).get()
-          : undefined;
-        picture = shared ? null : project.thumbnailUrl;
+        // the files go after the commit, each only if no other project shows it
+        pictures = [project.thumbnailUrl, ...project.galleryUrls].filter((u): u is string => Boolean(u?.startsWith("/uploads/")) && !shownElsewhere(tx, u!, project.id));
       }
       tx.delete(teamMembers).where(eq(teamMembers.teamId, team.id)).run();
       tx.delete(teams).where(eq(teams.id, team.id)).run();
@@ -311,7 +308,7 @@ export function dissolveTeam(actor: Actor | null, teamId: string) {
       };
     },
   });
-  discardUpload(picture);
+  for (const u of pictures) discardUpload(u);
   return result;
 }
 

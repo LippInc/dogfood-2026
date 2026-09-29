@@ -216,8 +216,9 @@ webhook deliveries and the voters' address hashes are yours to clear with `scrip
 
 ## What it does not do yet
 
-- **Uploads.** Only a project's gallery picture is uploaded (PNG, JPEG or WebP up to 8 MB, redrawn as a WebP without metadata
-  such as a photo's location; an organizer can take one down); image galleries are links.
+- **Uploads.** Images only: a project's picture and up to 6 gallery images (PNG, JPEG or WebP up to 8 MB each,
+  redrawn as a WebP without metadata such as a photo's location; an organizer can take any of them down). A demo
+  video or a slide deck is a link.
 - **Webhook secrets** are kept in the database as they are, because the portal signs with them. Webhook targets on
   private or local addresses are refused when added and at every delivery, on the very addresses the delivery
   connects to, so a DNS answer that changes after the check cannot slip through; `WEBHOOKS_ALLOW_PRIVATE=true`

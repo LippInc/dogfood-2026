@@ -289,6 +289,16 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" edited "), project(target)];
     case "project.image":
       return [actor, t(after.thumbnailUrl ? " put up a new picture for " : " took down the picture of "), project(target)];
+    case "project.gallery": {
+      const was = (before.galleryUrls as string[] | undefined) ?? [];
+      const now = (after.galleryUrls as string[] | undefined) ?? [];
+      const added = now.filter((u) => !was.includes(u)).length;
+      const removed = was.filter((u) => !now.includes(u)).length;
+      const images = (n: number) => (n === 1 ? "an image" : `${n} images`);
+      const what =
+        added && !removed ? ` added ${images(added)} to the gallery of ` : removed && !added ? ` removed ${images(removed)} from the gallery of ` : added || removed ? " changed the gallery of " : " reordered the gallery of ";
+      return [actor, t(what), project(target)];
+    }
     case "judge.invite":
       return [actor, t(` made a judge invitation for ${after.name || after.email || "an open link"}`)];
     case "judge.invite_revoke":
@@ -481,6 +491,8 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" commented on "), project(target)];
     case "project.image_taken_down":
       return [actor, t(" took down the picture of "), project(target), t(`: ${quote(after.reason)}`)];
+    case "project.gallery_image_taken_down":
+      return [actor, t(" took an image out of the gallery of "), project(target), t(`: ${quote(after.reason)}`)];
     case "comment.deleted":
       return [actor, t(" deleted their comment on "), project(target)];
     case "comment.unhide":

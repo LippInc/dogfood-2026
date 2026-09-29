@@ -3,8 +3,8 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { sql } from "drizzle-orm";
-import { databasePath, type Db } from "./db/client";
+import { and, eq, ne, or, sql } from "drizzle-orm";
+import { databasePath, type Db, type DbOrTx } from "./db/client";
 import { projects } from "./db/schema";
 
 // Uploaded project pictures: files in the data volume, next to the database, so `docker compose up`
@@ -119,6 +119,17 @@ export function sweepOrphanUploads(db: Db, dir = uploadsDir()): { removed: numbe
     removed += 1;
   }
   return { removed, kept: names.length - removed };
+}
+
+/** Whether a project other than `projectId` shows this address, as its picture or in its gallery: its file is then kept. */
+export function shownElsewhere(tx: DbOrTx, url: string, projectId: string): boolean {
+  return Boolean(
+    tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(ne(projects.id, projectId), or(eq(projects.thumbnailUrl, url), sql`exists (select 1 from json_each(${projects.galleryUrls}) where value = ${url})`)))
+      .get(),
+  );
 }
 
 /** A stored file and the type its name says, or null for a malformed name or a missing file. */

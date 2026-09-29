@@ -33,6 +33,14 @@ organizer's questions); the server refuses changes after it.
   with a reason for the audit log, from the team's page under Submissions, until results are published; the
   project page says the organizers changed the team after the close. A change that would move the community
   vote count, because the person voted for that team's project, is refused until the vote is voided.
+- **Pictures.** A team uploads its project's picture (the gallery card's image) and up to 6 images for the
+  project page's gallery, or links images on its own host; the gallery images are shown in the team's order, which
+  it changes, like removing one, until the deadline. Each upload is PNG, JPEG or WebP, told by the file's bytes, at
+  most 8 MB and 50 megapixels, and is stored redrawn from its pixels as a WebP, so nothing else in the file (a
+  photo's location) is published. An organizer takes down a project's picture or any one gallery image at any
+  time, with a reason for the audit log. Through the API: `POST /api/projects/{project}/image` and
+  `POST /api/projects/{project}/gallery` take the file as the body, `PUT /api/projects/{project}/gallery` sets
+  the gallery's order.
 - **Gallery.** The public gallery shows every submitted project, searchable (tags included, case and accents
   ignored: `ecole` finds `École`) and filterable by track, in the page and through
   `GET /api/events/{event}/projects?q=&track=`.

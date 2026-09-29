@@ -448,7 +448,7 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
         // beyond the organizers' format, only when present, so fixture data exports byte for byte
         // an uploaded picture by its full address, which the importer (web addresses only) takes and another portal can load
         ...(p.thumbnailUrl ? { thumbnail_url: p.thumbnailUrl.startsWith("/uploads/") ? `${issuer()}${p.thumbnailUrl}` : p.thumbnailUrl } : {}),
-        ...(p.galleryUrls.length ? { gallery_urls: p.galleryUrls } : {}),
+        ...(p.galleryUrls.length ? { gallery_urls: p.galleryUrls.map((u) => (u.startsWith("/uploads/") ? `${issuer()}${u}` : u)) } : {}),
         ...(p.tags.length ? { tags: p.tags } : {}),
         ...(p.description ? { description: p.description } : {}),
         ...(p.videoUrl ? { video_url: p.videoUrl } : {}),

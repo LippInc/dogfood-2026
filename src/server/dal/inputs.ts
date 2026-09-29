@@ -11,6 +11,7 @@ export { BatchInviteInput, InviteInput, RankingInput, TrackIds } from "./judges"
 export { AcceptInput, MergeInput, OverrideInput, PairInput, RevokeInput, UndoPairInput, UnmergeInput } from "./decisions";
 export { Details, NewEvent, PrizeRows, QuestionRows, RubricBody, RubricInput, RubricRows, TrackRows } from "./organize";
 export { ProjectInput } from "./projects";
+export { GalleryInput, TakeDownInput } from "./project-image";
 export { ProjectFieldsInput } from "./project-fields";
 export { RecordRequest } from "./records";
 export { RecuseInput, ReviewInput } from "./reviews";

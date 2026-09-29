@@ -19,8 +19,9 @@ export {
   type PublicProject,
   type Question,
 } from "./projects";
-export { removeProjectImage, setProjectImage, takeDownProjectImage } from "./project-image";
+export { addGalleryImage, removeProjectImage, setGallery, setProjectImage, takeDownGalleryImage, takeDownProjectImage } from "./project-image";
 export { MAX_IMAGE_BYTES, readUpload } from "../uploads";
+export { readImageBody } from "../upload-body";
 export {
   createTeam,
   dissolveTeam,
