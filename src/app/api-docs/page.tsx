@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlainShell } from "@/components/shell/plain-shell";
-import { openApiDocument, OPERATIONS, operationId, STATUS_MEANING, type Operation } from "@/server/dal";
+import { openApiDocument, OPERATIONS, operationId, publicUrl, STATUS_MEANING, type Operation } from "@/server/dal";
 import { SectionMarker } from "./section-marker";
 
 export const dynamic = "force-dynamic";
@@ -83,7 +83,7 @@ function Pixel({ reach, className = "" }: { reach: Reach; className?: string }) 
 }
 
 export default function ApiDocsPage() {
-  const doc = openApiDocument(process.env.PUBLIC_URL ?? "http://localhost:8080");
+  const doc = openApiDocument(publicUrl());
   const base = doc.servers[0]!.url;
   const tags = [...new Set(OPERATIONS.map((o) => o.tag))];
   // every answer the document names, with its general meaning and how many operations can give it

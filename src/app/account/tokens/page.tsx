@@ -5,7 +5,7 @@ import { PlainShell } from "@/components/shell/plain-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc, isPast } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, listApiTokens, type TokenView } from "@/server/dal";
+import { currentActor, listApiTokens, publicUrl, type TokenView } from "@/server/dal";
 import { revokeTokenAction } from "./actions";
 import { TokenForm } from "./token-form";
 import { TokenMark } from "./token-mark";
@@ -20,7 +20,7 @@ export default async function TokensPage() {
   const actor = await currentActor();
   if (!actor) unauthorized();
   const tokens = guardPage(() => listApiTokens(actor));
-  const base = process.env.PUBLIC_URL ?? "http://localhost:8080";
+  const base = publicUrl();
   const rows = tokens.map((t) => {
     const state = t.revokedAt
       ? ({ kind: "revoked", when: t.revokedAt } as const)

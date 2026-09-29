@@ -43,6 +43,15 @@ export function secureCookies(env: Env = process.env): boolean {
   return /^https:\/\//i.test(env.PUBLIC_URL?.trim() ?? "");
 }
 
+/**
+ * The portal's own address, for links and snippets it hands out (invite links, reminders, the embed snippet, the
+ * API's server URL, the signed records' issuer): PUBLIC_URL without a trailing slash, or the offline run's
+ * http://localhost:8080 when it is unset.
+ */
+export function publicUrl(env: Env = process.env): string {
+  return (env.PUBLIC_URL ?? "http://localhost:8080").replace(/\/+$/, "");
+}
+
 /** Why the portal must not start, when a setting holds something that is not a whole number in range; else null. */
 export function settingsProblem(env: Env = process.env): string | null {
   for (const [name, spec] of Object.entries(OPERATOR_COUNTS)) {

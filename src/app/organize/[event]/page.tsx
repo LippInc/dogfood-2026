@@ -12,6 +12,7 @@ import { guardPage } from "@/lib/page-guard";
 import {
   currentActor,
   getOverview,
+  publicUrl,
   type AuditLine,
   type Stage,
   PULL_SHOWN_WITHIN,
@@ -158,7 +159,7 @@ export default async function OverviewPage({
   if (!actor) unauthorized();
   const o = guardPage(() => getOverview(actor, key));
   const { event, judges, normalization: nz } = o;
-  const origin = process.env.PUBLIC_URL ?? "http://localhost:8080";
+  const origin = publicUrl();
   const faceIds = new Set(
     o.decisions.flatMap((d) =>
       d.kind === "flat_judge"

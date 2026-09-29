@@ -7,7 +7,7 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { countBeyondReach, countWithoutPassword, currentActor, emailIsOn, EXPORT_FILES, listDeliveries, listOutbox, listWebhooks, ValidationError, type OutboxPage } from "@/server/dal";
+import { countBeyondReach, countWithoutPassword, currentActor, emailIsOn, EXPORT_FILES, listDeliveries, listOutbox, listWebhooks, publicUrl, ValidationError, type OutboxPage } from "@/server/dal";
 import { CopyButton } from "../judges/forms";
 import { retry, sendTest, toggleWebhook } from "./actions";
 import { AddWebhookForm, ClaimLinksForm, RotateSecretForm } from "./forms";
@@ -38,7 +38,7 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
   if (!actor) unauthorized();
   const { event, webhooks } = guardPage(() => listWebhooks(actor, key));
   const deliveries = Object.fromEntries(webhooks.map((w) => [w.id, listDeliveries(actor, key, w.id).slice(0, 10)]));
-  const origin = process.env.PUBLIC_URL ?? "http://localhost:8080";
+  const origin = publicUrl();
   const snippet = `<script src="${origin}/embed.js" data-event="${event.slug}" async></script>`;
   const waiting = countWithoutPassword(actor, key);
   const elsewhere = countBeyondReach(actor, key);

@@ -10,7 +10,7 @@ import { formatUtc, plural } from "@/lib/format";
 import { openWork } from "@/lib/judge-open-work";
 import { guardPage } from "@/lib/page-guard";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
-import { currentActor, emailIsOn, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeRow, type JudgeStanding } from "@/server/dal";
+import { currentActor, emailIsOn, getAssignments, getJudges, getNormalization, judgingModeOf, publicUrl, type JudgeRow, type JudgeStanding } from "@/server/dal";
 import { removeJudgeAction } from "./actions";
 import { WithReason } from "../decisions";
 import { BatchInviteForm, ByHandForm, CopyButton, InviteForm, RevokeInviteForm, RunForm, TracksForm } from "./forms";
@@ -65,7 +65,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
   const a = getAssignments(actor, event.id);
   const published = Boolean(event.resultsPublishedAt);
   const groups = groupNames(published);
-  const origin = process.env.PUBLIC_URL ?? "http://localhost:8080";
+  const origin = publicUrl();
   const assigned = judges.reduce((s, j) => s + j.assigned, 0);
   const finished = judges.reduce((s, j) => s + j.done, 0);
   const openInvites = invites.filter((i) => i.state === "open");

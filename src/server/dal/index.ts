@@ -5,7 +5,7 @@ import "server-only";
 // enforces it), so every read and write passes the same authorize() gate.
 
 export { currentActor } from "../session";
-export { secureCookies } from "../settings";
+export { publicUrl, secureCookies } from "../settings";
 export type { Actor } from "../authz";
 export { HttpError, AuthzError, NotFoundError, ValidationError, ConflictError } from "../errors";
 export { eventRef, getAbout, getGallery, getProjectFields, listEvents, searchGallery, type About, type Gallery, type GalleryProject, type PublicEvent } from "./events";

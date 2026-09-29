@@ -8,6 +8,7 @@ import type { Actor, Resource } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignments, comparisons, projects, RECORD_KINDS, signedRecords, teamMembers, teams, tracks, users, type RecordKind, type SignedEnvelope } from "../db/schema";
 import { NotFoundError } from "../errors";
+import { publicUrl } from "../settings";
 import { guardRead, mutate } from "../mutate";
 import { ensureSigningKey, publishedKeys, signRecord, verifyEnvelope, type PublishedKey, type Verification } from "../signing";
 import { canonicalJson, newId, nowIso } from "../util";
@@ -29,7 +30,7 @@ export const RECORD_FORMAT = "dogfood-record/v1";
 type EventRow = ReturnType<typeof requireEvent>;
 
 export function issuer(): string {
-  return (process.env.PUBLIC_URL ?? "http://localhost:8080").replace(/\/+$/, "");
+  return publicUrl();
 }
 
 /** A judge's finished reviews and pairwise answers (taken-back ones not counted) in an event, and the tracks they covered. */
