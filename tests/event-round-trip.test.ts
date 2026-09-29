@@ -314,6 +314,29 @@ describe("an event that is here already: its history is its own", () => {
     expect(outcome(() => importEventFile(organizerA(), file))).toBe("ok");
   });
 
+  it("known-bad: a file whose dates the database would refuse, or whose vote outlives its publication, is a 422 naming the date, not a 500", () => {
+    const file = JSON.parse(exported("fixtures.json"));
+    const fresh = { ...file, event: { ...file.event, id: "evt_dates", name: "Dates" } };
+    const cases: [Record<string, unknown>, string][] = [
+      [{ ...fresh, event: { ...fresh.event, submissions_open: "2026-03-02T00:00:00Z" } }, "submissions_open"],
+      [{ ...fresh, event: { ...fresh.event, voting_open: "2026-05-02T00:00:00Z", voting_close: "2026-05-01T00:00:00Z" } }, "voting_open"],
+      [
+        {
+          ...fresh,
+          event: { ...fresh.event, voting_open: "2026-04-01T00:00:00Z", voting_close: "2026-06-01T00:00:00Z" },
+          published: { at: "2026-05-01T00:00:00Z", run: { id: "nrm_d", method: "leniency-shrunk-v1", computed_at: "2026-05-01T00:00:00Z", params: {} }, scores: [] },
+        },
+        "voting_close",
+      ],
+    ];
+    for (const [changed, field] of cases) {
+      expect(outcome(() => importIntoB(changed)), field).toMatchObject({ status: 422, message: expect.stringContaining(`event.${field}`) });
+    }
+    expect(count(hb!, "SELECT count(*) AS n FROM events")).toBe(0);
+    // positive control: the same event with its dates in order goes in
+    expect(outcome(() => importIntoB({ ...fresh, event: { ...fresh.event, submissions_open: "2026-02-01T00:00:00Z", voting_open: "2026-04-01T00:00:00Z", voting_close: "2026-05-01T00:00:00Z" } }))).toBe("ok");
+  });
+
   it("its own dates, settings and prizes stand: a file that differs changes none of them and says so in skipped lines", () => {
     const file = JSON.parse(exported("fixtures.json"));
     const changed = { ...file, event: { ...file.event, judging_close: "2026-04-01T00:00:00Z" }, settings: { max_team_size: 9 }, prizes: [{ id: "prz_planted", name: "A prize from a file" }] };

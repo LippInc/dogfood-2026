@@ -235,14 +235,18 @@ export function settingsFromFile(file: Pick<History, "settings">): EventSettings
   return out;
 }
 
-/** The database's own orders on an event's dates, checked before the insert so a file gets a 422 naming the date, not a 500. */
-export function checkDates(event: FileDates, issue: (path: string, message: string) => void) {
+/**
+ * The database's own orders on an event's dates, checked before the insert so a file gets a 422 naming the date, not a
+ * 500; and a published event's vote ended by its publication at the latest, as publishing ends a vote here.
+ */
+export function checkDates(event: FileDates, publishedAt: string | undefined, issue: (path: string, message: string) => void) {
   const t = (s: string | undefined) => (s ? Date.parse(s) : null);
   const open = t(event.submissions_open);
   if (open !== null && open >= t(event.submissions_close)!) issue("submissions_open", "must be before submissions_close");
   const vo = t(event.voting_open);
   const vc = t(event.voting_close);
   if (vo !== null && vc !== null && vo >= vc) issue("voting_open", "must be before voting_close");
+  if (publishedAt && vc !== null && vc > Date.parse(publishedAt)) issue("voting_close", "must be no later than published.at: publishing ends the vote");
 }
 
 // ---------------------------------------------------------------------------

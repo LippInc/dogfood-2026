@@ -162,7 +162,7 @@ export const FixtureSchema = z.looseObject({
   ).max(IMPORT_LIMITS.scores, atMost(IMPORT_LIMITS.scores, "reviews")),
   // Not in the organizers' format: the rest of what an event is, which the portal's own export adds (import-history.ts)
   ...HistoryFields,
-}).superRefine((f, ctx) => checkDates(f.event, (path, message) => ctx.addIssue({ code: "custom", path: ["event", path], message })));
+}).superRefine((f, ctx) => checkDates(f.event, f.published?.at, (path, message) => ctx.addIssue({ code: "custom", path: ["event", path], message })));
 
 export type Fixture = z.infer<typeof FixtureSchema>;
 
