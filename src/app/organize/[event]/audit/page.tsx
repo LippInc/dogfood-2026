@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { HashGlyph, hashGroups } from "@/components/figures/hash-glyph";
-import { chainBrokenText, chainHeading } from "@/components/audit-chain";
+import { chainBrokenText, chainHeading, missingIn } from "@/components/audit-chain";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
@@ -187,16 +187,22 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
   // and below the last one down to row #1.
   const topGap = filtered && visible[0] && lines[0] ? between(lines[0].id + 1, visible[0].id) : null;
   const bottomGap = filtered && reachesGenesis && visible.length ? between(visible.at(-1)!.id, 0) : null;
-  const gapText = (g: string) => `${g}: ${filtered ? "not in this view" : "outside this event"}; the chain runs through ${g.includes(" to ") ? "them" : "it"}`;
+  const topMissing = filtered && visible[0] && lines[0] ? missingIn(chain, lines[0].id + 1, visible[0].id) : null;
+  // rows the chain says are missing (Fig. 01) above the event's newest row
+  const missingAbove = lines[0] ? missingIn(chain, Number.MAX_SAFE_INTEGER, lines[0].id) : null;
+  const bottomMissing = filtered && reachesGenesis && visible.length ? missingIn(chain, visible.at(-1)!.id, 0) : null;
+  // rows the chain says are missing (Fig. 01) are named as such, never as rows the chain runs through
+  const gapText = (g: string, missing: string | null) =>
+    `${g}: ${filtered ? "not in this view" : "outside this event"}${missing ? `, but ${missing}` : `; the chain runs through ${g.includes(" to ") ? "them" : "it"}`}`;
   const href = (v: Show) => `/organize/${event.slug}/audit${v === "all" ? "" : `?show=${v}`}`;
   const chip =
     "group inline-flex items-baseline gap-1.5 rounded-sm border border-edge px-3 py-1 text-13 hover:border-ink aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-surface";
   const count = "tnum text-ink-3 group-aria-[current=page]:text-surface";
   const none = "inline-flex items-baseline gap-1.5 rounded-sm border border-dashed border-rule px-3 py-1 text-13 text-ink-3";
-  const gapRow = (g: string, key: string, down: "dashed" | null = "dashed") => (
+  const gapRow = (g: string, key: string, missing: string | null, down: "dashed" | null = "dashed") => (
     <li key={key} className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 sm:gap-x-4">
       <Rail up="dashed" down={down} node="gap" />
-      <p className="py-2 font-mono text-12 text-ink-3">{gapText(g)}</p>
+      <p className="py-2 font-mono text-12 text-ink-3">{gapText(g, missing)}</p>
     </li>
   );
   return (
@@ -312,11 +318,14 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
                     <span className="label-mono mr-2 text-ink">Head</span>This event&rsquo;s latest row is the newest row of the whole log.
                   </>
                 ) : (
-                  <>The log goes on past this event&rsquo;s latest row: newer rows belong to other events or to the portal.</>
+                  <>
+                    The log goes on past this event&rsquo;s latest row: newer rows belong to other events or to the portal
+                    {missingAbove ? `, but ${missingAbove}` : ""}.
+                  </>
                 )}
               </p>
             </li>
-            {topGap ? gapRow(topGap, "gap-top") : null}
+            {topGap ? gapRow(topGap, "gap-top", topMissing) : null}
             {items.length === 0 ? (
               <li className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 border-t border-rule sm:gap-x-4">
                 <Rail up="dashed" down={reachesGenesis || olderHidden ? "dashed" : null} node="gap" />
@@ -333,6 +342,7 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
               const next = items[i + 1];
               const older = next ? (next.kind === "row" ? next.l : next.rows[0]) : null;
               const gap = older ? between(it.kind === "row" ? it.l.id : it.rows.at(-1)!.id, older.id) : null;
+              const missing = older ? missingIn(chain, it.kind === "row" ? it.l.id : it.rows.at(-1)!.id, older.id) : null;
               const last = i === items.length - 1;
               return [
                 it.kind === "row" ? (
@@ -346,10 +356,10 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
                 ) : (
                   <Fold key={`fold-${it.rows[0].id}`} rows={it.rows} brokenFrom={brokenFrom} />
                 ),
-                gap ? gapRow(gap, `gap-${newest.id}`) : null,
+                gap ? gapRow(gap, `gap-${newest.id}`, missing) : null,
               ];
             })}
-            {bottomGap ? gapRow(bottomGap, "gap-bottom") : null}
+            {bottomGap ? gapRow(bottomGap, "gap-bottom", bottomMissing) : null}
             {reachesGenesis ? (
               <li className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 border-t border-rule sm:gap-x-4">
                 <Rail up={bottomGap || !items.length ? "dashed" : "solid"} down={null} node="genesis" />

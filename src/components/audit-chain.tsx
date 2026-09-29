@@ -16,6 +16,18 @@ export function chainHeading(chain: Chain): string {
   return chain.missing ? `${plural(chain.missing, "row")} missing from the chain` : `Chain broken at row #${chain.brokenAtId}`;
 }
 
+/**
+ * The rows strictly between two shown rows that are missing from the log (a broken chain's `missing` rows), in words,
+ * or null: a gap row says so instead of "the chain runs through them".
+ */
+export function missingIn(chain: Chain, newer: number, older: number): string | null {
+  if (chain.ok || !chain.missing) return null;
+  const from = Math.max(older + 1, chain.brokenAtId);
+  const to = Math.min(newer - 1, chain.brokenAtId + chain.missing - 1);
+  if (from > to) return null;
+  return from === to ? `#${from} is missing from the log (Fig. 01)` : `#${from} to #${to} are missing from the log (Fig. 01)`;
+}
+
 /** What a broken chain means, in words. */
 export function chainBrokenText(chain: Extract<Chain, { ok: false }>): string {
   if (!chain.missing) return `A row was changed outside the app. Treat everything from row #${chain.brokenAtId} on as unverified.`;

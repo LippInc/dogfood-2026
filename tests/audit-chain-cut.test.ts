@@ -5,7 +5,7 @@ import { openDatabase, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { auditCsv } from "@/server/dal/audit-log";
-import { chainBrokenText, chainHeading } from "@/components/audit-chain";
+import { chainBrokenText, chainHeading, missingIn } from "@/components/audit-chain";
 
 // Rows cut off the end of the audit log leave what remains a whole chain, and the next row the app writes links to
 // the last one left. The check counts ids (src/server/audit.ts): AUTOINCREMENT gives the next one each time and keeps
@@ -130,6 +130,14 @@ describe("rows cut off the end of the audit log", () => {
     expect(chainBrokenText({ ok: false, brokenAtId: 1, missing: 1 })).toBe(
       "Row #1 is not in the log, though SQLite gave out its id: removed outside the app, or written past by a tool. Treat everything from row #1 on as unverified.",
     );
+    // a gap row between two shown rows names the missing ones in it, and only those
+    const missing = { ok: false as const, brokenAtId: 336, missing: 3 };
+    expect(missingIn(missing, 339, 326)).toBe("#336 to #338 are missing from the log (Fig. 01)");
+    expect(missingIn(missing, 338, 326)).toBe("#336 to #337 are missing from the log (Fig. 01)");
+    expect(missingIn(missing, 337, 335)).toBe("#336 is missing from the log (Fig. 01)");
+    expect(missingIn(missing, 335, 300)).toBeNull();
+    expect(missingIn({ ok: false, brokenAtId: 7 }, 20, 1)).toBeNull(); // a changed row: nothing is missing
+    expect(missingIn({ ok: true, rows: 9, head: "h" }, 20, 1)).toBeNull();
     expect(chainHeading({ ok: false, brokenAtId: 7 })).toBe("Chain broken at row #7");
     expect(chainBrokenText({ ok: false, brokenAtId: 7 })).toBe("A row was changed outside the app. Treat everything from row #7 on as unverified.");
   });

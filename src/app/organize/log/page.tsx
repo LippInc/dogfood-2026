@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { unauthorized } from "next/navigation";
-import { AuditSentence, between, ChainLegend, ChainRail, ChainSeal, isRefusal } from "@/components/audit-chain";
+import { AuditSentence, between, ChainLegend, ChainRail, ChainSeal, isRefusal, missingIn } from "@/components/audit-chain";
 import { HashGlyph } from "@/components/figures/hash-glyph";
 import { WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, plural } from "@/lib/format";
@@ -14,8 +14,9 @@ export const metadata: Metadata = { title: "Portal log" };
 // chain, then the portal's rows as nodes on the chain's one line, dotted through the rows
 // that belong to events. When every portal row is shown, the line runs on to row #1.
 
-/** "#3" or "#3 to #5 belong to events": the rows between two portal rows. */
-const eventRows = (range: string) => `${range} ${range.includes(" to ") ? "belong to events" : "belongs to an event"}; the chain runs through ${range.includes(" to ") ? "them" : "it"}`;
+/** "#3" or "#3 to #5 belong to events": the rows between two portal rows; rows the chain says are missing are named so. */
+const eventRows = (range: string, missing: string | null) =>
+  `${range} ${range.includes(" to ") ? "belong to events" : "belongs to an event"}${missing ? `, but ${missing}` : `; the chain runs through ${range.includes(" to ") ? "them" : "it"}`}`;
 
 /** The entries no event owns, for the portal's administrators. */
 export default async function PortalLogPage() {
@@ -29,6 +30,8 @@ export default async function PortalLogPage() {
   const belowOldest = allShown && oldest !== undefined && oldest > 1 ? (oldest === 2 ? "#1" : `#1 to #${oldest - 1}`) : null;
   const reachesGenesis = allShown && oldest !== undefined;
   const brokenFrom = chain.ok ? null : chain.brokenAtId;
+  // rows the chain says are missing (Fig. 01) above the newest row shown here
+  const missingAbove = lines[0] ? missingIn(chain, Number.MAX_SAFE_INTEGER, lines[0].id) : null;
   const refused = lines.filter(isRefusal).length;
   return (
     <WorkShell eventName="Dogfood portal" eventHref="/organize" crumb="Portal log" person={actor.name} role="Administrator">
@@ -70,7 +73,10 @@ export default async function PortalLogPage() {
                       <span className="label-mono mr-2 text-ink">Head</span>The portal&rsquo;s latest row is the newest row of the whole log.
                     </>
                   ) : (
-                    <>The log goes on past the portal&rsquo;s latest row: the newer rows belong to events.</>
+                    <>
+                      The log goes on past the portal&rsquo;s latest row: the newer rows belong to events
+                      {missingAbove ? `, but ${missingAbove}` : ""}.
+                    </>
                   )}
                 </p>
               </li>
@@ -105,7 +111,7 @@ export default async function PortalLogPage() {
                   gap ? (
                     <li key={`gap-${l.id}`} className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 sm:gap-x-4">
                       <ChainRail up="dashed" down="dashed" node="gap" />
-                      <p className="py-2 font-mono text-12 text-ink-3">{eventRows(gap)}</p>
+                      <p className="py-2 font-mono text-12 text-ink-3">{eventRows(gap, missingIn(chain, l.id, older!.id))}</p>
                     </li>
                   ) : null,
                 ];
@@ -113,7 +119,7 @@ export default async function PortalLogPage() {
               {belowOldest ? (
                 <li className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-3 sm:gap-x-4">
                   <ChainRail up="dashed" down="dashed" node="gap" />
-                  <p className="py-2 font-mono text-12 text-ink-3">{eventRows(belowOldest)}</p>
+                  <p className="py-2 font-mono text-12 text-ink-3">{eventRows(belowOldest, missingIn(chain, oldest!, 0))}</p>
                 </li>
               ) : null}
               {reachesGenesis ? (
