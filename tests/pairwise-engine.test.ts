@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   fitPairwise,
@@ -192,14 +194,33 @@ describe("binary insertion", () => {
 
   it("ignores a pick that is not the question asked, and one about a project no longer assigned; undo is dropping the last pick", () => {
     const q = replayInsertion("j1", ["a", "b", "c"], []).current!;
-    const wrong: PickRecord = { left: q.right, right: q.left, newId: q.newId, outcome: "left" };
-    expect(replayInsertion("j1", ["a", "b", "c"], [wrong])).toMatchObject({ ignored: 1, placed: 1, current: q });
+    const first: PickRecord = { left: q.left, right: q.right, newId: q.newId, outcome: "left" };
+    const s1 = replayInsertion("j1", ["a", "b", "c"], [first]);
+    const q2 = s1.current!;
+    // the right project, asked against the wrong one of the list (not the middle of its range)
+    const offMiddle = s1.list.find((id) => id !== q2.against)!;
+    const wrong: PickRecord = { left: q2.newId, right: offMiddle, newId: q2.newId, outcome: "left" };
+    expect(replayInsertion("j1", ["a", "b", "c"], [first, wrong])).toMatchObject({ ignored: 1, placed: 2, current: q2 });
     const gone: PickRecord = { left: "x", right: "a", newId: "x", outcome: "left" };
     expect(replayInsertion("j1", ["a", "b", "c"], [gone]).ignored).toBe(1);
     const answered: PickRecord = { left: q.left, right: q.right, newId: q.newId, outcome: "left" };
     const after = replayInsertion("j1", ["a", "b", "c"], [answered]);
     expect(after.placed).toBe(2);
     expect(replayInsertion("j1", ["a", "b", "c"], [answered].slice(0, 0)).current).toEqual(q);
+  });
+
+  it("counts an answer to the same question shown the other way round, reading its winner by the sides it was shown with", () => {
+    // answers stored under an earlier side rule: every question's sides and its answer mirrored
+    const truthOrder = ["d", "b", "f", "a", "e", "c"];
+    const queue = ["a", "b", "c", "d", "e", "f"];
+    const { picks } = run(truthOrder, queue);
+    const flip = { left: "right", right: "left", tie: "tie" } as const;
+    const mirrored = picks.map((p) => ({ left: p.right, right: p.left, newId: p.newId, outcome: flip[p.outcome] }));
+    expect(replayInsertion("j1", queue, mirrored)).toMatchObject({ list: truthOrder, placed: 6, current: null, ignored: 0 });
+    // a mirrored answer read by the question's sides instead would place the new project on the wrong side
+    const q = replayInsertion("j1", ["a", "b"], []).current!;
+    const newWins: PickRecord = { left: q.right, right: q.left, newId: q.newId, outcome: q.right === q.newId ? "left" : "right" };
+    expect(replayInsertion("j1", ["a", "b"], [newWins]).list).toEqual([q.newId, q.against]);
   });
 
   it("does not stay stuck on a project whose pick no longer fits: the judge's later answers still count", () => {
@@ -225,6 +246,42 @@ describe("binary insertion", () => {
     for (let i = 0; i < 1000; i++) if (newOnLeft(`judge${i % 17}`, `prj_${i}`, `prj_${i + 1}`)) left++;
     expect(left).toBeGreaterThan(400);
     expect(left).toBeLessThan(600);
+  });
+
+  it("draws each question's side from a seeded coin, not a bit per id: on the fixture's ids, balanced and independent across judges and pairs", () => {
+    const fx = JSON.parse(fs.readFileSync(path.join(process.cwd(), "fixtures.json"), "utf8")) as { judges: { id: string }[]; projects: { id: string }[] };
+    const judges = fx.judges.map((j) => j.id);
+    const projects = fx.projects.map((p) => p.id);
+    const bit = (j: string, a: string, b: string) => Number(newOnLeft(j, a, b));
+    let left = 0;
+    let n = 0;
+    // A side that is an XOR of one bit per id (the parity of the hash's lowest bit) makes all
+    // three of these always 0; a coin makes each 1 about half the time.
+    let quad = 0;
+    let crossJudge = 0;
+    let swapped = 0;
+    let m = 0;
+    for (const j of judges) {
+      for (let i = 0; i + 3 < projects.length; i++) {
+        const [a, b, c, d] = [projects[i]!, projects[i + 1]!, projects[i + 2]!, projects[i + 3]!];
+        left += bit(j, a, b);
+        n++;
+        quad += bit(j, a, c) ^ bit(j, a, d) ^ bit(j, b, c) ^ bit(j, b, d);
+        swapped += bit(j, a, b) ^ bit(j, b, a) ^ 1; // 1 when the pair asked the other way round keeps the new project on the same side
+        const k = judges[(judges.indexOf(j) + 1) % judges.length]!;
+        crossJudge += bit(j, a, b) ^ bit(k, a, b) ^ bit(j, c, d) ^ bit(k, c, d);
+        m++;
+      }
+    }
+    for (const [count, of] of [
+      [left, n],
+      [quad, m],
+      [swapped, m],
+      [crossJudge, m],
+    ] as const) {
+      expect(count / of).toBeGreaterThan(0.4);
+      expect(count / of).toBeLessThan(0.6);
+    }
   });
 });
 

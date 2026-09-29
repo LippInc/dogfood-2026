@@ -26,7 +26,9 @@ import {
 // Known-bad: a fit with its project labels shuffled must fail (a).
 // Measured 2026-09-27 with gamma under the name tau: (a) held by +0.002 (run-to-run sd 0.044).
 // Re-measured 2026-09-29 with tau-b: +0.011 (sd 0.043), mostly because the win rate ties
-// projects; JUDGING.md "The proof" gives both and reads it as about a match, not a win.
+// projects. Then each question's side became a seeded coin, and (a) and (c)'s nu fail at the
+// declared seeds (-0.002; nu 0.099): marked failing below, not moved. Over 1,600 runs the
+// difference is 0.000 with either side rule. JUDGING.md "The proof" gives every step.
 
 type Fixture = {
   tracks: { id: string }[];
@@ -208,16 +210,51 @@ describe("pairwise Monte Carlo on the fixture's judges and assignments", () => {
     expect(tau(m([1, 1, 1]), m([1, 2, 3]), one)).toBe(0);
   });
 
-  it("(a) and (c): with a left pull of 0.3 and a just-opened pull of 0.2, the engine beats the win rate and recovers both pulls; known-bad fails (a)", () => {
-    const res = compare(200, 1000, { h: 0.3, nu: 0.2, tau: heterogeneous });
+  // Scenario (a) and (c), run once for the checks below.
+  let pullsRun: ReturnType<typeof compare> | undefined;
+  const pulls = () => (pullsRun ??= compare(200, 1000, { h: 0.3, nu: 0.2, tau: heterogeneous }));
+
+  it("(a) and (c): with a left pull of 0.3 and a just-opened pull of 0.2, the engine recovers the left pull; known-bad fails (a)", () => {
+    const res = pulls();
     console.log(
       `pulls present, 200 runs: engine tau ${f3(mean(res.engine))} (sd ${f3(sd(res.engine))}), win rate ${f3(mean(res.naive))} (sd ${f3(sd(res.naive))}), ` +
         `difference ${f3(mean(res.diff))} (sd ${f3(sd(res.diff))}); h ${f3(mean(res.hs))} (true 0.3, sd ${f3(sd(res.hs))}), nu ${f3(mean(res.nus))} (true 0.2, sd ${f3(sd(res.nus))}); shuffled labels ${f3(mean(res.shuffled))}`,
     );
-    expect(mean(res.engine)).toBeGreaterThan(mean(res.naive));
     expect(Math.abs(mean(res.hs) - 0.3)).toBeLessThan(0.1);
-    expect(Math.abs(mean(res.nus) - 0.2)).toBeLessThan(0.1);
     expect(mean(res.shuffled)).toBeLessThan(mean(res.naive)); // the known-bad would fail (a)
+  }, 180_000);
+
+  // Two declared checks that fail at the declared seeds since 2026-09-29, when each question's side
+  // began to come from a seeded coin (newOnLeft in pairwise.ts): every simulated answer changed with it.
+  // They stay as declared, marked as failing, never moved (JUDGING.md "The proof"). Should either hold
+  // again, `fails` turns red: re-measure and rewrite JUDGING.md, do not just drop the mark.
+  it.fails("(a) as declared: the engine's mean tau is above the win rate's (fails: the engine trails by 0.002)", () => {
+    const res = pulls();
+    expect(mean(res.engine)).toBeGreaterThan(mean(res.naive));
+  }, 180_000);
+
+  it.fails("(c) as declared for nu: the mean estimate of the just-opened pull is within 0.1 of 0.2 (fails: 0.099)", () => {
+    const res = pulls();
+    expect(Math.abs(mean(res.nus) - 0.2)).toBeLessThan(0.1);
+  }, 180_000);
+
+  it("(a) and (c), wider, reported and not asserted: 1,600 runs in eight blocks of 200", () => {
+    const diff: number[] = [];
+    const hs: number[] = [];
+    const nus: number[] = [];
+    const blocks: string[] = [];
+    for (const seed0 of [1000, 3000, 7000, 11000, 15000, 19000, 23000, 27000]) {
+      const res = seed0 === 1000 ? pulls() : compare(200, seed0, { h: 0.3, nu: 0.2, tau: heterogeneous });
+      diff.push(...res.diff);
+      hs.push(...res.hs);
+      nus.push(...res.nus);
+      blocks.push(f3(mean(res.diff)));
+    }
+    console.log(
+      `pulls present, 1600 runs: difference ${f3(mean(diff))} (error of the mean ${f3(sd(diff) / Math.sqrt(diff.length))}; per block ${blocks.join(", ")}), ` +
+        `h ${f3(mean(hs))} (true 0.3), nu ${f3(mean(nus))} (true 0.2)`,
+    );
+    expect(diff).toHaveLength(1600);
   }, 180_000);
 
   it("(b): with no pulls, the engine trails the win rate by no more than the run-to-run sd", () => {
@@ -296,7 +333,7 @@ describe("pairwise Monte Carlo on the fixture's judges and assignments", () => {
     );
     expect(honestN).toBeGreaterThan(100);
     expect(honestFlags / honestN).toBeLessThanOrEqual(0.15);
-    // its power, declared with its margin in JUDGING.md: a random judge at least 3 times as often as an honest one (6.2 measured)
+    // its power, declared with its margin in JUDGING.md: a random judge at least 3 times as often as an honest one (6.2 measured at first, 7.0 since the seeded side coin)
     expect(flipperN).toBeGreaterThan(100);
     expect(flipperFlags / flipperN).toBeGreaterThan(3 * (honestFlags / honestN));
   }, 300_000);

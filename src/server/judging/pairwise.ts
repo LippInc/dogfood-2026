@@ -1,4 +1,5 @@
 import "server-only";
+import { seededRng } from "./random";
 
 // Pairwise mode (JUDGING.md "Pairwise mode"). A judge never
 // gives a score: they place each project they were assigned into their own ranked list
@@ -471,14 +472,22 @@ export function judgeAgreement(tracks: { trackId: string; projectIds: string[] }
   return { judgeId, picks: mine.length, ties, weight: W, share: A / W, z: (A - 0.5 * W) / Math.sqrt(V) };
 }
 
-/** Stable left/right for a question: the same judge, project and opponent always get the same sides. */
+/**
+ * Stable left/right for a question: the same judge, project and opponent always get the
+ * same sides. A seeded coin: the question's text hashed (FNV-1a, all 32 bits) seeds the
+ * portal's one generator (random.ts, as the assignment runs and the signal check use it),
+ * and its first draw is the coin. The first version kept only the hash's lowest bit, which
+ * is the parity of how many odd character codes the three ids hold: every question's side
+ * was an XOR of one bit per id, the same for a pair asked either way round and shared by
+ * every judge whose id had the same parity (a judge's-eye reading, 2026-09-29; tested).
+ */
 export function newOnLeft(judgeId: string, newId: string, against: string): boolean {
   let h = 0x811c9dc5;
   for (const ch of `${judgeId}|${newId}|${against}`) {
     h ^= ch.charCodeAt(0);
     h = Math.imul(h, 0x01000193) >>> 0;
   }
-  return (h & 1) === 1;
+  return seededRng(h)() < 0.5;
 }
 
 export type PickRecord = { left: string; right: string; newId: string; outcome: "left" | "right" | "tie" };
@@ -548,7 +557,10 @@ export function replayInsertion(judgeId: string, queue: string[], picks: PickRec
       opened.add(p.newId);
     }
     const q = expected()!;
-    if (p.newId !== q.newId || p.left !== q.left || p.right !== q.right) {
+    // The same question shown the other way round still counts, read by the sides it was shown
+    // with: answers given before the side rule changed (2026-09-29) keep their place.
+    const sameQuestion = (p.left === q.left && p.right === q.right) || (p.left === q.right && p.right === q.left);
+    if (p.newId !== q.newId || !sameQuestion) {
       ignored++;
       // A pick that opened its project and does not fit (the list it was asked against has changed) must not
       // pin the replay to that project, or the judge's later answers on other projects would all be dropped.
@@ -561,7 +573,7 @@ export function replayInsertion(judgeId: string, queue: string[], picks: PickRec
     picksFor.add(p.newId);
     const cur: { id: string; lo: number; hi: number } = inserting!;
     const mid = Math.floor((cur.lo + cur.hi) / 2);
-    const newWon = p.outcome === "tie" ? null : (p.outcome === "left") === (q.left === cur.id);
+    const newWon = p.outcome === "tie" ? null : (p.outcome === "left") === (p.left === cur.id);
     if (newWon === null) place(mid + 1);
     else {
       if (newWon) cur.hi = mid;
