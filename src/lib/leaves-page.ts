@@ -2,8 +2,9 @@
  * Whether a click on a link takes this tab to another page, so a page holding unsaved work
  * should ask first. A click that opens a new tab or window (a modifier key, a middle click,
  * target="_blank"), downloads a file, was already handled by someone else, or only moves to
- * a place on the same page leaves the page where it is. A link to another site is left to
- * the browser's own leave question (beforeunload), which a full page load always asks.
+ * a place on the same page, or points at the page itself, leaves the page where it is. A link
+ * to another site is left to the browser's own leave question (beforeunload), which a full
+ * page load always asks.
  */
 export type LinkClick = {
   href: string | null;
@@ -28,7 +29,11 @@ export function leavesPage(click: LinkClick, current: string): boolean {
   }
   if (to.protocol !== "http:" && to.protocol !== "https:") return false; // mailto:, javascript:, ...
   if (to.origin !== from.origin) return false;
-  // only the #fragment changes: the page stays
-  if (to.pathname === from.pathname && to.search === from.search && to.hash !== "") return false;
+  if (to.pathname === from.pathname && to.search === from.search) {
+    // only the #fragment changes: the page stays
+    if (to.hash !== "") return false;
+    // a link to the page itself (the shell's section link for the page you are on) goes nowhere
+    if (from.hash === "") return false;
+  }
   return true;
 }

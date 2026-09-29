@@ -35,4 +35,19 @@ describe("leavesPage", () => {
     expect(leavesPage(click({ href: "#ballot-title" }), here)).toBe(false);
     expect(leavesPage(click({ href: null }), here)).toBe(false);
   });
+
+  // Follow-up item 2: the shell's own "Vote" section link, clicked on the vote page, asked
+  // "Leave this page anyway?" although the page stays where it is.
+  it("a link to the page itself (same path, query and #fragment) does not leave", () => {
+    expect(leavesPage(click({ href: "/events/dogfood/vote" }), here)).toBe(false);
+    expect(leavesPage(click({ href: "http://localhost:8080/events/dogfood/vote" }), here)).toBe(false);
+    expect(leavesPage(click({ href: "/events/dogfood/vote?track=ai" }), `${here}?track=ai`)).toBe(false);
+    expect(leavesPage(click({ href: "/events/dogfood/vote#ballot-title" }), `${here}#ballot-title`)).toBe(false);
+  });
+
+  it("positive control: the same path with another query, or without the #fragment the page is on, still leaves", () => {
+    expect(leavesPage(click({ href: "/events/dogfood/vote?track=ai" }), here)).toBe(true);
+    expect(leavesPage(click({ href: "/events/dogfood/vote" }), `${here}?track=ai`)).toBe(true);
+    expect(leavesPage(click({ href: "/events/dogfood/vote" }), `${here}#ballot-title`)).toBe(true);
+  });
 });
