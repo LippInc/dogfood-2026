@@ -21,6 +21,7 @@ import {
 } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
+import { DEFAULT_MAX_TEAM_SIZE } from "../project-limits";
 import { discardUpload } from "../uploads";
 import { newId, newSecret } from "../util";
 import { auditOfTarget, type AuditLine } from "./audit-log";
@@ -31,7 +32,6 @@ import { issuesOf, parse } from "./parse";
 // captain), the captain shares /join/<code>, anyone signed in who is not yet on a
 // team in that event joins with one click. Only while submissions are open.
 
-const DEFAULT_MAX_TEAM_SIZE = 4;
 
 export const TeamName = z.object({ name: z.string().trim().min(1, "a team name is required").max(60) });
 

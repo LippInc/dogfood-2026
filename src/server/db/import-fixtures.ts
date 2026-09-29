@@ -2,11 +2,11 @@ import "server-only";
 // Idempotent, non-destructive import of fixtures.json: every insert is
 // INSERT OR IGNORE, so an organizer's later edits survive the next boot's import.
 import fs from "node:fs";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./client";
 import { appendAudit } from "../audit";
-import { MAX_GALLERY_IMAGES, MAX_TAGS, MAX_TAG_LENGTH } from "../project-limits";
+import { DEFAULT_MAX_TEAM_SIZE, MAX_GALLERY_IMAGES, MAX_TAGS, MAX_TAG_LENGTH } from "../project-limits";
 import { BUILTIN_CRITERIA, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
 import { ConflictError, ValidationError } from "../errors";
 import { allowedModes, FIELD_MODES, PROJECT_FIELDS } from "../../lib/project-fields";
@@ -552,6 +552,13 @@ export function importFixtures(
       }
     }
 
+    // What this import adds that the forms' team rules govern, checked below for an event that was here already
+    const added = {
+      members: [] as { file: string; team: string; user: string; email: string }[],
+      projects: [] as { file: string; id: string; team: string }[],
+      assignments: [] as { file: string; judge: string; project: string }[],
+    };
+
     // Teams
     const teamIds = new Set<string>();
     const teamMemberEmails = new Map<string, Set<string>>();
@@ -618,21 +625,20 @@ export function importFixtures(
           });
           return;
         }
-        bump(
-          "teamMembers",
-          insertOnce(
-            tx
-              .insert(teamMembers)
-              .values({
-                eventId,
-                teamId: teamOf.get(t.id)!,
-                userId,
-                role: index === 0 ? "captain" : "member",
-                joinedAt: now,
-              })
-              .onConflictDoNothing(),
-          ),
+        const joined = insertOnce(
+          tx
+            .insert(teamMembers)
+            .values({
+              eventId,
+              teamId: teamOf.get(t.id)!,
+              userId,
+              role: index === 0 ? "captain" : "member",
+              joinedAt: now,
+            })
+            .onConflictDoNothing(),
         );
+        bump("teamMembers", joined);
+        if (joined) added.members.push({ file: t.id, team: teamOf.get(t.id)!, user: userId, email });
       });
     }
 
@@ -686,6 +692,7 @@ export function importFixtures(
           .onConflictDoNothing(),
       );
       bump("projects", created);
+      if (created) added.projects.push({ file: p.id, id: projectOf.get(p.id)!, team: teamOf.get(p.team)! });
       importedProjects.add(p.id);
       // Answers are the team's words: they come in only with a project this import creates. A project that is here
       // already keeps its own (an answer the file gives the same counts as present); a file never writes into it.
@@ -797,7 +804,10 @@ export function importFixtures(
           .onConflictDoNothing(),
       );
       bump("assignments", newAssignment);
-      if (newAssignment) broughtAny = true;
+      if (newAssignment) {
+        broughtAny = true;
+        added.assignments.push({ file: `${s.judge} of ${s.project}`, judge: accountOf.get(s.judge)!, project: projectId });
+      }
 
       const memberEmails = teamMemberEmails.get(project.team) ?? new Set<string>();
       const conflicted = memberEmails.has(judgeEmail);
@@ -846,6 +856,50 @@ export function importFixtures(
         }
       }
       if (broughtAny) report.added.reviews.push(brought);
+    }
+
+    // An event that was here keeps the rules its forms keep (the team pages, the project form, hand assignment): a
+    // team never grows past the event's size, a team has one project, and a judge never gets a project whose team
+    // they are on, from either side. A file that would break one is refused whole, naming its row. A new event's
+    // file is the organizers' data as given: its conflicted reviews come in flagged (scores.conflicted).
+    if (here) {
+      const max = tx.select({ settings: events.settings }).from(events).where(eq(events.id, eventId)).get()!.settings.maxTeamSize ?? DEFAULT_MAX_TEAM_SIZE;
+      const onTeam = (userId: string, teamId: string) =>
+        tx.select({ u: teamMembers.userId }).from(teamMembers).where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId))).get() !== undefined;
+      for (const [teamId, file] of new Map(added.members.map((m) => [m.team, m.file]))) {
+        const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, teamId)).get()!.n;
+        if (size > max) {
+          throw new ConflictError("team_full", `The file's team ${file} would have ${size} members; this event allows ${max} (Settings). Nothing was imported.`);
+        }
+      }
+      for (const p of added.projects) {
+        const other = tx
+          .select({ id: projects.id })
+          .from(projects)
+          .where(and(eq(projects.teamId, p.team), ne(projects.id, p.id)))
+          .orderBy(asc(projects.createdAt), asc(projects.id))
+          .get();
+        if (other) {
+          throw new ConflictError("team_has_project", `The file's project ${p.file}: its team ${p.team} already has project ${other.id}, and a team has one project. Nothing was imported.`);
+        }
+      }
+      for (const a of added.assignments) {
+        const team = tx.select({ team: projects.teamId }).from(projects).where(eq(projects.id, a.project)).get()!.team;
+        if (onTeam(a.judge, team)) {
+          throw new ConflictError("conflict_of_interest", `The file's review by ${a.file}: this judge is on the project's team. Nothing was imported.`);
+        }
+      }
+      for (const m of added.members) {
+        const judging = tx
+          .select({ a: assignments.id })
+          .from(assignments)
+          .innerJoin(projects, eq(projects.id, assignments.projectId))
+          .where(and(eq(projects.teamId, m.team), eq(assignments.judgeUserId, m.user), ne(assignments.status, "recused")))
+          .get();
+        if (judging) {
+          throw new ConflictError("conflict_of_interest", `The file's team ${m.file}: ${m.email} is assigned to judge this team's project. Reassign that review first. Nothing was imported.`);
+        }
+      }
     }
 
     // One fixture_imports row per call, even when everything was already present
