@@ -394,6 +394,24 @@ describe("settling a close call", () => {
     expect(() => h.sqlite.prepare("DELETE FROM normalization_runs WHERE event_id = 'evt_cc'").run()).toThrow();
   });
 
+  it("the database refuses a direct write to the close-call choices once results are published (trigger events_close_calls_final)", () => {
+    settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "judges", winnerId: "prj_a2", reason: "The judges deliberated." });
+    const write = (settings: unknown) => h.sqlite.prepare("UPDATE events SET settings = ? WHERE id = 'evt_cc'").run(JSON.stringify(settings));
+    const now = () => JSON.parse((h.sqlite.prepare("SELECT settings FROM events WHERE id = 'evt_cc'").get() as { settings: string }).settings);
+    // before publishing the key is the app's to change (positive control)
+    expect(() => write({ ...now(), closeCalls: now().closeCalls })).not.toThrow();
+    publishResults(organizer(), "evt_cc");
+    const published = now();
+    expect(() => write({ ...published, closeCalls: [{ ...published.closeCalls[0], winnerId: "prj_a1" }] })).toThrow(/close-call choices are final/);
+    const { closeCalls: _gone, ...without } = published;
+    expect(() => write(without)).toThrow(/close-call choices are final/);
+    expect(() => write({ ...published, closeCalls: [] })).toThrow(/close-call choices are final/);
+    expect(() => h.sqlite.prepare("UPDATE events SET settings = json_set(settings, '$.closeCalls[0].reason', 'Rewritten.') WHERE id = 'evt_cc'").run()).toThrow(/close-call choices are final/);
+    // a settings write that leaves the choices as they are still passes (positive control)
+    expect(() => write({ ...published, skin: published.skin })).not.toThrow();
+    expect(now().closeCalls).toEqual(published.closeCalls);
+  });
+
   it("a judges' decision on scores without a signal is allowed and published, though never required", () => {
     const calls = closeCallsOf(h.db, eventOf("evt_01"));
     const c = calls[0]!;

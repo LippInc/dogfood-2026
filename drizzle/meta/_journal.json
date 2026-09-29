@@ -162,6 +162,13 @@
       "when": 1790688127555,
       "tag": "0022_event_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790688128555,
+      "tag": "0023_close_calls_final",
+      "breakpoints": true
     }
   ]
 }

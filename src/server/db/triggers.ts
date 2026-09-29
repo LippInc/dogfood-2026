@@ -108,6 +108,14 @@ export const TRIGGERS: Record<string, string> = {
   BEGIN
     SELECT RAISE(ABORT, 'events: the tie-break is final once results are published');
   END`,
+  // the close-call choices (JUDGING.md, "Close calls and the judges' decision") are final with the results they decided
+  events_close_calls_final: `
+  BEFORE UPDATE OF settings ON events
+  WHEN OLD.results_published_at IS NOT NULL
+    AND json_extract(NEW.settings, '$.closeCalls') IS NOT json_extract(OLD.settings, '$.closeCalls')
+  BEGIN
+    SELECT RAISE(ABORT, 'events: the close-call choices are final once results are published');
+  END`,
   audit_log_no_update: `
   BEFORE UPDATE ON audit_log
   BEGIN
