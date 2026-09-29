@@ -14,6 +14,11 @@ comment moderation, the rate limits on comments, link entries, ballots and
 sign-ins, and the cap on audited refusals. JSON answers are checked to be JSON,
 so an error page never passes for a missing field.
 
+Each result line starts with its check's number (A1, B10, C7, ...), the name
+the README uses. Some checks run out of number order because of what they
+change (B13 to B15 among B6 to B10; C10 and C9 before C4, C11 before C5):
+find them by number.
+
 This check WRITES data: votes, comments and the event's voting settings. Run it
 on a fresh instance, after run.py, and never on one whose data you care about.
 """
@@ -96,8 +101,10 @@ class Person:
 class Check:
     """One assertion group. Collects its own failure detail as it runs."""
 
-    def __init__(self, section, label):
-        self.section = section
+    def __init__(self, number, label):
+        # the number the docs use (README, isolation-report.txt), e.g. "B10"; its letter is the section
+        self.number = number
+        self.section = number.rstrip("0123456789")
         self.label = label
         self.ok = True
         self.skipped = False
@@ -183,7 +190,7 @@ def run_checks(cfg):
     # ======================= Section A: role isolation =======================
 
     # A1 -- whose scores each role may read
-    c = Check("A", "judge scores by role")
+    c = Check("A1", "judge scores by role")
     scores_url = u("/api/judge/scores")
     s, body, _ = visitor.request("GET", scores_url)
     expect(c, s == 401, visitor, "GET", scores_url, s, "401")
@@ -221,7 +228,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # A2 -- asking for judge_a's scores by id
-    c = Check("A", "peer scores refused, never handed out")
+    c = Check("A2", "peer scores refused, never handed out")
     peer_url = u(f"/api/judge/scores?judge={judge_a_id}")
     s, body, _ = judge_a.request("GET", peer_url)
     expect(c, s == 200, judge_a, "GET", peer_url, s, "200 (asking for own id)")
@@ -240,7 +247,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # A3 -- saving a review of one of judge_a's assignments
-    c = Check("A", "review save honours the assignment's judge")
+    c = Check("A3", "review save honours the assignment's judge")
     assignment = judge_a_ids[0] if judge_a_ids else "none"
     review_url = u(f"/api/judge/reviews/{assignment}")
     s, body, _ = judge_a.request("PUT", review_url, {})
@@ -262,7 +269,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # A4 -- the aggregate exports
-    c = Check("A", "score exports are organizer-only")
+    c = Check("A4", "score exports are organizer-only")
     for name in ("scores.csv", "normalized.csv"):
         url = u(f"/api/events/{EVENT_ID}/export/{name}")
         s, body, _ = organizer.request("GET", url)
@@ -278,7 +285,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # A5 -- the audit log, CSV and page
-    c = Check("A", "audit log is organizer-only")
+    c = Check("A5", "audit log is organizer-only")
     audit_url = u(f"/api/events/{EVENT_ID}/export/audit.csv")
     s, body, _ = organizer.request("GET", audit_url)
     first = body.splitlines()[0] if body.splitlines() else ""
@@ -300,7 +307,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # A6 -- the judge console page
-    c = Check("A", "judge console is the event's judges' page")
+    c = Check("A6", "judge console is the event's judges' page")
     console_url = u(f"/judge/{EVENT_SLUG}")
     s, _, _ = judge_a.request("GET", console_url)
     expect(c, s == 200, judge_a, "GET", console_url, s, "200")
@@ -314,7 +321,7 @@ def run_checks(cfg):
 
     # A7 -- fixing the judging set-up is the organizers' alone. Refusals only, plus
     # organizer requests that change nothing, so the later sections see the same event.
-    c = Check("A", "judging set-up fixes are organizer-only")
+    c = Check("A7", "judging set-up fixes are organizer-only")
     ranking_url = u(f"/api/events/{EVENT_ID}/judge-ranking")
     for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403), (judge_b, 403)):
         s, _, _ = person.request("PUT", ranking_url, {"show": False})
@@ -363,7 +370,7 @@ def run_checks(cfg):
     # ================= Section B: T3 community voting & comments =================
 
     # B1 -- open a window as the organizer, and only as the organizer
-    c = Check("B", "voting settings are organizer-only")
+    c = Check("B1", "voting settings are organizer-only")
     settings = {"votingOpenAt": open_soon, "votingCloseAt": close_soon,
                 "modes": ["account", "listed", "link"], "votesPerVoter": 3}
     settings_url = u(f"/api/events/{EVENT_ID}/voting")
@@ -374,7 +381,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B2 -- while the window is open the count is for organizers only
-    c = Check("B", "tally hidden from everyone but organizers while voting is open")
+    c = Check("B2", "tally hidden from everyone but organizers while voting is open")
     community_url = u(f"/api/events/{EVENT_ID}/community")
     for person in (visitor, participant, organizer):
         s, body, headers = person.request("GET", community_url)
@@ -395,7 +402,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B3 -- the account ballot
-    c = Check("B", "ballot saves obey the voter and the limit")
+    c = Check("B3", "ballot saves obey the voter and the limit")
     ballot_url = u(f"/api/events/{EVENT_ID}/ballot")
     s, _, _ = visitor.request("PUT", ballot_url, {"projectIds": ["prj_01"]})
     expect(c, s == 401, visitor, "PUT", ballot_url, s, "401 without a session or link")
@@ -416,7 +423,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B4 -- the open link: one code in, two browsers out, different shuffles
-    c = Check("B", "open link voters each get their own ballot")
+    c = Check("B4", "open link voters each get their own ballot")
     link_url = u(f"/api/events/{EVENT_ID}/voting/link")
     s, body, _ = organizer.request("POST", link_url)
     code = link_a_id = link_b_id = None
@@ -457,7 +464,7 @@ def run_checks(cfg):
 
     # B5 -- the organizer sees the two link browsers as one suspected group, and the live count,
     # with the open link's ballots in their own column; whether they count is fixed by now
-    c = Check("B", "duplicate voters flagged, and the count live, for the organizer only; the open link counted apart")
+    c = Check("B5", "duplicate voters flagged, and the count live, for the organizer only; the open link counted apart")
     s, body, _ = organizer.request("GET", settings_url)
     found = False
     if expect(c, s == 200, organizer, "GET", settings_url, s, "200"):
@@ -493,7 +500,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B6 -- the voter list: a personal link in, a 'listed' ballot
-    c = Check("B", "listed voters enter by personal link")
+    c = Check("B6", "listed voters enter by personal link")
     voters_url = u(f"/api/events/{EVENT_ID}/voting/voters")
     email = f"iso-{secrets.token_hex(4)}@example.org"
     s, body, _ = organizer.request("POST", voters_url, {"emails": email})
@@ -518,7 +525,7 @@ def run_checks(cfg):
 
     # B13 -- every way in shuffles: account, listed and open-link ballots each get their voter's own order, the
     # same order every time that voter looks, and none of them the gallery's order a visitor with no ballot sees
-    c = Check("B", "ballots shuffled per voter for all three ways in, and stable for each voter")
+    c = Check("B13", "ballots shuffled per voter for all three ways in, and stable for each voter")
     s, body, headers = visitor.request("GET", ballot_url)
     gallery_order = []
     if expect(c, s == 200, visitor, "GET", ballot_url, s, "200"):
@@ -556,7 +563,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B7 -- set the first link browser's ballot aside
-    c = Check("B", "a voided ballot stops counting and stops voting")
+    c = Check("B7", "a voided ballot stops counting and stops voting")
     void_url = u(f"/api/events/{EVENT_ID}/voting/voters/{link_a_id}/void")
     s, body, _ = organizer.request("POST", void_url, {"reason": "isolation check: same browser"})
     expect(c, s == 200, organizer, "POST", void_url, s, "200")
@@ -569,7 +576,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B8 -- comments and moderation
-    c = Check("B", "comments: post, hide, the reason stays, unhide, and only the author deletes")
+    c = Check("B8", "comments: post, hide, the reason stays, unhide, and only the author deletes")
     comments_url = u("/api/projects/prj_01/comments")
     s, _, _ = visitor.request("POST", comments_url, {"body": "isolation check: no session"})
     expect(c, s == 401, visitor, "POST", comments_url, s, "401")
@@ -621,7 +628,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B9 -- the rate limits bite, say when to come back, and ignore the address a client claims
-    c = Check("B", "rate limits answer 429 with retry-after, whatever address a client claims")
+    c = Check("B9", "rate limits answer 429 with retry-after, whatever address a client claims")
     saw_429 = retry = False
     # comments allow 30 per account in 10 minutes (the participant has posted one above), and the bucket gains one
     # back every 20 seconds while this loop runs: a slow client (Python on Windows can take 2 s a request to
@@ -655,7 +662,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B14 -- the ballot and password sign-in limits bite too, whatever address a client claims
-    c = Check("B", "ballot saves and password sign-ins are rate limited, whatever address a client claims")
+    c = Check("B14", "ballot saves and password sign-ins are rate limited, whatever address a client claims")
     # ballot saves: 30 per voter a minute, one back every 2 seconds. The participant saves the picks it already has
     # (the count does not move), then one save with other picks must be refused and change nothing. 200 tries leave
     # room for a slow portal (at 1.5 s a save the bucket still runs dry after about 120)
@@ -712,7 +719,7 @@ def run_checks(cfg):
 
     # B15 -- refusals are audited one row each, up to 60 per person in 10 minutes; past that the answer is 429 and
     # nothing is written, so one account cannot fill the log. A fresh account, so the checker sessions keep their room.
-    c = Check("B", "refusals past 60 in 10 minutes answer 429 and write no audit row")
+    c = Check("B15", "refusals past 60 in 10 minutes answer 429 and write no audit row")
     capper = Person("a fresh account collecting refusals")
     cap_name = f"Iso Refusal Probe {secrets.token_hex(3)}"
     signup_url = u("/api/auth/sign-up")
@@ -748,7 +755,7 @@ def run_checks(cfg):
 
     # B10 -- close the window: the tally appears, the voided pick does not count, and the
     # open link's ballot shows apart without adding to the count
-    c = Check("B", "closed tally counts every ballot but the voided one, the open link's apart")
+    c = Check("B10", "closed tally counts every ballot but the voided one, the open link's apart")
     closing = {"votingOpenAt": open_past, "votingCloseAt": close_past,
                "modes": ["account", "listed", "link"], "votesPerVoter": 3}
     s, _, _ = organizer.request("PUT", settings_url, closing)
@@ -777,7 +784,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B11 -- results stay hidden until the organizers publish them
-    c = Check("B", "results page hides unpublished scores")
+    c = Check("B11", "results page hides unpublished scores")
     event_url = u(f"/api/events/{EVENT_ID}/export/event.json")
     s, body, _ = organizer.request("GET", event_url)
     published = None
@@ -819,7 +826,7 @@ def run_checks(cfg):
     checks.append(c)
 
     # B12 -- the anti-abuse audit trail: every step above left its row
-    c = Check("B", "voting and comment steps are in the audit log")
+    c = Check("B12", "voting and comment steps are in the audit log")
     audit_url = u(f"/api/events/{EVENT_ID}/export/audit.csv")
     s, body, _ = organizer.request("GET", audit_url)
     if expect(c, s == 200, organizer, "GET", audit_url, s, "200"):
@@ -874,7 +881,7 @@ def main():
     for c in checks:
         dots = "." * (width - len(c.label))
         verdict = "SKIP" if c.skipped else ("PASS" if c.ok else "FAIL")
-        print(f"{c.section}  {c.label} {dots} {verdict}")
+        print(f"{c.number:<4} {c.label} {dots} {verdict}")
         for line in c.detail:
             print(f"       {line}")
 

@@ -62,7 +62,7 @@ def section_c(u, people, cfg):
     keys_text = None
 
     # C1 -- the OpenAPI document, the readable docs page, and bearer auth
-    c = Check("C", "REST API: OpenAPI document and bearer auth")
+    c = Check("C1", "REST API: OpenAPI document and bearer auth")
     doc_url = u("/api/openapi.json")
     s, body, _ = visitor.request("GET", doc_url)
     if expect(c, s == 200, visitor, "GET", doc_url, s, "200"):
@@ -128,7 +128,7 @@ def section_c(u, people, cfg):
     checks.append(c)
 
     # C2 -- a settings round trip: read the prizes from event.json, PUT them back
-    c = Check("C", "REST API: settings round trip")
+    c = Check("C2", "REST API: settings round trip")
     event_json_url = u(f"/api/events/{EVENT_ID}/export/event.json")
     rows = []
     s, body, _ = organizer.request("GET", event_json_url)
@@ -195,7 +195,7 @@ def section_c(u, people, cfg):
     checks.append(c)
 
     # C3 -- webhooks: private target refused, a change queued in the same transaction
-    c = Check("C", "webhooks: private targets refused, a change queued with its audit hash")
+    c = Check("C3", "webhooks: private targets refused, a change queued with its audit hash")
     hooks_url = u(f"/api/events/{EVENT_ID}/webhooks")
     s, body, _ = organizer.request("POST", hooks_url, {"url": "http://127.0.0.1:9/hook", "actions": ["*"]})
     expect(c, s == 422, organizer, "POST", hooks_url, f"{s} ({error_code(body)})", "422 for a private target")
@@ -271,7 +271,7 @@ def section_c(u, people, cfg):
     # portal cannot tell, and refused at every send, so this works the same with the network on or off. The signed
     # request itself needs a receiver the portal may reach: tests/webhook_live_check.py, on a portal started with
     # WEBHOOKS_ALLOW_PRIVATE=true (that setting would make C3's private-target refusal wrong here).
-    c = Check("C", "webhooks: a failed delivery is retried with backoff, 10 s then 60 s")
+    c = Check("C10", "webhooks: a failed delivery is retried with backoff, 10 s then 60 s")
     s, body, _ = organizer.request("POST", hooks_url, {"url": f"https://hook-{secrets.token_hex(3)}.invalid/dogfood", "actions": ["comment.post"]})
     retry_hook = as_json(body).get("id") if s == 201 else None
     expect(c, bool(retry_hook), organizer, "POST", hooks_url, f"{s} ({error_code(body)})", "201 for a name that does not resolve yet")
@@ -321,7 +321,7 @@ def section_c(u, people, cfg):
 
     # C9 -- pairwise judging (JUDGING.md "Pairwise mode"). It runs here, before C4, because
     # publishing makes the judging mode final; it puts the event back in scores mode after.
-    c = Check("C", "pairwise judging: only judges answer, only the question asked, peers isolated, only organizers rank")
+    c = Check("C9", "pairwise judging: only judges answer, only the question asked, peers isolated, only organizers rank")
     mode_url = u(f"/api/events/{EVENT_ID}/judging-mode")
     state_url = u(f"/api/judge/{EVENT_ID}/pairwise")
     pick_url = u(f"/api/judge/{EVENT_ID}/pairwise/pick")
@@ -401,7 +401,7 @@ def section_c(u, people, cfg):
     checks.append(c)
 
     # C4 -- records: settle the three decisions, publish, issue, verify, tamper
-    c = Check("C", "records: publish, issue, verify, tamper")
+    c = Check("C4", "records: publish, issue, verify, tamper")
     s, _, _ = organizer.request("POST", u(f"/api/events/{EVENT_ID}/judges/jdg_07/override"),
                                 {"mode": "exclude", "reason": "flat vector, isolation check"})
     expect(c, s == 200, organizer, "POST", u(f"/api/events/{EVENT_ID}/judges/jdg_07/override"), s, "200")
@@ -499,7 +499,7 @@ def section_c(u, people, cfg):
     # project: a place from 1st to the event's certificatePlaces (3 unless set) in its track, "Joint" when shared, and
     # a community-vote win. Worked out here from the public results and community APIs, and from nothing the
     # certificate says; at least one certificate must carry a place and one the vote, so the check cannot pass empty.
-    c = Check("C", "certificates carry the podium places and the community-vote win, and nothing else")
+    c = Check("C11", "certificates carry the podium places and the community-vote win, and nothing else")
     expected = {}
     s, body, _ = visitor.request("GET", u(f"/api/events/{EVENT_ID}/results"))
     published = as_json(body) if s == 200 else {}
@@ -559,7 +559,7 @@ def section_c(u, people, cfg):
     checks.append(c)
 
     # C5 -- the same check offline, with scripts/verify-record.mjs and pinned keys
-    c = Check("C", "records: checked offline with scripts/verify-record.mjs")
+    c = Check("C5", "records: checked offline with scripts/verify-record.mjs")
     node = shutil.which("node")
     if not node:
         c.skipped = True
@@ -594,7 +594,7 @@ def section_c(u, people, cfg):
     checks.append(c)
 
     # C6 -- the embeddable widget: the script, the framed page, the locked pages
-    c = Check("C", "embed: the widget and its frame headers")
+    c = Check("C6", "embed: the widget and its frame headers")
     s, body, _ = visitor.request("GET", u("/embed.js"))
     if expect(c, s == 200, visitor, "GET", u("/embed.js"), s, "200"):
         expect(c, "data-event" in body, visitor, "GET", u("/embed.js"),
@@ -637,7 +637,7 @@ def section_c(u, people, cfg):
     checks.append(c)
 
     # C7 -- the fixture-format export, and importing it back changes nothing
-    c = Check("C", "bulk export and idempotent import")
+    c = Check("C7", "bulk export and idempotent import")
     fixtures_url = u(f"/api/events/{EVENT_ID}/export/fixtures.json")
     fixtures = None
     s, body, _ = organizer.request("GET", fixtures_url)
@@ -695,7 +695,7 @@ def section_c(u, people, cfg):
     checks.append(c)
 
     # C8 -- import a new event, then walk one person in through a personal link
-    c = Check("C", "bulk import of a new event, then a personal link")
+    c = Check("C8", "bulk import of a new event, then a personal link")
     suffix = secrets.token_hex(3)
     trk, judge_id = f"trk_iso_{suffix}", f"jdg_iso_{suffix}"
     team_id, prj = f"team_iso_{suffix}", f"prj_iso_{suffix}"
@@ -756,7 +756,7 @@ def section_c(u, people, cfg):
     # administrator gets no link for someone who also belongs to an event they do not run, and a link they got stops
     # working if the person joins such an event before using it (checked again at use). The administrator's links
     # above reached everyone: the positive control.
-    c = Check("C", "claim links: none for someone in an event the organizer does not run, checked again at use")
+    c = Check("C12", "claim links: none for someone in an event the organizer does not run, checked again at use")
     co = Person("a co-organizer who is not an administrator")
     co_email = f"iso-coorg-{secrets.token_hex(4)}@example.org"
     s, body, _ = co.request("POST", u("/api/auth/sign-up"), {"name": "Iso Co-organizer", "email": co_email, "password": "isolation-check-pass"})

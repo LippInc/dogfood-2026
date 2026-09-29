@@ -116,7 +116,7 @@ def run_checks(cfg, target_host, port):
 
     try:
         # W1 -- a test delivery arrives, signed with the webhook's secret
-        c = Check("W", "a test delivery arrives signed with the webhook's secret, and nothing else verifies")
+        c = Check("W1", "a test delivery arrives signed with the webhook's secret, and nothing else verifies")
         s, body, _ = organizer.request("POST", hooks_url, {"url": target, "actions": ["comment.post"]})
         hook = secret = None
         if s == 422:
@@ -155,7 +155,7 @@ def run_checks(cfg, target_host, port):
                    "a timestamp from the moment it was sent")
 
         # W2 -- the receiver answered that first attempt 500: it comes again, signed again, then counts as delivered
-        c = Check("W", "a refused delivery comes again about 10 s later, signed again, then logged delivered")
+        c = Check("W2", "a refused delivery comes again about 10 s later, signed again, then logged delivered")
         if test_id:
             both = receiver.wait_for(lambda r: r["headers"].get("dogfood-delivery") == test_id, 2, 25)
             if expect(c, len(both) >= 2, organizer, "POST", target, f"{len(both)} attempt(s) within 25 s", "a second attempt"):
@@ -182,7 +182,7 @@ def run_checks(cfg, target_host, port):
         checks.append(c)
 
         # W3 -- an audited change: the comment arrives with its audit row's id and hash
-        c = Check("W", "an audited change arrives signed, with its audit row's id and hash")
+        c = Check("W3", "an audited change arrives signed, with its audit row's id and hash")
         comments_url = u("/api/projects/prj_03/comments")
         s, body, _ = judge_a.request("POST", comments_url, {"body": "webhook live check: a comment to deliver"})
         comment_id = as_json(body).get("id") if s == 201 else None
@@ -204,7 +204,7 @@ def run_checks(cfg, target_host, port):
         checks.append(c)
 
         # W4 -- rotate the secret: what arrives next verifies with the new secret and not with the old one
-        c = Check("W", "after the secret is rotated, deliveries verify with the new secret only")
+        c = Check("W4", "after the secret is rotated, deliveries verify with the new secret only")
         s, body, _ = organizer.request("POST", one + "/rotate-secret")
         new_secret = as_json(body).get("secret", "") if s == 200 else ""
         if expect(c, new_secret.startswith("whsec_") and new_secret != secret, organizer, "POST", one + "/rotate-secret",
@@ -242,7 +242,7 @@ def main():
     checks = run_checks(cfg, args.target_host, args.port)
     width = max(len(c.label) for c in checks) + 2
     for c in checks:
-        print(f"{c.section}  {c.label} {'.' * (width - len(c.label))} {'PASS' if c.ok else 'FAIL'}")
+        print(f"{c.number:<4} {c.label} {'.' * (width - len(c.label))} {'PASS' if c.ok else 'FAIL'}")
         for line in c.detail:
             print(f"       {line}")
     passed = sum(1 for c in checks if c.ok)
