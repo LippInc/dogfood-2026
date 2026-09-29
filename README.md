@@ -91,10 +91,14 @@ check, which you can rerun: `tests/isolation_check.py` (standard library only; S
 judging, is in `tests/isolation_t4.py`; Node, when installed, adds the offline record check). It writes votes and
 comments and publishes the sample event's results, so run it on a fresh portal, after run.py; it takes under a
 minute. `isolation-report.txt` is its output from a clean `docker compose down -v && docker compose up`, with the
-commit it ran on in its first lines. The signed webhook request itself needs a receiver the portal may reach, and
+commit it ran on in its first lines; each of its lines starts with the check's number, the names used below.
+Checks B2, B5, B11 to B15, C1, C2, C6, C7 and C9 to C12 were each shown to fail on a copy of the portal with the
+defect they look for planted, so their passes mean the feature works, not only that a page answered. The signed
+webhook request itself needs a receiver the portal may reach, and
 the portal refuses private targets unless `WEBHOOKS_ALLOW_PRIVATE=true`, which would make C3 wrong:
 `python tests/webhook_live_check.py .dogfood.toml`, on a portal started with that setting, runs a receiver and
-checks what arrives (the header in the script says how). Each T3 and T4 bullet, mapped to its checks:
+checks what arrives (the header in the script says how; on Linux, give the portal service
+`extra_hosts: ["host.docker.internal:host-gateway"]` and run the check with `--host 0.0.0.0`). Each T3 and T4 bullet, mapped to its checks:
 [Beyond the checker](#beyond-the-checker).
 
 **Our own tests** (`npm test`; Node 24, since passwords use its built-in argon2) cover the permission rules, the

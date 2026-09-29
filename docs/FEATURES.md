@@ -50,8 +50,8 @@ organizer's questions); the server refuses changes after it.
 ## Pairwise judging (optional)
 
 An organizer can have judges answer "which is better?" instead of scoring: the switch is on Settings, audited,
-with a reason, and can be switched back until results are published. Judges see two of their own projects at a
-time, may call it too close, and place each project into their own order in about log₂ n answers, with the arrow
+with a reason, and can be switched back until results are published. Judges see two of the projects they were given
+at a time, may call it too close, and place each project into their own order in about log₂ n answers, with the arrow
 keys. The ranking is a Bradley-Terry fit of every answer, with the pull of the left side and of the project just
 opened measured and corrected for; each place carries its chance of really being ahead of the next, each project a
 receipt of the comparisons behind it, and scores given before the switch still count as the order they imply.
