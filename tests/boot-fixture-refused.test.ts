@@ -7,6 +7,9 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ set: vi.fn(), get: vi.fn(), delete: vi.fn() }),
   headers: async () => new Headers(),
 }));
+// boot() run to the end in a test: no webhook timer and no warm-up requests to a server that is not there
+vi.mock("@/server/webhooks", async (original) => ({ ...(await original<typeof import("@/server/webhooks")>()), startWebhookWorker: vi.fn() }));
+vi.mock("@/server/warmup", async (original) => ({ ...(await original<typeof import("@/server/warmup")>()), warmUp: vi.fn(async () => {}) }));
 
 import { boot, bootFixture } from "@/server/boot";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
@@ -18,7 +21,8 @@ import { sha256 } from "@/server/util";
 // judge on the team they review, a new criterion after scoring, a rubric past its limits) must not stop the start:
 // bootOrExit exits 1 on a throw, and with `restart: unless-stopped` the container loops and the portal stays down.
 // The start logs the refusal (which file, which row, which rule) and goes on with the data it has. A file that is
-// broken as a file (missing, not JSON, not the fixture format) still stops the start (tests/boot-fixture.test.ts).
+// broken as a file (missing, not JSON) still stops the start (tests/boot-fixture.test.ts), and so does any refused
+// file on a volume that holds no event at all, where the portal has nothing to serve.
 
 const NOW = "2026-09-29T00:00:00.000Z";
 let h: Handle;
@@ -68,7 +72,7 @@ function snapshot(): string {
 }
 
 /** Boots with the changed file: the start goes on, returns the event, imports nothing, and says why in plain words. */
-function startsAnyway(file: string, eventId: string, rule: string, row: RegExp) {
+function startsAnyway(file: string, eventId: string | null, rule: string, row: RegExp) {
   const before = snapshot();
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
   let returned: string | null = null;
@@ -82,6 +86,7 @@ function startsAnyway(file: string, eventId: string, rule: string, row: RegExp) 
   expect(said).toContain(rule);
   expect(said).toMatch(row);
   expect(said).toContain("nothing from this file was imported; the portal starts with the data it has");
+  return said;
 }
 
 describe("a changed fixture file the event here refuses: the portal starts anyway", () => {
@@ -216,16 +221,26 @@ describe("a file past the tabs' limits at start", () => {
     startsAnyway(useFile(changed, "old-long"), "evt_old", "rubric.1.label", /2 to 60 characters/);
   });
 
-  it("known-bad: the same file for an event not here stops the start, naming the row", () => {
+  it("known-bad: the same file on a volume with no event stops the start, naming the row", () => {
     useFile(withLongLabel(), "new-long");
     expect(() => bootFixture(h, NOW)).toThrow(/is not a fixture file: rubric\.0\.label: must be 2 to 60 characters/);
   });
+
+  it("the same file for a new event, on a volume that holds another event: the portal starts with that one", () => {
+    importFixtures(
+      h.db,
+      { event: { id: "evt_a", name: "evt_a", submissions_close: "2026-03-01T18:00:00Z", description: "" }, tracks: [{ id: "trk_a", name: "T" }], questions: [], judges: [], teams: [], projects: [], scores: [] },
+      { source: "t", sha256: "evt_a", now: NOW },
+    );
+    startsAnyway(useFile(withLongLabel(), "new-long-other"), null, "rubric.0.label", /2 to 60 characters/);
+  });
 });
 
-// A fresh volume whose fixture file the import refuses has no event to start with: going on "with the data it has"
-// left SEED_CHECKER_SESSIONS=true to stop the start a moment later with advice already followed ("set FIXTURES_PATH
-// to a fixture file" while it named one). The start stops once, with the file, the row and the rule.
-describe("a fixture file the import refuses for an event not here yet: the start stops once, saying why", () => {
+// A fixture file the import refuses whose event is not here yet: on a volume with no event at all the portal has
+// nothing to serve, so the start stops once, with the file, the row and the rule (going on "with the data it has"
+// only stopped a step later on advice already followed). On a volume that holds other events the portal has
+// something to serve: the start logs the refusal as it does for an event that is here, and goes on with those.
+describe("a fixture file the import refuses for an event not here yet", () => {
   const fresh = (): Json => ({
     event: { id: "evt_new", name: "New event", submissions_close: "2026-03-01T18:00:00Z" },
     tracks: [{ id: "trk_x", name: "Only track" }],
@@ -234,12 +249,18 @@ describe("a fixture file the import refuses for an event not here yet: the start
     projects: [{ id: "prj_n", team: "tm_n", track: "trk_x", title: "P", submitted_at: "2026-03-01T12:00:00Z" }],
     scores: [{ judge: "jdg_n", project: "prj_n", criteria: { functionality: 3, quality: 3, innovation: 3 } }],
   });
+  const withKeyPastLimit = (): Json => {
+    const f = fresh();
+    f.scores[0].criteria = { x: 3 };
+    return f;
+  };
   const other = (id: string, trackId: string) =>
     importFixtures(
       h.db,
       { event: { id, name: id, submissions_close: "2026-03-01T18:00:00Z", description: "" }, tracks: [{ id: trackId, name: "T" }], questions: [], judges: [], teams: [], projects: [], scores: [] },
       { source: "t", sha256: id, now: NOW },
     );
+  const checkerSessions = () => (h.sqlite.prepare("SELECT count(*) AS n FROM sessions WHERE kind = 'checker'").get() as { n: number }).n;
 
   function stops(file: string, rule: RegExp, row: RegExp) {
     const before = snapshot();
@@ -253,48 +274,78 @@ describe("a fixture file the import refuses for an event not here yet: the start
     expect(thrown).toContain(file);
     expect(thrown).toMatch(rule);
     expect(thrown).toMatch(row);
+    expect(thrown).toContain("the portal has nothing to start with");
     expect(thrown).toContain("fix the file or point FIXTURES_PATH at another");
     expect(snapshot()).toBe(before);
     // one reason, not a "starts with the data it has" line the next step contradicts
     expect(warn.mock.calls.map((c) => String(c[0])).join("\n")).not.toContain("the portal starts with the data it has");
   }
 
-  it("ids two other events hold (id_taken)", () => {
-    other("evt_a", "trk_x");
-    other("evt_b", "trk_x.evt_new");
-    stops(useFile(fresh(), "fresh-ids"), /id_taken/, /trk_x/);
-  });
-
-  it("a score's key that makes a criterion label past the Rubric tab's limit", () => {
-    const f = fresh();
-    f.scores[0].criteria = { x: 3 };
-    stops(useFile(f, "fresh-key"), /2 to 60 characters/, /criterion x/);
-  });
-
-  it("boot() with SEED_CHECKER_SESSIONS=true stops on the import's reason, never on advice already followed", async () => {
-    other("evt_a", "trk_x");
-    other("evt_b", "trk_x.evt_new");
-    const file = useFile(fresh(), "fresh-boot");
+  /** boot() to the end (or to its refusal) with SEED_CHECKER_SESSIONS as given; what it threw, warned and logged. */
+  async function bootWith(flag: "true" | "false") {
     const env = { db: process.env.DATABASE_PATH, flag: process.env.SEED_CHECKER_SESSIONS };
     process.env.DATABASE_PATH = ":memory:";
-    process.env.SEED_CHECKER_SESSIONS = "true";
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.spyOn(console, "log").mockImplementation(() => {});
+    process.env.SEED_CHECKER_SESSIONS = flag;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
       const failed = await boot().then(
         () => "",
         (err: Error) => err.message,
       );
-      expect(failed).toContain(file);
-      expect(failed).toMatch(/id_taken/);
-      expect(failed).not.toMatch(/set FIXTURES_PATH to a fixture file/);
+      const text = (spy: typeof warn) => spy.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+      return { failed, warned: text(warn), logged: text(log) };
     } finally {
       for (const [k, v] of [["DATABASE_PATH", env.db], ["SEED_CHECKER_SESSIONS", env.flag]] as const) {
         if (v === undefined) delete process.env[k];
         else process.env[k] = v;
       }
     }
+  }
+
+  it("on a volume with no event: a score's key past the Rubric tab's limit stops the start once, saying why", () => {
+    stops(useFile(withKeyPastLimit(), "fresh-key"), /2 to 60 characters/, /criterion x/);
   });
+
+  it("on a volume that holds other events: ids two of them hold (id_taken) are logged and the portal starts", () => {
+    other("evt_a", "trk_x");
+    other("evt_b", "trk_x.evt_new");
+    expect(startsAnyway(useFile(fresh(), "fresh-ids"), null, "id_taken", /trk_x/)).not.toContain("nothing to start with");
+  });
+
+  it("on a volume that holds another event: a score's key past the limit is logged and the portal starts", () => {
+    other("evt_a", "trk_a");
+    startsAnyway(useFile(withKeyPastLimit(), "fresh-key-other"), null, "2 to 60 characters", /criterion x/);
+  });
+
+  for (const flag of ["true", "false"] as const) {
+    it(`boot() with SEED_CHECKER_SESSIONS=${flag} and evt_a, evt_b here: starts, logging the refusal`, async () => {
+      other("evt_a", "trk_x");
+      other("evt_b", "trk_x.evt_new");
+      const file = useFile(fresh(), `fresh-boot-${flag}`);
+      const r = await bootWith(flag);
+      expect(r.failed).toBe("");
+      expect(r.warned).toContain(file);
+      expect(r.warned).toMatch(/id_taken/);
+      expect(r.warned).toContain("nothing from this file was imported; the portal starts with the data it has");
+      if (flag === "true") {
+        // demo mode needs the fixture event for its sessions: none are made this start, and the log says why
+        expect(r.warned).toMatch(/no checker sessions this start: SEED_CHECKER_SESSIONS=true needs the fixture event, and the fixture file.s event is not here/);
+        expect(checkerSessions()).toBe(0);
+      } else {
+        expect(r.logged).toContain("checker sessions are OFF");
+      }
+    });
+
+    it(`boot() with SEED_CHECKER_SESSIONS=${flag} on a volume with no event: stops on the import's reason`, async () => {
+      const file = useFile(withKeyPastLimit(), `fresh-empty-${flag}`);
+      const r = await bootWith(flag);
+      expect(r.failed).toContain(file);
+      expect(r.failed).toMatch(/criterion x/);
+      expect(r.failed).toContain("the portal has nothing to start with");
+      expect(r.failed).not.toMatch(/set FIXTURES_PATH to a fixture file/);
+    });
+  }
 
   it("positive control: the same file with ids of its own imports and the start goes on", () => {
     other("evt_a", "trk_x");

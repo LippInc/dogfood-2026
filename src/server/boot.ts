@@ -80,8 +80,9 @@ function firstProblem(err: z.ZodError): string {
 }
 
 /**
- * The start-up fixture import (idempotent); returns the fixture event's id, or null
- * when FIXTURES_PATH=none asks for a portal that starts empty.
+ * The start-up fixture import (idempotent); returns the fixture event's id when that event is here, or null when
+ * FIXTURES_PATH=none asks for a portal that starts empty, or when the file for a new event was refused on a volume
+ * that holds other events (the portal starts with those).
  */
 export function bootFixture(h: Handle, now: string): string | null {
   const file = fixturesPath();
@@ -100,15 +101,18 @@ export function bootFixture(h: Handle, now: string): string | null {
     return named;
   }
   const eventHere = (id: string | null) => id !== null && h.db.select({ id: events.id }).from(events).where(eq(events.id, id)).get() !== undefined;
+  // A refused file stops the start only when the volume holds no event at all: then the portal has nothing to serve.
+  // With any event here (the file's own, or others) the start logs the refusal and goes on with what is here.
+  const volumeEmpty = () => h.db.select({ id: events.id }).from(events).limit(1).get() === undefined;
   const parsed = FixtureSchema.safeParse(raw);
   if (!parsed.success) {
-    // Not the fixture format, or past a limit the forms keep (a label too long, too many questions): with no such
-    // event here the start stops, as the portal has nothing to serve it from; with the event here it goes on.
-    if (!eventHere(named)) throw new Error(`${whichFile(file)} is not a fixture file: ${firstProblem(parsed.error)}`);
+    // Not the fixture format, or past a limit the forms keep (a label too long, too many questions)
+    if (volumeEmpty()) throw new Error(`${whichFile(file)} is not a fixture file: ${firstProblem(parsed.error)}`);
+    const here = eventHere(named);
     console.warn(
-      `[boot] fixtures not imported from ${file} (sha256 ${sha256.slice(0, 12)}): ${firstProblem(parsed.error)}: nothing from this file was imported; the portal starts with the data it has. Fix that row in the file; each start tries the file again.`,
+      `[boot] fixtures not imported from ${file} (sha256 ${sha256.slice(0, 12)}${here ? "" : `, for ${named ?? "an event"} not here yet`}): ${firstProblem(parsed.error)}: nothing from this file was imported; the portal starts with the data it has. Fix that row in the file; each start tries the file again.`,
     );
-    return named;
+    return here ? named : null;
   }
   const fixture: Fixture = parsed.data;
   // The same guard as an uploaded import (dal/imports.ts): an event whose results are published is final, so a
@@ -138,7 +142,7 @@ export function bootFixture(h: Handle, now: string): string | null {
     // team they review, a new criterion after scoring, a rubric past its limits, ids other events hold) is refused
     // whole, as an upload is. Stopping the start for it would loop the container (restart: unless-stopped) and keep
     // the portal down, so the start says why and goes on with the data it has. A file broken as a file (missing, not
-    // JSON, not the fixture format) still stops it, above; anything else (a database fault) still stops it too.
+    // JSON) still stops it, above; anything else (a database fault) still stops it too.
     if (!(err instanceof HttpError)) throw err;
     const details =
       err.details && typeof err.details === "object"
@@ -147,18 +151,20 @@ export function bootFixture(h: Handle, now: string): string | null {
             .join("; ")
         : "";
     const why = `${err.message.replace(/\s*Nothing was imported\.$/, "")} (rule ${err.code}${details ? `; ${details}` : ""})`;
-    // The file's event is not here yet (a fresh volume, or a file for a new event): there is nothing to start with,
-    // so the start stops here, once, with the file, the row and the rule, as it does for a file past the format's
-    // limits above. Going on would only stop a step later on a reason that is not the real one.
-    if (!eventHere(fixture.event.id)) {
+    // A volume with no event at all (a fresh one): there is nothing to start with, so the start stops here with the
+    // file, the row and the rule, as it does for a file past the format's limits above. Going on would only stop a
+    // step later on a reason that is not the real one. A file for a new event on a volume that holds others is
+    // logged below and the portal starts with those.
+    if (volumeEmpty()) {
       throw new Error(
-        `${whichFile(file)} cannot be imported (sha256 ${sha256.slice(0, 12)}): ${why}. Nothing from it was imported, and its event ${fixture.event.id} is not here yet, so the portal has nothing to start with: fix the file or point FIXTURES_PATH at another.`,
+        `${whichFile(file)} cannot be imported (sha256 ${sha256.slice(0, 12)}): ${why}. Nothing from it was imported, and no event is here yet (${fixture.event.id} would be the first), so the portal has nothing to start with: fix the file or point FIXTURES_PATH at another.`,
       );
     }
+    const here = eventHere(fixture.event.id);
     console.warn(
-      `[boot] fixtures not imported from ${file} (sha256 ${sha256.slice(0, 12)}): ${why}: nothing from this file was imported; the portal starts with the data it has. Fix that row in the file, or change the event on its pages; each start tries the file again.`,
+      `[boot] fixtures not imported from ${file} (sha256 ${sha256.slice(0, 12)}${here ? "" : `, for ${fixture.event.id} not here yet`}): ${why}: nothing from this file was imported; the portal starts with the data it has. ${here ? "Fix that row in the file, or change the event on its pages" : "Fix that row in the file"}; each start tries the file again.`,
     );
-    return fixture.event.id;
+    return here ? fixture.event.id : null;
   }
   const inserted = Object.values(report.inserted).reduce((a, b) => a + b, 0);
   console.log(
@@ -200,15 +206,17 @@ export async function boot(): Promise<void> {
   const base = process.env.PUBLIC_URL ?? "http://localhost:8080";
   const event = eventId ? requireEvent(h.db, eventId) : null;
   const lines: string[] = [];
-  if (checkerSessionsEnabled()) {
-    // bootFixture returns an event that is here, or null only for FIXTURES_PATH=none (a file it cannot import has
-    // stopped the start already, with its own reason): the advice names the setting only when it is the cause
+  if (checkerSessionsEnabled() && !event && fixturesPath() !== "none") {
+    // The file's new event was refused (its reason is logged above) on a volume that holds other events: the portal
+    // starts with those, and demo mode has no fixture event for its sessions this start. Sessions an earlier start
+    // seeded are left as they were; each start tries the file again.
+    console.warn(
+      `[boot] WARNING: no checker sessions this start: SEED_CHECKER_SESSIONS=true needs the fixture event, and the fixture file's event is not here (its import was refused, above); the portal starts with the events it has, and the acceptance checks that need the sessions fail until the file imports`,
+    );
+  } else if (checkerSessionsEnabled()) {
+    // bootFixture returns an event that is here, or null for FIXTURES_PATH=none or a refused file (above)
     if (!eventId || !event) {
-      throw new Error(
-        fixturesPath() === "none"
-          ? "SEED_CHECKER_SESSIONS=true needs the fixture event, and FIXTURES_PATH=none starts without it: set FIXTURES_PATH to a fixture file, or turn the flag off"
-          : `SEED_CHECKER_SESSIONS=true needs the fixture event, and ${fixturesPath()} brought none here: turn the flag off, or point FIXTURES_PATH at a file whose event is here`,
-      );
+      throw new Error("SEED_CHECKER_SESSIONS=true needs the fixture event, and FIXTURES_PATH=none starts without it: set FIXTURES_PATH to a fixture file, or turn the flag off");
     }
     ensureDemoOrganizer(h.db, eventId, now);
     const seeded = seedCheckerSessions(h.db, eventId, now);
