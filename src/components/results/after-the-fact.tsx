@@ -97,7 +97,7 @@ export function RowChangeMarks({
           {/* the criterion's own figure, named as what it is: a plain average, not a scored number with a ± */}
           {tieBrokenBy.figure !== null ? (
             <>
-              , {tieBrokenBy.inFinals ? "the panel’s plain average" : "plain average"} on {tieBrokenBy.criterion} <span className="tnum">{tieBrokenBy.figure.toFixed(2)}</span>
+              , plain average on {tieBrokenBy.criterion} <span className="tnum">{tieBrokenBy.figure.toFixed(2)}</span>
             </>
           ) : null}
         </span>
