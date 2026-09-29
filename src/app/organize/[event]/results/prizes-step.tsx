@@ -24,18 +24,34 @@ export function PrizeAwardForm({ eventSlug, prize, candidates }: { eventSlug: st
   const saved = prize.winners.map((w) => w.projectId);
   const [ids, setIds] = useState<string[]>(saved);
   const [note, setNote] = useState(prize.note);
+  const [choice, setChoice] = useState("");
   const [state, form, pending] = useFormAction(awardAction, idle, { resetOnSuccess: false });
   const byId = new Map(candidates.map((c) => [c.projectId, c]));
-  const dirty = ids.join(" ") !== saved.join(" ") || (ids.length > 0 && note.trim() !== prize.note);
+  // a project chosen in the list but not yet added counts as added when the award is saved
+  const unadded = choice && !ids.includes(choice) ? choice : null;
+  const dirty = Boolean(unadded) || ids.join(" ") !== saved.join(" ") || (ids.length > 0 && note.trim() !== prize.note);
   const tracks = [...new Set(candidates.map((c) => c.trackName))];
   const pick = `prize-${prize.prizeId}-add`;
   const noteId = `prize-${prize.prizeId}-note`;
   const e = state.fieldErrors ?? {};
   return (
-    <form {...form} className="flex flex-col gap-3" noValidate aria-labelledby={`prize-${prize.prizeId}-name`}>
+    <form
+      {...form}
+      onSubmit={(ev) => {
+        // the form is read before this state change renders, so the pending choice goes with it as its own input
+        if (unadded) {
+          setIds((xs) => [...xs, unadded]);
+          setChoice("");
+        }
+        form.onSubmit(ev);
+      }}
+      className="flex flex-col gap-3"
+      noValidate
+      aria-labelledby={`prize-${prize.prizeId}-name`}
+    >
       <input type="hidden" name="event" value={eventSlug} />
       <input type="hidden" name="prize" value={prize.prizeId} />
-      {ids.map((id) => (
+      {[...ids, ...(unadded ? [unadded] : [])].map((id) => (
         <input key={id} type="hidden" name="projectIds" value={id} />
       ))}
       <p className="text-13 text-ink-2">{ids.length === 0 ? "Unawarded" : ids.length === 1 ? "Winner" : `Joint winners · ${ids.length}`}</p>
@@ -62,13 +78,13 @@ export function PrizeAwardForm({ eventSlug, prize, candidates }: { eventSlug: st
       <label className="text-14 font-medium" htmlFor={pick}>
         {ids.length ? "Add a joint winner" : "Give it to"}
       </label>
+      {/* choose, then Add: arrowing through a closed list with the keyboard changes the choice on every key, so
+          adding on change would add each project passed on the way */}
+      <div className="flex gap-2">
       <select
         id={pick}
-        value=""
-        onChange={(ev) => {
-          const v = ev.target.value;
-          if (v) setIds((xs) => (xs.includes(v) ? xs : [...xs, v]));
-        }}
+        value={choice}
+        onChange={(ev) => setChoice(ev.target.value)}
         aria-invalid={Boolean(e.projectIds)}
         className="h-10 w-full min-w-0 rounded-sm border border-edge bg-surface px-3 text-15 aria-[invalid=true]:border-flag-bar"
       >
@@ -85,6 +101,19 @@ export function PrizeAwardForm({ eventSlug, prize, candidates }: { eventSlug: st
           </optgroup>
         ))}
       </select>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-10 sm:h-10"
+        disabled={!choice}
+        onClick={() => {
+          setIds((xs) => (xs.includes(choice) ? xs : [...xs, choice]));
+          setChoice("");
+        }}
+      >
+        Add
+      </Button>
+      </div>
       {e.projectIds ? <p className="text-13 text-flag">{e.projectIds[0]}</p> : null}
       <label className="text-14 font-medium" htmlFor={noteId}>
         Note, shown with the prize <span className="font-normal text-ink-2">(optional)</span>
