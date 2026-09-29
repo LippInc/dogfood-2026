@@ -10,14 +10,13 @@ import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
 import { formatUtc, plural } from "@/lib/format";
 import { currentActor, getNormalization, getPairwiseRanking, getPrizeAwards, getTeamChangesAfterClose, judgingModeOf, listRecords, type ProjectRow } from "@/server/dal";
-import { competitionPlaceOf } from "@/lib/places";
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
 import { PairwiseResults } from "./pairwise-results";
 import { plainSummary } from "./plain-summary";
 import { ScoreOpening } from "./score-opening";
 import { PrizesSection } from "./prizes-section";
-import type { PrizeCandidate } from "./prizes-step";
+import { candidatesOf, scoreCandidates } from "./prize-candidates";
 import { exportHref } from "@/lib/export-href";
 import { ordinal } from "@/lib/places";
 
@@ -37,17 +36,6 @@ function Move({ p }: { p: ProjectRow }) {
 }
 
 const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
-
-/** The projects that can win a prize, per track in the ranking's order, each with its competition place (ties share it). */
-function candidatesOf(tracks: { trackName: string; rows: { projectId: string; title: string; teamName: string; score: number | null }[] }[]): PrizeCandidate[] {
-  return tracks.flatMap((t) => {
-    const places = competitionPlaceOf(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
-    const shared = (place: number | undefined) => place !== undefined && [...places.values()].filter((x) => x === place).length > 1;
-    return t.rows
-      .map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, trackName: t.trackName, place: places.get(r.projectId) ?? null, joint: shared(places.get(r.projectId)) }))
-      .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity));
-  });
-}
 
 /** The change from raw, split into what leaving judges out did and what the leniency correction did. */
 function Change({ p }: { p: ProjectRow }) {
@@ -483,12 +471,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
           prizes={prizes}
           candidates={
             prizes.length
-              ? candidatesOf(
-                  tracks.map(([id, name]) => ({
-                    trackName: name ?? "No track",
-                    rows: n.projects.filter((p) => p.trackId === id && !p.duplicateOf).map((p) => ({ projectId: p.id, title: p.title, teamName: p.teamName, score: p.score })),
-                  })),
-                )
+              ? scoreCandidates(n, tieBreak)
               : []
           }
         />

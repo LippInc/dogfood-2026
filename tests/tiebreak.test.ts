@@ -10,6 +10,7 @@ import { setJudgingMode } from "@/server/dal/pairwise";
 import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { getNormalization, getPublishedResults, publishResults } from "@/server/dal/results";
 import { setTieBreak } from "@/server/dal/tiebreak";
+import { scoreCandidates } from "@/app/organize/[event]/results/prize-candidates";
 import { latestAudit } from "@/server/dal/audit-log";
 import { getDb } from "@/server/db/client";
 import { actorById, addUser, auditRows, expectHttpError, organizer, sqlAll, sqlGet, sqlRun, withFixtureEvent } from "./support/fixture-harness";
@@ -113,6 +114,44 @@ describe("the pure stage", () => {
       { judgeId: "j2", projectId: "p", value: 5 },
     ]);
     expect(means.get("p")).toBe(4);
+  });
+});
+
+describe("the Prizes step's places", () => {
+  /** every project's place and whether it is joint, as the published results give them (competitionPlaces over the stored rows) */
+  const publishedPlaces = () => {
+    const r = getPublishedResults("evt_01");
+    if (!r.published) throw new Error("not published");
+    return new Map(r.tracks.flatMap((t) => competitionPlaces(t.rows).map((p, k) => [t.rows[k]!.projectId, { place: p.place, joint: p.joint }] as const)));
+  };
+  const settle = () => {
+    setJudgeOverride(organizer(), "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+  };
+  const candidates = () => {
+    const live = getNormalization(organizer(), "evt_01");
+    return new Map(scoreCandidates(live.normalization, live.tieBreak).map((c) => [c.projectId, { place: c.place, joint: c.joint }]));
+  };
+
+  it("with a tie-break set, a broken tie reads 1st and 2nd before publishing as it does once published, never joint", () => {
+    plantTie();
+    setTieBreak(organizer(), "evt_01", { criterionId: crit("functionality"), reason });
+    settle();
+    const before = candidates();
+    expect(before.get("prj_05")!.joint).toBe(false);
+    expect(before.get("prj_21")!.place).toBe(before.get("prj_05")!.place! + 1);
+    publishResults(organizer(), "evt_01");
+    expect(before).toEqual(publishedPlaces());
+  });
+
+  it("positive control: with no tie-break the planted tie is joint in both, and every other place agrees", () => {
+    plantTie();
+    settle();
+    const before = candidates();
+    expect(before.get("prj_05")).toEqual({ place: before.get("prj_21")!.place, joint: true });
+    publishResults(organizer(), "evt_01");
+    expect(before).toEqual(publishedPlaces());
   });
 });
 
