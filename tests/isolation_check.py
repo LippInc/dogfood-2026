@@ -603,6 +603,13 @@ def run_checks(cfg):
             expect(c, (row.get("hidden") or {}).get("reason") == "isolation check", participant,
                    "GET", comments_url, f"hidden {row.get('hidden')!r}",
                    "hidden.reason 'isolation check'")
+        # everyone else sees one comment fewer: no placeholder with the author's name and the reason
+        for who in (visitor, judge_a):
+            s, body, _ = who.request("GET", comments_url)
+            if expect(c, s == 200, who, "GET", comments_url, s, "200"):
+                listed = any(x.get("id") == comment_id for x in as_json(body).get("comments", []))
+                expect(c, not listed, who, "GET", comments_url, f"hidden comment {comment_id} listed",
+                       "the hidden comment left out")
         # a hidden comment stays until the organizers unhide it; then only its author deletes it
         delete_url = u(f"/api/comments/{comment_id}")
         s, body, _ = participant.request("DELETE", delete_url)

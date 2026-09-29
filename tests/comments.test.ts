@@ -145,21 +145,21 @@ describe("hideComment", () => {
     expect(count("SELECT count(*) AS n FROM comments WHERE hidden_at IS NOT NULL")).toBe(0);
 
     hideComment(org(), id, { reason: "Personal attack" });
-    const hidden = listComments(null, "prj_01").find((c) => c.id === id);
+    const hidden = listComments(org(), "prj_01").find((c) => c.id === id);
     expect(hidden?.body).toBeNull();
     expect(hidden?.hidden).toEqual({ reason: "Personal attack" });
     expect(auditCount("comment.hide")).toBe(1);
 
     hideComment(org(), id, { reason: "Personal attack" }); // idempotent: no second row
     expect(auditCount("comment.hide")).toBe(1);
-    expect(listComments(null, "prj_01").find((c) => c.id === id)?.hidden).toEqual({ reason: "Personal attack" });
+    expect(listComments(org(), "prj_01").find((c) => c.id === id)?.hidden).toEqual({ reason: "Personal attack" });
   });
 
   it("known-bad: a hidden comment's original text never reaches a reader", () => {
     const author = addUser("usr_secret", "secret@example.org", "Secret");
     const { id } = postComment(author, "prj_01", { body: "Nice work" });
     hideComment(org(), id, { reason: "Personal attack" });
-    expect(JSON.stringify(listComments(null, "prj_01"))).not.toContain("Nice work");
+    for (const reader of [null, org(), author]) expect(JSON.stringify(listComments(reader, "prj_01"))).not.toContain("Nice work");
   });
 });
 
@@ -219,7 +219,7 @@ describe("unhideComment: an organizer shows a hidden comment again", () => {
     unhideComment(org(), id);
     expect(auditRows().length).toBe(rows);
     hideComment(org(), id, { reason: "Spam after all" });
-    expect(listComments(null, "prj_01").find((c) => c.id === id)?.hidden).toEqual({ reason: "Spam after all" });
+    expect(listComments(org(), "prj_01").find((c) => c.id === id)?.hidden).toEqual({ reason: "Spam after all" });
     expect(verifyAuditChain(h.db).ok).toBe(true);
   });
 
@@ -230,6 +230,47 @@ describe("unhideComment: an organizer shows a hidden comment again", () => {
     expectHttpError(() => unhideComment(participant(), id), 403, "not_an_organizer");
     expectHttpError(() => unhideComment(actorById(author.userId), id), 403, "not_an_organizer");
     expectHttpError(() => unhideComment(null, id), 401, "unauthenticated");
-    expect(listComments(null, "prj_01").find((c) => c.id === id)?.hidden).toEqual({ reason: "Personal attack" });
+    expect(listComments(org(), "prj_01").find((c) => c.id === id)?.hidden).toEqual({ reason: "Personal attack" });
+  });
+});
+
+describe("a hidden comment's placeholder: organizers and the author only", () => {
+  it("a visitor, another signed-in person, a participant and a judge see one comment fewer, with neither the author's name nor the reason", () => {
+    const author = addUser("usr_hidden", "hidden@example.org", "Hidden Author");
+    const { id } = postComment(author, "prj_01", { body: "Off-topic question" });
+    const other = addUser("usr_bystander", "bystander@example.org", "Bystander");
+    const kept = postComment(other, "prj_01", { body: "Shown comment" }).id;
+    hideComment(org(), id, { reason: "Off-topic question here" });
+
+    const judge = actorById(userIdByEmail("tomas.varga@example.org"));
+    for (const reader of [null, other, participant(), judge]) {
+      const list = listComments(reader, "prj_01");
+      expect(list.map((c) => c.id)).toEqual([kept]);
+      const text = JSON.stringify(list);
+      expect(text).not.toContain("Hidden Author");
+      expect(text).not.toContain("Off-topic question here");
+    }
+  });
+
+  it("positive control: the event's organizers, an administrator and the author still get the placeholder with name and reason", () => {
+    const author = addUser("usr_hidden", "hidden@example.org", "Hidden Author");
+    const { id } = postComment(author, "prj_01", { body: "Off-topic question" });
+    hideComment(org(), id, { reason: "Off-topic question here" });
+
+    const admin: Actor = { ...addUser("usr_admin2", "admin2@example.org", "Admin"), isAdmin: true };
+    for (const reader of [org(), admin, actorById(author.userId)]) {
+      const c = listComments(reader, "prj_01").find((x) => x.id === id);
+      expect(c?.author).toBe("Hidden Author");
+      expect(c?.hidden).toEqual({ reason: "Off-topic question here" });
+      expect(c?.body).toBeNull();
+    }
+  });
+
+  it("known-bad: an organizer of another event reads this one as a visitor does", () => {
+    const author = addUser("usr_hidden", "hidden@example.org", "Hidden Author");
+    const { id } = postComment(author, "prj_01", { body: "Off-topic question" });
+    hideComment(org(), id, { reason: "Off-topic question here" });
+    const elsewhere: Actor = { ...addUser("usr_elsewhere", "elsewhere@example.org", "Elsewhere"), roles: [{ eventId: "evt_other", role: "organizer" }] };
+    expect(listComments(elsewhere, "prj_01").find((x) => x.id === id)).toBeUndefined();
   });
 });

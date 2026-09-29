@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
-import type { Actor } from "../authz";
+import { seesEvent, type Actor } from "../authz";
 import { getDb } from "../db/client";
 import { comments, projects, users } from "../db/schema";
 import { NotFoundError, RateLimitedError } from "../errors";
@@ -13,9 +13,11 @@ import { parse } from "./parse";
 
 // Comments on a submitted project: anyone signed in may write one, a few per ten
 // minutes, and delete their own; an organizer can hide one with a reason, which stays
-// visible in its place ("hidden by the organizers: ...") so nothing disappears silently,
-// and unhide it again. A hidden comment stays until the organizers unhide it: its author
-// cannot delete it from under their reason.
+// in its place ("hidden by the organizers: ...") for the event's organizers and the
+// comment's author, so nothing disappears silently for them, and unhide it again. Everyone
+// else sees one comment fewer: the placeholder names the author and the organizers' reason,
+// which are not a visitor's business. A hidden comment stays until the organizers unhide
+// it: its author cannot delete it from under their reason.
 
 export type CommentView = {
   id: string;
@@ -31,6 +33,7 @@ export function listComments(actor: Actor | null, projectId: string): CommentVie
     .select({
       id: comments.id,
       userId: comments.userId,
+      eventId: comments.eventId,
       author: users.name,
       body: comments.body,
       createdAt: comments.createdAt,
@@ -42,6 +45,9 @@ export function listComments(actor: Actor | null, projectId: string): CommentVie
     .where(eq(comments.projectId, projectId))
     .orderBy(asc(comments.createdAt), asc(comments.id))
     .all()
+    // a hidden comment reaches only the event's organizers (and administrators, who see every event as its
+    // organizers do) and its own author; for anyone else it is left out, placeholder and all
+    .filter((c) => !c.hiddenAt || (actor !== null && (actor.userId === c.userId || seesEvent(actor, c.eventId))))
     .map((c) => ({
       id: c.id,
       author: c.author,
