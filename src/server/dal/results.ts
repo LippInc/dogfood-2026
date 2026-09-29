@@ -440,6 +440,11 @@ export type RankingEvidence = {
   moved: number;
   /** judges the method left out as a whole (the flat-judge or coin-flip rule, or an organizer's decision) */
   excluded: number;
+  /**
+   * only when the judges' decision on a close call named a track's winner: those tracks, by name. `moved` compares the
+   * scores' own order with the plain figure, so the page says apart that the decision then moved the first place there.
+   */
+  decidedIn?: string[];
 } & (
   | {
       kind: "scores";
@@ -488,6 +493,9 @@ export function evidenceOf(method: string, params: Record<string, unknown>, trac
     for (const r of both) if (byScore.get(r.projectId) !== byRaw.get(r.projectId)) moved++;
   }
   const excluded = Array.isArray(params.excluded) ? params.excluded.length : 0;
+  const decisions = Array.isArray(params.judgesDecisions) ? (params.judgesDecisions as { trackId: string }[]) : [];
+  const decidedNames = tracks.filter((t) => decisions.some((d) => d.trackId === t.id)).map((t) => t.name);
+  const decidedIn = decidedNames.length ? { decidedIn: decidedNames } : {};
   if (method === PAIRWISE_METHOD) {
     const counts = (params.counts ?? {}) as { picks?: number; fromScores?: number; judges?: number };
     const pull = (b: unknown): Pull => {
@@ -506,6 +514,7 @@ export function evidenceOf(method: string, params: Record<string, unknown>, trac
       placed,
       moved,
       excluded,
+      ...decidedIn,
       answers: counts.picks ?? 0,
       fromScores: counts.fromScores ?? 0,
       judges: counts.judges ?? 0,
@@ -524,6 +533,7 @@ export function evidenceOf(method: string, params: Record<string, unknown>, trac
     placed,
     moved,
     excluded,
+    ...decidedIn,
     k,
     judges: sizes.length
       ? { counted: sizes.length, corrected: sizes.filter((x) => x >= CORRECTED_FROM).length, largest: Math.max(...sizes), median: median(sizes) }

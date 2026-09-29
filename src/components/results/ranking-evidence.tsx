@@ -113,9 +113,17 @@ export function RankingEvidence({ results }: { results: PublishedResults }) {
         : null;
   }
 
-  const effect = e.moved
-    ? `${e.moved} of the ${plural(e.placed, "project")} ${e.moved === 1 ? "stands" : "stand"} at a different place in their track than ${plainFigure} would put them.`
-    : `Every project stands at the place in its track that ${plainFigure} would give it.`;
+  const decided = e.decidedIn ?? [];
+  // with a judges' decision the printed first place is not the scores' own: the count says it is the scores' order, and
+  // the decision is named apart, so no sentence here claims a place the page does not print
+  const effect = !decided.length
+    ? e.moved
+      ? `${e.moved} of the ${plural(e.placed, "project")} ${e.moved === 1 ? "stands" : "stand"} at a different place in their track than ${plainFigure} would put them.`
+      : `Every project stands at the place in its track that ${plainFigure} would give it.`
+    : (e.moved
+        ? `By the scores, ${e.moved} of the ${plural(e.placed, "project")} ${e.moved === 1 ? "stands" : "stand"} at a different place in their track than ${plainFigure} would put them.`
+        : `By the scores, every project stands at the place in its track that ${plainFigure} would give it.`) +
+      ` Then the judges\u2019 decision on a close call put another project first in ${decided.length === 1 ? decided[0] : `${decided.slice(0, -1).join(", ")} and ${decided.at(-1)}`}, so the places printed there differ from the scores\u2019 order.`;
   const split = e.kind === "pairwise" ? splitTracks(e) : null;
 
   let signal: string | null = null;

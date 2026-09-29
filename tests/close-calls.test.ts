@@ -11,6 +11,9 @@ import { resetRateLimits } from "@/server/rate-limit";
 import { CALL_LINE, DRAWS, closeCall, firstCounts, withDecidedWinner, type Contender } from "@/server/judging/decision";
 import { competitionPlaces } from "@/lib/places";
 import type { Actor } from "@/server/authz";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { RankingEvidence } from "@/components/results/ranking-evidence";
 
 // The judges' decision on a close call (JUDGING.md, "Close calls and the judges' decision"): the P(first)
 // module, the close-call check, the two audited choices, what publishing does with them, and the refusals.
@@ -263,6 +266,29 @@ describe("settling a close call", () => {
     expect(clear.rows[0]!.projectId).toBe("prj_b1");
     // the certificate follows the published place
     expect(competitionPlaces(t.rows)[0]).toEqual({ place: 1, joint: false });
+  });
+
+  it("\"How this ranking was reached\" says the judges' decision moved the first place, never that every place is the plain average's", () => {
+    settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "judges", winnerId: "prj_a2", reason: "The judges found its demo worked end to end." });
+    publishResults(organizer(), "evt_cc");
+    const r = getPublishedResults("evt_cc");
+    if (!r.published) throw new Error("not published");
+    expect(r.evidence.decidedIn).toEqual(["Close"]);
+    const text = renderToStaticMarkup(createElement(RankingEvidence, { results: r })).replace(/&#x27;/g, "'");
+    expect(text).not.toMatch(/(^|>)Every project stands at the place/);
+    expect(text).toMatch(/By the scores, (every project stands|\d+ of the)/);
+    expect(text).toContain("Then the judges\u2019 decision on a close call put another project first in Close, so the places printed there differ from the scores\u2019 order.");
+  });
+
+  it("positive control: with the ranking's winner kept, the evidence has no decision and reads as before", () => {
+    settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "keep" });
+    publishResults(organizer(), "evt_cc");
+    const r = getPublishedResults("evt_cc");
+    if (!r.published) throw new Error("not published");
+    expect("decidedIn" in r.evidence).toBe(false);
+    const text = renderToStaticMarkup(createElement(RankingEvidence, { results: r }));
+    expect(text).not.toContain("By the scores");
+    expect(text).not.toContain("close call");
   });
 
   it("refuses a winner outside the close projects, the ranking's own winner, a missing reason, a clear track and an unknown one", () => {
