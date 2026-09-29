@@ -40,7 +40,7 @@ export type AuditLine = {
 type Row = typeof auditLog.$inferSelect;
 
 type Names = {
-  user: Map<string, string>;
+  user: Pick<Map<string, string>, "get">;
   project: Map<string, string>;
   team: Map<string, string>;
   track: Map<string, string>;
@@ -53,9 +53,24 @@ type Names = {
 
 const SEALED = "hidden until voting closes";
 
+/**
+ * The names of the people the rows mention, each read by its id the first time a sentence asks, and kept: a page
+ * reads the few people it names, not every account on the portal. A sentence may name someone from the actor,
+ * the target or inside the row's before or after, so the ids are not collected ahead.
+ */
+function userNames(db: DbOrTx): Names["user"] {
+  const known = new Map<string, string | undefined>();
+  return {
+    get(id: string) {
+      if (!known.has(id)) known.set(id, db.select({ name: users.name }).from(users).where(eq(users.id, id)).get()?.name);
+      return known.get(id);
+    },
+  };
+}
+
 function loadNames(db: DbOrTx, eventId: string): Names {
   return {
-    user: new Map(db.select({ id: users.id, name: users.name }).from(users).all().map((u) => [u.id, u.name])),
+    user: userNames(db),
     project: new Map(db.select({ id: projects.id, title: shownTitle() }).from(projects).where(eq(projects.eventId, eventId)).all().map((p) => [p.id, p.title])),
     team: new Map(db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, eventId)).all().map((t) => [t.id, t.name])),
     track: new Map(db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, eventId)).all().map((t) => [t.id, t.name])),
