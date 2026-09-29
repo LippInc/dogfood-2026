@@ -374,7 +374,7 @@ export type PublishedResults =
       unsettled: Unsettled | null;
       /** only when the event broke exact ties by a criterion: its name (rows then carry tie and tieBroken) */
       tieBreak?: { criterion: string };
-      /** only when the tie-break changed after judging began: each change with its reason */
+      /** only when the tie-break changed after judging began, whatever it ended on (joint places too): each change with its reason */
       tieBreakChanges?: TieBreakChange[];
       /** how the ranking was reached, in aggregate numbers only: never a judge's id, name or own figure */
       evidence: RankingEvidence;
@@ -565,7 +565,8 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     trackMoves: (run.params as { trackMoves?: PublishedTrackMove[] }).trackMoves ?? [],
     unsettled: (run.params as { unsettled?: Unsettled }).unsettled ?? null,
     ...(tie ? { tieBreak: { criterion: tie.label } } : {}),
-    ...(tie && event.settings.tieBreakChanges?.length ? { tieBreakChanges: event.settings.tieBreakChanges } : {}),
+    // every change made after judging began, whatever the setting ended on: a switch back to joint places is a change too
+    ...(event.settings.tieBreakChanges?.length ? { tieBreakChanges: event.settings.tieBreakChanges } : {}),
     evidence: evidenceOf(run.method, run.params as Record<string, unknown>, [...byTrack.values()]),
     tracks: [...byTrack.values()].map((t) => {
       const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));

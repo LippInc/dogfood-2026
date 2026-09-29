@@ -240,6 +240,32 @@ describe("setTieBreak", () => {
     expect(r.published && r.tieBreakChanges?.[0]?.reason).toBe(reason);
   });
 
+  it("lists a change back to joint places on the published results, even when no tie-break is set at publishing", () => {
+    setTieBreak(organizer(), "evt_01", { criterionId: crit("functionality"), reason });
+    setTieBreak(organizer(), "evt_01", { criterionId: null, reason: "Joint places after all" });
+    settleAndPublish();
+    const r = getPublishedResults("evt_01");
+    if (!r.published) throw new Error("not published");
+    expect(r).not.toHaveProperty("tieBreak");
+    expect(r.tieBreakChanges?.map((c) => [c.before?.id ?? null, c.after?.id ?? null, c.reason])).toEqual([
+      [null, crit("functionality"), reason],
+      [crit("functionality"), null, "Joint places after all"],
+    ]);
+  });
+
+  it("lists every change on the published results when a criterion, joint, a criterion and joint again end on joint places", () => {
+    setTieBreak(organizer(), "evt_01", { criterionId: crit("functionality"), reason });
+    setTieBreak(organizer(), "evt_01", { criterionId: null, reason: "Joint places after all" });
+    setTieBreak(organizer(), "evt_01", { criterionId: crit("quality"), reason: "Quality, as announced" });
+    setTieBreak(organizer(), "evt_01", { criterionId: null, reason: "Joint places, final" });
+    settleAndPublish();
+    const r = getPublishedResults("evt_01");
+    if (!r.published) throw new Error("not published");
+    expect(r).not.toHaveProperty("tieBreak");
+    expect(r.tieBreakChanges?.map((c) => c.reason)).toEqual([reason, "Joint places after all", "Quality, as announced", "Joint places, final"]);
+    expect(r.tieBreakChanges?.at(-1)?.after).toBeNull();
+  });
+
   it("writes one audit row per change that reads as a sentence, and none for a repeat", () => {
     setTieBreak(organizer(), "evt_01", { criterionId: crit("innovation"), reason });
     expect(setTieBreak(organizer(), "evt_01", { criterionId: crit("innovation"), reason })).toMatchObject({ changed: false });
