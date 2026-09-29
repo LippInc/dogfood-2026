@@ -10,6 +10,8 @@ change lands in an append-only audit log.
 - **Run it:** `docker compose up`, then `http://localhost:8080/sign-in` (below).
 - **T1 and T2:** the organizers' `run.py`; its output is [`acceptance-report.txt`](acceptance-report.txt).
 - **T3 and T4:** our hand check, `tests/isolation_check.py`; its output is [`isolation-report.txt`](isolation-report.txt).
+  Both reports name the commit they ran on (a report cannot name the commit that adds it); that commit changes
+  only the two reports.
   Every bullet, where it lives and how to check it: [Beyond the checker](#beyond-the-checker).
 - **The judging engine:** [`JUDGING.md`](JUDGING.md), with the Monte Carlo that backs it (one command, below).
 - **Built in the window:** the first commit is 2026-09-26 18:43 UTC, after the kickoff; the submission deadline the
