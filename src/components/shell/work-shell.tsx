@@ -52,13 +52,15 @@ export function WorkShell({
             controls on the next, the tabs on a scrolling row of their own, so Sign out and the
             mode toggle never sit off-screen or under the mark. */}
         <div className="flex flex-wrap items-stretch gap-x-6 px-4 sm:h-12 sm:flex-nowrap sm:overflow-x-auto lg:px-8">
-          <Link href={eventHref} className="flex shrink-0 items-center gap-3 self-center py-3 max-sm:basis-full max-sm:pr-16 sm:py-0">
+          <Link href={eventHref} className="flex min-w-0 shrink-0 items-center gap-3 self-center py-3 max-sm:basis-full max-sm:pr-16 sm:py-0">
             <span className="size-3 shrink-0 bg-accent" aria-hidden />
             <span title={eventName} className="max-w-[20rem] min-w-0 truncate text-15 font-semibold sm:max-w-[28rem]">
               {eventName}
             </span>
+            {/* the crumb stays on a phone too (the console's only cue that this is judging): the name truncates first,
+                which needs the link's min-w-0 (a long name pushed the page wider than a 390 px phone before) */}
             {crumb ? (
-              <span className="text-15 whitespace-nowrap text-ink-3 max-sm:hidden">
+              <span className="shrink-0 text-15 whitespace-nowrap text-ink-3">
                 <span aria-hidden>/ </span>
                 {crumb}
               </span>
