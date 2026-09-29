@@ -272,7 +272,7 @@ function Exchange({ id, answer, viewer, onLeave }: { id: number; answer: HelpAns
               return (
                 <li key={e.id} className="flex min-h-9 items-baseline justify-between gap-3 border-b border-rule py-1.5 last:border-b-0">
                   {href ? (
-                    <Link href={href} onClick={onLeave} className="text-15 font-medium underline decoration-edge underline-offset-4 hover:decoration-ink">
+                    <Link href={href} prefetch={false} onClick={onLeave} className="text-15 font-medium underline decoration-edge underline-offset-4 hover:decoration-ink">
                       {e.title}
                     </Link>
                   ) : (
@@ -300,6 +300,8 @@ function Match({ entry, usable, viewer, onLeave }: { entry: HelpEntry; usable: b
       {href ? (
         <Link
           href={href}
+          // no prefetch: showing an answer asks nothing of the server; the page loads when the link is followed
+          prefetch={false}
           onClick={onLeave}
           className="group inline-flex items-baseline gap-1.5 self-start text-15 font-semibold underline decoration-edge underline-offset-4 hover:decoration-ink"
         >

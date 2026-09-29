@@ -328,6 +328,9 @@ describe("no network", () => {
       if (!f.endsWith("help-slot.tsx")) {
         expect(text, f).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|\bimport\s*\(|"use server"|@\/server|\/actions["']/);
       }
+      // an answer's links do not prefetch their pages (Next's Link would load each one it shows)
+      const links = text.match(/<Link\b/g)?.length ?? 0;
+      expect(text.match(/prefetch=\{false\}/g)?.length ?? 0, f).toBe(links);
     }
   });
 });
