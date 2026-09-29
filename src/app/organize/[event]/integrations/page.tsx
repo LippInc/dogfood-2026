@@ -165,6 +165,13 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
                 <code className="font-mono text-12 text-ink">Dogfood-Signature: t=&lt;time&gt;,v1=&lt;HMAC-SHA256&gt;</code> over{" "}
                 <code className="font-mono text-12 text-ink">&lt;time&gt;.&lt;body&gt;</code>, keyed with the webhook&rsquo;s secret
               </dd>
+              <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5 sm:pr-4">Checking it</dt>
+              <dd className="border-b border-rule pb-2.5 text-ink-2 sm:py-2.5">
+                compute the signature again and compare in constant time; refuse a delivery whose{" "}
+                <code className="font-mono text-12 text-ink">&lt;time&gt;</code> is more than five minutes from your clock, so a copied one
+                cannot be replayed later. A retry carries the same <code className="font-mono text-12 text-ink">Dogfood-Delivery</code> id: act on
+                each id once
+              </dd>
               <dt className="pt-2.5 font-medium text-ink sm:border-b sm:border-rule sm:py-2.5 sm:pr-4">Left out</dt>
               <dd className="border-b border-rule pb-2.5 text-ink-2 sm:py-2.5">
                 a ballot&rsquo;s picks, a judge&rsquo;s scores and a judge&rsquo;s pairwise answers: the delivery says who acted and when, and the
