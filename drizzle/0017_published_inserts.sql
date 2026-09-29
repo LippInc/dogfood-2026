@@ -1,4 +1,4 @@
--- The post-publish freeze for additions (THREAT-MODEL.md, JUDGING.md "The audit trail"): once an event's results
+-- The post-publish freeze for additions (THREAT-MODEL.md, DATA-MODEL.md): once an event's results
 -- are published, the database refuses an INSERT that would add a row to a table the published ranking rests on
 -- (scores, score_items, score_comments, assignments, rubric_criteria, judge_overrides, comparisons,
 -- normalization_runs, normalized_scores), and the UPDATE and DELETE the first set (0012_triggers) left open on
