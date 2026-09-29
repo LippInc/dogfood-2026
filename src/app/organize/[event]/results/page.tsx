@@ -9,7 +9,7 @@ import { RankLine, SlopeChart } from "@/components/figures/slope-chart";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
 import { formatUtc, plural } from "@/lib/format";
-import { currentActor, getNormalization, getPairwiseRanking, judgingModeOf, listRecords, METHOD_LABEL, type ProjectRow } from "@/server/dal";
+import { currentActor, getNormalization, getPairwiseRanking, getTeamChangesAfterClose, judgingModeOf, listRecords, METHOD_LABEL, type ProjectRow } from "@/server/dal";
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
 import { PairwiseResults } from "./pairwise-results";
@@ -57,6 +57,8 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const actor = await currentActor();
   if (!actor) unauthorized();
   const { event, normalization: n, decisions, notes, crossCheck, published } = guardPage(() => getNormalization(actor, key));
+  // teams the organizers changed after the close (the teams the judges saw), marked on their rows: one query for the event
+  const teamChanges = guardPage(() => getTeamChangesAfterClose(actor, key));
   const tracks = [...new Map(n.projects.map((p) => [p.trackId, p.trackName])).entries()];
   const chosen = typeof track === "string" && tracks.some(([id]) => id === track) ? track : null;
   const rows = n.projects.filter((p) => !chosen || p.trackId === chosen);
@@ -370,6 +372,14 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                           {p.duplicateOf ? <span className="ml-2 text-12 text-ink-2">merged into {p.duplicateOf}</span> : null}
                           {p.underReviewed ? <span className="ml-2 text-12 text-flag">under-reviewed</span> : null}
                         </DetailToggle>
+                        {teamChanges.get(p.id) ? (
+                          <span className="mt-0.5 block pl-[58px] text-12 text-ink-2">
+                            Team changed after the close, <span className="tnum">{formatUtc(teamChanges.get(p.id)!.at)}</span>:{" "}
+                            <Link href={`/organize/${event.slug}/teams/${teamChanges.get(p.id)!.teamId}`} className="underline underline-offset-4 hover:text-ink">
+                              what and why
+                            </Link>
+                          </span>
+                        ) : null}
                         <span className="mt-0.5 block pl-[58px] text-12 text-ink-2 md:hidden">
                           {chosen ? `in track ${rk(p.trackRankRaw)} → ${rk(p.trackRank)}` : p.trackName} · {p.n === p.nAll ? plural(p.n, "review") : `${p.n} of ${p.nAll} reviews`}
                           <span className="mt-0.5 block text-13 whitespace-nowrap">

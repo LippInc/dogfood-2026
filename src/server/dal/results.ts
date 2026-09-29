@@ -22,6 +22,7 @@ import { METHOD, METHOD_LABEL, type ProjectRow, type Normalized, computeNormaliz
 import { decisions, eventDecisions, organizerMutation, notPublished } from "./decisions";
 import { shownTitle } from "./project-fields";
 import { projectTrackMoves, type PublishedTrackMove } from "./corrections";
+import { organizerChangesAfterCloseByProject } from "./teams";
 
 // The organizer's results view (the normalization, its decisions, the judges' private notes
 // and the cross-check between methods), publishing, which stores the run it publishes, and
@@ -350,6 +351,8 @@ export type PublishedResults =
           raw: number | null;
           place: number | null;
           rankOverall: number | null;
+          /** when the organizers last changed this project's team after submissions closed (renamed it, added or took off a member); null when they did not */
+          teamChangedAt: string | null;
         }[];
       }[];
     };
@@ -476,6 +479,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     .where(eq(normalizedScores.runId, runId))
     .orderBy(asc(tracks.position), desc(normalizedScores.normalizedMean))
     .all();
+  const teamChanges = organizerChangesAfterCloseByProject(db, event);
   const byTrack = new Map<string, { id: string; name: string; rows: typeof rows }>();
   for (const r of rows) {
     const t = byTrack.get(r.trackId) ?? { id: r.trackId, name: r.trackName, rows: [] };
@@ -516,6 +520,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
           raw: r.raw,
           place: places.get(r.projectId) ?? null,
           rankOverall: r.rankOverall,
+          teamChangedAt: teamChanges.get(r.projectId)?.at ?? null,
         })),
       };
     }),

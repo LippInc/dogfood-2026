@@ -313,6 +313,14 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                             {/* the track's heading already says where; the place in words stays for screen readers */}
                             {p.place !== null ? <span className="sr-only">{` · ${ordinal(p.place)} in ${t.name}`}</span> : null}
                           </span>
+                          {r.teamChangedAt ? (
+                            <span className="mt-1 block text-13 text-ink-2 wrap-anywhere">
+                              Team changed by the organizers after submissions closed, <span className="tnum">{formatUtc(r.teamChangedAt)}</span>:{" "}
+                              <Link href={`/events/${event.slug}/projects/${r.projectId}`} className="underline underline-offset-4 hover:text-accent-ink">
+                                see the project page
+                              </Link>
+                            </span>
+                          ) : null}
                           {movesOf.get(r.projectId)?.map((m, mi) => (
                             <span key={mi} className="mt-1 block text-13 text-flag wrap-anywhere">
                               <span className="tnum">{trackMoveWords(m)}</span>. Their reason: &ldquo;{m.reason}&rdquo;

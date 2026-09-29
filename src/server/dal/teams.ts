@@ -602,6 +602,39 @@ export function organizerChangedAfterClose(db: DbOrTx, event: { id: string; subm
   );
 }
 
+/**
+ * Every team of the event the organizers changed after submissions closed, as project id -> the
+ * team id and the last such change's time: one query for the whole event, for the results pages.
+ */
+export function organizerChangesAfterCloseByProject(
+  db: DbOrTx,
+  event: { id: string; submissionsCloseAt: string },
+): Map<string, { teamId: string; at: string }> {
+  const rows = db
+    .select({ projectId: projects.id, teamId: projects.teamId, at: sql<string>`max(${auditLog.at})` })
+    .from(auditLog)
+    .innerJoin(projects, and(eq(projects.teamId, auditLog.targetId), eq(projects.eventId, auditLog.eventId)))
+    .where(
+      and(
+        eq(auditLog.eventId, event.id),
+        eq(auditLog.targetType, "team"),
+        inArray(auditLog.action, ORGANIZER_TEAM_ACTIONS),
+        gte(auditLog.at, new Date(event.submissionsCloseAt).toISOString()),
+      ),
+    )
+    .groupBy(projects.id)
+    .all();
+  return new Map(rows.map((r) => [r.projectId, { teamId: r.teamId, at: r.at }]));
+}
+
+/** The same, for the organizers' results page: only the event's organizers (and an administrator) read it. */
+export function getTeamChangesAfterClose(actor: Actor | null, eventIdOrSlug: string): Map<string, { teamId: string; at: string }> {
+  const db = getDb();
+  const event = requireEvent(db, eventIdOrSlug);
+  guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
+  return organizerChangesAfterCloseByProject(db, event);
+}
+
 export type OrganizerTeamView = {
   event: { id: string; slug: string; name: string; submissionsCloseAt: string; resultsPublishedAt: string | null };
   team: { id: string; name: string; createdAt: string };

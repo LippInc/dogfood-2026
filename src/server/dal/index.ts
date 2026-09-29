@@ -27,6 +27,7 @@ export {
   getTeamForOrganizer,
   joinTeam,
   leaveTeam,
+  getTeamChangesAfterClose,
   makeCaptain,
   organizerAddMember,
   organizerRemoveMember,
