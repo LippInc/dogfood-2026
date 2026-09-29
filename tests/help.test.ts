@@ -77,6 +77,9 @@ describe("the matcher finds the entry a question means", () => {
     ["switch to pairwise", "switch-pairwise"],
     ["docker compose up", "run-it"],
     ["settle the decisions", "decisions"],
+    ["how do i award a prize", "award-prizes"],
+    ["split a prize between two projects", "award-prizes"],
+    ["did we win a prize", "prizes"],
   ];
 
   it(`answers ${cases.length} real questions with the expected entry first`, () => {

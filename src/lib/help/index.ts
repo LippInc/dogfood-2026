@@ -95,7 +95,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/events/[event]/results",
     who: ["everyone"],
     answer:
-      "Hidden until the organizers publish. Then every project in every track shows its place and its score with the ±, and \"How this ranking was reached\" explains the method.",
+      "Hidden until the organizers publish. Then every project in every track shows its place and its score with the ±, the prizes show with their winners, and \"How this ranking was reached\" explains the method.",
     keywords: ["results", "winners", "who won", "ranking", "leaderboard", "places", "standings", "final scores", "public results", "results out", "results come out", "when are results out", "verify the results", "check the results"],
   },
   {
@@ -448,7 +448,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/[event]/results",
     who: ["organizer"],
     answer:
-      "The ranking as it will be published (a preview until you publish), each project's receipt of reviews, leniency and ±, the judge ledger with what leaving each judge out would move, and \"Issue every record\" once published.",
+      "The ranking as it will be published (a preview until you publish), each project's receipt of reviews, leniency and ±, the judge ledger, the Prizes step, and \"Issue every record\" once published.",
     keywords: ["organizer results", "receipts", "working", "preview ranking", "judge ledger", "normalized ranking", "show the working", "how scores were worked out"],
     doc: { file: "JUDGING.md", heading: "Normalization" },
   },
@@ -549,6 +549,28 @@ export const HELP_ENTRIES: HelpEntry[] = [
       "The Overview lists what stands between the scores and the results (a flat judge, a duplicate entry, an under-reviewed project), each with its evidence and what it would move. Each choice is one audited action, with a written reason wherever it overrides a rule.",
     keywords: ["decisions", "settle", "open decisions", "blocked", "why can't i publish", "3 decisions", "needs you", "resolve"],
     doc: { file: "README.md", heading: "A guided tour" },
+  },
+  {
+    id: "award-prizes",
+    kind: "task",
+    title: "Award the prizes",
+    href: "/organize/[event]/results",
+    who: ["organizer"],
+    answer:
+      "In the Prizes step at the foot of the Results tab, give each prize to a project, or to several jointly, with the places beside them and an optional note. Each save is logged; a prize can stay unawarded, and publishing makes the awards final.",
+    keywords: ["award prize", "give a prize", "give the prize", "split a prize", "joint prize", "share a prize", "prize winner", "prizes", "joint winner", "special award", "who gets the prize", "unawarded prize", "best in show"],
+    doc: { file: "docs/FEATURES.md", heading: "Prizes" },
+  },
+  {
+    id: "prizes",
+    kind: "concept",
+    title: "Prizes",
+    href: "/events/[event]/results",
+    who: ["everyone"],
+    answer:
+      "The organizers give each prize on top of the places, before they publish. Once published, the results show each prize with its winners, and a winner's page and certificate say \"Winner, <prize>\".",
+    keywords: ["prize", "prizes", "did we win a prize", "prize list", "award", "certificate prize", "winner of the prize"],
+    doc: { file: "JUDGING.md", heading: "Prizes" },
   },
   {
     id: "publish",
