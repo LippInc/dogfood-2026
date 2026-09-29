@@ -5,6 +5,7 @@ import { DitherDigits } from "@/components/dither-digits";
 import { Face } from "@/components/face";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
+import { linkedInAddHref, linkedInCertName } from "@/lib/linkedin";
 import { actorNav, currentActor, getRecord, NotFoundError, type RecordView } from "@/server/dal";
 import { BrowserCheck, CheckedSheet, ForgeTry, LiveBits, LiveSeal, RecordActions, RecordCheck } from "./check";
 
@@ -26,8 +27,15 @@ type Common = { id: string; kind: "judge" | "participant"; issuer: string; keyId
 export async function generateMetadata({ params }: PageProps<"/records/[record]">): Promise<Metadata> {
   try {
     const r = getRecord((await params).record);
-    const rec = r.envelope.record as unknown as Common;
-    return { title: `${rec.person.name}: ${rec.kind === "judge" ? "judging record" : "certificate"}, ${rec.event.name}` };
+    const rec = r.envelope.record as unknown as Common & Partial<ParticipantRecord>;
+    const title = `${rec.person.name}: ${rec.kind === "judge" ? "judging record" : "certificate"}, ${rec.event.name}`;
+    // A pasted link shows a card with a title and one line (no image), wherever it is shared.
+    const what =
+      rec.kind === "judge"
+        ? `${rec.person.name} judged at ${rec.event.name}.`
+        : `${rec.person.name}${rec.project?.awards.length ? `, ${rec.project.awards[0]}` : ""}, with ${rec.project?.title ?? "their project"} at ${rec.event.name}.`;
+    const description = `${what} A signed record anyone can check on this page.`;
+    return { title, description, openGraph: { title, description, type: "article" } };
   } catch {
     return { title: "Record" };
   }
@@ -211,7 +219,17 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
               {view.event.name} results
             </Link>
           </nav>
-          <RecordActions envelope={view.envelope} id={rec.id} />
+          <RecordActions
+            envelope={view.envelope}
+            id={rec.id}
+            linkedIn={linkedInAddHref({
+              name: linkedInCertName({ kind: rec.kind, awards, projectTitle: rec.project?.title }),
+              organization: rec.event.name,
+              issuedAt: rec.issuedAt,
+              url: `${rec.issuer}/records/${rec.id}`,
+              id: rec.id,
+            })}
+          />
         </div>
         </div>
 

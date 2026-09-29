@@ -265,7 +265,7 @@ export function ForgeTry({ envelope }: { envelope: Envelope }) {
   );
 }
 
-export function RecordActions({ envelope, id }: { envelope: Envelope; id: string }) {
+export function RecordActions({ envelope, id, linkedIn }: { envelope: Envelope; id: string; linkedIn: string }) {
   const [copied, setCopied] = useState(false);
   const download = () => {
     const blob = new Blob([JSON.stringify(envelope, null, 2) + "\n"], { type: "application/json" });
@@ -310,6 +310,10 @@ export function RecordActions({ envelope, id }: { envelope: Envelope; id: string
           )}
         </span>
       </button>
+      {/* A plain link to LinkedIn's add-certification form, prefilled: the portal itself fetches nothing. */}
+      <a href={linkedIn} target="_blank" rel="noopener noreferrer" className={button}>
+        Add to LinkedIn
+      </a>
     </div>
   );
 }
