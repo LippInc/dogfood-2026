@@ -2,7 +2,7 @@ import "server-only";
 // Idempotent, non-destructive import of fixtures.json: every insert is
 // INSERT OR IGNORE, so an organizer's later edits survive the next boot's import.
 import fs from "node:fs";
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./client";
 import { appendAudit } from "../audit";
@@ -855,6 +855,8 @@ export function importFixtures(
           broughtAny = true;
         }
       }
+      // A review an earlier import brought in part, that this one completes, is finished as a judge's save finishes it
+      if (!newAssignment && broughtAny) finishIfComplete(tx, [...criterionOf.values()], assignmentId, scoreId, now);
       if (broughtAny) report.added.reviews.push(brought);
     }
 
@@ -949,4 +951,14 @@ export function loadFixtureFile(file: string): { fixture: Fixture; sha256: strin
   const text = fs.readFileSync(file, "utf8");
   const digest = sha256(text);
   return { fixture: FixtureSchema.parse(JSON.parse(text)), sha256: digest };
+}
+
+/** A pending review whose score now has every one of the event's criteria (their ids): done, submitted now (a recused one stays). */
+function finishIfComplete(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], criterionIds: string[], assignmentId: string, scoreId: string, now: string) {
+  const a = tx.select({ status: assignments.status }).from(assignments).where(eq(assignments.id, assignmentId)).get();
+  if (a?.status !== "pending") return;
+  const scored = new Set(tx.select({ c: scoreItems.criterionId }).from(scoreItems).where(eq(scoreItems.scoreId, scoreId)).all().map((i) => i.c));
+  if (criterionIds.length === 0 || !criterionIds.every((id) => scored.has(id))) return;
+  tx.update(scores).set({ submittedAt: now, updatedAt: now }).where(and(eq(scores.id, scoreId), isNull(scores.submittedAt))).run();
+  tx.update(assignments).set({ status: "done" }).where(eq(assignments.id, assignmentId)).run();
 }

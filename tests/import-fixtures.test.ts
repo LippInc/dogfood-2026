@@ -207,6 +207,36 @@ describe("importFixtures", () => {
     expect(items.some((i) => i.criterionId.includes("innovation"))).toBe(false);
   });
 
+  it("known-bad: a second import that completes a partly imported review finishes it as a judge's save would", () => {
+    const { fixture, sha256 } = loadFixture();
+    const partial: Fixture = structuredClone(fixture);
+    delete partial.scores.find((s) => s.judge === "jdg_08" && s.project === "prj_01")!.criteria.innovation;
+    importFixture(db, partial, sha256);
+    expect(db.select().from(assignments).where(eq(assignments.id, "asg_jdg_08_prj_01")).get()?.status).toBe("pending");
+
+    // positive control: the same partial file again changes nothing
+    importFixture(db, partial, sha256);
+    expect(db.select().from(assignments).where(eq(assignments.id, "asg_jdg_08_prj_01")).get()?.status).toBe("pending");
+    expect(db.select().from(scores).where(eq(scores.id, "scr_jdg_08_prj_01")).get()?.submittedAt).toBeNull();
+
+    const later = "2026-09-27T09:00:00.000Z";
+    importFixtures(db, fixture, { source: "fixtures.json", sha256, now: later });
+
+    expect(db.select().from(scoreItems).where(eq(scoreItems.scoreId, "scr_jdg_08_prj_01")).all()).toHaveLength(3);
+    expect(db.select().from(assignments).where(eq(assignments.id, "asg_jdg_08_prj_01")).get()?.status).toBe("done");
+    expect(db.select().from(scores).where(eq(scores.id, "scr_jdg_08_prj_01")).get()?.submittedAt).toBe(later);
+  });
+
+  it("a recused assignment stays recused when a second import brings its missing score", () => {
+    const { fixture, sha256 } = loadFixture();
+    const partial: Fixture = structuredClone(fixture);
+    delete partial.scores.find((s) => s.judge === "jdg_08" && s.project === "prj_01")!.criteria.innovation;
+    importFixture(db, partial, sha256);
+    h.sqlite.prepare("UPDATE assignments SET status = 'recused' WHERE id = 'asg_jdg_08_prj_01'").run();
+    importFixture(db, fixture, sha256);
+    expect(db.select().from(assignments).where(eq(assignments.id, "asg_jdg_08_prj_01")).get()?.status).toBe("recused");
+  });
+
   it("rejects a malformed fixture file", () => {
     expect(() => FixtureSchema.parse({ event: {} })).toThrow();
   });

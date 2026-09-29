@@ -118,7 +118,7 @@ The chain: each row's `hash` is `sha256(prev_hash + "\n" + canonical JSON of the
 
 ## Where the fixture lands
 
-The import (`src/server/db/import-fixtures.ts`) is idempotent — every insert is INSERT OR IGNORE, and a start does not import the same file twice, so the organizers' later edits and removals survive the next boot — and non-destructive: unknown or conflicting rows are skipped and reported, never thrown away.
+The import (`src/server/db/import-fixtures.ts`) is idempotent — every insert is INSERT OR IGNORE, and a start does not import the same file twice, so the organizers' later edits and removals survive the next boot — and non-destructive: unknown or conflicting rows are skipped and reported, never thrown away. A later file that brings the missing scores of a review an earlier import brought in part finishes that review as a judge's save would: its assignment turns `done` and its score gets its `submitted_at` (a recused assignment stays recused).
 
 | Fixture section | Tables |
 |---|---|
