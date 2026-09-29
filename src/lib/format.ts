@@ -11,17 +11,18 @@ export function plural(n: number, noun: string, many = `${noun}s`): string {
 }
 
 /**
- * How many community votes are in, in the organizer's words: "no votes are in yet", "1 vote is in",
- * "8 votes are in". A vote here is one ballot; never "people have voted", since ballots through the
- * open link cannot prove they come from different people.
+ * How many have voted in the community vote, in the organizer's words: "no voters yet", "1 voter so far",
+ * "8 voters so far". Voters, because a vote is one pick on a ballot (3 per voter by default) and every
+ * project's tally counts votes; and never "people", since voters through the open link cannot prove
+ * they are different people.
  */
-export function votesIn(n: number): string {
-  return n === 0 ? "no votes are in yet" : n === 1 ? "1 vote is in" : `${n} votes are in`;
+export function votersIn(n: number): string {
+  return n === 0 ? "no voters yet" : n === 1 ? "1 voter so far" : `${n} voters so far`;
 }
 
-/** A closed vote's count, as a fact: "no votes", "1 vote", "8 votes". */
-export function votesCount(n: number): string {
-  return n === 0 ? "no votes" : plural(n, "vote");
+/** A closed vote's turnout, as a fact: "no voters", "1 voter", "8 voters". */
+export function votersCount(n: number): string {
+  return n === 0 ? "no voters" : plural(n, "voter");
 }
 
 /**

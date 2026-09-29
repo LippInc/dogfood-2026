@@ -7,7 +7,7 @@ import { LeniencyStrip } from "@/components/figures/leniency-strip";
 import { Wiring } from "@/components/figures/wiring";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
-import { formatUtc, plural, votesCount } from "@/lib/format";
+import { formatUtc, plural, votersCount } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import {
   currentActor,
@@ -214,7 +214,7 @@ export default async function OverviewPage({
             : "none were needed",
         },
         ...(o.vote?.state === "closed"
-          ? [{ label: "Community vote", value: `closed, ${votesCount(o.vote.ballots)}` }]
+          ? [{ label: "Community vote", value: `closed, ${votersCount(o.vote.ballots)}` }]
           : []),
         ...o.pipeline
           .filter((s) => s.no === "09")

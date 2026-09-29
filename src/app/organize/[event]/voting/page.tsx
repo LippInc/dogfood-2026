@@ -335,7 +335,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
             </h2>
             <p className="mt-3 flex items-baseline gap-2">
               <span className="text-38 leading-none font-semibold tnum">{v.turnout.ballots}</span>
-              <span className="text-13 text-ink-2">{v.turnout.ballots === 1 ? "vote" : "votes"} counted{v.turnout.voided ? ` · ${v.turnout.voided} set aside` : ""}</span>
+              <span className="text-13 text-ink-2">{v.turnout.ballots === 1 ? "voter" : "voters"} counted{v.turnout.voided ? ` · ${v.turnout.voided} set aside` : ""}</span>
             </p>
             </div>
             <div className={quiet ? "lg:pt-1" : ""}>
@@ -390,7 +390,7 @@ export default async function VotingPage({ params }: PageProps<"/organize/[event
                   // orange means "needs you": once voting has closed nothing here can be acted on, so the bar goes neutral
                   <li key={g.key} className={`rounded-sm border border-rule border-l-[3px] p-3 ${closed ? "border-l-edge" : "border-l-flag-bar"}`}>
                     <p className="text-13 text-ink-2">
-                      {g.voters.length} votes, same address and browser <span className="font-mono">#{g.key}</span>
+                      {g.voters.length} voters, same address and browser <span className="font-mono">#{g.key}</span>
                     </p>
                     <ul className="mt-2 flex flex-col gap-2">
                       {g.voters.map((voter) => (
