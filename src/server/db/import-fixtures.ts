@@ -661,41 +661,52 @@ export function importFixtures(
         });
         continue;
       }
-      bump(
-        "projects",
-        insertOnce(
-          tx
-            .insert(projects)
-            .values({
-              id: projectOf.get(p.id)!,
-              eventId,
-              teamId: teamOf.get(p.team)!,
-              trackId: trackOf.get(p.track)!,
-              title: p.title,
-              summary: p.summary,
-              repoUrl: p.repo_url === "" ? null : p.repo_url,
-              description: p.description,
-              videoUrl: p.video_url === "" ? null : p.video_url,
-              liveUrl: p.live_url === "" ? null : p.live_url,
-              thumbnailUrl: p.thumbnail_url === "" ? null : p.thumbnail_url,
-              galleryUrls: p.gallery_urls,
-              tags: p.tags.filter((t, i) => p.tags.findIndex((u) => u.toLowerCase() === t.toLowerCase()) === i),
-              status: "submitted",
-              submittedAt: p.submitted_at,
-              createdAt: p.submitted_at,
-              updatedAt: p.submitted_at,
-            })
-            .onConflictDoNothing(),
-        ),
+      const created = insertOnce(
+        tx
+          .insert(projects)
+          .values({
+            id: projectOf.get(p.id)!,
+            eventId,
+            teamId: teamOf.get(p.team)!,
+            trackId: trackOf.get(p.track)!,
+            title: p.title,
+            summary: p.summary,
+            repoUrl: p.repo_url === "" ? null : p.repo_url,
+            description: p.description,
+            videoUrl: p.video_url === "" ? null : p.video_url,
+            liveUrl: p.live_url === "" ? null : p.live_url,
+            thumbnailUrl: p.thumbnail_url === "" ? null : p.thumbnail_url,
+            galleryUrls: p.gallery_urls,
+            tags: p.tags.filter((t, i) => p.tags.findIndex((u) => u.toLowerCase() === t.toLowerCase()) === i),
+            status: "submitted",
+            submittedAt: p.submitted_at,
+            createdAt: p.submitted_at,
+            updatedAt: p.submitted_at,
+          })
+          .onConflictDoNothing(),
       );
+      bump("projects", created);
       importedProjects.add(p.id);
+      // Answers are the team's words: they come in only with a project this import creates. A project that is here
+      // already keeps its own (an answer the file gives the same counts as present); a file never writes into it.
       for (const [questionId, value] of Object.entries(p.answers)) {
         const qid = questionOf.get(questionId);
         if (!qid) {
           report.skipped.push({ kind: "answer", id: `${p.id}:${questionId}`, reason: `unknown question ${questionId}` });
           continue;
         }
-        bump("customAnswers", insertOnce(tx.insert(customAnswers).values({ projectId: projectOf.get(p.id)!, questionId: qid, value }).onConflictDoNothing()));
+        const projectId = projectOf.get(p.id)!;
+        if (!created) {
+          const own = tx
+            .select({ value: customAnswers.value })
+            .from(customAnswers)
+            .where(and(eq(customAnswers.projectId, projectId), eq(customAnswers.questionId, qid)))
+            .get();
+          if (own?.value === value) bump("customAnswers", 0);
+          else report.skipped.push({ kind: "answer", id: `${p.id}:${questionId}`, reason: "the project is here already, and its answers are its team's own: an import brings answers only with a project it creates" });
+          continue;
+        }
+        bump("customAnswers", insertOnce(tx.insert(customAnswers).values({ projectId, questionId: qid, value }).onConflictDoNothing()));
       }
     }
 
