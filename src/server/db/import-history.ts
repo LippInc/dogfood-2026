@@ -388,6 +388,8 @@ export function refuseHistoryForExistingEvent(
       // a prize an earlier import renamed (another event held its id) is held under '<id>.<event id>'
       d?.prize_awards.map((a) => ({ prize: awardedPrizes.has(renamed(a.prize)) ? renamed(a.prize) : a.prize, projects: a.projects.map(own), note: a.note, at: a.at })),
       s.prizeAwards?.map((a) => ({ prize: a.prizeId, projects: a.projectIds, note: a.note, at: a.at })),
+    ),
+    inList(
       d?.close_calls.map((c) => ({
         trackId: trackOf.get(c.track) ?? c.track,
         mode: c.mode,
