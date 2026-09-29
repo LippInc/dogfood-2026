@@ -290,6 +290,41 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     expect(shown(inB(() => getPublishedResults("evt_01")))).toEqual(shown(getPublishedResults("evt_01")));
   });
 
+  it("a pairwise answer moves with its own track when one of its projects later moved to another track", () => {
+    const org = organizerA();
+    setJudgingMode(org, "evt_01", { mode: "pairwise", reason: "try the better-of-two mode" });
+    const judge = actorIn(ha, "jdg_15");
+    const t = getPairwiseState(judge, "evt_01").tracks.find((x) => x.current)!;
+    const q = { trackId: t.trackId, left: t.current!.left.id, right: t.current!.right.id };
+    expect({ trackId: q.trackId, pair: [q.left, q.right].sort() }).toEqual({ trackId: "trk_08", pair: ["prj_20", "prj_27"] });
+    pickPairwise(judge, "evt_01", { ...q, outcome: "left" });
+    moveProjectTrack(org, "evt_01", "prj_27", { trackId: "trk_01", reason: "The team entered the wrong track" });
+    const a = exported("fixtures.json");
+    const file = JSON.parse(a);
+    expect(file.comparisons).toEqual([expect.objectContaining({ judge: "jdg_15", track: "trk_08" })]);
+    expect(file.decisions.track_moves).toEqual([expect.objectContaining({ project: "prj_27", from: "trk_08", to: "trk_01" })]);
+
+    const report = importIntoB(file);
+    expect(report.skipped.filter((s) => s.kind === "comparison")).toEqual([]);
+    expect(count(hb!, "SELECT count(*) AS n FROM comparisons WHERE track_id = 'trk_08'")).toBe(1);
+    expect(exportedB("comparisons.csv")).toBe(exported("comparisons.csv"));
+    expect(exportedB("fixtures.json")).toBe(a);
+  });
+
+  it("known-bad: an answer in a track neither the file's projects nor its track moves put the pair in stays behind", () => {
+    const org = organizerA();
+    setJudgingMode(org, "evt_01", { mode: "pairwise", reason: "try the better-of-two mode" });
+    const judge = actorIn(ha, "jdg_15");
+    const t = getPairwiseState(judge, "evt_01").tracks.find((x) => x.current)!;
+    pickPairwise(judge, "evt_01", { trackId: t.trackId, left: t.current!.left.id, right: t.current!.right.id, outcome: "left" });
+    moveProjectTrack(org, "evt_01", "prj_27", { trackId: "trk_01", reason: "The team entered the wrong track" });
+    const file = JSON.parse(exported("fixtures.json"));
+    const planted = { ...file, comparisons: file.comparisons.map((c: object) => ({ ...c, track: "trk_02" })) };
+    const report = importIntoB(planted);
+    expect(report.skipped).toContainEqual(expect.objectContaining({ kind: "comparison", reason: expect.stringContaining("both projects must be in track trk_02") }));
+    expect(count(hb!, "SELECT count(*) AS n FROM comparisons")).toBe(0);
+  });
+
   it("while voting is open the ballots stay behind (sealed, as audit.csv seals them): the file says how many, and the import says so", () => {
     const org = organizerA();
     saveVotingSettings(org, "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["account", "listed"], votesPerVoter: "3" });
@@ -304,6 +339,7 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     expect(report.skipped).toContainEqual(expect.objectContaining({ kind: "ballots", reason: expect.stringContaining("1 ballot was sealed") }));
     expect(count(hb!, "SELECT count(*) AS n FROM votes")).toBe(0);
   });
+
 });
 
 describe("an event that is here already: its history is its own", () => {

@@ -525,7 +525,16 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
     }
   }
 
-  // Pairwise answers, taken-back ones included, each between two of the file's projects in the track it names
+  // Pairwise answers, taken-back ones included, each between two of the file's projects in the track it names. An
+  // answer keeps its own track: a project moved to another track later (a move the file's track_moves record) still
+  // has its answers from the old one, which the live engine keeps and stops counting, as it does on the old portal.
+  const tracksOf = new Map<string, Set<string>>();
+  const wasIn = (project: string, track: string) => tracksOf.set(project, (tracksOf.get(project) ?? new Set<string>()).add(track));
+  for (const [project, track] of ctx.trackOfProject) wasIn(project, track);
+  for (const m of file.decisions?.track_moves ?? []) {
+    wasIn(m.project, m.from);
+    wasIn(m.project, m.to);
+  }
   const open = new Set<string>();
   for (const c of file.comparisons ?? []) {
     const judge = ctx.accountOf.get(c.judge);
@@ -540,8 +549,8 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
           ? `unknown project ${!left ? c.left : c.right}`
           : c.left === c.right || (c.new !== c.left && c.new !== c.right)
             ? "an answer compares two different projects, one of them the one being placed"
-            : ctx.trackOfProject.get(c.left) !== c.track || ctx.trackOfProject.get(c.right) !== c.track
-              ? `both projects must be in track ${c.track}`
+            : !tracksOf.get(c.left)?.has(c.track) || !tracksOf.get(c.right)?.has(c.track)
+              ? `both projects must be in track ${c.track}, now or before a track move the file records`
               : null;
     if (why) {
       ctx.skip("comparison", c.id, why);
