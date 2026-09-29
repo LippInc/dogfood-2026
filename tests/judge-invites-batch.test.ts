@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptJudgeInvite, inviteJudges, judgeInviteByCode, parseInviteLines } from "@/server/dal/judges";
+import { acceptJudgeInvite, inviteJudge, inviteJudges, judgeInviteByCode, parseInviteLines } from "@/server/dal/judges";
 import { mailJudgeInvites } from "@/server/dal/mailing";
 import { verifyAuditChain } from "@/server/audit";
 import { getDb } from "@/server/db/client";
@@ -92,6 +92,29 @@ describe("inviteJudges", () => {
     const out = inviteJudges(organizer(), "evt_01", { lines: `Known, ${judge.email}\nNew, new@example.org`, trackIds: ["trk_01"] });
     expect(out.invites.map((i) => i.email)).toEqual(["new@example.org"]);
     expect(out.skipped).toEqual([{ line: 1, email: judge.email.toLowerCase(), reason: "already a judge in this event" }]);
+  });
+
+  it("a line whose address holds an open invitation replaces it: the old link stops working, the answer names the address, the revocation is audited", () => {
+    const old = inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    const keep = inviteJudge(organizer(), "evt_01", { name: "Other", email: "other@example.org", trackIds: ["trk_01"] });
+    const out = inviteJudges(organizer(), "evt_01", { lines: "Mira, Mira@Example.org\nNoor, noor@example.org\nOpen", trackIds: ["trk_01"] });
+    expect(out.replaced).toEqual(["mira@example.org"]);
+    const fresh = out.invites.find((i) => i.email === "mira@example.org")!;
+    expect(judgeInviteByCode(old.code).state).toBe("replaced");
+    expectHttpError(() => acceptJudgeInvite(addUser("usr_mira", "mira@example.org", "Mira"), old.code), 410, "invite_replaced");
+    expect(judgeInviteByCode(fresh.code).state).toBe("open");
+    expect(count("SELECT count(*) AS n FROM judge_invites WHERE email = 'mira@example.org' AND accepted_at IS NULL AND revoked_at IS NULL")).toBe(1);
+    const revoked = auditRows().filter((r) => r.action === "judge.invite_revoke");
+    expect(revoked.map((r) => [r.targetId, r.after])).toEqual([[old.id, { replacedBy: fresh.id }]]);
+    // positive control: an address the list does not name keeps its open link
+    expect(judgeInviteByCode(keep.code).state).toBe("open");
+    expect(verifyAuditChain(getDb()).ok).toBe(true);
+  });
+
+  it("a list that replaces nothing says so with an empty replaced", () => {
+    const out = inviteJudges(organizer(), "evt_01", { lines: "Mira, mira@example.org\nOpen", trackIds: ["trk_01"] });
+    expect(out.replaced).toEqual([]);
+    expect(auditRows().filter((r) => r.action === "judge.invite_revoke")).toHaveLength(0);
   });
 
   it("a bad line stops the whole list: no invitation, no audit row", () => {

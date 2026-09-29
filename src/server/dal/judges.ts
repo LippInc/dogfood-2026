@@ -136,7 +136,8 @@ export const BatchInviteInput = z.object({
 
 export type BatchLine = { line: number; name: string; email: string | null; trackIds: string[] };
 export type BatchInvite = { id: string; code: string; path: string; name: string; email: string | null; line: number };
-export type BatchResult = { invites: BatchInvite[]; skipped: { line: number; email: string; reason: string }[] };
+/** replaced: the addresses whose open invitation a line of the list replaced (the older link stopped working). */
+export type BatchResult = { invites: BatchInvite[]; skipped: { line: number; email: string; reason: string }[]; replaced: string[] };
 
 /**
  * Read a pasted list, one judge per line. Fields are separated by commas or tabs (a column
@@ -222,6 +223,7 @@ export function inviteJudges(actor: Actor | null, eventIdOrSlug: string, body: u
       const invites: BatchInvite[] = [];
       const skipped: BatchResult["skipped"] = [];
       const replaced: ReturnType<typeof replaceOpenInvites> = [];
+      const replacedFor: string[] = [];
       for (const l of lines) {
         if (l.email && judging.has(l.email)) {
           skipped.push({ line: l.line, email: l.email, reason: "already a judge in this event" });
@@ -229,14 +231,18 @@ export function inviteJudges(actor: Actor | null, eventIdOrSlug: string, body: u
         }
         const id = newId("jinv");
         const code = newSecret(18);
-        if (l.email) replaced.push(...replaceOpenInvites(tx, event.id, l.email, now, id));
+        const gone = l.email ? replaceOpenInvites(tx, event.id, l.email, now, id) : [];
+        if (gone.length) {
+          replaced.push(...gone);
+          replacedFor.push(l.email!);
+        }
         tx.insert(judgeInvites)
           .values({ id, eventId: event.id, codeHash: sha256(code), name: l.name, email: l.email, trackIds: l.trackIds, createdAt: now, createdBy: actor!.userId })
           .run();
         invites.push({ id, code, path: `/judge-invite/${code}`, name: l.name, email: l.email, line: l.line });
       }
       return {
-        result: { invites, skipped },
+        result: { invites, skipped, replaced: replacedFor },
         // One row per invitation, as a single invite writes; the codes are credentials and never logged.
         audit: [...replaced, ...invites.map((inv) => ({
           action: "judge.invite",

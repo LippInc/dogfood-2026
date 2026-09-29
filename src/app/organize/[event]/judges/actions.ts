@@ -145,10 +145,11 @@ export async function inviteJudgesAction(_prev: BatchInviteResult, form: FormDat
       ? ` Skipped ${made.skipped.length === 1 ? "one address that already judges" : `${made.skipped.length} addresses that already judge`} this event: ${made.skipped.map((s) => s.email).join(", ")}.`
       : "";
     const count = made.invites.length;
+    const replaced = replacedNote(made.replaced);
     return {
       ok: true,
       message: count
-        ? `${count === 1 ? "One invitation" : `${count} invitations`} ready.${note ? ` ${note}` : ""} Copy the links now: they are shown only once.${skipped}`
+        ? `${count === 1 ? "One invitation" : `${count} invitations`} ready.${note ? ` ${note}` : ""} Copy the links now: they are shown only once.${replaced ? ` ${replaced}` : ""}${skipped}`
         : `Nothing to make.${skipped}`,
       links: made.invites.map((i) => ({ name: i.name, email: i.email, path: i.path })),
       skipped: made.skipped,
