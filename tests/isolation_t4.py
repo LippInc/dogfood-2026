@@ -412,6 +412,16 @@ def section_c(u, people, cfg):
                   f"inserted {inserted!r}", "a count for every table"):
             expect(c, all(v == 0 for v in inserted.values()), organizer, "POST", imports_url,
                    f"inserted {inserted}", "all zeros: importing what is there changes nothing")
+        # known-bad: the same file with a review that brings a criterion the scored event does not have
+        changed = json.loads(json.dumps(fixtures))
+        project = changed["projects"][0]
+        changed["judges"].append({"id": "jdg_iso_extra", "name": "Iso Extra", "email": "iso-extra@example.org",
+                                  "tracks": [project["track"]]})
+        changed["scores"].append({"judge": "jdg_iso_extra", "project": project["id"],
+                                  "criteria": {"functionality": 3, "quality": 3, "innovation": 3, "extra_iso": 3}})
+        s, body, _ = organizer.request("POST", imports_url, changed)
+        expect(c, s == 409 and error_code(body) == "rubric_in_use", organizer, "POST", imports_url,
+               f"{s} ({error_code(body)})", "409 rubric_in_use: judges have scored, the criteria are fixed")
     checks.append(c)
 
     # C8 -- import a new event, then walk one person in through a personal link
