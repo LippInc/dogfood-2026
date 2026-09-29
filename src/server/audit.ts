@@ -1,11 +1,25 @@
 import "server-only";
+import crypto from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import type { DbOrTx } from "./db/client";
 import { auditLog } from "./db/schema";
 import { canonicalJson, nowIso, sha256 } from "./util";
-import { enqueueForAudit } from "./webhooks";
+import { enqueueForAudit, sealsValues } from "./webhooks";
 
 export const GENESIS_HASH = "0".repeat(64);
+
+// A row's hash covers its values, and every other field of it is visible to someone: a webhook receiver
+// sees the time, the actor, the action and the target, and audit.csv gives the hash of the row before.
+// Where the values have few possible forms (a ballot of three picks among 40 projects, three scores from
+// 1 to 5) hashing every candidate would find them. So a row whose values some reader may not see yet (the
+// actions webhooks.ts seals: ballots, scores and texts, pairwise answers, imports) is hashed with a salt,
+// 32 random bytes kept in its own column and shown only where the values are: never in a webhook body; in
+// audit.csv from the moment the values are (a ballot once voting closes), so anyone can then recompute
+// that row's hash. Every other row, and every row written before salts existed, has none and hashes as
+// it always did, so an existing chain still verifies.
+function saltFor(action: string): string | null {
+  return sealsValues(action) ? crypto.randomBytes(32).toString("hex") : null;
+}
 
 export type AuditEntry = {
   actorUserId: string | null;
@@ -18,9 +32,9 @@ export type AuditEntry = {
   after?: unknown;
 };
 
-type ChainedFields = AuditEntry & { at: string };
+type ChainedFields = AuditEntry & { at: string; salt?: string | null };
 
-/** The exact bytes a row's hash covers, besides the previous row's hash. */
+/** The exact bytes a row's hash covers, besides the previous row's hash. A row without a salt has no salt key. */
 export function auditPayload(row: ChainedFields): string {
   return canonicalJson({
     at: row.at,
@@ -32,6 +46,7 @@ export function auditPayload(row: ChainedFields): string {
     targetId: row.targetId ?? null,
     before: row.before ?? null,
     after: row.after ?? null,
+    ...(row.salt ? { salt: row.salt } : {}),
   });
 }
 
@@ -60,7 +75,8 @@ export function anchorHolds(db: DbOrTx, anchor: ChainAnchor): boolean {
 export function appendAudit(tx: DbOrTx, entry: AuditEntry, at: string = nowIso()): string {
   const head = tx.select({ hash: auditLog.hash }).from(auditLog).orderBy(desc(auditLog.id)).limit(1).get();
   const prevHash = head?.hash ?? GENESIS_HASH;
-  const row: ChainedFields = { ...entry, at };
+  const salt = saltFor(entry.action);
+  const row: ChainedFields = { ...entry, at, salt };
   const hash = chainHash(prevHash, row);
   const inserted = tx
     .insert(auditLog)
@@ -76,9 +92,10 @@ export function appendAudit(tx: DbOrTx, entry: AuditEntry, at: string = nowIso()
       after: entry.after ?? null,
       prevHash,
       hash,
+      salt,
     })
     .run();
-  // Webhooks subscribed to this action get a delivery queued in the same transaction.
+  // Webhooks subscribed to this action get a delivery queued in the same transaction; never the salt.
   enqueueForAudit(tx, {
     id: Number(inserted.lastInsertRowid),
     at,
@@ -112,6 +129,7 @@ export function verifyAuditChain(db: DbOrTx): ChainCheck {
       targetId: r.targetId,
       before: r.before,
       after: r.after,
+      salt: r.salt,
     });
     if (r.prevHash !== prev || r.hash !== expected) return { ok: false, rows: rows.length, brokenAtId: r.id };
     prev = r.hash;

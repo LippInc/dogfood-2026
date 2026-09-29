@@ -52,6 +52,11 @@ const SEALED = new Map<string, readonly string[]>([
 // last answer chose, and a tie ends a placement early, so the projects give the answers away.
 const TARGET_SEALED = new Set(["pairwise.pick", "pairwise.undo"]);
 
+/** Whether a delivery of this action leaves values out; appendAudit hashes such a row with a salt the body never carries (src/server/audit.ts). */
+export function sealsValues(action: string): boolean {
+  return SEALED.has(action);
+}
+
 function keep(value: unknown, keys: readonly string[]): Record<string, unknown> | null {
   if (!value || typeof value !== "object") return null;
   const kept = Object.fromEntries(keys.filter((k) => k in value).map((k) => [k, (value as Record<string, unknown>)[k]]));

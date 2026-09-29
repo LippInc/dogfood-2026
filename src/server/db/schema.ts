@@ -899,11 +899,15 @@ export const auditLog = sqliteTable(
     after: text("after", { mode: "json" }),
     prevHash: text("prev_hash").notNull(),
     hash: text("hash").notNull().unique(),
+    // 32 random bytes (hex) hashed with a row whose values some reader may not see yet (src/server/audit.ts,
+    // SEALED_ACTIONS); null for every other row and every row written before the column existed
+    salt: text("salt"),
   },
   (t) => [
     index("audit_event_idx").on(t.eventId, t.id),
     check("audit_at_iso", isoTimestamp(t.at)),
     check("audit_hash_format", sql`length(${t.hash}) = 64 and length(${t.prevHash}) = 64`),
+    check("audit_salt_format", sql`${t.salt} is null or (length(${t.salt}) = 64 and ${t.salt} not glob '*[^0-9a-f]*')`),
   ],
 );
 

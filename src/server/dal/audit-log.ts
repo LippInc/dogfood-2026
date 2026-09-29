@@ -20,7 +20,9 @@ import { shownTitle } from "./project-fields";
 // What a ballot holds stays out of every view of the log until voting closes, the
 // same moment the count goes public: organizers see the running count on the Voting
 // tab, but the log never shows who picked what while picks can still change. The
-// rows are still stored and hashed in full.
+// rows are still stored and hashed in full, with a salt that the CSV shows only
+// together with the picks, so meanwhile a row's hash gives them away to nobody
+// (src/server/audit.ts).
 
 export type Part = { text: string; strong?: boolean; mono?: boolean };
 
@@ -598,25 +600,33 @@ export function getPortalEntries(actor: Actor | null, opts: { limit?: number } =
   return { total, chain, entries: rows.map(plain) };
 }
 
-/** The event's log as CSV, oldest first, every row with its own hash and the one before. */
+/**
+ * The event's log as CSV, oldest first, every row with its own hash and the one before, and every field the hash
+ * covers: a row whose values are shown can be recomputed from its own line (DATA-MODEL.md, "The chain"). A ballot's
+ * picks and its salt stay hidden together until voting closes.
+ */
 export function auditCsv(db: DbOrTx, eventId: string): string {
   const rows = db.select().from(auditLog).where(eq(auditLog.eventId, eventId)).orderBy(auditLog.id).all();
   const text = lines(db, eventId, rows);
   const head = verifyAuditChain(db);
   const sealed = ballotsSealed(db, eventId);
-  const payload = (r: Row, v: unknown) => (v === null ? "" : sealed && r.action === "vote.cast" ? SEALED : JSON.stringify(v));
+  const hidden = (r: Row) => sealed && r.action === "vote.cast";
+  const payload = (r: Row, v: unknown) => (v === null ? "" : hidden(r) ? SEALED : JSON.stringify(v));
   return toCsv(
-    ["id", "at", "actor", "action", "sentence", "target_type", "target_id", "before", "after", "prev_hash", "hash", "chain_ok", "chain_head"],
+    ["id", "at", "actor", "actor_user_id", "action", "sentence", "event_id", "target_type", "target_id", "before", "after", "salt", "prev_hash", "hash", "chain_ok", "chain_head"],
     rows.map((r, i) => [
       r.id,
       r.at,
       r.actorLabel,
+      r.actorUserId ?? "",
       r.action,
       text[i]!.parts.map((p) => p.text).join(""),
+      r.eventId ?? "",
       r.targetType ?? "",
       r.targetId ?? "",
       payload(r, r.before),
       payload(r, r.after),
+      r.salt === null ? "" : hidden(r) ? SEALED : r.salt,
       r.prevHash,
       r.hash,
       head.ok ? "yes" : "no",
