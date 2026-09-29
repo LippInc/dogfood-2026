@@ -145,6 +145,34 @@ describe("migration 0015 on a database that already holds data", () => {
     expect(tableSql("comments")).not.toContain("comments_created_iso");
     expect(h.sqlite.pragma("foreign_keys", { simple: true })).toBe(1);
   });
+
+  // The two new foreign keys cannot refuse inside the migration (enforcement is off while it runs), so
+  // runMigrations looks for such rows first and refuses before anything changes.
+  const dangling = [
+    { table: "webhook_deliveries", sql: "UPDATE webhook_deliveries SET audit_id = 999999 WHERE id = 'dlv_1'", names: /webhook_deliveries .*audit_id = 999999/ },
+    { table: "judge_invites", sql: "UPDATE judge_invites SET created_by = 'usr_gone' WHERE id = 'jiv_1'", names: /judge_invites .*created_by = "usr_gone"/ },
+  ];
+  for (const d of dangling) {
+    it(`refuses a database whose ${d.table} row would dangle under 0015's foreign key, and leaves it as it was`, () => {
+      run(d.sql);
+      const rows = dump();
+      const table = tableSql(d.table);
+      const applied = one<{ n: number }>("SELECT count(*) AS n FROM __drizzle_migrations").n;
+      expect(() => runMigrations(h, DRIZZLE)).toThrow(d.names);
+      expect(dump()).toEqual(rows);
+      expect(tableSql(d.table)).toBe(table);
+      expect(one<{ n: number }>("SELECT count(*) AS n FROM __drizzle_migrations").n).toBe(applied);
+      expect(h.sqlite.pragma("foreign_keys", { simple: true })).toBe(1);
+    });
+  }
+
+  it("migrates once the dangling row is pointed at a row that exists (positive control)", () => {
+    run("UPDATE webhook_deliveries SET audit_id = NULL WHERE id = 'dlv_1'");
+    expect(() => runMigrations(h, DRIZZLE)).not.toThrow();
+    expect(tableSql("webhook_deliveries")).toContain("REFERENCES `audit_log`");
+    // and a later boot, with 0015 applied, does not look again
+    expect(() => runMigrations(h, DRIZZLE)).not.toThrow();
+  });
 });
 
 describe("the constraints 0015 adds", () => {

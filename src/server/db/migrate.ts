@@ -18,6 +18,7 @@ export function migrationsFolder(): string {
  * must find nothing: a migration that left a dangling reference stops the boot rather than serving it.
  */
 export function runMigrations(h: Handle, folder = migrationsFolder()): TriggerReport {
+  refuseRowsThatWouldDangle(h.sqlite);
   const enforced = h.sqlite.pragma("foreign_keys", { simple: true }) === 1;
   h.sqlite.pragma("foreign_keys = OFF");
   try {
@@ -33,4 +34,40 @@ export function runMigrations(h: Handle, folder = migrationsFolder()): TriggerRe
     );
   }
   return assertTriggers(h.sqlite);
+}
+
+/** The foreign keys drizzle/0015_constraints.sql adds to tables that had none on that column. */
+const REFERENCES_0015 = [
+  { table: "webhook_deliveries", column: "audit_id", parent: "audit_log", parentColumn: "id" },
+  { table: "judge_invites", column: "created_by", parent: "users", parentColumn: "id" },
+] as const;
+
+type Sqlite = Handle["sqlite"];
+
+/**
+ * Before 0015 runs, refuse a database holding a row its new foreign keys would leave dangling. The CHECKs 0015
+ * adds refuse such a row inside the migration, which then rolls back; the foreign keys cannot, because
+ * enforcement is off while the migrator runs, so without this the migration would commit and every later boot
+ * would stop at foreign_key_check with no way back but hand SQL. Only a hand-edited or restored database can
+ * hold such a row: audit rows and users are never deleted. Nothing changes when this throws.
+ */
+export function refuseRowsThatWouldDangle(sqlite: Sqlite): void {
+  const exists = (name: string) => sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !== undefined;
+  for (const ref of REFERENCES_0015) {
+    if (!exists(ref.table) || !exists(ref.parent)) continue;
+    const keys = sqlite.pragma(`foreign_key_list(${ref.table})`) as { table: string; from: string }[];
+    if (keys.some((k) => k.table === ref.parent && k.from === ref.column)) continue; // 0015 already ran
+    const rows = sqlite
+      .prepare(
+        `SELECT rowid AS rowid, "${ref.column}" AS value FROM "${ref.table}" WHERE "${ref.column}" IS NOT NULL AND "${ref.column}" NOT IN (SELECT "${ref.parentColumn}" FROM "${ref.parent}") ORDER BY rowid`,
+      )
+      .all() as { rowid: number; value: unknown }[];
+    if (rows.length === 0) continue;
+    const first = rows[0]!;
+    throw new Error(
+      `migration 0015 not run: ${rows.length} row(s) in ${ref.table} have a ${ref.column} with no matching ${ref.parent}.${ref.parentColumn} ` +
+        `(first: rowid ${first.rowid}, ${ref.column} = ${JSON.stringify(first.value)}). The database is unchanged. ` +
+        `Point each at a row that exists${ref.table === "webhook_deliveries" ? " or set it to NULL" : ""}, or restore a backup taken before the rows were edited, then start the portal again.`,
+    );
+  }
 }

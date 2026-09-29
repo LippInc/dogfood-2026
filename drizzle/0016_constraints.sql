@@ -6,10 +6,12 @@
 --
 -- SQLite cannot add a CHECK or a foreign key to a table that exists, so each table is rebuilt the way SQLite's
 -- documentation gives (https://sqlite.org/lang_altertable.html#otheralter): make the new table, copy every row,
--- drop the old one, rename, and make its indexes again. The copy goes through the new constraints, so a database
+-- drop the old one, rename, and make its indexes again. The copy goes through the new CHECKs, so a database
 -- holding a row that breaks one refuses the whole migration and keeps its old schema; the app has only ever
 -- written rows these constraints accept. src/server/db/migrate.ts turns foreign-key enforcement off around the
--- migrator (a PRAGMA inside the migrator's transaction does nothing) and runs PRAGMA foreign_key_check after it.
+-- migrator (a PRAGMA inside the migrator's transaction does nothing) and runs PRAGMA foreign_key_check after it;
+-- since the copy cannot refuse a row the two new foreign keys would leave dangling, migrate.ts looks for such
+-- rows before this migration runs and refuses the boot, with the database unchanged.
 --
 -- The triggers on these tables, and those whose body reads events or scores, are dropped first (a rename checks
 -- every trigger's body, and one naming a table that is gone for the moment fails it) and made again at the end
