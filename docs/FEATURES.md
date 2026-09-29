@@ -32,7 +32,12 @@ organizer's questions); the server refuses changes after it.
 
 - **Invitations.** The organizer invites judges by link, one at a time or from a pasted list of names and
   addresses, one link each (no mail server needed; a link stops admitting judges once judging closes or the
-  results are out). An address holds one open invitation per event: inviting it again replaces the open one.
+  results are out). The list takes each line as people paste it: `Name <email>` from an email client's To line
+  (a quoted name may hold a comma), `name, email` or a tab between them from a spreadsheet, or an address alone;
+  after the address a line may name its own tracks, separated by `;`. A line that cannot be read is named with
+  its reason and nothing is made; lines that name no tracks while none are ticked are named together with what
+  to tick (an event with one track gives it to them).
+  An address holds one open invitation per event: inviting it again replaces the open one.
   The Judges page then says the older link stopped working, the audit log says it was replaced by a new
   invitation, and the old link tells whoever opens it that a newer invitation replaced it.
 - **Assignment.** Projects are assigned with a seeded, stored assignment run; judges score in a keyboard-first

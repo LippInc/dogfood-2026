@@ -140,40 +140,42 @@ export type BatchInvite = { id: string; code: string; path: string; name: string
 export type BatchResult = { invites: BatchInvite[]; skipped: { line: number; email: string; reason: string }[]; replaced: string[] };
 
 /**
- * Read a pasted list, one judge per line. Fields are separated by commas or tabs (a column
- * copied from a spreadsheet works): the field with an @ is the address, the first other field
- * the name, the next one the line's own tracks by name, separated by ";". Empty lines and
- * lines starting with # are skipped. Every problem is reported with its line number, and
- * nothing is made while any line has one.
+ * Read a pasted list, one judge per line, in the shapes people paste: "Name <email>" as an
+ * email client or address book writes it (a quoted name may hold a comma), "name, email" or
+ * "name<tab>email" (a column copied from a spreadsheet), a name and an address separated by
+ * spaces, or an address alone. After the address a line may name its own tracks, separated by
+ * ";". A line without an address makes an open link. Empty lines and lines starting with # are
+ * skipped. Every problem is reported with its line number and its reason, and nothing is made
+ * while any line has one. A line that names no tracks takes the ticked ones; an event with a
+ * single track gives it to such a line even when nothing is ticked.
  */
 export function parseInviteLines(text: string, tracks: { id: string; name: string }[], defaultTrackIds: string[]): BatchLine[] {
   const byName = new Map(tracks.map((t) => [t.name.trim().toLowerCase(), t.id]));
   const known = new Set(tracks.map((t) => t.id));
+  const fallback = defaultTrackIds.length ? defaultTrackIds : tracks.length === 1 ? [tracks[0].id] : [];
   const errors: string[] = [];
+  const noTracks: number[] = [];
   const out: BatchLine[] = [];
   const seen = new Map<string, number>();
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = i + 1;
     const trimmed = raw.trim();
     if (!trimmed || trimmed.startsWith("#")) return;
-    const fields = trimmed.split(/[,\t]/).map((f) => f.trim()).filter(Boolean);
-    const at = fields.filter((f) => f.includes("@"));
-    if (at.length > 1) return void errors.push(`line ${line}: two addresses on one line`);
-    const email = at[0]?.toLowerCase() ?? null;
-    const rest = fields.filter((f) => !f.includes("@"));
-    const name = rest[0] ?? "";
+    const read = readInviteLine(trimmed);
+    if ("error" in read) return void errors.push(`line ${line}: ${read.error}`);
+    const { name, email, others } = read;
     if (email && !z.email().safeParse(email).success) return void errors.push(`line ${line}: not an email address: ${email}`);
     if (name.length > 80) return void errors.push(`line ${line}: a name of at most 80 characters`);
-    if (rest.length > 2) return void errors.push(`line ${line}: more fields than a name, an address and tracks (separate tracks with ";")`);
-    let trackIds = defaultTrackIds;
-    if (rest[1]) {
-      const names = rest[1].split(";").map((t) => t.trim()).filter(Boolean);
-      const unknown = names.filter((t) => !byName.has(t.toLowerCase()));
+    if (others.length > 1) return void errors.push(`line ${line}: more fields than a name, an address and tracks (separate tracks with ";")`);
+    let trackIds = fallback;
+    const own = (others[0] ?? "").split(";").map((t) => t.trim()).filter(Boolean);
+    if (own.length) {
+      const unknown = own.filter((t) => !byName.has(t.toLowerCase()));
       if (unknown.length) return void errors.push(`line ${line}: not a track of this event: ${unknown.join(", ")}`);
-      trackIds = names.map((t) => byName.get(t.toLowerCase())!);
+      trackIds = own.map((t) => byName.get(t.toLowerCase())!);
     }
     trackIds = [...new Set(trackIds)].sort();
-    if (!trackIds.length) return void errors.push(`line ${line}: no tracks: tick the tracks below, or name them after the address`);
+    if (!trackIds.length) return void noTracks.push(line);
     if (trackIds.some((id) => !known.has(id))) return void errors.push(`line ${line}: a chosen track is not in this event`);
     if (email) {
       const first = seen.get(email);
@@ -182,10 +184,57 @@ export function parseInviteLines(text: string, tracks: { id: string; name: strin
     }
     out.push({ line, name, email, trackIds });
   });
+  if (noTracks.length) {
+    // One plain sentence for every such line: the usual cause is one box nobody ticked, not a fault on each line.
+    const which = noTracks.length === 1 ? `line ${noTracks[0]}` : `lines ${listLines(noTracks)}`;
+    const example = tracks.length > 1 ? `${tracks[0].name}; ${tracks[1].name}` : (tracks[0]?.name ?? "a track");
+    errors.push(`${which}: no tracks. Tick the tracks under "Tracks, for every line that names none", or add them after the address (Name <email>, ${example})`);
+  }
   if (errors.length) throw new ValidationError("Check the list: nothing was made.", { lines: errors.slice(0, 12).concat(errors.length > 12 ? [`and ${errors.length - 12} more`] : []) });
   if (!out.length) throw new ValidationError("Check the list: nothing was made.", { lines: ["paste at least one judge, one per line"] });
   if (out.length > MAX_BATCH_INVITES) throw new ValidationError("Check the list: nothing was made.", { lines: [`at most ${MAX_BATCH_INVITES} judges at a time`] });
   return out;
+}
+
+/** "1, 2 and 5", or the first ten and a count past them. */
+function listLines(lines: number[]): string {
+  const shown = lines.slice(0, 10).map(String);
+  if (lines.length > 10) return `${shown.join(", ")} and ${lines.length - 10} more`;
+  return shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}` : shown[0];
+}
+
+const unquote = (s: string) => s.trim().replace(/^["']+|["']+$/g, "").trim();
+
+/** One line's name, address and the fields after them (the line's own tracks), or why it cannot be read. */
+function readInviteLine(text: string): { name: string; email: string | null; others: string[] } | { error: string } {
+  const brackets = [...text.matchAll(/<([^<>]*)>/g)];
+  if (brackets.length > 1) return { error: "two addresses on one line" };
+  if (brackets.length === 1) {
+    // "Name <email>": the name is everything before the bracket (quotes dropped, so "Chen, Alex" stays whole);
+    // what follows it is the line's own tracks. A trailing comma or semicolon from a copied To line is dropped.
+    const m = brackets[0];
+    const inside = m[1].trim();
+    if (!inside.includes("@")) return { error: `the part in <...> is not an email address: ${inside}` };
+    const before = unquote(text.slice(0, m.index).replace(/[,;\t]\s*$/, ""));
+    const after = text.slice(m.index! + m[0].length).replace(/^[\s,;]+|[\s,;]+$/g, "");
+    if (before.includes("@")) return { error: "two addresses on one line" };
+    const others = after ? after.split(/[,\t]/).map((f) => f.trim()).filter(Boolean) : [];
+    return { name: before, email: inside.toLowerCase(), others };
+  }
+  if (/[<>]/.test(text)) return { error: "an address in <...> needs both brackets" };
+  const fields = text.split(/[,\t]/).map((f) => f.trim()).filter(Boolean);
+  const at = fields.filter((f) => f.includes("@"));
+  if (at.length > 1) return { error: "two addresses on one line" };
+  const rest = fields.filter((f) => !f.includes("@"));
+  if (!at.length) return { name: unquote(rest[0] ?? ""), email: null, others: rest.slice(1) };
+  // "Mira Ek mira@example.org": a name and an address in one field, separated by spaces.
+  const words = at[0].split(/\s+/);
+  const addresses = words.filter((w) => w.includes("@"));
+  if (addresses.length > 1) return { error: "two addresses on one line" };
+  const email = addresses[0].toLowerCase();
+  const nameInField = unquote(words.filter((w) => !w.includes("@")).join(" "));
+  if (nameInField) return { name: nameInField, email, others: rest };
+  return { name: unquote(rest[0] ?? ""), email, others: rest.slice(1) };
 }
 
 /**

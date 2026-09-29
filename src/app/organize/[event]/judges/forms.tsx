@@ -98,8 +98,8 @@ export function InviteForm({ eventSlug, tracks }: { eventSlug: string; tracks: T
 }
 
 /**
- * Many judges at once: one per line, "name, email" (a column pasted from a spreadsheet works too), with the tracks
- * ticked for every line that names none of its own. One link each, shown once, as a list to copy.
+ * Many judges at once: one per line, "Name <email>" as an email client writes it, "name, email" (a column pasted from a
+ * spreadsheet works too) or an address alone, with the tracks ticked for every line that names none of its own. One link each, shown once, as a list to copy.
  */
 export function BatchInviteForm({ eventSlug, tracks }: { eventSlug: string; tracks: Track[] }) {
   const [state, form, pending] = useFormAction<BatchInviteResult>(inviteJudgesAction, { ok: false, message: null });
@@ -120,12 +120,13 @@ export function BatchInviteForm({ eventSlug, tracks }: { eventSlug: string; trac
           rows={6}
           aria-invalid={errors.length > 0}
           aria-describedby="invite-lines-help"
-          placeholder={"Mira Ek, mira@example.org\nJon Berg, jon@example.org, Security; Health"}
+          placeholder={"Alex Chen <alex@example.org>\nMira Ek, mira@example.org\nJon Berg <jon@example.org>, Security; Health"}
           className="font-mono text-13"
         />
         <p id="invite-lines-help" className="text-13 text-ink-2">
-          Name, then email, separated by a comma or a tab. A line without an address makes a link anyone can use once. After the address, a line can name its
-          own tracks, separated by semicolons.
+          Paste them as your email or address book gives them: Name &lt;email&gt;, a name and an email separated by a comma or a tab, or an email
+          alone. A line without an address makes a link anyone can use once. After the address, a line can name its own tracks, separated by
+          semicolons; the other lines take the tracks ticked below.
         </p>
       </div>
       <fieldset className="flex flex-col gap-2">
