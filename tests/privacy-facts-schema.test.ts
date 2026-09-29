@@ -10,7 +10,7 @@ import * as schema from "@/server/db/schema";
 const PERSON_COLUMN = /(^|_)user_id$|_by$|email/;
 const THROUGH_ANOTHER_ROW = ["scores", "score_items", "score_comments", "votes"];
 
-const tables = Object.values(schema)
+const tables = (Object.values(schema) as unknown[])
   .filter((v): v is SQLiteTable => v instanceof SQLiteTable)
   .map((t) => getTableConfig(t));
 
