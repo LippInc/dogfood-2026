@@ -13,6 +13,7 @@ const CLASS_STATUS: Record<string, number[]> = {
   NotFoundError: [404],
   ValidationError: [422],
   ConflictError: [409],
+  PrizeAwardedError: [409],
   RateLimitedError: [429],
 };
 
