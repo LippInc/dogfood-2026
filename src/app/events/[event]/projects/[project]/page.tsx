@@ -196,6 +196,14 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                         ))}
                       </ul>
                     ) : null}
+                    {standing.track.decision ? (
+                      <p className="mt-1.5 text-13 text-ink-2 wrap-anywhere">
+                        {standing.row.decided
+                          ? "Winner by the judges' decision on a close call: "
+                          : `The judges' decision on a close call placed ${standing.track.rows.find((r) => r.decided)?.title ?? "another project"} first in this track: `}
+                        &ldquo;{standing.track.decision.reason}&rdquo;
+                      </p>
+                    ) : null}
                     {moves.map((m, i) => (
                       <p key={i} className="mt-1.5 text-13 text-flag wrap-anywhere">
                         <span className="tnum">{trackMoveWords(m)}</span>. Their reason: &ldquo;{m.reason}&rdquo;
