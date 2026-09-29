@@ -29,11 +29,8 @@ export function leavesPage(click: LinkClick, current: string): boolean {
   }
   if (to.protocol !== "http:" && to.protocol !== "https:") return false; // mailto:, javascript:, ...
   if (to.origin !== from.origin) return false;
-  if (to.pathname === from.pathname && to.search === from.search) {
-    // only the #fragment changes: the page stays
-    if (to.hash !== "") return false;
-    // a link to the page itself (the shell's section link for the page you are on) goes nowhere
-    if (from.hash === "") return false;
-  }
+  // the same path and query: a #fragment move or a link to the page itself (the shell's section link for the page
+  // you are on, also after the skip link added #main); the page stays either way
+  if (to.pathname === from.pathname && to.search === from.search) return false;
   return true;
 }

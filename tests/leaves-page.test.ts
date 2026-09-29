@@ -45,9 +45,16 @@ describe("leavesPage", () => {
     expect(leavesPage(click({ href: "/events/dogfood/vote#ballot-title" }), `${here}#ballot-title`)).toBe(false);
   });
 
-  it("positive control: the same path with another query, or without the #fragment the page is on, still leaves", () => {
+  // Review of the follow-up: after the shell's "Skip to content" link the address reads .../vote#main, and the
+  // "Vote" section link (no #fragment) asked again, though the page stays: path and query decide, never the #fragment.
+  it("a link to the same path and query does not leave, whichever #fragment either side has", () => {
+    expect(leavesPage(click({ href: "/events/dogfood/vote" }), `${here}#main`)).toBe(false);
+    expect(leavesPage(click({ href: "/events/dogfood/vote#results" }), `${here}#main`)).toBe(false);
+  });
+
+  it("positive control: the same path with another query still leaves", () => {
     expect(leavesPage(click({ href: "/events/dogfood/vote?track=ai" }), here)).toBe(true);
     expect(leavesPage(click({ href: "/events/dogfood/vote" }), `${here}?track=ai`)).toBe(true);
-    expect(leavesPage(click({ href: "/events/dogfood/vote" }), `${here}#ballot-title`)).toBe(true);
+    expect(leavesPage(click({ href: "/events/dogfood/results" }), `${here}#main`)).toBe(true);
   });
 });
