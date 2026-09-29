@@ -139,4 +139,7 @@ transaction as the change (past 60 refusals in 10 minutes a person gets 429 and 
 flooded). Each event's entries are on its Audit log tab; the entries no event owns (accounts, sign-ins, API
 tokens, the signing key, demo mode) are on Your events, Portal log, for administrators; both are in the API
 (`GET /api/events/{event}/audit`, `GET /api/audit`). The database refuses edits and deletes of the log, and each
-row carries the hash of the one before; the organizer's audit page and `audit.csv` show the chain's head.
+row carries the hash of the one before; the organizer's audit page and `audit.csv` show the chain's head. The
+rows of ballots, scores, pairwise answers and imports are hashed with a random salt of their own, shown in
+`audit.csv` only with their values; how to rebuild any row's hash from its `audit.csv` line:
+[`DATA-MODEL.md`, "Audit log"](../DATA-MODEL.md#audit-log).
