@@ -54,6 +54,9 @@ About ten minutes, in this order; nothing needs a restart.
    three favourites at `/events/sample-hack-2026/vote`, or use the open link the start prints
    (`community vote (demo): ...`) in a private window. The organizer's **Voting** tab shows the count live; nobody
    else sees it until the vote closes. The rules: [`docs/FEATURES.md`, "Community vote"](docs/FEATURES.md#community-vote).
+   - **Optional, before step 5: pairwise judging,** where judges answer "which is better?" instead of scoring.
+     Choose it before you publish: once results are published the mode no longer changes. The steps:
+     [`docs/FEATURES.md`, "Pairwise judging (optional)"](docs/FEATURES.md#pairwise-judging-optional).
 5. **Publish.** On the Overview, settle the three decisions (keep the flat judge out, merge the duplicate, publish
    the thinly reviewed project as it is, with a reason). Each is one audited action, with a written reason
    wherever it overrides a rule. Tick the box and **Publish results**.
@@ -75,9 +78,6 @@ About ten minutes, in this order; nothing needs a restart.
 <img src="docs/tour-hand-in-1440.png" alt="A team's project page after it handed in: submitted, with the team, submissions close, judging and results steps below" width="72%">
 <img src="docs/tour-hand-in-390.png" alt="The same page on a phone" width="22%">
 </p>
-
-**Optional, before step 5: pairwise judging,** where judges answer "which is better?" instead of scoring. The
-steps: [`docs/FEATURES.md`, "Pairwise judging (optional)"](docs/FEATURES.md#pairwise-judging-optional).
 
 ## Check it
 
