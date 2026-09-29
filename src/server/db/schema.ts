@@ -696,6 +696,34 @@ export const comments = sqliteTable(
   ],
 );
 
+// The organizers' news for an event ("deadline extended", "winners at 18:00"): plain text, shown on the event's
+// public pages, newest first. Kept out of the settings JSON, which freezes at publishing, because updates are news,
+// not results: they may be posted, edited and removed after publishing too, so this table has no freeze triggers.
+// Every post, edit and removal is one audited write; an edit or a removal keeps the old words in its audit row.
+export const eventUpdates = sqliteTable(
+  "event_updates",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: text("created_at").notNull(),
+    editedAt: text("edited_at"),
+  },
+  (t) => [
+    index("event_updates_event_idx").on(t.eventId, t.createdAt),
+    check("event_updates_title_length", sql`length(trim(${t.title})) between 1 and 120`),
+    check("event_updates_body_length", sql`length(trim(${t.body})) between 1 and 5000`),
+    check("event_updates_created_iso", isoTimestamp(t.createdAt)),
+    check("event_updates_edited_iso", isoOrNull(t.editedAt)),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Signed records
 // ---------------------------------------------------------------------------
@@ -901,7 +929,7 @@ export const webhookDeliveries = sqliteTable(
 // Email
 // ---------------------------------------------------------------------------
 
-export const MAIL_KINDS = ["judge_invite", "voter_link", "password_reset", "claim_link", "judge_reminder", "admin_setup"] as const;
+export const MAIL_KINDS = ["judge_invite", "voter_link", "password_reset", "claim_link", "judge_reminder", "admin_setup", "event_update"] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
 // sending: recorded, then handed to the mail server (a row left so means the portal stopped before the answer came);
 // unknown: the connection broke after the message was handed over, so it may have arrived; off: kept for rows
@@ -930,7 +958,7 @@ export const outbox = sqliteTable(
   },
   (t) => [
     index("outbox_event_idx").on(t.eventId, t.createdAt),
-    check("outbox_kind", sql`${t.kind} in ('judge_invite', 'voter_link', 'password_reset', 'claim_link', 'judge_reminder', 'admin_setup')`),
+    check("outbox_kind", sql`${t.kind} in ('judge_invite', 'voter_link', 'password_reset', 'claim_link', 'judge_reminder', 'admin_setup', 'event_update')`),
     check("outbox_status", sql`${t.status} in ('sending', 'sent', 'failed', 'unknown', 'off')`),
     check("outbox_to_email", sql`${t.toEmail} like '%_@_%'`),
     check("outbox_subject_length", sql`length(${t.subject}) between 1 and 200`),

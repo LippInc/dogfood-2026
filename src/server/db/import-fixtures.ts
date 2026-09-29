@@ -230,7 +230,7 @@ export type ImportReport = {
   /** score ids whose judge is a member of the scored project's team */
   conflicts: string[];
   /** file ids another event already used, and the ids this event's rows got instead */
-  renamed: { kind: "track" | "team" | "project" | "judge" | "question" | "prize" | "decision" | "comparison" | "ballot" | "comment" | "run"; from: string; to: string }[];
+  renamed: { kind: "track" | "team" | "project" | "judge" | "question" | "prize" | "decision" | "comparison" | "ballot" | "comment" | "update" | "run"; from: string; to: string }[];
   /** set when the event is new and the web address its name gives was taken by another event */
   slug?: { wanted: string; used: string };
   /**

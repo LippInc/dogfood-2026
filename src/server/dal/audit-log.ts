@@ -119,6 +119,7 @@ const MAIL_WORDS: Record<string, [string, string]> = {
   password_reset: ["password reset link", "password reset links"],
   judge_reminder: ["reminder", "reminders"],
   admin_setup: ["setup link", "setup links"],
+  event_update: ["update", "updates"],
 };
 /** How the open link's ballots were set to count; rows written before the rule existed carry no countLink and say nothing. */
 const linkRule = (after: Record<string, unknown>) =>
@@ -572,6 +573,12 @@ function sentence(r: Row, n: Names): Part[] {
       const ended = Number(after.sessionsEnded ?? 0);
       return [actor, t(` set a new password with a one-time link, which signed out ${ended} ${ended === 1 ? "session" : "sessions"}`)];
     }
+    case "update.post":
+      return [actor, t(` posted the update ${quote(after.title)}${after.email ? ", to be mailed to the participants" : ""}`)];
+    case "update.edit":
+      return [actor, t(` edited the update ${quote(before.title)}${before.title !== after.title ? ` (now ${quote(after.title)})` : ""}; the old words are kept in this entry`)];
+    case "update.remove":
+      return [actor, t(` removed the update ${quote(before.title)}; its words are kept in this entry`)];
     case "ratelimit.refused":
       return [actor, t(` was asked to slow down (too many ${LIMIT_WORDS[target] ?? target}; wait ${after.retryAfter} s)`)];
     default:

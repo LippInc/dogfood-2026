@@ -218,3 +218,14 @@ export {
 } from "./pairwise";
 export type { Yardstick } from "../judging/yardstick";
 export { setTieBreak, TieBreakInput, type TieBreakCriterion, type TieBreakView } from "./tiebreak";
+export {
+  editUpdate,
+  getUpdatesAdmin,
+  listUpdates,
+  postUpdate,
+  removeUpdate,
+  UPDATE_BODY_MAX,
+  UPDATE_TITLE_MAX,
+  UPDATES_SHOWN,
+  type UpdateView,
+} from "./updates";

@@ -4,7 +4,7 @@ import type { OutboxPage, OutboxView } from "@/server/dal";
 
 // What the portal mailed, in the webhook deliveries' own parts (Integrations page, HookCard): a count
 // line, the newest failure called out, and the last messages in a table that stacks on a phone. Each
-// message's text opens under its row, as it was sent but with the link blanked.
+// message's text opens under its row, as it was sent but with a private link blanked (an update's or a reminder's public link stays).
 
 const KIND: Record<string, string> = {
   judge_invite: "Judge invitation",
@@ -12,6 +12,7 @@ const KIND: Record<string, string> = {
   claim_link: "Account link",
   password_reset: "Password reset",
   judge_reminder: "Reminder",
+  event_update: "Update",
   admin_setup: "Setup link",
 };
 

@@ -6,6 +6,7 @@ import { getDb, type DbOrTx } from "../db/client";
 import {
   auditLog,
   comments,
+  eventUpdates,
   comparisons,
   assignmentRuns,
   assignments,
@@ -850,6 +851,9 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
     .all()
     .filter((r) => submitted.has(r.c.projectId));
 
+  // the organizers' updates, oldest first, as posted and last edited
+  const updateRows = db.select().from(eventUpdates).where(eq(eventUpdates.eventId, event.id)).orderBy(asc(eventUpdates.createdAt), asc(eventUpdates.id)).all();
+
   let published: Record<string, unknown> | null = null;
   const runId = s.publishedRunId;
   if (event.resultsPublishedAt && runId) {
@@ -908,6 +912,9 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
               ...(c.hiddenAt ? { hidden: { at: c.hiddenAt, reason: c.hiddenReason ?? "" } } : {}),
             })),
           }
+        : {}),
+      ...(updateRows.length
+        ? { updates: updateRows.map((u) => ({ id: u.id, title: u.title, body: u.body, at: u.createdAt, ...(u.editedAt ? { edited_at: u.editedAt } : {}) })) }
         : {}),
       ...(published ? { published } : {}),
     },

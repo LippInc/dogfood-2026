@@ -53,7 +53,8 @@ export function setMailWaitForTests(ms: number | null): void {
   waitMs = ms ?? MAIL_WAIT_MS;
 }
 
-type Letter = { to: string; subject: string; body: (link: string) => string; path: string };
+/** keepLink: the link is public (an event's updates page, a judge's console), so the outbox copy keeps it. */
+type Letter = { to: string; subject: string; body: (link: string) => string; path: string; keepLink?: boolean };
 type Scope = { eventIdOrSlug: string } | { portal: true };
 
 const emailOn = () => mailSettings().on;
@@ -90,6 +91,7 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, al
       load,
       run: (tx) => {
         const eventId = portal ? null : requireEvent(tx, scope.eventIdOrSlug).id;
+        const base = mailBase();
         const row = (l: Letter, id: string, status: "sending" | "failed", error: string | null) =>
           tx.insert(outbox)
             .values({
@@ -98,7 +100,7 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, al
               kind,
               toEmail: l.to,
               subject: l.subject,
-              body: l.body(BLANKED).slice(0, BODY_MAX),
+              body: l.body(l.keepLink ? base + l.path : BLANKED).slice(0, BODY_MAX),
               status,
               error,
               createdBy: actor?.userId ?? null,
@@ -254,6 +256,20 @@ export function mailPasswordReset(actor: Actor | null, reset: { email: string; p
     },
   ];
   return mailLetters(actor, { portal: true }, "password_reset", letters);
+}
+
+/** An organizer's update, to each address given (the event's participants), with the event's updates page. */
+export function mailEventUpdate(actor: Actor | null, eventIdOrSlug: string, update: { title: string; body: string }, to: string[]): Promise<MailReport> {
+  const event = requireEvent(getDb(), eventIdOrSlug);
+  const letters: Letter[] = to.map((address) => ({
+    to: address,
+    subject: `${event.name}: ${update.title}`,
+    body: (link) =>
+      `${update.title}\n\n${update.body}\n\n-- \nAn update from the organizers of ${event.name}. Every update: ${link}\nYou get this because you are on a team in ${event.name}.\n`,
+    path: `/events/${event.slug}/updates`,
+    keepLink: true,
+  }));
+  return mailLetters(actor, { eventIdOrSlug }, "event_update", letters);
 }
 
 /** Whether the portal mails the links it makes (SMTP_URL is set), for the screens' own words. */

@@ -14,6 +14,7 @@ import { readTrackMoves, type TrackMove } from "./track-moves";
 import {
   comments,
   comparisons,
+  eventUpdates,
   events,
   judgeOverrides,
   normalizationRuns,
@@ -32,7 +33,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /** How many rows of each part one file may bring (the whole history of one event arrives in one file). */
-export const HISTORY_LIMITS = { prizes: 40, decisions: 2_000, changes: 500, comparisons: 50_000, ballots: 50_000, picks: 20, comments: 20_000, published: 2_000 } as const;
+export const HISTORY_LIMITS = { prizes: 40, decisions: 2_000, changes: 500, comparisons: 50_000, ballots: 50_000, picks: 20, comments: 20_000, published: 2_000, updates: 2_000 } as const;
 
 /** SQLite's trim() takes off spaces only; the database's checks count what is left, so the file is held to the same count. */
 const sqlTrimmed = (s: string) => s.replace(/^ +| +$/g, "");
@@ -207,6 +208,25 @@ export const HistoryFields = {
     )
     .max(HISTORY_LIMITS.comments, atMost(HISTORY_LIMITS.comments, "comments"))
     .optional(),
+  /** the organizers' updates to the event (news, plain text), oldest first */
+  updates: z
+    .array(
+      z.object({
+        id,
+        title: z
+          .string()
+          .max(120)
+          .refine((s) => sqlTrimmed(s).length >= 1, "must have a title"),
+        body: z
+          .string()
+          .max(5_000)
+          .refine((s) => sqlTrimmed(s).length >= 1, "must have words"),
+        at: dateTime,
+        edited_at: dateTime.optional(),
+      }),
+    )
+    .max(HISTORY_LIMITS.updates, atMost(HISTORY_LIMITS.updates, "updates"))
+    .optional(),
   published: z
     .object({
       at: dateTime,
@@ -297,7 +317,7 @@ export function refuseHistoryForExistingEvent(
 ) {
   // a row an earlier import brought under a renamed id ('<id>.<event id>', another event held the file's) is present too
   const renamed = (x: string) => `${x}.${eventId}`;
-  const idsIn = (table: typeof comments | typeof comparisons | typeof judgeOverrides | typeof voters, ids: string[]) => {
+  const idsIn = (table: typeof comments | typeof comparisons | typeof judgeOverrides | typeof voters | typeof eventUpdates, ids: string[]) => {
     const held = new Set<string>();
     // in slices, so a file of 50,000 ballots stays inside SQLite's limit on one statement's variables
     for (let i = 0; i < ids.length; i += 500) {
@@ -321,6 +341,8 @@ export function refuseHistoryForExistingEvent(
   const commentCount = count(commentIds, idsIn(comments, commentIds));
   const answers = count(answerIds, idsIn(comparisons, answerIds));
   const judgeDecisions = count(decisionIds, idsIn(judgeOverrides, decisionIds));
+  const updateIds = (file.updates ?? []).map((u) => u.id);
+  const updateCount = count(updateIds, idsIn(eventUpdates, updateIds));
 
   const s = published.settings;
   const inList = <T>(list: T[] | undefined, held: T[] | undefined): Counts => {
@@ -379,6 +401,7 @@ export function refuseHistoryForExistingEvent(
   if (answers.missing) adds.push(plural(answers.missing, "pairwise answer"));
   if (merges.missing) adds.push(plural(merges.missing, "duplicate merge"));
   if (judgeDecisions.missing + otherDecisions.missing) adds.push(plural(judgeDecisions.missing + otherDecisions.missing, "decision"));
+  if (updateCount.missing) adds.push(plural(updateCount.missing, "update"));
   if (ranking.missing) adds.push("a published ranking");
   if (adds.length) {
     const list = adds.length === 1 ? adds[0] : `${adds.slice(0, -1).join(", ")} and ${adds.at(-1)}`;
@@ -410,6 +433,8 @@ export type RestoredHistory = {
   comparisons: string[];
   ballots: { voter: string; picks: number }[];
   comments: string[];
+  /** the organizers' updates, by id; only when the file brings some */
+  updates?: string[];
   published?: { run: string; at: string };
   /** projects moved to another track on the portal the event came from; the event's track moves are read from here too */
   trackMoves?: TrackMove[];
@@ -434,7 +459,7 @@ export type RestoreContext = {
 };
 
 /** A file id for a row of one of these tables: the id itself when no other event holds it, else the id with this event's after it. */
-function freeId(tx: Tx, table: typeof prizes | typeof comments | typeof comparisons | typeof judgeOverrides | typeof voters | typeof normalizationRuns, fileId: string, eventId: string, kind: string, renamed: (from: string, to: string) => void): string {
+function freeId(tx: Tx, table: typeof prizes | typeof comments | typeof comparisons | typeof judgeOverrides | typeof voters | typeof normalizationRuns | typeof eventUpdates, fileId: string, eventId: string, kind: string, renamed: (from: string, to: string) => void): string {
   const holder = (x: string) => tx.select({ e: table.eventId }).from(table).where(eq(table.id, x)).get()?.e;
   if (holder(fileId) === undefined) return fileId;
   const other = `${fileId}.${eventId}`;
@@ -746,6 +771,16 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
         .run().changes,
     );
     out.comments.push(commentId);
+  }
+
+  // The organizers' updates, as they were posted (and edited), recorded as posted by the importer
+  if (file.updates?.length) {
+    out.updates = [];
+    for (const u of file.updates) {
+      const updateId = freeId(tx, eventUpdates, u.id, eventId, "update", rename("update"));
+      tx.insert(eventUpdates).values({ id: updateId, eventId, title: u.title, body: u.body, createdBy: by, createdAt: u.at, editedAt: u.edited_at ?? null }).onConflictDoNothing().run();
+      out.updates.push(updateId);
+    }
   }
 
   // The published ranking, as it was stored when it was published (never worked out again here), and last the

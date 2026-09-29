@@ -173,6 +173,9 @@ Each item in full, with its rules: [`docs/FEATURES.md`](docs/FEATURES.md).
   at every stage.
 - **Prizes:** the organizer gives each prize to a project, or jointly to several, on the Results tab before
   publishing; final with the results, and shown on the public results, the winners' pages and their certificates.
+- **Updates:** organizers post news to the event ("deadline extended", "winners at 18:00") in plain text; the
+  newest three show on its Projects and About pages, every one on its Updates page; with email on, an update can
+  also be mailed to the participants. Posting, editing and removing are audited, the old words kept.
 - **Community vote and comments:** signed-in, voter-list or open-link voting; comments organizers can hide with a
   reason.
 - **Signed certificates and judging records,** checkable in the browser, on `/verify` or offline.

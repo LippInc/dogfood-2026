@@ -183,6 +183,30 @@ reason, and unhide it again. While it is hidden, the organizers and its author s
 its text (its author cannot delete it then); everyone else sees one comment fewer. Comments cannot be
 edited: delete and post again.
 
+## Updates
+
+An organizer posts news to the event on its Updates tab (`/organize/{event}/updates`): a title of up to 120
+characters and a plain-text body of up to 5,000. The event's Projects and About pages show the newest three with
+their times (UTC) and a link to its Updates page (`/events/{event}/updates`), which lists every one; an event
+without updates shows nothing, so its pages are as they were. The body is text, never HTML: its line breaks are
+kept, a tag shows as its own characters and a web address shows as text, not a link.
+
+- **Audited.** Posting, editing and removing are one audited write each (`update.post`, `update.edit`,
+  `update.remove`); an edit and a removal keep the old title and words in their audit row, and an edited update
+  says when it was edited.
+- **After publishing too.** Updates are news, not results: publishing freezes the results and the event's
+  settings, not its updates, so "winners announced" can go out after the results do.
+- **Email.** With `SMTP_URL` set, the form has a box, off by default, that says how many people the update goes
+  to: every member of a team in the event, once each. Ticked, the update is mailed to them after it is posted,
+  each message recorded in the outbox (kind `event_update`, the updates page's link kept) with its result, and
+  the page says how many went and which could not. Without `SMTP_URL` the box is not there and one line says email
+  is off. An edit is never mailed again.
+- **API.** `GET /api/events/{event}/updates` (anyone), `POST` to post (`email: true` to mail it), `PUT` and
+  `DELETE` on `/api/events/{event}/updates/{update}` (organizers).
+- **Export and import.** `fixtures.json` carries them (`updates`, oldest first, with `edited_at` when edited) and
+  an import brings them into a new event, recorded as posted by the importer; a file that would add an update to
+  an event that is here already is refused whole, as its ballots and comments are.
+
 ## Signed certificates and judging records
 
 Once results are published, each member of a submitting team can get a certificate (places 1 to 3 in the track,

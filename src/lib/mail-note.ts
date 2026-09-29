@@ -43,3 +43,24 @@ export function mailNote(report: MailReport): string | null {
   }
   return parts.join(" ");
 }
+
+/**
+ * The sentence after mailing a message that carries no private link (an update, a reminder): how many went, and
+ * which could not, with why. who: what one recipient is called ("participant", "judge").
+ */
+export function mailedNote(report: MailReport, who: string): string {
+  if (!report.on) return "Nothing was mailed: email is off.";
+  const total = report.mailed.length;
+  if (!total) return `Nothing was mailed: there is no ${who} to mail.`;
+  const sent = report.mailed.filter((m) => m.status === "sent").length;
+  const pending = report.mailed.filter((m) => m.status === "pending").length;
+  const unknown = report.mailed.filter((m) => m.status === "unknown");
+  const failed = report.mailed.filter((m) => m.status === "failed");
+  const parts: string[] = [];
+  if (sent === total) return total === 1 ? `Mailed to ${report.mailed[0]!.to}.` : `Mailed to all ${total} ${who}s.`;
+  if (sent) parts.push(`Mailed ${sent} of ${total}.`);
+  if (pending) parts.push(`${pending} still sending: the outbox shows each result as it comes.`);
+  if (failed.length) parts.push(`Could not mail ${list(failed.map((m) => `${m.to} (${m.error ?? "the mail server refused it"})`))}.`);
+  if (unknown.length) parts.push(`${list(unknown.map((m) => m.to))} may have arrived: the connection to the mail server broke after the message was handed over.`);
+  return parts.join(" ");
+}

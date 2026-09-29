@@ -28,3 +28,4 @@ export { ModeInput, PickInput, UndoInput } from "./pairwise";
 export { TieBreakInput } from "./tiebreak";
 export { PublishInput } from "./results";
 export { AwardInput } from "./prize-awards";
+export { UpdateEdit, UpdateInput } from "./updates";

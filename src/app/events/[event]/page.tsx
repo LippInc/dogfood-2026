@@ -5,7 +5,8 @@ import { ProjectImage } from "@/components/project-cover";
 import { GalleryBrowser } from "@/components/gallery/gallery-browser";
 import { PublicShell } from "@/components/shell/public-shell";
 import { plural } from "@/lib/format";
-import { actorNav, currentActor, getGallery, getMyWork, NotFoundError, type Gallery } from "@/server/dal";
+import { LatestUpdates } from "@/components/event-updates";
+import { actorNav, currentActor, getGallery, getMyWork, listUpdates, NotFoundError, UPDATES_SHOWN, type Gallery } from "@/server/dal";
 
 // Server-rendered on every request: every project is on page one, in a fresh
 // shuffled order, so no project is always first. Nothing is baked in at build time.
@@ -84,6 +85,8 @@ export default async function GalleryPage({ params, searchParams }: PageProps<"/
           {plural(counts.projects, "project")} / {plural(counts.teams, "team")} / {plural(counts.tracks, "track")} / {plural(counts.judges, "judge")}
         </p>
       </div>
+      {/* the organizers' newest news, above the Field; an event without updates draws nothing here */}
+      <LatestUpdates slug={event.slug} {...listUpdates(event.id, UPDATES_SHOWN)} clamp className="mb-8" />
       <GalleryBrowser
         eventSlug={event.slug}
         items={items}
