@@ -1065,7 +1065,7 @@ describe("the count follows merges and team changes", () => {
     expect(votesFor("prj_07")).toBe(1);
   });
 
-  it("known-bad: a vote for a project whose team the voter joins afterwards does not count; another voter's does", () => {
+  it("known-bad: a vote for a project whose team the voter is on does not count; another voter's does", () => {
     h.sqlite.prepare("UPDATE events SET submissions_close_at = '2999-01-01T00:00:00Z' WHERE id = 'evt_01'").run();
     openVoting();
     const captain = newVoter("usr_cap");
@@ -1078,7 +1078,10 @@ describe("the count follows merges and team changes", () => {
     castBallot(joiner, "evt_01", null, { projectIds: ["prj_late"] }, CLIENT);
     castBallot(outsider, "evt_01", null, { projectIds: ["prj_late"] }, CLIENT);
     const code = (h.sqlite.prepare("SELECT invite_code AS c FROM teams WHERE id = ?").get(team.id) as { c: string }).c;
-    joinTeam(actorById("usr_joiner2"), code);
+    // joining now is refused, since it would move the count (tests/team-member-votes.test.ts) ...
+    expectHttpError(() => joinTeam(actorById("usr_joiner2"), code), 409, "vote_would_change");
+    // ... and the count still applies the rule itself, for a membership that is there anyway (an older database, a restored backup)
+    h.sqlite.prepare("INSERT INTO team_members (event_id, team_id, user_id, role, joined_at) VALUES ('evt_01', ?, 'usr_joiner2', 'member', ?)").run(team.id, NOW);
     close();
     expect(votesFor("prj_late")).toBe(1); // the outsider's
   });

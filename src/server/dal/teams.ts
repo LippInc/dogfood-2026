@@ -72,7 +72,8 @@ function assignedToTeam(tx: DbOrTx, userId: string, teamId: string): boolean {
  * count folds into it. The community count skips a member's votes for their own team
  * (voting-organizer.ts, the same person matching: the voter's account, else a listed address
  * that belongs to an account), so putting them on the team or taking them off would silently
- * change the count. An organizer's team change must never do that.
+ * change the count. No team change does that: a member's own join or leave, a captain taking a
+ * member off, or an organizer's change.
  */
 function votedForTeam(tx: DbOrTx, eventId: string, userId: string, teamId: string): boolean {
   const own = tx
@@ -165,6 +166,12 @@ export function joinTeam(actor: Actor | null, code: string) {
       };
     },
     run: (tx) => {
+      if (votedForTeam(tx, team.eventId, actor!.userId, team.id)) {
+        throw new ConflictError(
+          "vote_would_change",
+          `You have a community vote for ${team.name}'s project, and votes for your own team do not count: joining would take that vote out of the count. Take that pick off your ballot first while voting is open, or ask an organizer to void your vote (it is audited), then join.`,
+        );
+      }
       const size = tx.select({ n: sql<number>`count(*)` }).from(teamMembers).where(eq(teamMembers.teamId, team.id)).get()?.n ?? 0;
       const max = event.settings.maxTeamSize ?? DEFAULT_MAX_TEAM_SIZE;
       if (size >= max) throw new ConflictError("team_full", `${team.name} already has ${size} members, the most this event allows.`);
@@ -262,6 +269,12 @@ export function leaveTeam(actor: Actor | null, teamId: string) {
         );
       }
       if (me.role === "captain") throw new ConflictError("captain_hands_over_first", "Make another member captain first, then leave.");
+      if (votedForTeam(tx, team.eventId, actor!.userId, team.id)) {
+        throw new ConflictError(
+          "vote_would_change",
+          "You have a community vote for your own team's project, which is not counted while you are on the team: leaving would start counting it. Take that pick off your ballot first while voting is open, or ask an organizer to void your vote (it is audited), then leave.",
+        );
+      }
       tx.delete(teamMembers).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, actor!.userId))).run();
       return {
         result: { teamId: team.id },
@@ -359,6 +372,12 @@ export function removeMember(actor: Actor | null, teamId: string, userId: string
     run: (tx) => {
       if (userId === actor!.userId) throw new ConflictError("cannot_remove_yourself", "To leave, make another member captain first, then leave.");
       if (!memberOf(tx, team.id, userId)) throw new NotFoundError("Team member");
+      if (votedForTeam(tx, team.eventId, userId, team.id)) {
+        throw new ConflictError(
+          "vote_would_change",
+          "This member has a community vote for your team's project, which is not counted while they are on the team: taking them off would start counting it. They can take that pick off their ballot while voting is open, or an organizer can void the vote (it is audited).",
+        );
+      }
       tx.delete(teamMembers).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, userId))).run();
       return {
         result: { teamId: team.id, removed: userId },
