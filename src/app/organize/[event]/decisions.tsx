@@ -465,7 +465,8 @@ export function CloseCallBody({
   const [state, form, pending] = useFormAction(judgesDecisionAction, idle);
   const opener = useRef<HTMLButtonElement>(null);
   useRescueFocus(() => opener.current, choosing);
-  const leader = c.top.length === 1 ? titleOf(c, c.top[0]) : c.top.map((id) => titleOf(c, id)).join(" and ");
+  // an exact tie at the top is a joint first place: say so, not "the winner, A and B"
+  const leader = c.top.length === 1 ? titleOf(c, c.top[0]) : `${c.top.map((id) => titleOf(c, id)).join(" and ")}, tied`;
   const others = c.projects.filter((p) => c.close.includes(p.id) && !(c.top.length === 1 && p.id === c.top[0]));
   const settledNow = c.choice !== null && c.stale === null;
   return (
