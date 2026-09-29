@@ -15,6 +15,16 @@ const KIND: Record<string, string> = {
   admin_setup: "Setup link",
 };
 
+/** What each status means to the person reading the table; only a failed row is flagged as a problem. */
+const RESULT: Record<string, { label: string; tone: string }> = {
+  sent: { label: "Sent", tone: "text-ok" },
+  failed: { label: "Failed", tone: "font-medium text-flag" },
+  unknown: { label: "May have arrived", tone: "font-medium text-ink" },
+  sending: { label: "No answer recorded", tone: "font-medium text-ink" },
+  off: { label: "Not sent: email is off", tone: "text-ink-2" },
+};
+const resultOf = (status: string) => RESULT[status] ?? { label: status, tone: "text-ink-2" };
+
 /**
  * `page` is one page of the outbox; `href(before)` makes the address of another page (null: the newest),
  * and `older` says this page is not the newest one.
@@ -22,7 +32,7 @@ const KIND: Record<string, string> = {
 export function OutboxTable({ page, href, older = false }: { page: OutboxPage; href: (before: string | null) => string; older?: boolean }) {
   const mail = page.messages;
   if (!mail.length && !older) return null;
-  const { sent, failed, total } = page.counts;
+  const { sent, failed, total, unknown } = page.counts;
   const newest = mail[0];
   const troubled = !older && newest?.status === "failed";
   const paged = older || page.next !== null;
@@ -30,6 +40,12 @@ export function OutboxTable({ page, href, older = false }: { page: OutboxPage; h
     <div className="flex flex-col gap-3">
       <p className="text-13 text-ink-2 tnum">
         <span className="text-ink">{sent}</span> sent · <span className={failed ? "font-medium text-flag" : "text-ink"}>{failed}</span> failed
+        {unknown ? (
+          <>
+            {" "}
+            · <span className="font-medium text-ink">{unknown}</span> may have arrived
+          </>
+        ) : null}
         {paged ? <span className="text-ink-3"> · {total} in all</span> : null}
       </p>
       {troubled && newest?.error ? (
@@ -91,8 +107,8 @@ function MailRow({ m }: { m: OutboxView }) {
         </details>
       </td>
       <td className="py-2 align-top max-sm:col-start-2 max-sm:row-start-1 max-sm:justify-self-end max-sm:p-0">
-        {m.status === "sent" ? <span className="text-ok">Sent</span> : <span className="font-medium text-flag">Failed</span>}
-        {m.status === "failed" && m.error ? <span className="mt-0.5 block text-12 text-ink-2">{m.error}</span> : null}
+        <span className={resultOf(m.status).tone}>{resultOf(m.status).label}</span>
+        {m.status !== "sent" && m.error ? <span className="mt-0.5 block text-12 text-ink-2">{m.error}</span> : null}
       </td>
     </tr>
   );

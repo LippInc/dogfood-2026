@@ -481,7 +481,7 @@ describe("reading the outbox", () => {
     const first = listOutbox(organizer(), EVENT);
     expect(first.messages).toHaveLength(100);
     expect(first.messages[0]!.subject).toBe("Cap 229"); // newest first
-    expect(first.counts).toEqual({ total: 230, sent: 207, failed: 23 }); // over every message, not the page
+    expect(first.counts).toEqual({ total: 230, sent: 207, failed: 23, unknown: 0 }); // over every message, not the page
     const second = listOutbox(organizer(), EVENT, { before: first.next });
     expect(second.messages[0]!.subject).toBe("Cap 129");
     // mail arriving between two reads shifts nothing on the next page

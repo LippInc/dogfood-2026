@@ -29,7 +29,7 @@ export type OutboxView = {
 export type OutboxPage = {
   messages: OutboxView[];
   next: string | null;
-  counts: { total: number; sent: number; failed: number };
+  counts: { total: number; sent: number; failed: number; unknown: number };
 };
 
 export const OUTBOX_PAGE = 100;
@@ -81,6 +81,8 @@ function readPage(scope: SQL | undefined, paging: OutboxPaging): OutboxPage {
       total: sql<number>`count(*)`,
       sent: sql<number>`coalesce(sum(${outbox.status} = 'sent'), 0)`,
       failed: sql<number>`coalesce(sum(${outbox.status} = 'failed'), 0)`,
+      // may have arrived: the line broke after hand-over, or no answer was recorded (the portal stopped mid-send)
+      unknown: sql<number>`coalesce(sum(${outbox.status} in ('unknown', 'sending')), 0)`,
     })
     .from(outbox)
     .where(scope)
