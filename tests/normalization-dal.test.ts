@@ -585,7 +585,9 @@ describe("normalized.csv after publishing is the published run", () => {
     settle();
     const { runId } = publishResults(organizer(), "evt_01");
     const published = csv();
-    // a finished review taken out of the engine after publishing (assignments carry no publish trigger)
+    // a finished review taken out of the engine after publishing: the database refuses it (assignments_final_update,
+    // 0017), so the trigger comes off first, as someone who holds the database file could do
+    h.sqlite.exec("DROP TRIGGER assignments_final_update");
     const a = h.sqlite
       .prepare("SELECT a.id AS id, a.project_id AS project FROM assignments a WHERE a.event_id = 'evt_01' AND a.status = 'done' AND a.judge_user_id <> 'jdg_07' AND a.project_id NOT IN ('prj_07', 'prj_41') ORDER BY a.id LIMIT 1")
       .get() as { id: string; project: string };

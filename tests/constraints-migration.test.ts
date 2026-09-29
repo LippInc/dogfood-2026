@@ -7,6 +7,7 @@ import { openDatabase, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { TRIGGERS } from "@/server/db/triggers";
+import { dropLaterTriggers } from "./support/old-portal";
 
 // drizzle/0016_constraints.sql rebuilds nine tables to add CHECK constraints and foreign keys SQLite cannot add
 // in place. These tests take a database as the portal had it before (migrations 0000 to 0015, with the fixture
@@ -46,6 +47,12 @@ afterAll(() => {
 });
 
 let h: Handle;
+
+/** A database as the portal left it before 0016 (tests/support/old-portal.ts). */
+function bootBefore0016() {
+  runMigrations(h, before0016);
+  dropLaterTriggers(h.sqlite, 15);
+}
 const run = (sql: string, ...args: unknown[]) => h.sqlite.prepare(sql).run(...args);
 const one = <T>(sql: string, ...args: unknown[]) => h.sqlite.prepare(sql).get(...args) as T;
 const tableSql = (name: string) => one<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", name).sql;
@@ -97,7 +104,7 @@ function fillOldDatabase({ publish }: { publish: boolean }) {
 describe("migration 0016 on a database that already holds data", () => {
   beforeEach(() => {
     h = openDatabase(":memory:");
-    runMigrations(h, before0016);
+    bootBefore0016();
     fillOldDatabase({ publish: true });
   });
   afterEach(() => h.sqlite.close());
@@ -178,7 +185,7 @@ describe("migration 0016 on a database that already holds data", () => {
 describe("the constraints 0016 adds", () => {
   beforeEach(() => {
     h = openDatabase(":memory:");
-    runMigrations(h, before0016);
+    bootBefore0016();
     fillOldDatabase({ publish: false });
     run("UPDATE events SET voting_open_at = NULL, voting_close_at = NULL WHERE id = 'evt_01'");
     runMigrations(h, DRIZZLE);

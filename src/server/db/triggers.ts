@@ -31,10 +31,15 @@ const appendOnly = (table: string, op: "UPDATE" | "DELETE") => `
   END`;
 
 // Once an event's results are published its numbers are final: the app refuses every
-// change, and these make the database refuse an edit or a removal too. INSERT is left to
-// the app on purpose: the boot import inserts with ON CONFLICT DO NOTHING, which fires
-// BEFORE INSERT triggers even for rows it then skips, and a published run cannot move
-// with new rows anyway, since runs are append-only.
+// change, and these make the database refuse an edit, a removal or an addition too, on every
+// table the ranking rests on (reviews with their values and feedback, assignments, the
+// rubric's criteria and weights, the organizers' judge overrides, pairwise answers, the
+// stored runs, and a project's track or merge). An INSERT is refused only when it would add
+// a row: the boot import inserts with ON CONFLICT DO NOTHING, which fires BEFORE INSERT
+// triggers even for rows it then skips, so a row the table already holds (by any of its
+// unique keys) passes and the import adds nothing, as before. What the app allows after
+// publishing (records, certificates, the audit log, sessions, the outbox, webhooks,
+// comments) writes none of these tables.
 const eventOfScore = (scoreId: string) => `(SELECT a.event_id FROM scores s JOIN assignments a ON a.id = s.assignment_id WHERE s.id = ${scoreId})`;
 const eventOfAssignment = (assignmentId: string) => `(SELECT a.event_id FROM assignments a WHERE a.id = ${assignmentId})`;
 const final = (table: string, op: "UPDATE" | "DELETE", eventId: string) => `
@@ -43,6 +48,16 @@ const final = (table: string, op: "UPDATE" | "DELETE", eventId: string) => `
   BEGIN
     SELECT RAISE(ABORT, '${table}: the results are published, so this is final');
   END`;
+
+const published = (eventId: string) => `EXISTS (SELECT 1 FROM events e WHERE e.id = ${eventId} AND e.results_published_at IS NOT NULL)`;
+const frozenInsert = (table: string, eventId: string, already: string) => `
+  BEFORE INSERT ON ${table}
+  WHEN ${published(eventId)}
+    AND NOT EXISTS (SELECT 1 FROM ${table} x WHERE ${already})
+  BEGIN
+    SELECT RAISE(ABORT, '${table}: the results are published, so nothing can be added');
+  END`;
+const eventOfRun = (runId: string) => `(SELECT r.event_id FROM normalization_runs r WHERE r.id = ${runId})`;
 
 export const TRIGGERS: Record<string, string> = {
   normalization_runs_no_update: appendOnly("normalization_runs", "UPDATE"),
@@ -78,6 +93,30 @@ export const TRIGGERS: Record<string, string> = {
   END`,
   score_items_range_insert: range("INSERT"),
   score_items_range_update: range("UPDATE OF value, criterion_id"),
+  // the additions, and the tables the first set left open (drizzle/0017_published_inserts.sql)
+  scores_final_insert: frozenInsert("scores", eventOfAssignment("NEW.assignment_id"), "x.id = NEW.id OR x.assignment_id = NEW.assignment_id"),
+  score_items_final_insert: frozenInsert("score_items", eventOfScore("NEW.score_id"), "x.score_id = NEW.score_id AND x.criterion_id = NEW.criterion_id"),
+  score_comments_final_insert: frozenInsert("score_comments", eventOfScore("NEW.score_id"), "x.score_id = NEW.score_id"),
+  assignments_final_insert: frozenInsert("assignments", "NEW.event_id", "x.id = NEW.id OR (x.judge_user_id = NEW.judge_user_id AND x.project_id = NEW.project_id)"),
+  assignments_final_update: final("assignments", "UPDATE", "OLD.event_id"),
+  assignments_final_delete: final("assignments", "DELETE", "OLD.event_id"),
+  rubric_criteria_final_insert: frozenInsert("rubric_criteria", "NEW.event_id", "x.id = NEW.id OR (x.event_id = NEW.event_id AND x.key = NEW.key)"),
+  rubric_criteria_final_update: final("rubric_criteria", "UPDATE", "OLD.event_id"),
+  rubric_criteria_final_delete: final("rubric_criteria", "DELETE", "OLD.event_id"),
+  judge_overrides_final_insert: frozenInsert("judge_overrides", "NEW.event_id", "x.id = NEW.id"),
+  judge_overrides_final_update: final("judge_overrides", "UPDATE", "OLD.event_id"),
+  judge_overrides_final_delete: final("judge_overrides", "DELETE", "OLD.event_id"),
+  comparisons_final_insert: frozenInsert("comparisons", "NEW.event_id", "x.id = NEW.id"),
+  normalization_runs_final_insert: frozenInsert("normalization_runs", "NEW.event_id", "x.id = NEW.id"),
+  normalized_scores_final_insert: frozenInsert("normalized_scores", eventOfRun("NEW.run_id"), "x.run_id = NEW.run_id AND x.project_id = NEW.project_id"),
+  // the two decisions that move a project in the ranking: its track and a duplicate merge
+  projects_final_ranking: `
+  BEFORE UPDATE OF track_id, duplicate_of ON projects
+  WHEN ${published("OLD.event_id")}
+    AND (NEW.track_id IS NOT OLD.track_id OR NEW.duplicate_of IS NOT OLD.duplicate_of)
+  BEGIN
+    SELECT RAISE(ABORT, 'projects: the results are published, so the track and merges are final');
+  END`,
 };
 
 const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();

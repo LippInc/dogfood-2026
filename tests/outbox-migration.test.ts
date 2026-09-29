@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { openDatabase } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
+import { dropLaterTriggers } from "./support/old-portal";
 
 // 0015 rebuilds the outbox to widen its status CHECK (sending, unknown). A portal that already mailed keeps
 // every row through it, the index comes back, and the table's other rules still hold.
@@ -23,6 +24,7 @@ describe("migration 0015 on a portal that already mailed", () => {
       const h = openDatabase(":memory:");
       try {
         runMigrations(h, dir);
+        dropLaterTriggers(h.sqlite, 14);
         const insert = h.sqlite.prepare(
           "INSERT INTO outbox (id, event_id, kind, to_email, subject, body, status, error, created_by, created_at, sent_at) VALUES (?, NULL, 'password_reset', 'a@example.org', 'Set a new password', 'body', ?, ?, NULL, '2026-09-28T00:00:00.000Z', ?)",
         );

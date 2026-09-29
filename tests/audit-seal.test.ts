@@ -20,6 +20,7 @@ import { hideComment, postComment } from "@/server/dal/comments";
 import { createWebhook } from "@/server/dal/webhooks";
 import { auditCsv, getAuditLog } from "@/server/dal/audit-log";
 import type { Actor } from "@/server/authz";
+import { dropLaterTriggers } from "./support/old-portal";
 
 // A row's hash covers its values, and every other field of the row is visible to someone: a webhook receiver sees
 // the time, actor, action, event and target, and audit.csv gives the hash of the row before. Before the salt, hashing
@@ -340,6 +341,7 @@ describe("the chain a portal already holds", () => {
       const old = openDatabase(":memory:");
       try {
         runMigrations(old, dir);
+        dropLaterTriggers(old.sqlite, 13);
         const cols = () => (old.sqlite.prepare("PRAGMA table_info(audit_log)").all() as { name: string }[]).map((c) => c.name);
         expect(cols()).not.toContain("salt");
         // the rows the old code wrote, with its hashes
