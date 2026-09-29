@@ -5,12 +5,16 @@
 //
 //   node tools/stability-check.mjs http://localhost:8080 --container <portal container>
 //   node tools/stability-check.mjs http://localhost:8080 --sessions data/checker-sessions.toml
-//   node tools/stability-check.mjs --self-test          (proves the instrument fails on a page with planted bugs)
+//   node tools/stability-check.mjs --self-test          (proves the instrument fails on pages with planted bugs)
 //
 // For every role (organizer, judge, participant, visitor; the seeded checker sessions give the cookies, read from
 // the portal's boot log or its checker-sessions.toml) and every width (1440 and 390 px), it crawls the pages that
 // role can reach from "/" by links (one URL per route of src/app, per role), and on each page:
 //   load      layout shifts after the page first painted (PerformanceObserver "layout-shift")
+//   clip      visible text cut off: SVG <text> outside its svg's viewBox, HTML text outside an ancestor that clips
+//             (overflow hidden or clip) by more than 0.5 px; as loaded, then with each menu and dialog open.
+//             Deliberate truncation (ellipsis, line-clamp), sr-only text and scroll boxes are not cut.
+//             Only this step:  node tools/stability-check.mjs <url> --container <c> --phases clip
 //   idle      waits, without input, through one live refresh on pages that refresh themselves ("Live")
 //   hover     hovers links, buttons, rows and cards
 //   menus     opens and closes every menu, dialog and disclosure (aria-haspopup, aria-expanded), Escape to close
@@ -30,7 +34,8 @@
 //   --roles a,b          organizer,judge,participant,visitor (default all; judge = judge_a)
 //   --widths 1440,390    viewport widths (heights 900 and 844)
 //   --only <regex>       only pages whose path matches
-//   --phases a,b         load,idle,hover,menus,typing,scenario (default all)
+//   --phases a,b         load,clip,idle,hover,menus,typing,scenario (default all)
+//   --seed <path>        a page to start from that links do not reach (repeat it; in Git Bash set MSYS_NO_PATHCONV=1)
 //   --max-pages <n>      per role (default 40)
 //   --jobs <n>           browsers in parallel, one role and width each (default 2)
 //   --json <file>        write every finding and the pages visited as JSON
@@ -39,7 +44,7 @@
 //   --chrome <path>      Chrome or Chromium to run (default: $CHROME_PATH, Playwright's Chromium, installed Chrome)
 //   --dark               prefers-color-scheme: dark
 //   --verbose            print each page and step as it runs
-// Exit 0 = nothing moved; 1 = findings (printed, grouped by page and element); 2 = the tool itself failed.
+// Exit 0 = nothing moved and nothing cut; 1 = findings (printed, grouped by page and element); 2 = the tool itself failed.
 // Opt an element out (a deliberate ticker, a video) with the attribute data-stability-ignore.
 // A run writes: a judge's scores and feedback are changed and put back only partly (feedback yes, scores no), so
 // run it on a scratch portal, never on one with real data.
@@ -442,6 +447,127 @@ function instrument() {
     if (groups.some((g) => g.querySelector("button[aria-pressed]").disabled)) return null;
     return { criteria: groups.length, min: levels.map((l) => l[0]), max: levels.map((l) => l[l.length - 1]), feedback: S.ref(fb), value: fb.value };
   };
+
+  // clip: visible text that a box cuts off. The measure is the glyphs' content area (the font's ascent and descent,
+  // what Range.getClientRects and SVG getBBox report), so a descender cut by a tight line box counts.
+  // SVG <text> against its <svg> (unless that svg's overflow is visible); HTML text against every ancestor that
+  // clips (overflow hidden or clip on an axis, contain: paint) up to the first scroll container, which scrolls
+  // rather than cuts. Text entirely outside the box is hidden on purpose (a closed accordion), not cut; deliberate
+  // truncation (text-overflow: ellipsis, line-clamp) and visually hidden text (sr-only, clip, clip-path) are skipped.
+  S.clips = (within) => {
+    const TOL = 0.5;
+    const out = [];
+    const roots = within ? within.filter((el) => el && el.isConnected) : [document.body];
+    const scrolls = (v) => v === "auto" || v === "scroll";
+    const cuts = (v) => v === "hidden" || v === "clip";
+    const deliberate = (el) => {
+      for (let n = el; n && n.nodeType === 1 && n !== document.body; n = n.parentElement) {
+        if (n.closest && n.hasAttribute("data-stability-ignore")) return true;
+        const cs = getComputedStyle(n);
+        if (cs.textOverflow === "ellipsis" || (cs.webkitLineClamp && cs.webkitLineClamp !== "none")) return true;
+        if ((cs.clip && cs.clip !== "auto") || (cs.clipPath && cs.clipPath !== "none" && /inset\(50%|inset\(100%/.test(cs.clipPath))) return true;
+        const r = n.getBoundingClientRect();
+        if ((r.width <= 2 || r.height <= 2) && cuts(cs.overflowX) && cuts(cs.overflowY)) return true; // sr-only
+      }
+      return false;
+    };
+    const check = (rect, startEl, what, textEl) => {
+      if (rect.width < 1 || rect.height < 1) return;
+      for (let n = startEl; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+        let box = null;
+        let axes = "";
+        if (n instanceof SVGSVGElement) {
+          if (getComputedStyle(n).overflow === "visible") continue;
+          box = n.getBoundingClientRect();
+          axes = "xy";
+        } else if (n instanceof SVGElement) {
+          continue;
+        } else {
+          const cs = getComputedStyle(n);
+          if (scrolls(cs.overflowX) || scrolls(cs.overflowY)) return; // a scroll container: scrolled, not cut
+          if (cuts(cs.overflowX)) axes += "x";
+          if (cuts(cs.overflowY)) axes += "y";
+          if (/paint|strict|content/.test(cs.contain)) axes = "xy";
+          if (!axes) continue;
+          const r = n.getBoundingClientRect();
+          const bl = parseFloat(cs.borderLeftWidth) || 0, br = parseFloat(cs.borderRightWidth) || 0;
+          const bt = parseFloat(cs.borderTopWidth) || 0, bb = parseFloat(cs.borderBottomWidth) || 0;
+          box = { left: r.left + bl, right: r.right - br, top: r.top + bt, bottom: r.bottom - bb };
+        }
+        const cutBy = {};
+        if (axes.includes("x")) {
+          if (box.left - rect.left > TOL) cutBy.left = box.left - rect.left;
+          if (rect.right - box.right > TOL) cutBy.right = rect.right - box.right;
+        }
+        if (axes.includes("y")) {
+          if (box.top - rect.top > TOL) cutBy.top = box.top - rect.top;
+          if (rect.bottom - box.bottom > TOL) cutBy.bottom = rect.bottom - box.bottom;
+        }
+        const sides = Object.keys(cutBy);
+        if (!sides.length) continue;
+        // entirely outside on a cut axis = hidden by design, not cut
+        const inside =
+          (!axes.includes("x") || (rect.right > box.left + TOL && rect.left < box.right - TOL)) &&
+          (!axes.includes("y") || (rect.bottom > box.top + TOL && rect.top < box.bottom - TOL));
+        if (!inside) return;
+        const d = S.describe(textEl);
+        const by = S.describe(n);
+        out.push({
+          sel: d.sel,
+          text: what.replace(/\s+/g, " ").trim().slice(0, 60),
+          by: by.sel,
+          sides: sides.map((s) => `${s} ${Math.round(cutBy[s] * 10) / 10}`).join(", "),
+          px: Math.round(Math.max(...sides.map((s) => cutBy[s])) * 10) / 10,
+        });
+        return;
+      }
+    };
+    const seen = new Set();
+    for (const root of roots) {
+      // SVG text
+      for (const t of root.querySelectorAll("svg text")) {
+        if (seen.has(t)) continue;
+        seen.add(t);
+        if (!t.textContent.trim() || !t.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+        if (t.closest("[data-stability-ignore],[inert]")) continue;
+        check(t.getBoundingClientRect(), t.parentElement, t.textContent, t);
+      }
+      // HTML text, one text node at a time (the union of its line boxes)
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => {
+          const p = node.parentElement;
+          if (!p || !node.nodeValue.trim() || p instanceof SVGElement || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|TEXTAREA|OPTION)$/.test(p.tagName)) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      });
+      const range = document.createRange();
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const p = node.parentElement;
+        if (seen.has(node)) continue;
+        seen.add(node);
+        if (!p.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+        range.selectNodeContents(node);
+        const rects = [...range.getClientRects()].filter((r) => r.width >= 1 && r.height >= 1);
+        if (!rects.length) continue;
+        const u = rects.reduce(
+          (a, r) => ({ left: Math.min(a.left, r.left), top: Math.min(a.top, r.top), right: Math.max(a.right, r.right), bottom: Math.max(a.bottom, r.bottom) }),
+          { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity },
+        );
+        u.width = u.right - u.left;
+        u.height = u.bottom - u.top;
+        const before = out.length;
+        check(u, p, node.nodeValue, p);
+        if (out.length > before && deliberate(p)) out.pop();
+      }
+    }
+    const uniq = new Map();
+    for (const c of out) {
+      const k = `${c.sel}|${c.text}`;
+      if (!uniq.has(k) || uniq.get(k).px < c.px) uniq.set(k, c);
+    }
+    return [...uniq.values()];
+  };
+  S.clipOverlays = () => S.clips(S.overlays());
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -794,6 +920,49 @@ async function testPage(tab, url, meta, opts, log) {
     return false;
   };
 
+  if (has("clip")) {
+    const clipFinding = (c, where) => ({
+      ...ctxBase,
+      phase: "clip",
+      kind: "clip",
+      action: where,
+      sel: c.sel,
+      text: c.text,
+      by: c.by,
+      sides: c.sides,
+      maxDisp: c.px,
+    });
+    const found = await tab.evaluate("__stab.clips()");
+    findings.push(...found.map((c) => clipFinding(c, "as loaded")));
+    // then with each menu, dialog and disclosure open (a help panel, a select's list), text inside what opened
+    await reset();
+    const triggers = await tab.evaluate(`__stab.targets("menus", ${opts.quick ? 3 : 6})`);
+    let opened = 0;
+    for (const t of triggers) {
+      await tab.evaluate(`__stab.scrollTo(${t.i}), __stab.settle(300, 3000)`);
+      const c = await tab.evaluate(`__stab.center(${t.i})`);
+      if (!c || !c.inView || !c.reachable) continue;
+      await tab.evaluate("void (window.__before = __stab.overlays())");
+      await tab.click(c.x, c.y);
+      await sleep(250);
+      if (await back()) continue;
+      await tab.evaluate("__stab.settle(400, 3000)");
+      const overlay = await tab.evaluate("__stab.overlays().filter((el) => !window.__before.includes(el)).length");
+      const inside = await tab.evaluate(overlay ? "__stab.clips(__stab.overlays().filter((el) => !window.__before.includes(el)))" : "__stab.clips()");
+      opened++;
+      findings.push(...inside.map((x) => clipFinding(x, `with ${t.sel} "${t.text.slice(0, 30)}" open`)));
+      if (overlay) await tab.key("Escape");
+      else {
+        const c2 = await tab.evaluate(`__stab.center(${t.i})`);
+        if (c2 && c2.inView) await tab.click(c2.x, c2.y);
+      }
+      await sleep(500);
+      await back();
+      await tab.evaluate("__stab.settle(300, 3000)");
+    }
+    log(`    clip: ${found.length} as loaded; ${opened} menus opened`);
+  }
+
   if (has("idle")) {
     await reset();
     const live = await tab.evaluate("__stab.liveSeconds()");
@@ -1000,6 +1169,7 @@ async function runCombo(cdp, combo, opts, templates, log) {
     seen.set(k.key, u);
   }
   const tested = new Set();
+  let crawled = 0;
   while (queue.length && pages.length < opts.maxPages) {
     const u = queue.shift();
     if (tested.has(keyOf(u).key)) continue;
@@ -1007,7 +1177,8 @@ async function runCombo(cdp, combo, opts, templates, log) {
     const url = new URL(u);
     const { template } = keyOf(u);
     if (opts.only && !opts.only.test(url.pathname + url.search)) {
-      // still crawl through it for links, without testing
+      // still crawl through it for links, without testing (bounded, or a narrow --only walks the whole portal)
+      if (++crawled > opts.maxPages) continue;
       try {
         await tab.goto(u);
         const links = await tab.evaluate("__stab.links()");
@@ -1081,9 +1252,55 @@ document.getElementById("bad").addEventListener("input", () => {
 setTimeout(() => { const s = document.createElement("span"); s.textContent = "Live · 12:34:56 "; document.getElementById("title").prepend(s); }, 2600);
 </script></body></html>`;
 
+// The clip self-test: three planted cuts (the slope chart's label at the viewBox edge, a label cut by a fixed height,
+// a descender cut by leading-none), each on a page where it is planted and on one where it is fixed, plus controls
+// that must never be reported (deliberate truncation, sr-only, a scroll box, a closed accordion, an svg that lets
+// its text overflow).
+const clipTestPage = (fixed) => `<!doctype html><html><head><meta charset="utf-8"><style>
+body{font:16px sans-serif;margin:24px} .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+</style></head><body>
+<svg id="chart" viewBox="0 0 200 40" width="200" height="40"><line x1="0" y1="20" x2="200" y2="20" stroke="#999"/><text x="10" y="${fixed ? 30 : 39}" font-size="11">All judges</text></svg>
+<div id="label-box" style="width:120px;line-height:24px;overflow:hidden;${fixed ? "" : "height:18px"}"><span id="label">Organizer label cut short</span></div>
+<div style="overflow:hidden"><span id="desc" style="display:block;font-size:32px;line-height:${fixed ? 1.3 : 1}">gyp jq</span></div>
+<div style="width:80px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"><span id="ellipsis">A very long truncated title</span></div>
+<span class="sr" id="sr">Only for screen readers</span>
+<div style="height:30px;overflow:auto;width:200px"><p id="scroll">Line one<br>Line two<br>Line three<br>Line four</p></div>
+<div style="height:0;overflow:hidden"><p id="closed">A closed accordion's answer</p></div>
+<svg viewBox="0 0 100 20" width="100" height="20" style="overflow:visible"><text x="0" y="28" font-size="11">Spills on purpose</text></svg>
+</body></html>`;
+
+async function clipSelfTest(cdp, opts, log) {
+  const run = async (fixed) => {
+    const tab = await openTab(cdp, { width: 1440, base: "about:blank" });
+    const url = "data:text/html;base64," + Buffer.from(clipTestPage(fixed)).toString("base64");
+    const res = await testPage(tab, url, { path: "(clip self-test)", template: "(clip self-test)", role: "visitor" }, { ...opts, phases: ["clip"] }, log);
+    await tab.close();
+    return res.findings.filter((f) => f.kind === "clip");
+  };
+  const planted = await run(false);
+  const fixed = await run(true);
+  const hit = (list, re) => list.some((f) => re.test(`${f.sel} ${f.text}`));
+  if (opts.verbose) for (const f of planted) console.log(`      planted page: ${f.sel} "${f.text}" cut ${f.maxDisp} px (${f.sides}) by ${f.by}`);
+  const checks = [
+    ["an SVG label at the viewBox edge is cut (planted clip)", hit(planted, /All judges/)],
+    ["a label cut by a fixed height with overflow hidden (planted clip)", hit(planted, /Organizer label/)],
+    ["a descender cut by leading-none inside overflow hidden (planted clip)", hit(planted, /gyp jq/)],
+    ["the same three, fixed, are not reported", fixed.length === 0],
+    ["ellipsis, sr-only, a scroll box, a closed accordion, an overflowing svg are never reported (controls)", !hit(planted, /truncated|screen readers|Line (one|two|three|four)|accordion|Spills/)],
+  ];
+  if (fixed.length) for (const f of fixed) console.log(`      fixed page still reports: ${f.sel} "${f.text}" ${f.maxDisp} px`);
+  return checks;
+}
+
 async function selfTest(opts, log) {
   const cdp = await launch(opts.chrome, opts.headed);
   try {
+    if (opts.phases.includes("clip")) {
+      const clipChecks = await clipSelfTest(cdp, opts, log);
+      for (const [name, ok] of clipChecks) console.log(`${ok ? "ok  " : "FAIL"}  ${name}`);
+      if (!clipChecks.every(([, ok]) => ok)) return 1;
+      if (opts.phases.length === 1) return 0;
+    }
     const tab = await openTab(cdp, { width: 1440, base: "about:blank" });
     const url = "data:text/html;base64," + Buffer.from(SELF_TEST_PAGE).toString("base64");
     const res = await testPage(tab, url, { path: "(self-test)", template: "(self-test)", role: "visitor" }, { ...opts, phases: ["load", "idle", "hover", "typing"] }, log);
@@ -1107,7 +1324,30 @@ async function selfTest(opts, log) {
 // ---------------------------------------------------------------------------------------------------------------
 // Output.
 // ---------------------------------------------------------------------------------------------------------------
-function printFindings(findings, infos) {
+function printClips(clips) {
+  // One entry per page and cut text; under it the roles and widths where it is cut, and the most it is cut by.
+  const groups = new Map();
+  for (const f of clips) {
+    const k = `${f.template}|${f.sel}|${f.text}`;
+    if (!groups.has(k)) groups.set(k, { f, where: new Set(), pages: new Set(), max: f });
+    const g = groups.get(k);
+    g.where.add(`${f.role} ${f.width}${f.action === "as loaded" ? "" : `, ${f.action}`}`);
+    g.pages.add(f.page);
+    if (f.maxDisp > g.max.maxDisp) g.max = f;
+  }
+  const sorted = [...groups.values()].sort((a, b) => b.max.maxDisp - a.max.maxDisp);
+  for (const { f, where, pages, max } of sorted) {
+    console.log(`\nCLIP  ${f.template}   (${[...where].slice(0, 6).join("; ")}${where.size > 6 ? `; +${where.size - 6} more` : ""})`);
+    console.log(`  text: "${f.text}"  in ${f.sel}`);
+    console.log(`  cut ${max.maxDisp} px (${max.sides}) by ${max.by}${pages.size > 1 ? `; ${pages.size} pages, e.g. ${[...pages][0]}` : `; ${[...pages][0]}`}`);
+  }
+  return groups.size;
+}
+
+function printFindings(allFindings, infos) {
+  const clips = allFindings.filter((f) => f.kind === "clip");
+  const findings = allFindings.filter((f) => f.kind !== "clip");
+  const nClips = clips.length ? printClips(clips) : 0;
   // One entry per cause: the same page, step and action (a disclosure that reflows a table moves a hundred cells);
   // under it the elements that moved furthest, and where (role and width) it happened.
   const groups = new Map();
@@ -1148,7 +1388,7 @@ function printFindings(findings, infos) {
     for (const l of lines.slice(0, 40)) console.log(l);
     if (lines.length > 40) console.log(`  ... ${lines.length - 40} more in the JSON`);
   }
-  return groups.size;
+  return groups.size + nClips;
 }
 
 function loadAllow(file) {
@@ -1167,7 +1407,7 @@ async function main() {
       roles: { type: "string", default: "organizer,judge,participant,visitor" },
       widths: { type: "string", default: "1440,390" },
       only: { type: "string" },
-      phases: { type: "string", default: "load,idle,hover,menus,typing,scenario" },
+      phases: { type: "string", default: "load,clip,idle,hover,menus,typing,scenario" },
       "max-pages": { type: "string", default: "40" },
       jobs: { type: "string", default: "2" },
       json: { type: "string" },
