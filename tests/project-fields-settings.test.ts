@@ -18,6 +18,8 @@ import { createProject, getMyWork, getPublicProject, updateProject } from "@/ser
 import { getNormalization } from "@/server/dal/results";
 import { getJudgeConsole } from "@/server/dal/reviews";
 import { getSubmissions } from "@/server/dal/submissions";
+import { getBallot } from "@/server/dal/voting";
+import { getPairwiseState, setJudgingMode } from "@/server/dal/pairwise";
 import { createTeam } from "@/server/dal/teams";
 import { DEFAULT_FIELD_MODES } from "@/lib/project-fields";
 
@@ -228,8 +230,16 @@ describe("a hidden field", () => {
     // shown while asked (the control: these values reach every reader)
     expect(getPublicProject("evt_01", "prj_01").project).toMatchObject({ summary: filled.summary, repoUrl: filled.repoUrl, tags: ["rust"] });
     expect(consoleItem().project.repoUrl).toBe(filled.repoUrl);
+    // the community ballot and a pairwise judge's cards (the same judge, after a switch to pairwise) show them too
+    const ballotItem = () => getBallot(null, "evt_01", null).projects.find((p) => p.id === "prj_01")!;
+    expect(ballotItem().summary).toBe(filled.summary);
+    setJudgingMode(organizer(), "evt_01", { mode: "pairwise", reason: "compare two at a time" });
+    const card = () => getPairwiseState(actor(judgeId), "evt_01").tracks.flatMap((t) => t.projects).find((p) => p.id === "prj_01")!;
+    expect(card()).toMatchObject({ summary: filled.summary, repoUrl: filled.repoUrl, tags: ["rust"] });
 
     saveProjectFields(organizer(), "evt_01", hideAll);
+    expect(ballotItem().summary).toBe("");
+    expect(card()).toMatchObject({ summary: "", description: "", repoUrl: null, videoUrl: null, liveUrl: null, thumbnailUrl: null, tags: [] });
     const shown = getPublicProject("evt_01", "prj_01");
     expect(shown.fields.repoUrl).toBe("hidden");
     expect(shown.project).toMatchObject({
