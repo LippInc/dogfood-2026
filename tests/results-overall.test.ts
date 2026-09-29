@@ -30,6 +30,7 @@ import { moveProjectTrack } from "@/server/dal/corrections";
 import { requireEvent } from "@/server/dal/events";
 import { saveRubric } from "@/server/dal/organize";
 import { renameTeam } from "@/server/dal/teams";
+import { setTieBreak } from "@/server/dal/tiebreak";
 import { getPublishedResults, publishResults } from "@/server/dal/results";
 import { getPairwiseState, pickPairwise, setJudgingMode } from "@/server/dal/pairwise";
 import { actorForToken } from "@/server/session";
@@ -278,6 +279,56 @@ describe("the public overall order", () => {
         expect(itemOf(html, renamed), page).toContain("Team changed by the organizers after submissions closed");
         expect(html.match(/Team changed by the organizers after submissions closed/g), page).toHaveLength(1);
       }
+    });
+
+    it("a place the tie-break decided: each overall row says so exactly as its per-track row does, with the same track place", async () => {
+      const org = actor("organizer");
+      const crit = (key: string) => (h.sqlite.prepare("SELECT id FROM rubric_criteria WHERE event_id = 'evt_01' AND key = ?").get(key) as { id: string }).id;
+      // plant an exact tie between prj_05 and prj_21 (tests/tiebreak.test.ts's plant): prj_21's reviews take prj_05's
+      // values with functionality and innovation swapped, equal weights, so the totals tie and functionality splits them
+      h.sqlite.prepare("UPDATE rubric_criteria SET weight = 1 WHERE event_id = 'evt_01'").run();
+      const [f, q, i] = [crit("functionality"), crit("quality"), crit("innovation")];
+      const items = (project: string) =>
+        h.sqlite
+          .prepare(
+            "SELECT a.judge_user_id AS judge, s.id AS scoreId, si.criterion_id AS criterionId, si.value AS value FROM assignments a JOIN scores s ON s.assignment_id = a.id JOIN score_items si ON si.score_id = s.id WHERE a.project_id = ?",
+          )
+          .all(project) as { judge: string; scoreId: string; criterionId: string; value: number }[];
+      const from = items("prj_05");
+      const swap = new Map([
+        [f, i],
+        [i, f],
+        [q, q],
+      ]);
+      for (const t of items("prj_21")) {
+        const src = from.find((x) => x.judge === t.judge && x.criterionId === swap.get(t.criterionId))!;
+        h.sqlite.prepare("UPDATE score_items SET value = ? WHERE score_id = ? AND criterion_id = ?").run(src.value, t.scoreId, t.criterionId);
+      }
+      setTieBreak(org, "evt_01", { criterionId: f, reason: "Working software decides an exact tie" });
+      settleAndPublish();
+
+      const results = getPublishedResults("evt_01");
+      if (!results.published || !results.tieBreak) throw new Error("expected a published tie-break");
+      const broken = results.tracks.flatMap((t) => t.rows).filter((r) => r.tieBroken).map((r) => r.projectId).sort();
+      expect(broken).toEqual(expect.arrayContaining(["prj_05", "prj_21"]));
+
+      const overall = await overallHtml();
+      const perTrack = await perTrackHtml();
+      const note = (html: string, id: string) => itemOf(html, id)?.match(/Tied on score; tie broken by (<!-- -->)?[^<]*(<!-- -->)?(<span class="tnum">, [0-9.]+<\/span>)?/)?.[0] ?? null;
+      for (const id of broken) {
+        expect(note(overall, id)?.replaceAll("<!-- -->", ""), id).toContain(`tie broken by ${results.tieBreak.criterion}`);
+        expect(note(overall, id), id).toBe(note(perTrack, id));
+      }
+      // only the decided rows carry it, on both pages (the per-track page also names it once under a track winner, in its figure of first places)
+      expect(overallRows(overall).map((r) => r.id).filter((id) => note(overall, id) !== null).sort()).toEqual(broken);
+      expect(overall.match(/Tied on score; tie broken by/g)).toHaveLength(broken.length);
+      expect([...perTrackPlaces(perTrack).keys()].filter((id) => note(perTrack, id) !== null).sort()).toEqual(broken);
+      // the change of rule, with its reason, on both pages
+      for (const html of [overall, perTrack]) expect(html).toContain("Working software decides an exact tie");
+      // and the track places still agree, the tie-break's order included
+      const places = perTrackPlaces(perTrack);
+      for (const r of overallRows(overall)) expect(Number(r.place.match(/^(\d+)/)![1]), r.id).toBe(places.get(r.id));
+      expect(places.get("prj_05")).not.toBe(places.get("prj_21"));
     });
 
     it("control: with no change after the fact, the overall page shows none of these", async () => {

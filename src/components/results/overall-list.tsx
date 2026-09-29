@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { Face } from "@/components/face";
-import { movesByProject, RowChangeMarks, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
+import { movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { formatUtc, plural } from "@/lib/format";
 import { overallOrder } from "@/lib/overall";
@@ -113,6 +113,7 @@ export function OverallResults({
           only through judges who scored in both, so read it loosely.
         </p>
         <WeightChangesNotice changes={results.weightChanges} className="mt-6" />
+        <TieBreakChangesNotice changes={results.tieBreakChanges} className="mt-6" />
         <TrackMovesNotice count={movedCount} className="mt-6" />
       </div>
 
@@ -170,7 +171,7 @@ export function OverallResults({
                   <RowChangeMarks
                     projectHref={`/events/${eventSlug}/projects/${r.projectId}`}
                     teamChangedAt={r.teamChangedAt}
-                    tieBrokenBy={null}
+                    tieBrokenBy={tieBrokenByOf(r, results.tieBreak)}
                     moves={movesOf.get(r.projectId)}
                   />
                 </span>
