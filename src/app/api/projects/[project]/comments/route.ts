@@ -2,7 +2,10 @@ import { currentActor, json, listComments, postComment, route } from "@/server/d
 
 export const dynamic = "force-dynamic";
 
-/** GET: a project's comments; hidden ones keep their place with the reason, never their text. */
+/**
+ * GET: a project's comments. A hidden one keeps its place with the reason, never its text, for the event's organizers
+ * and its author only; everyone else gets one comment fewer.
+ */
 export async function GET(_req: Request, { params }: RouteContext<"/api/projects/[project]/comments">) {
   return route(async () => json({ comments: listComments(await currentActor(), (await params).project) }));
 }
