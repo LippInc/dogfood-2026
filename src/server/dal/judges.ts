@@ -4,7 +4,7 @@ import { sortByName } from "@/lib/names";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignmentRuns, assignments, comparisons, events, judgeInvites, judgeTracks, projects, scores, tracks, userRoles, users, auditLog } from "../db/schema";
+import { assignments, comparisons, events, judgeInvites, judgeTracks, projects, scores, tracks, userRoles, users, auditLog } from "../db/schema";
 import { ConflictError, HttpError, NotFoundError, ValidationError } from "../errors";
 import { formatUtc } from "@/lib/format";
 import type { FlatFlag } from "../judging/flat";

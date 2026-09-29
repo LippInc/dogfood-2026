@@ -36,14 +36,21 @@ function parse(text: string): Record<string, string>[] {
   for (let i = 0; i < text.length; i++) {
     const c = text[i]!;
     if (q) {
-      if (c === '"' && text[i + 1] === '"') (f += '"'), i++;
-      else if (c === '"') q = false;
+      if (c === '"' && text[i + 1] === '"') {
+        f += '"';
+        i++;
+      } else if (c === '"') q = false;
       else f += c;
     } else if (c === '"') q = true;
-    else if (c === ",") row.push(f), (f = "");
-    else if (c === "\r") continue;
-    else if (c === "\n") row.push(f), rows.push(row), (row = []), (f = "");
-    else f += c;
+    else if (c === ",") {
+      row.push(f);
+      f = "";
+    } else if (c === "\n") {
+      row.push(f);
+      rows.push(row);
+      row = [];
+      f = "";
+    } else if (c !== "\r") f += c;
   }
   const [head, ...body] = rows;
   return body.map((r) => Object.fromEntries(head!.map((k, i) => [k, r[i] ?? ""])));
