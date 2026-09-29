@@ -7,7 +7,7 @@ import { UtcNow } from "@/components/utc-now";
 import { guardPage, utcInput } from "@/lib/page-guard";
 import { formatUtc } from "@/lib/format";
 import { FIELD_LABELS, PROJECT_FIELDS } from "@/lib/project-fields";
-import { currentActor, getOrganizerEvent, judgingModeOf, listOrganizers } from "@/server/dal";
+import { currentActor, getOrganizerEvent, getPrizeAwards, judgingModeOf, listOrganizers } from "@/server/dal";
 import {
   addOrganizerAction,
   saveDetailsAction,
@@ -58,6 +58,10 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
   const mode = judgingModeOf(event);
   const count = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "none");
   const hiddenCount = PROJECT_FIELDS.filter((f) => o.fields[f] === "hidden").length;
+  // the prizes given so far: before publishing each is named, since removing its prize takes the award back; once
+  // published with any given, the prize list is final (the database's prizes_final_* triggers refuse a change)
+  const awarded = o.prizes.length ? guardPage(() => getPrizeAwards(actor, key)).prizes.filter((p) => p.winners.length) : [];
+  const prizesFinal = Boolean(event.resultsPublishedAt) && awarded.length > 0;
   // the criterion that breaks exact ties, when one is set and the event judges by scores (pairwise has no criteria)
   const tieId = mode === "scores" ? (event.settings.tieBreak?.criterionId ?? null) : null;
   const tieLabel = o.rubric.find((c) => c.id === tieId)?.label ?? null;
@@ -214,12 +218,38 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             />
           </SectionForm>
 
-          <SectionForm id="prizes" markUnsaved number={num(3)} title="Prizes" description="A name and a line on what wins it. Shown on the About page." action={savePrizesAction} hidden={hidden} fieldLabels={{ prizes: "Prizes" }} rowLabel="Prize">
+          <SectionForm
+            id="prizes"
+            markUnsaved
+            number={num(3)}
+            title="Prizes"
+            description={
+              prizesFinal
+                ? "Results are published with prizes awarded, so the prizes are final: each award names its prize."
+                : "A name and a line on what wins it. Shown on the About page."
+            }
+            action={savePrizesAction}
+            hidden={hidden}
+            fieldLabels={{ prizes: "Prizes" }}
+            rowLabel="Prize"
+            before={
+              !event.resultsPublishedAt && awarded.length ? (
+                <ul aria-label="Prizes awarded" className="flex flex-col gap-1 border-l-[3px] border-rule pl-3 text-13 text-ink-2">
+                  {awarded.map((p) => (
+                    <li key={p.prizeId} className="wrap-anywhere">
+                      {p.name} is awarded to {p.winners.map((w) => w.title).join(" and ")}; removing the prize takes the award back (the audit log keeps it).
+                    </li>
+                  ))}
+                </ul>
+              ) : undefined
+            }
+          >
             <RowsEditor
               name="prizes"
               initial={o.prizes.map((p) => ({ id: p.id, name: p.name, description: p.description }))}
               blank={{ name: "", description: "" }}
               addLabel="Add a prize"
+              disabled={prizesFinal}
               grid="lg:grid-cols-[20px_minmax(0,14rem)_minmax(0,1fr)_92px]"
               fields={[
                 { key: "name", label: "Prize", type: "text", width: "w-56" },

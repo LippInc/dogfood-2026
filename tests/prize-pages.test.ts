@@ -6,8 +6,10 @@ import { organizer, sqlGet, withFixtureEvent } from "./support/fixture-harness";
 // winner's place in its track as the published results give it (a prize is the organizers' choice; the place is the
 // engine's), and a winner's own project page says "Winner, <prize>". Rendered as Next renders them, anonymously.
 
+let cookie: string | undefined;
+
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ get: () => undefined, set: vi.fn(), delete: vi.fn() }),
+  cookies: async () => ({ get: (name: string) => (name === "session" && cookie ? { value: cookie } : undefined), set: vi.fn(), delete: vi.fn() }),
   headers: async () => new Headers(),
 }));
 vi.mock("next/navigation", async (orig) => ({
@@ -17,7 +19,8 @@ vi.mock("next/navigation", async (orig) => ({
   useRouter: () => ({ refresh() {} }),
 }));
 
-withFixtureEvent();
+const h = withFixtureEvent();
+const { createLoginSession } = await import("@/server/session");
 const { savePrizes } = await import("@/server/dal/organize");
 const { awardPrize } = await import("@/server/dal/prize-awards");
 const { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } = await import("@/server/dal/decisions");
@@ -25,6 +28,7 @@ const { getNormalization, publishResults } = await import("@/server/dal/results"
 const { scoreCandidates } = await import("@/app/organize/[event]/results/prize-candidates");
 const ResultsPage = (await import("@/app/events/[event]/results/page")).default;
 const ProjectPage = (await import("@/app/events/[event]/projects/[project]/page")).default;
+const SettingsPage = (await import("@/app/organize/[event]/settings/page")).default;
 
 const html = async (page: unknown) => {
   const { prelude } = await prerender(page as never);
@@ -69,5 +73,50 @@ describe("the published prize on the public pages", () => {
     const fourth = awardToAFourth();
     expect(await results()).not.toContain('id="prizes-title"');
     expect(await project(fourth.projectId)).not.toContain("Prizes won");
+  });
+});
+
+describe("the Settings page's Prizes editor", () => {
+  /** the Prizes section of the Settings page as the organizer sees it */
+  const prizesSection = async () => {
+    cookie = createLoginSession(h().db, "usr_organizer").token;
+    try {
+      const page = await html(await SettingsPage({ params: Promise.resolve({ event: "sample-hack-2026" }) } as never));
+      const at = page.indexOf(`id="prizes-title"`);
+      expect(at).toBeGreaterThan(0);
+      return page.slice(at, page.indexOf("</form>", at)).replaceAll("<!-- -->", "");
+    } finally {
+      cookie = undefined;
+    }
+  };
+  const inputs = (section: string) => [...section.matchAll(/<input[^>]*id="prizes-[0-9]+-[^"]*"[^>]*>/g)].map((m) => m[0]);
+
+  it("before publishing, says which prize is awarded to whom and that removing it takes the award back; the rows stay editable", async () => {
+    const fourth = awardToAFourth();
+    const section = await prizesSection();
+    expect(section).toContain(`Best in show is awarded to ${fourth.title.replace(/&/g, "&amp;")}; removing the prize takes the award back`);
+    expect(inputs(section).length).toBeGreaterThan(0);
+    expect(inputs(section).some((i) => / disabled=""/.test(i))).toBe(false);
+  });
+
+  it("after publishing with a prize awarded, the prize rows are disabled and the section says why", async () => {
+    awardToAFourth();
+    publishResults(organizer(), "evt_01");
+    const section = await prizesSection();
+    expect(section).toContain("Results are published with prizes awarded, so the prizes are final");
+    expect(section).not.toContain("removing the prize takes the award back");
+    expect(inputs(section).length).toBeGreaterThan(0);
+    expect(inputs(section).every((i) => / disabled=""/.test(i))).toBe(true);
+  });
+
+  it("positive control: published with no prize awarded, the prizes stay editable", async () => {
+    savePrizes(organizer(), "evt_01", [{ name: "Best in show", description: "" }]);
+    setJudgeOverride(organizer(), "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(organizer(), "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    publishResults(organizer(), "evt_01");
+    const section = await prizesSection();
+    expect(section).not.toContain("so the prizes are final");
+    expect(inputs(section).some((i) => / disabled=""/.test(i))).toBe(false);
   });
 });
