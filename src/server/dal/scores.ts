@@ -11,7 +11,6 @@ import {
   scores,
   teams,
   tracks,
-  users,
 } from "../db/schema";
 import { guardRead } from "../mutate";
 import { inJudgeTracks } from "./judging";
@@ -143,17 +142,3 @@ export function weightedMean(items: { value: number; weight: number }[]): number
   const w = items.reduce((s, i) => s + i.weight, 0);
   return w > 0 ? items.reduce((s, i) => s + i.value * i.weight, 0) / w : 0;
 }
-
-/** Name lookup used by exports; kept here so the scores module owns judge joins. */
-export function judgeNames(db: DbOrTx, eventId: string): Map<string, string> {
-  return new Map(
-    db
-      .select({ id: users.id, name: users.name })
-      .from(assignments)
-      .innerJoin(users, eq(users.id, assignments.judgeUserId))
-      .where(eq(assignments.eventId, eventId))
-      .all()
-      .map((r) => [r.id, r.name]),
-  );
-}
-
