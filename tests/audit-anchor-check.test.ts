@@ -72,7 +72,7 @@ describe("GET /api/events/{event}/audit/anchor: check a head you saved", () => {
   it("a saved pair holds, also for a row of no event, and after the app wrote on past it", async () => {
     const saved = savePortalHead();
     signIn("usr_organizer");
-    expect(await check(saved.entry, saved.hash)).toEqual({ status: 200, body: { entry: saved.entry, hash: saved.hash, holds: true } });
+    expect(await check(saved.entry, saved.hash)).toEqual({ status: 200, body: { entry: saved.entry, hash: saved.hash, holds: true, chainBrokenAt: null } });
     appendAudit(h.db, { actorUserId: null, actorLabel: "system", action: "test.later", eventId: "evt_01" }, NOW);
     // pasted as the page shows it: groups of eight with spaces, any case, the row with its #
     const spaced = saved.hash.toUpperCase().replace(/(.{8})/g, "$1 ").trim();
@@ -85,7 +85,38 @@ describe("GET /api/events/{event}/audit/anchor: check a head you saved", () => {
     expect(lastId()).toBeGreaterThanOrEqual(saved.entry); // row #entry exists again, written after the cut
     expect(verifyAuditChain(h.db).ok).toBe(true); // the chain check alone no longer sees it
     signIn("usr_organizer");
-    expect(await check(saved.entry, saved.hash)).toEqual({ status: 200, body: { entry: saved.entry, hash: saved.hash, holds: false } });
+    expect(await check(saved.entry, saved.hash)).toEqual({ status: 200, body: { entry: saved.entry, hash: saved.hash, holds: false, chainBrokenAt: null } });
+  });
+
+  it("known-bad: a row up to it edited in the file, every stored hash left as it was, does not hold and names the break", async () => {
+    for (let i = 0; i < 3; i++) appendAudit(h.db, { actorUserId: null, actorLabel: "system", action: `test.before_${i}` }, NOW);
+    const saved = savePortalHead();
+    const edited = saved.entry - 2;
+    h.sqlite.exec("DROP TRIGGER audit_log_no_update");
+    h.sqlite.prepare("UPDATE audit_log SET after = ? WHERE id = ?").run(JSON.stringify({ planted: true }), edited);
+    expect(h.sqlite.prepare("SELECT hash FROM audit_log WHERE id = ?").get(saved.entry)).toEqual({ hash: saved.hash }); // the saved row still carries it
+    expect(verifyAuditChain(h.db)).toMatchObject({ ok: false, brokenAtId: edited });
+    signIn("usr_organizer");
+    expect(await check(saved.entry, saved.hash)).toEqual({ status: 200, body: { entry: saved.entry, hash: saved.hash, holds: false, chainBrokenAt: edited } });
+  });
+
+  it("known-bad: the saved row itself edited in the file, its stored hash left, does not hold", async () => {
+    const saved = savePortalHead();
+    h.sqlite.exec("DROP TRIGGER audit_log_no_update");
+    h.sqlite.prepare("UPDATE audit_log SET after = ? WHERE id = ?").run(JSON.stringify({ planted: true }), saved.entry);
+    signIn("usr_organizer");
+    expect(await check(saved.entry, saved.hash)).toMatchObject({ status: 200, body: { holds: false, chainBrokenAt: saved.entry } });
+  });
+
+  it("a break after the saved row leaves the pair holding: everything up to it is as it was", async () => {
+    const saved = savePortalHead();
+    appendAudit(h.db, { actorUserId: null, actorLabel: "system", action: "test.later_1" }, NOW);
+    appendAudit(h.db, { actorUserId: null, actorLabel: "system", action: "test.later_2" }, NOW);
+    h.sqlite.exec("DROP TRIGGER audit_log_no_update");
+    h.sqlite.prepare("UPDATE audit_log SET after = ? WHERE id = ?").run(JSON.stringify({ planted: true }), saved.entry + 1);
+    expect(verifyAuditChain(h.db)).toMatchObject({ ok: false, brokenAtId: saved.entry + 1 });
+    signIn("usr_organizer");
+    expect(await check(saved.entry, saved.hash)).toEqual({ status: 200, body: { entry: saved.entry, hash: saved.hash, holds: true, chainBrokenAt: null } });
   });
 
   it("a row that is gone, or a hash that is not its own, does not hold", async () => {

@@ -34,7 +34,7 @@ export function missingIn(chain: Chain, newer: number, older: number): string | 
  */
 export function keepHeadText(rows: number, check: "below" | "event" = "event"): string {
   const where = check === "below" ? "with the form below" : "on an event’s Audit log page";
-  return `Each column is one hex digit, read top to bottom as 8, 4, 2, 1. Keep this hash with its row, #${rows}: while the log still holds row #${rows} with this hash, nothing up to it was rewritten or cut. audit.csv carries the same pair on every line. Check a pair you saved ${where}, or at GET /api/events/{event}/audit/anchor.`;
+  return `Each column is one hex digit, read top to bottom as 8, 4, 2, 1. Keep this hash with its row, #${rows}: while the log still holds row #${rows} with this hash and the chain recomputes whole up to it, nothing up to it was rewritten or cut. audit.csv carries the same pair on every line. Check a pair you saved ${where}, or at GET /api/events/{event}/audit/anchor.`;
 }
 
 /** What a broken chain means, in words. */

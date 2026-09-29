@@ -625,14 +625,17 @@ export function getAuditEntries(actor: Actor | null, eventIdOrSlug: string, opts
 
 /** A saved head as a person types or pastes it: the row number, and the hash with any spaces or case. */
 export type SavedHead = { entry?: unknown; hash?: unknown };
-export type SavedHeadCheck = { entry: number; hash: string; holds: boolean };
+export type SavedHeadCheck = { entry: number; hash: string; holds: boolean; chainBrokenAt: number | null };
 
 /**
  * Whether the log still holds a head someone saved, from this event's log page, an earlier audit.csv
- * (chain_head_entry and chain_head) or a signed record: row #entry with this hash (anchorHolds). Rows cut past it
- * and written again under the same numbers carry other hashes, and a row no longer there holds nothing, so either
- * answers no. It answers only that yes or no about a pair the caller already has, whichever event row #entry
- * belongs to (a sign-in, another event's row): the head is the whole log's. The event's organizers.
+ * (chain_head_entry and chain_head) or a signed record: row #entry with this hash (anchorHolds), and the chain,
+ * recomputed from the first row (verifyAuditChain), whole up to it. Rows cut past it and written again under the same
+ * numbers carry other hashes, a row no longer there holds nothing, and a row up to it edited in the file with every
+ * stored hash left as it was breaks the recomputed chain, so each answers no; chainBrokenAt names that break when it
+ * comes at or before the entry (a break after it leaves everything up to the entry as it was). It answers only about a
+ * pair the caller already has, whichever event row #entry belongs to (a sign-in, another event's row): the head is the
+ * whole log's. The event's organizers.
  */
 export function checkSavedHead(actor: Actor | null, eventIdOrSlug: string, saved: SavedHead): SavedHeadCheck {
   const db = getDb();
@@ -645,7 +648,9 @@ export function checkSavedHead(actor: Actor | null, eventIdOrSlug: string, saved
   if (!/^[0-9a-f]{64}$/.test(hash)) problems.hash = ["Give the whole hash: 64 hex digits (spaces between groups are fine)."];
   if (problems.entry || problems.hash) throw new ValidationError(problems.entry?.[0] ?? problems.hash![0]!, problems);
   const entry = Number(entryText);
-  return { entry, hash, holds: anchorHolds(db, { entry, hash }) };
+  const chain = verifyAuditChain(db);
+  const chainBrokenAt = !chain.ok && chain.brokenAtId <= entry ? chain.brokenAtId : null;
+  return { entry, hash, holds: chainBrokenAt === null && anchorHolds(db, { entry, hash }), chainBrokenAt };
 }
 
 /**

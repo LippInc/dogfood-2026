@@ -360,8 +360,8 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
                   <path d="M5.5 10.5l3 3 6-7" className="fill-none stroke-ok" strokeWidth="2" />
                 </svg>
                 <span>
-                  <strong className="font-semibold text-ok">Holds.</strong> Row #{head.entry} still carries this hash, so nothing up to it was rewritten or
-                  cut since you saved it.
+                  <strong className="font-semibold text-ok">Holds.</strong> Row #{head.entry} still carries this hash and the chain recomputes whole up to
+                  it, so nothing up to it was rewritten or cut since you saved it.
                 </span>
               </>
             ) : (
@@ -370,10 +370,17 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
                   <rect x="1" y="1" width="18" height="18" className="fill-none stroke-flag-bar" strokeWidth="2" />
                   <path d="M6 6l8 8M14 6l-8 8" className="fill-none stroke-flag-bar" strokeWidth="2" />
                 </svg>
-                <span>
-                  <strong className="font-semibold text-flag">Does not hold.</strong> The log no longer has row #{head.entry} with this hash. If you copied both
-                  whole, something up to row #{head.entry} was rewritten or cut since you saved it: treat the log from there on as unverified.
-                </span>
+                {head.chainBrokenAt !== null ? (
+                  <span>
+                    <strong className="font-semibold text-flag">Does not hold.</strong> The chain breaks at row #{head.chainBrokenAt}, at or before row
+                    #{head.entry}: something there was changed or removed outside the app. Treat the log from row #{head.chainBrokenAt} on as unverified.
+                  </span>
+                ) : (
+                  <span>
+                    <strong className="font-semibold text-flag">Does not hold.</strong> The log no longer has row #{head.entry} with this hash. If you copied
+                    both whole, something up to row #{head.entry} was rewritten or cut since you saved it: treat the log from there on as unverified.
+                  </span>
+                )}
               </>
             )}
           </p>
