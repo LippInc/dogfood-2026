@@ -3,7 +3,7 @@ import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { authorize, type Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignments, comparisons, events, normalizationRuns, normalizedScores, projects, teams, tracks } from "../db/schema";
+import { assignments, comparisons, events, normalizationRuns, normalizedScores, projects, teams, tracks, type EventSettings, type TieBreakChange } from "../db/schema";
 import { ConflictError, ValidationError } from "../errors";
 import {
   COIN_FLIP_Z,
@@ -27,6 +27,7 @@ import { parse } from "./parse";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
 import { fieldModes, shownTitle } from "./project-fields";
 import { projectTrackMoves } from "./corrections";
+import { anyScore } from "./tiebreak";
 
 // Pairwise mode (JUDGING.md "Pairwise mode"; the engine is src/server/judging/pairwise.ts).
 // A judge's list and next question are replayed from their own answers on every read
@@ -609,14 +610,18 @@ export function setJudgingMode(actor: Actor | null, eventIdOrSlug: string, body:
     if (before === input.mode) return { result: { mode: before, changed: false }, audit: null };
     if (input.reason.length < 3) throw new ValidationError("Check the highlighted fields.", { reason: ["say why, in a few words"] });
     // Pairwise judging has no criteria, so a tie-break by one goes with the switch (JUDGING.md, "Breaking exact ties"),
-    // recorded in this same audit row; switching back does not bring it back.
+    // recorded in this same audit row; switching back does not bring it back. Once a judge has scored, the switch
+    // also records it among the event's tie-break changes, with the switch's reason, as any change back to joint
+    // places is recorded: the published results then never name a tie-break the ranking did not use.
     const { tieBreak, ...rest } = event.settings;
     const dropTie = input.mode === "pairwise" && tieBreak !== undefined;
-    tx.update(events)
-      .set({ settings: { ...(dropTie ? rest : event.settings), judgingMode: input.mode } })
-      .where(eq(events.id, event.id))
-      .run();
     const tieLabel = dropTie ? (rubricOf(tx, event.id).find((c) => c.id === tieBreak!.criterionId)?.label ?? tieBreak!.criterionId) : null;
+    const settings: EventSettings = { ...(dropTie ? rest : event.settings), judgingMode: input.mode };
+    if (dropTie && anyScore(tx, event.id)) {
+      const change: TieBreakChange = { at: new Date().toISOString(), reason: input.reason, before: { id: tieBreak!.criterionId, label: tieLabel! }, after: null };
+      settings.tieBreakChanges = [...(event.settings.tieBreakChanges ?? []), change];
+    }
+    tx.update(events).set({ settings }).where(eq(events.id, event.id)).run();
     return {
       result: { mode: input.mode, changed: true },
       audit: {

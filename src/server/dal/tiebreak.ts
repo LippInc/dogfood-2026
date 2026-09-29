@@ -43,7 +43,8 @@ export function tieBreakCriterion(db: DbOrTx, event: EventRow): TieBreakCriterio
   return c ? { id: c.id, label: c.label } : null;
 }
 
-function anyScore(tx: DbOrTx, eventId: string): boolean {
+/** Whether any judge has scored in the event: from then on a tie-break change is kept and shown on the published results. */
+export function anyScore(tx: DbOrTx, eventId: string): boolean {
   return (
     tx
       .select({ n: sql<number>`count(*)` })

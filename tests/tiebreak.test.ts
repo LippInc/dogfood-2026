@@ -6,7 +6,7 @@ import { breakTies, criterionMeans } from "@/server/judging/tiebreak";
 import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
 import { exportFile } from "@/server/dal/exports";
 import { createEvent, saveRubric } from "@/server/dal/organize";
-import { setJudgingMode } from "@/server/dal/pairwise";
+import { getPairwiseState, pickPairwise, setJudgingMode } from "@/server/dal/pairwise";
 import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { getMyWork } from "@/server/dal/projects";
 import { getNormalization, getPublishedResults, publishResults } from "@/server/dal/results";
@@ -325,6 +325,51 @@ describe("setTieBreak", () => {
     expect(said).toContain(`switched judging to pairwise and turned off breaking exact ties by ${label}: `);
     expectHttpError(() => setTieBreak(organizer(), "evt_01", { criterionId: crit("quality"), reason }), 409, "pairwise_mode");
     expect(setTieBreak(organizer(), "evt_01", { criterionId: null, reason })).toMatchObject({ changed: false });
+  });
+
+  it("lists the switch to pairwise among the tie-break changes when it turns a tie-break off after scoring, so the banner never names one the ranking did not use", () => {
+    setTieBreak(organizer(), "evt_01", { criterionId: crit("functionality"), reason });
+    setJudgingMode(organizer(), "evt_01", { mode: "pairwise", reason: "Too few judges for the rubric" });
+    const judge = actorById("jdg_24");
+    const t = getPairwiseState(judge, "evt_01").tracks.find((x) => x.current)!;
+    pickPairwise(judge, "evt_01", { trackId: t.trackId, left: t.current!.left.id, right: t.current!.right.id, newId: t.current!.newId, outcome: "left" });
+    settleAndPublish();
+    const r = getPublishedResults("evt_01");
+    if (!r.published) throw new Error("not published");
+    expect(r).not.toHaveProperty("tieBreak");
+    // the last change ends on joint places: the banner reads "by Functionality -> joint places", with the switch's reason
+    expect(r.tieBreakChanges?.map((c) => [c.before?.id ?? null, c.after?.id ?? null, c.reason])).toEqual([
+      [null, crit("functionality"), reason],
+      [crit("functionality"), null, "Too few judges for the rubric"],
+    ]);
+    expect(r.tieBreakChanges?.at(-1)?.before?.label).toBe(sqlGet<{ label: string }>("SELECT label FROM rubric_criteria WHERE id = ?", crit("functionality"))!.label);
+  });
+
+  it("keeps that entry when the event switches back to scores: the tie-break stays off and the published results say so", () => {
+    setTieBreak(organizer(), "evt_01", { criterionId: crit("functionality"), reason });
+    setJudgingMode(organizer(), "evt_01", { mode: "pairwise", reason: "Too few judges for the rubric" });
+    setJudgingMode(organizer(), "evt_01", { mode: "scores", reason: "Back to the rubric" });
+    settleAndPublish();
+    const r = getPublishedResults("evt_01");
+    if (!r.published) throw new Error("not published");
+    expect(r).not.toHaveProperty("tieBreak");
+    expect(r.tieBreakChanges?.map((c) => [c.before?.id ?? null, c.after?.id ?? null, c.reason])).toEqual([
+      [null, crit("functionality"), reason],
+      [crit("functionality"), null, "Too few judges for the rubric"],
+    ]);
+  });
+
+  it("adds no tie-break change when the switch finds no tie-break set, or no judge has scored yet", () => {
+    setJudgingMode(organizer(), "evt_01", { mode: "pairwise", reason: "Too few judges for the rubric" });
+    let settings = JSON.parse(sqlGet<{ s: string }>("SELECT settings AS s FROM events WHERE id = 'evt_01'")!.s);
+    expect(settings.tieBreakChanges).toBeUndefined();
+    setJudgingMode(organizer(), "evt_01", { mode: "scores", reason: "Back to the rubric" });
+    sqlRun("DELETE FROM score_items");
+    setTieBreak(organizer(), "evt_01", { criterionId: crit("functionality") });
+    setJudgingMode(organizer(), "evt_01", { mode: "pairwise", reason: "Too few judges for the rubric" });
+    settings = JSON.parse(sqlGet<{ s: string }>("SELECT settings AS s FROM events WHERE id = 'evt_01'")!.s);
+    expect(settings.tieBreak).toBeUndefined();
+    expect(settings.tieBreakChanges).toBeUndefined();
   });
 
   it("says only the switch when no tie-break was set: the audit line for pairwise names no tie-break", () => {
