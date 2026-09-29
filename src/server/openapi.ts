@@ -26,6 +26,8 @@ export type Operation = {
   never?: number[];
   /** answers besides ok and the refusals, each with what it means here */
   answers?: Record<number, string>;
+  /** The media types of the success answer when it is not only JSON (the exports). */
+  okTypes?: readonly string[];
   /** the body is read field by field, not validated as a whole: no 422 (the note says what a bad one gets) */
   lenient?: boolean;
   /** the body may be left out */
@@ -88,6 +90,7 @@ export const OPERATIONS: Operation[] = [
     tag: "Events",
     summary: "Export: scores.csv, projects.csv, normalized.csv, audit.csv, event.json, or fixtures.json (the import format)",
     access: "organizer",
+    okTypes: ["text/csv", "application/json"],
     note: "Add ?bom=1 to a CSV for a UTF-8 byte-order mark, which Excel needs to read names outside ASCII; the portal's own download buttons do. scores.csv's last column, source, says whether each review arrived by an import (import) or was given out on this portal (portal). After publishing, normalized.csv is the published run as stored, not worked out again; a pairwise run has its own columns.",
   },
 
@@ -401,7 +404,10 @@ export function openApiDocument(serverUrl: string) {
         ? { requestBody: { required: true, content: Object.fromEntries(op.upload.map((type) => [type, { schema: { type: "string", contentMediaType: type } }])) } }
         : {}),
       responses: {
-        [ok]: { description: STATUS_MEANING[ok] },
+        [ok]: {
+          description: STATUS_MEANING[ok],
+          ...(op.okTypes ? { content: Object.fromEntries(op.okTypes.map((type) => [type, { schema: { type: "string" } }])) } : {}),
+        },
         ...Object.fromEntries(Object.entries(op.answers ?? {}).map(([code, description]) => [code, { description }])),
         ...Object.fromEntries(
           [...refusals].sort().map((code) => [code, { description: REFUSAL[code], content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } }]),
@@ -416,7 +422,7 @@ export function openApiDocument(serverUrl: string) {
       title: "Dogfood portal API",
       version: "1.0.0",
       description:
-        "Every action in the portal's interface, as JSON. Authenticate with the session cookie, or with Authorization: Bearer <token>: an API token (made at /account/tokens or POST /api/tokens) or a session token. " +
+        "Every action in the portal's interface, over HTTP: JSON in and out, and text/csv for the CSV exports. Authenticate with the session cookie, or with Authorization: Bearer <token>: an API token (made at /account/tokens or POST /api/tokens) or a session token. " +
         "Refusals are real 401 and 403 answers with a JSON error code, never redirects. Every refusal is JSON; the CSV exports answer text/csv. " +
           "The one redirect is sign-out's, for a browser's own form post: a request with Accept: text/html or Sec-Fetch-Mode: navigate is sent to the front page (303).",
     },

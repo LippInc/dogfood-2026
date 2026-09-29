@@ -66,6 +66,16 @@ describe("the API reference's general words", () => {
     }
   });
 
+  it("declares the export's two kinds of answer, and nowhere says the whole interface answers as JSON", async () => {
+    const ok = responsesOf("/api/events/{event}/export/{file}", "get")["200"] as { content?: Record<string, unknown> };
+    expect(Object.keys(ok.content ?? {}).sort()).toEqual(["application/json", "text/csv"]);
+    expect(doc.info.description).not.toMatch(/interface, as JSON/i);
+    const fs = await import("node:fs");
+    const page = fs.readFileSync(path.join(process.cwd(), "src/app/api-docs/page.tsx"), "utf-8");
+    expect(page).not.toMatch(/does, as JSON/);
+    expect(page).toMatch(/text\/csv/);
+  });
+
   it("gives 422 a meaning that covers a query parameter, as GET /api/events/{event}/projects refuses one", async () => {
     const res = await listProjects(new Request("http://localhost:8080/api/events/evt_01/projects?track=no_such_track"), { params: Promise.resolve({ event: "evt_01" }) });
     expect(res.status).toBe(422);

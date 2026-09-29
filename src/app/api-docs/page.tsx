@@ -107,7 +107,7 @@ export default function ApiDocsPage() {
         </p>
       </div>
       <p className="mt-6 max-w-[680px] text-17 leading-7 text-ink-2">
-        Everything the interface does, as JSON. The same checks run as in the interface, in the same data access layer, so the API can do nothing a person
+        Everything the interface does, over HTTP: JSON, and text/csv for the CSV exports. The same checks run as in the interface, in the same data access layer, so the API can do nothing a person
         could not.
       </p>
 
