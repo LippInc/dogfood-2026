@@ -56,7 +56,14 @@ export default async function JudgeInvitePage({ params }: PageProps<"/judge-invi
           judging is done{gallery.event.judgingCloseAt ? `, at the latest ${formatUtc(gallery.event.judgingCloseAt)}` : ""}.
         </p>
         <div className="mt-8 flex flex-col gap-4">
-          {invite.state === "replaced" ? (
+          {invite.state === "replaced" && alreadyJudge ? (
+            <>
+              <TicketNote>A newer invitation replaced this link, and you already judge this event.</TicketNote>
+              <Link href={consoleHref} className={`${buttonVariants({ size: "xl" })} self-start`}>
+                Open your judging console
+              </Link>
+            </>
+          ) : invite.state === "replaced" ? (
             <TicketNote flag>
               A newer invitation replaced this link, so it no longer admits anyone. Use the link in the newest invitation mail, or ask the organizer for a
               new one.
