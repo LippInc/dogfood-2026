@@ -6,16 +6,28 @@ import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type ImportResult = { ok: boolean; message: string | null; slug?: string };
-type Report = { eventSlug: string; inserted: { events: number; tracks: number; users: number; teams: number; projects: number; scores: number }; skipped: unknown[]; renamed: unknown[]; slug?: { wanted: string; used: string } };
+type Counts = { events: number; tracks: number; users: number; teams: number; projects: number; scores: number; voters?: number; comments?: number; comparisons?: number; normalizationRuns?: number };
+type Report = { eventSlug: string; inserted: Counts; skipped: unknown[]; renamed: unknown[]; slug?: { wanted: string; used: string } };
 
 const idle: ImportResult = { ok: false, message: null };
+
+/** A new event's history the file brought, in a few words; nothing when it brought none. */
+function history(n: Counts): string {
+  const parts = [
+    n.voters ? `${n.voters} ${n.voters === 1 ? "ballot" : "ballots"}` : "",
+    n.comments ? `${n.comments} ${n.comments === 1 ? "comment" : "comments"}` : "",
+    n.comparisons ? `${n.comparisons} pairwise ${n.comparisons === 1 ? "answer" : "answers"}` : "",
+    n.normalizationRuns ? "the published results" : "",
+  ].filter(Boolean);
+  return parts.length ? `, with ${parts.join(", ")}` : "";
+}
 
 /** The import's report as a sentence. */
 function said(r: Report): string {
   const n = r.inserted;
-  const added = n.events + n.tracks + n.users + n.teams + n.projects + n.scores;
+  const added = Object.values(n).reduce((a: number, b) => a + (b ?? 0), 0);
   return added
-    ? `Imported: ${n.tracks} tracks, ${n.teams} teams, ${n.projects} projects, ${n.scores} scores and ${n.users} people${r.skipped.length ? `; ${r.skipped.length} rows skipped` : ""}${r.renamed.length ? `; ${r.renamed.length} ids renamed because another event here already uses them` : ""}${r.slug ? `; its web address is /events/${r.slug.used}, because /events/${r.slug.wanted} belongs to another event` : ""}.`
+    ? `Imported: ${n.tracks} tracks, ${n.teams} teams, ${n.projects} projects, ${n.scores} scores and ${n.users} people${history(n)}${r.skipped.length ? `; ${r.skipped.length} rows skipped` : ""}${r.renamed.length ? `; ${r.renamed.length} ids renamed because another event here already uses them` : ""}${r.slug ? `; its web address is /events/${r.slug.used}, because /events/${r.slug.wanted} belongs to another event` : ""}.`
     : "Everything in this file is here already; nothing changed.";
 }
 

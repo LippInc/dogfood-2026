@@ -12,7 +12,7 @@ import { CRITERION_LABEL, CRITERION_PROMPT_MAX, MAX_CRITERIA } from "@/server/ru
 
 const entry = OPERATIONS.find((op) => op.method === "POST" && op.path === "/api/imports")!;
 const text = `${entry.summary} ${entry.note ?? ""}`;
-const source = ["src/server/db/import-fixtures.ts", "src/server/dal/imports.ts"].map((f) => fs.readFileSync(path.join(process.cwd(), f), "utf8")).join("\n");
+const source = ["src/server/db/import-fixtures.ts", "src/server/db/import-history.ts", "src/server/dal/imports.ts"].map((f) => fs.readFileSync(path.join(process.cwd(), f), "utf8")).join("\n");
 
 describe("the API reference's import entry says what the importer refuses", () => {
   it("names every 409 code the importer throws", () => {

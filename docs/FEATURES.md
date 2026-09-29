@@ -197,11 +197,14 @@ organizers only, each with a header row even while there is nothing to list:
   hid it, when and why, and an empty body: its words are not exported.
 
 A whole event also exports as `event.json` or as `fixtures.json`, the organizers' own
-fixture format with the rubric (labels, prompts, weights), the questions to teams and their answers, and each
-project's description and links added: the file that moves an event. An administrator imports such a file on Your
-events (or `POST /api/imports`), through the same idempotent importer the portal boots with, and gets the same
-projects, judges, scores and rubric, and the same ranking as before any decision (settings and the organizer's
-decisions stay in `event.json`, the record to keep). A file for an event already here adds to it only for that
+fixture format with the rest of the event added (rubric, questions and answers, dates, settings, prizes, the
+reviews' times and private notes, merges and every organizer decision with its reason, pairwise answers, ballots
+once voting has closed, comments, and the published results as stored): the file that moves an event. An
+administrator imports such a file on Your events (or `POST /api/imports`), through the same idempotent importer the
+portal boots with, and gets the same event back as a new event (`tests/event-round-trip.test.ts`: exported again,
+the file is the same, and so are its ranking, count and exports); what stays behind is listed in
+[`OPERATIONS.md`](OPERATIONS.md#moving-an-event-to-another-portal). Into an event already here an import adds none of
+that history (409 `new_event_only`, naming what the file would add). A file for an event already here adds to it only for that
 event's organizers and never once its results are published, never changes the criteria of an event judges have
 scored (409 `rubric_in_use`), keeps the forms' team rules there (409 `team_full`, `team_has_project`,
 `conflict_of_interest`, `vote_would_change`, naming the row), holds the criteria and questions it brings to the Rubric and Questions

@@ -11,7 +11,9 @@ import { DEFAULT_MAX_TEAM_SIZE, MAX_GALLERY_IMAGES, MAX_QUESTIONS, MAX_TAGS, MAX
 import { BUILTIN_CRITERIA, CRITERION_LABEL, CRITERION_PROMPT_MAX, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
 import { ConflictError, ValidationError } from "../errors";
 import { allowedModes, FIELD_MODES, PROJECT_FIELDS } from "../../lib/project-fields";
-import { newSecret, nowIso, sha256, slugify } from "../util";
+import { canonicalJson, newSecret, nowIso, sha256, slugify } from "../util";
+import { atMost, dateTime, id, isIsoDateTime } from "./fixture-fields";
+import { checkDates, EventDates, HistoryFields, refuseHistoryForExistingEvent, restoreHistory, settingsFromFile, type HistoryTable, type RestoredHistory } from "./import-history";
 import {
   assignmentRuns,
   assignments,
@@ -20,6 +22,7 @@ import {
   events,
   fixtureImports,
   judgeTracks,
+  prizes,
   projectFields,
   projects,
   QUESTION_TYPES,
@@ -38,21 +41,7 @@ import {
 // Fixture shape
 // ---------------------------------------------------------------------------
 
-// Ids end up in addresses, export file names and response headers, so only a safe set of characters.
-const id = z
-  .string()
-  .regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/, "must be 1 to 80 letters, digits, '_', '-' or '.', starting with a letter or digit");
-
-/** An ISO 8601 date and time with its time zone, such as 2026-03-01T18:00:00Z, that is a real day. */
-const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d{1,9})?)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/;
-export function isIsoDateTime(s: string): boolean {
-  const m = ISO_DATE_TIME.exec(s);
-  if (!m) return false;
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const day = new Date(Date.UTC(y, mo - 1, d));
-  return mo >= 1 && mo <= 12 && day.getUTCFullYear() === y && day.getUTCMonth() === mo - 1 && day.getUTCDate() === d;
-}
-const dateTime = z.string().refine(isIsoDateTime, "must be a date and time with its time zone, such as 2026-03-01T18:00:00Z");
+export { isIsoDateTime };
 
 /**
  * How many rows one file may bring, per list. Every row costs queries inside one transaction that holds the
@@ -62,7 +51,6 @@ const dateTime = z.string().refine(isIsoDateTime, "must be a date and time with 
 export const IMPORT_LIMITS = { tracks: 100, judges: 1_000, teams: 2_000, members: 50, projects: 2_000, scores: 16_000 } as const;
 const CRITERION_LABEL_SIZE = `must be ${CRITERION_LABEL.min} to ${CRITERION_LABEL.max} characters, as on the Rubric tab`;
 const QUESTION_LABEL_SIZE = `must be ${QUESTION_LABEL.min} to ${QUESTION_LABEL.max} characters, as on the Questions tab`;
-const atMost = (n: number, what: string) => `at most ${n.toLocaleString("en")} ${what} in one file; split it into several imports`;
 
 export const FixtureSchema = z.looseObject({
   event: z.looseObject({
@@ -72,6 +60,8 @@ export const FixtureSchema = z.looseObject({
     submissions_close: dateTime,
     // Not in the organizers' format: the portal's own export adds it when the event has one.
     description: z.string().max(20_000).optional().default(""),
+    // nor are the event's other dates, which the portal's export adds when they are set
+    ...EventDates,
   }),
   tracks: z.array(z.looseObject({ id, name: z.string().min(1) })).max(IMPORT_LIMITS.tracks, atMost(IMPORT_LIMITS.tracks, "tracks")),
   // Not in the organizers' format: what teams are asked for each built-in field, as the portal's
@@ -152,6 +142,8 @@ export const FixtureSchema = z.looseObject({
       live_url: z.literal("").or(z.string().url({ protocol: /^https?$/, message: "must be a full URL, starting with https://" })).optional().default(""),
       /** the team's answers to the event's questions, by question id */
       answers: z.record(z.string(), z.string().max(5_000)).optional().default({}),
+      /** the organizer's duplicate merge: this copy counts as the project it names (a new event's file only) */
+      duplicate_of: id.optional(),
       submitted_at: dateTime,
     }),
   ).max(IMPORT_LIMITS.projects, atMost(IMPORT_LIMITS.projects, "projects")),
@@ -162,9 +154,15 @@ export const FixtureSchema = z.looseObject({
       // a missing key or null means "not scored"; it never becomes a zero
       criteria: z.record(z.string(), z.number().int().nullable()),
       comment: z.string().optional(),
+      // Not in the organizers' format: the judge's note to the organizers only, and when the review was finished
+      // (a new event's file; a review brought into an event that is here is finished at the import, as before)
+      private_note: z.string().max(4_000).optional(),
+      submitted_at: dateTime.optional(),
     }),
   ).max(IMPORT_LIMITS.scores, atMost(IMPORT_LIMITS.scores, "reviews")),
-});
+  // Not in the organizers' format: the rest of what an event is, which the portal's own export adds (import-history.ts)
+  ...HistoryFields,
+}).superRefine((f, ctx) => checkDates(f.event, (path, message) => ctx.addIssue({ code: "custom", path: ["event", path], message })));
 
 export type Fixture = z.infer<typeof FixtureSchema>;
 
@@ -189,7 +187,8 @@ type TableKey =
   | "scoreItems"
   | "scoreComments"
   | "customQuestions"
-  | "customAnswers";
+  | "customAnswers"
+  | HistoryTable;
 
 function emptyCounts(): Record<TableKey, number> {
   return {
@@ -210,6 +209,14 @@ function emptyCounts(): Record<TableKey, number> {
     scoreComments: 0,
     customQuestions: 0,
     customAnswers: 0,
+    prizes: 0,
+    judgeOverrides: 0,
+    comparisons: 0,
+    voters: 0,
+    votes: 0,
+    comments: 0,
+    normalizationRuns: 0,
+    normalizedScores: 0,
   };
 }
 
@@ -223,7 +230,7 @@ export type ImportReport = {
   /** score ids whose judge is a member of the scored project's team */
   conflicts: string[];
   /** file ids another event already used, and the ids this event's rows got instead */
-  renamed: { kind: "track" | "team" | "project" | "judge" | "question"; from: string; to: string }[];
+  renamed: { kind: "track" | "team" | "project" | "judge" | "question" | "prize" | "decision" | "comparison" | "ballot" | "comment" | "run"; from: string; to: string }[];
   /** set when the event is new and the web address its name gives was taken by another event */
   slug?: { wanted: string; used: string };
   /**
@@ -232,9 +239,11 @@ export type ImportReport = {
    * project, whether the review is finished once this import is done, the scores and feedback it added).
    */
   added: { judges: string[]; reviews: ImportedReview[]; judgeTracks: { judge: string; track: string }[]; criteria: string[] };
+  /** a new event's history the file brought (its prizes, merges, decisions, pairwise answers, ballots, comments and published ranking), by id */
+  restored?: RestoredHistory;
 };
 
-export type ImportedReview = { judge: string; project: string; finished: boolean; values: Record<string, number>; feedback?: string };
+export type ImportedReview = { judge: string; project: string; finished: boolean; values: Record<string, number>; feedback?: string; privateNote?: string };
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -349,13 +358,22 @@ export function importFixtures(
             slug,
             name: fixture.event.name,
             description: fixture.event.description,
-            submissionsOpenAt: null,
+            submissionsOpenAt: fixture.event.submissions_open ?? null,
             submissionsCloseAt: fixture.event.submissions_close,
+            judgingCloseAt: fixture.event.judging_close ?? null,
+            votingOpenAt: fixture.event.voting_open ?? null,
+            votingCloseAt: fixture.event.voting_close ?? null,
+            settings: settingsFromFile(fixture),
             createdAt: now,
           })
           .onConflictDoNothing(),
       ),
     );
+
+    // An event that is here keeps what it is: a file never adds a ballot, a comment, a pairwise answer, a merge, a
+    // decision or a published ranking to it (refused whole, 409 new_event_only; those it holds already count as
+    // present), and its own dates, settings and prizes stand (a file that differs gets a skipped line saying so).
+    if (here) keepExistingEvent(tx, fixture, report, projectOf);
 
     // Tracks (position = order in the file)
     const trackIds = new Set<string>();
@@ -834,14 +852,15 @@ export function importFixtures(
 
       const memberEmails = teamMemberEmails.get(project.team) ?? new Set<string>();
       const conflicted = memberEmails.has(judgeEmail);
+      const finishedAt = !here && s.submitted_at ? s.submitted_at : now;
       const scoreChanges = insertOnce(
         tx
           .insert(scores)
           .values({
             id: `scr_${s.judge}_${projectId}`,
             assignmentId,
-            submittedAt: complete ? now : null,
-            updatedAt: now,
+            submittedAt: complete ? finishedAt : null,
+            updatedAt: complete ? finishedAt : now,
             conflicted,
           })
           .onConflictDoNothing(),
@@ -870,16 +889,17 @@ export function importFixtures(
           broughtAny = true;
         }
       }
-      if (s.comment) {
+      if (s.comment || s.private_note) {
         const comment = insertOnce(
           tx
             .insert(scoreComments)
-            .values({ scoreId, feedback: s.comment, privateNote: "" })
+            .values({ scoreId, feedback: s.comment ?? "", privateNote: s.private_note ?? "" })
             .onConflictDoNothing(),
         );
         bump("scoreComments", comment);
         if (comment) {
-          brought.feedback = s.comment;
+          if (s.comment) brought.feedback = s.comment;
+          if (s.private_note) brought.privateNote = s.private_note;
           broughtAny = true;
         }
       }
@@ -891,6 +911,33 @@ export function importFixtures(
         brought.finished = tx.select({ status: assignments.status }).from(assignments).where(eq(assignments.id, assignmentId)).get()?.status === "done";
         report.added.reviews.push(brought);
       }
+    }
+
+    // A new event gets the rest of what it was: prizes, merges, decisions, pairwise answers, ballots, comments, and last
+    // its published ranking (import-history.ts)
+    if (!here) {
+      const renames = new Map<string, string>([
+        ...report.renamed.map((r) => [r.from, r.to] as [string, string]),
+        ...[...accountOf].filter(([from, to]) => from !== to),
+      ]);
+      report.restored = restoreHistory(
+        tx,
+        fixture,
+        {
+          eventId,
+          by: opts.actor?.userId ?? "system",
+          projectOf,
+          trackOf,
+          accountOf,
+          imported: importedProjects,
+          trackOfProject: new Map(fixture.projects.map((p) => [p.id, p.track])),
+          userFor: (email, name) => accountForAddress(tx, email, name, now, (changes) => bump("users", changes)),
+          bump: (table, changes) => bump(table, changes),
+          skip: (kind, id, reason) => report.skipped.push({ kind, id, reason }),
+        },
+        renames,
+        (kind, from, to) => report.renamed.push({ kind: kind as ImportReport["renamed"][number]["kind"], from, to }),
+      );
     }
 
     // An event that was here keeps the rules its forms keep (the team pages, the project form, hand assignment): a
@@ -971,6 +1018,8 @@ export function importFixtures(
             judgeTracks: report.added.judgeTracks,
             // the criteria it added to the rubric of an event that was here already (only before its first score)
             ...(report.added.criteria.length ? { criteria: report.added.criteria } : {}),
+            // a new event's history, every restored row by its id (a ballot by its voter and how many picks)
+            ...(report.restored ? { restored: report.restored } : {}),
           },
         },
         now,
@@ -1013,6 +1062,55 @@ export function loadFixtureFile(file: string): { fixture: Fixture; sha256: strin
   const text = fs.readFileSync(file, "utf8");
   const digest = sha256(text);
   return { fixture: FixtureSchema.parse(JSON.parse(text)), sha256: digest };
+}
+
+/** The account for an address: found, or made without a password as the importer makes team members' (null when neither works). */
+function accountForAddress(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], email: string, name: string | undefined, now: string, counted: (changes: number) => void): string | null {
+  const wanted = participantUserId(email);
+  const changes = insertOnce(
+    tx
+      .insert(users)
+      .values({ id: wanted, email, name: name ?? email.split("@")[0] ?? email, passwordHash: null, isAdmin: false, createdAt: now })
+      .onConflictDoNothing(),
+  );
+  counted(changes);
+  return tx.select({ id: users.id }).from(users).where(eq(users.email, email)).get()?.id ?? null;
+}
+
+/**
+ * For an event that is here: refuses a file that would add to its history (import-history.ts), counts what it holds
+ * already as present, and says in a skipped line when the file's dates, settings or prizes differ from the event's
+ * own, which stand (they change on its Settings and Voting tabs, where changes after the fact need their reasons).
+ */
+function keepExistingEvent(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], fixture: Fixture, report: ImportReport, projectOf: Map<string, string>) {
+  const eventId = fixture.event.id;
+  const ev = tx.select().from(events).where(eq(events.id, eventId)).get()!;
+  const present = refuseHistoryForExistingEvent(tx, fixture, eventId, { at: ev.resultsPublishedAt, runId: ev.settings.publishedRunId ?? null, settings: ev.settings }, projectOf);
+  for (const [table, n] of Object.entries(present)) report.existing[table as TableKey] += n;
+  const instant = (s: string | null | undefined) => (s ? Date.parse(s) : null);
+  const dates: [string, string | undefined, string | null][] = [
+    ["submissions_open", fixture.event.submissions_open, ev.submissionsOpenAt],
+    ["judging_close", fixture.event.judging_close, ev.judgingCloseAt],
+    ["voting_open", fixture.event.voting_open, ev.votingOpenAt],
+    ["voting_close", fixture.event.voting_close, ev.votingCloseAt],
+  ];
+  const moved = dates.filter(([, file, own]) => file !== undefined && instant(file) !== instant(own)).map(([name]) => name);
+  if (moved.length) report.skipped.push({ kind: "event", id: eventId, reason: `this event keeps its own dates (${moved.join(", ")}); change them on its Settings or Voting tab` });
+  const given = settingsFromFile(fixture) as Record<string, unknown>;
+  const own = ev.settings as Record<string, unknown>;
+  const portable = (key: string, v: unknown) => {
+    if (key !== "voting" || !v || typeof v !== "object") return v;
+    const { linkHash: _link, ...rules } = v as Record<string, unknown>;
+    return rules;
+  };
+  const differ = Object.keys(given).filter((k) => canonicalJson(portable(k, given[k])) !== canonicalJson(portable(k, own[k])));
+  if (differ.length) report.skipped.push({ kind: "settings", id: eventId, reason: `this event keeps its own settings (${differ.join(", ")}); change them on its Settings or Voting tab` });
+  if (fixture.prizes) {
+    const held = tx.select({ name: prizes.name, description: prizes.description }).from(prizes).where(eq(prizes.eventId, eventId)).orderBy(asc(prizes.position), asc(prizes.id)).all();
+    if (canonicalJson(held) !== canonicalJson(fixture.prizes.map((p) => ({ name: p.name, description: p.description })))) {
+      report.skipped.push({ kind: "prizes", id: eventId, reason: "this event keeps its own prizes; change them on its Settings tab" });
+    }
+  }
 }
 
 /** A pending review whose score now has every one of the event's criteria (their ids): done, submitted now (a recused one stays). */

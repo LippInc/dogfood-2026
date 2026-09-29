@@ -364,9 +364,12 @@ function eventJson(db: DbOrTx, event: EventRow): string {
 }
 
 /**
- * The event in the organizers' own fixture format, the format importEventFile reads:
- * export here, import on another portal. Submitted projects and finished reviews
- * only, since the format has no drafts; decisions and settings stay in event.json.
+ * The event in the organizers' own fixture format, the format importEventFile reads: export here, import on another
+ * portal as a new event and get the same event back (tests/event-round-trip.test.ts). Beyond the organizers' keys it
+ * carries, each only when there is something to carry: the rubric, questions and answers, the other dates, the
+ * settings and prizes, the reviews' times and private notes, the duplicate merges and the organizers' other decisions,
+ * the pairwise answers, the community ballots (sealed while voting is open), the comments and the published ranking.
+ * Submitted projects and finished reviews only, since the format has no drafts (DATA-MODEL.md lists what stays).
  */
 function fixturesJson(db: DbOrTx, event: EventRow): string {
   const judgeRows = db
@@ -395,6 +398,19 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
   // beyond the organizers' format, and only when the event asks for something other than the defaults
   const fields = changedFromDefaults(fieldModes(db, event.id));
   const reviews = eventReviews(db, event.id);
+  // beyond the organizers' format: the judge's private note to the organizers, and when each review was finished
+  // (a review from a file without times was finished when this portal imported it), so scores.csv reads the same
+  // on the portal the event moves to
+  const notes = new Map(
+    db
+      .select({ assignmentId: assignments.id, note: scoreComments.privateNote })
+      .from(scoreComments)
+      .innerJoin(scores, eq(scores.id, scoreComments.scoreId))
+      .innerJoin(assignments, eq(assignments.id, scores.assignmentId))
+      .where(eq(assignments.eventId, event.id))
+      .all()
+      .map((n) => [n.assignmentId, n.note]),
+  );
   const scoreRows = judgeRows.flatMap((j) =>
     (reviews.get(j.id) ?? [])
       .filter((r) => r.status === "done" && submitted.has(r.projectId))
@@ -403,6 +419,8 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
         project: r.projectId,
         criteria: Object.fromEntries(r.items.map((i) => [i.key, i.value])),
         ...(r.feedback ? { comment: r.feedback } : {}),
+        ...(notes.get(r.assignmentId) ? { private_note: notes.get(r.assignmentId) } : {}),
+        ...(r.submittedAt ? { submitted_at: r.submittedAt } : {}),
       })),
   );
   // The rubric as set here, written only when it differs from what the importer makes of the scores' keys alone
@@ -431,18 +449,33 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
     ? db.select().from(customAnswers).where(inArray(customAnswers.projectId, projectRows.map((p) => p.id))).all()
     : [];
   const answersOf = (projectId: string) => Object.fromEntries(answerRows.filter((a) => a.projectId === projectId).map((a) => [a.questionId, a.value]));
+  const history = eventHistory(db, event, submitted, new Set(judgeRows.map((j) => j.id)));
   return JSON.stringify(
     {
-      event: { id: event.id, name: event.name, submissions_close: event.submissionsCloseAt, ...(event.description ? { description: event.description } : {}) },
+      event: {
+        id: event.id,
+        name: event.name,
+        submissions_close: event.submissionsCloseAt,
+        ...(event.description ? { description: event.description } : {}),
+        // the event's other dates, beyond the organizers' format, each only when it is set
+        ...(event.submissionsOpenAt ? { submissions_open: event.submissionsOpenAt } : {}),
+        ...(event.judgingCloseAt ? { judging_close: event.judgingCloseAt } : {}),
+        ...(event.votingOpenAt ? { voting_open: event.votingOpenAt } : {}),
+        ...(event.votingCloseAt ? { voting_close: event.votingCloseAt } : {}),
+      },
       tracks: db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, event.id)).orderBy(asc(tracks.id)).all(),
       ...(Object.keys(fields).length ? { project_fields: fields } : {}),
       ...(canonicalJson(rubric) !== canonicalJson(derived) ? { rubric } : {}),
       ...(questionRows.length ? { questions: questionRows } : {}),
+      ...history.settings,
       judges: judgeRows.map((j) => ({ ...j, tracks: judgeTrackRows.filter((t) => t.judgeUserId === j.id).map((t) => t.trackId).sort() })),
       teams: teamRows.map((t) => ({
         ...t,
-        // the captain first, as the importer makes the first member captain
-        members: memberRows.filter((m) => m.teamId === t.id).sort((a, b) => Number(b.role === "captain") - Number(a.role === "captain")).map((m) => m.email),
+        // the captain first, as the importer makes the first member captain; then by address, an order an import keeps
+        members: memberRows
+          .filter((m) => m.teamId === t.id)
+          .sort((a, b) => Number(b.role === "captain") - Number(a.role === "captain") || a.email.localeCompare(b.email))
+          .map((m) => m.email),
       })),
       projects: projectRows.map((p) => ({
         id: p.id,
@@ -460,9 +493,12 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
         ...(p.videoUrl ? { video_url: p.videoUrl } : {}),
         ...(p.liveUrl ? { live_url: p.liveUrl } : {}),
         ...(answerRows.some((a) => a.projectId === p.id) ? { answers: answersOf(p.id) } : {}),
+        // the organizer's duplicate merge: this copy counts as the one it names
+        ...(p.duplicateOf ? { duplicate_of: p.duplicateOf } : {}),
         submitted_at: p.submittedAt,
       })),
       scores: scoreRows,
+      ...history.rest,
     },
     null,
     2,
@@ -651,6 +687,176 @@ function commentsCsv(db: DbOrTx, event: EventRow): string {
       r.hiddenReason,
     ]),
   );
+}
+
+/**
+ * What an event holds beyond the organizers' format, for fixtures.json, each part only when there is something in
+ * it (so the organizers' fixture data still exports as it came): its settings and prizes (placed with the rubric),
+ * and after the scores the organizers' decisions, the pairwise answers, the community ballots, the comments and the
+ * published ranking. Ballots follow audit.csv's seal: while voting has not closed their picks stay out, and the file
+ * says only how many there are. Rows whose person or project the file does not carry (a judge removed from the
+ * event, a project taken back to a draft) stay out, as their reviews do.
+ */
+function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judgeIds: Set<string>) {
+  const s = event.settings;
+  const settings: Record<string, unknown> = {
+    ...(s.maxTeamSize !== undefined ? { max_team_size: s.maxTeamSize } : {}),
+    ...(s.certificatePlaces !== undefined ? { certificate_places: s.certificatePlaces } : {}),
+    ...(s.reviewsPerProject !== undefined ? { reviews_per_project: s.reviewsPerProject } : {}),
+    ...(s.judgeRanking !== undefined ? { judge_ranking: s.judgeRanking } : {}),
+    ...(s.judgingMode !== undefined ? { judging_mode: s.judgingMode } : {}),
+    ...(s.accent !== undefined ? { accent: s.accent } : {}),
+    // who may vote and how many favourites each; never the open link's hash (a new portal makes its own link)
+    ...(s.voting
+      ? {
+          voting: {
+            modes: [...s.voting.modes],
+            votes_per_voter: s.voting.votesPerVoter,
+            ...(s.voting.countLink !== undefined ? { count_link: s.voting.countLink } : {}),
+            ...(s.voting.linkPerAddress !== undefined ? { link_per_address: s.voting.linkPerAddress } : {}),
+          },
+        }
+      : {}),
+  };
+  const prizeRows = db
+    .select({ id: prizes.id, name: prizes.name, description: prizes.description })
+    .from(prizes)
+    .where(eq(prizes.eventId, event.id))
+    .orderBy(asc(prizes.position), asc(prizes.id))
+    .all();
+
+  const overrides = db
+    .select()
+    .from(judgeOverrides)
+    .where(eq(judgeOverrides.eventId, event.id))
+    .orderBy(asc(judgeOverrides.createdAt), asc(judgeOverrides.id))
+    .all()
+    .filter((o) => judgeIds.has(o.judgeUserId));
+  const decisions: Record<string, unknown> = {
+    ...(overrides.length
+      ? {
+          judges: overrides.map((o) => ({ id: o.id, judge: o.judgeUserId, mode: o.mode, reason: o.reason, at: o.createdAt, ...(o.revokedAt ? { revoked_at: o.revokedAt } : {}) })),
+        }
+      : {}),
+    ...(s.notDuplicates?.length ? { not_duplicates: [...s.notDuplicates] } : {}),
+    ...(s.acceptedUnderReviewed?.length ? { accepted_under_reviewed: [...s.acceptedUnderReviewed] } : {}),
+    ...(s.weightChanges?.length ? { weight_changes: s.weightChanges } : {}),
+    ...(s.voteRuleChanges?.length ? { vote_rule_changes: s.voteRuleChanges } : {}),
+    ...(s.voteCountChanges?.length ? { vote_count_changes: s.voteCountChanges } : {}),
+  };
+
+  const answers = db
+    .select()
+    .from(comparisons)
+    .where(eq(comparisons.eventId, event.id))
+    .orderBy(asc(comparisons.createdAt), asc(comparisons.id))
+    .all()
+    .filter((c) => judgeIds.has(c.judgeUserId) && submitted.has(c.leftProjectId) && submitted.has(c.rightProjectId));
+
+  const voterRows = db
+    .select({ voter: voters, email: users.email })
+    .from(voters)
+    .leftJoin(users, eq(users.id, voters.userId))
+    .where(eq(voters.eventId, event.id))
+    .orderBy(asc(voters.createdAt), asc(voters.id))
+    .all();
+  const pickRows = voterRows.length
+    ? db
+        .select({ voterId: votes.voterId, projectId: votes.projectId, at: votes.createdAt })
+        .from(votes)
+        .innerJoin(voters, eq(voters.id, votes.voterId))
+        .where(eq(voters.eventId, event.id))
+        .orderBy(asc(votes.createdAt), asc(votes.projectId))
+        .all()
+    : [];
+  const sealed = ballotsSealed(db, event.id);
+  const who = (v: (typeof voterRows)[number]) =>
+    v.voter.kind === "account" ? { kind: "account", email: v.email ?? "" } : v.voter.kind === "listed" ? { kind: "listed", email: v.voter.email ?? "" } : { kind: "link" };
+  // While sealed, only the voter list moves (the addresses the organizers added), with nothing that says who voted.
+  const ballots = sealed
+    ? voterRows.filter((v) => v.voter.kind === "listed").map((v) => ({ id: v.voter.id, voter: who(v), order_seed: v.voter.orderSeed, created_at: v.voter.createdAt, picks: [] }))
+    : voterRows.map((v) => ({
+        id: v.voter.id,
+        voter: who(v),
+        order_seed: v.voter.orderSeed,
+        created_at: v.voter.createdAt,
+        ...(v.voter.lastVotedAt ? { last_voted_at: v.voter.lastVotedAt } : {}),
+        ...(v.voter.voidedAt ? { set_aside: { at: v.voter.voidedAt, reason: v.voter.voidReason ?? "" } } : {}),
+        picks: pickRows.filter((p) => p.voterId === v.voter.id && submitted.has(p.projectId)).map((p) => ({ project: p.projectId, at: p.at })),
+      }));
+  const sealedCount = sealed ? voterRows.filter((v) => v.voter.lastVotedAt !== null).length : 0;
+
+  const commentRows = db
+    .select({ c: comments, email: users.email, name: users.name })
+    .from(comments)
+    .innerJoin(users, eq(users.id, comments.userId))
+    .where(eq(comments.eventId, event.id))
+    .orderBy(asc(comments.createdAt), asc(comments.id))
+    .all()
+    .filter((r) => submitted.has(r.c.projectId));
+
+  let published: Record<string, unknown> | null = null;
+  const runId = s.publishedRunId;
+  if (event.resultsPublishedAt && runId) {
+    const run = db.select().from(normalizationRuns).where(eq(normalizationRuns.id, runId)).get();
+    if (run) {
+      const rows = db.select().from(normalizedScores).where(eq(normalizedScores.runId, runId)).orderBy(asc(normalizedScores.projectId)).all();
+      published = {
+        at: event.resultsPublishedAt,
+        run: { id: run.id, method: run.method, computed_at: run.computedAt, params: run.params },
+        scores: rows.map((r) => ({
+          project: r.projectId,
+          n: r.n,
+          raw_mean: r.rawMean,
+          normalized_mean: r.normalizedMean,
+          se: r.se,
+          rank_raw: r.rankRaw,
+          rank_normalized: r.rankNormalized,
+        })),
+      };
+    }
+  }
+
+  return {
+    settings: {
+      ...(Object.keys(settings).length ? { settings } : {}),
+      ...(prizeRows.length ? { prizes: prizeRows } : {}),
+    },
+    rest: {
+      ...(Object.keys(decisions).length ? { decisions } : {}),
+      ...(answers.length
+        ? {
+            comparisons: answers.map((c) => ({
+              id: c.id,
+              judge: c.judgeUserId,
+              track: c.trackId,
+              left: c.leftProjectId,
+              right: c.rightProjectId,
+              new: c.newProjectId,
+              answer: c.outcome,
+              at: c.createdAt,
+              ...(c.voidedAt ? { taken_back_at: c.voidedAt } : {}),
+            })),
+          }
+        : {}),
+      ...(ballots.length ? { ballots } : {}),
+      ...(sealedCount ? { ballots_sealed: sealedCount } : {}),
+      ...(commentRows.length
+        ? {
+            comments: commentRows.map(({ c, email, name }) => ({
+              id: c.id,
+              project: c.projectId,
+              author: email,
+              author_name: name,
+              body: c.body,
+              at: c.createdAt,
+              ...(c.hiddenAt ? { hidden: { at: c.hiddenAt, reason: c.hiddenReason ?? "" } } : {}),
+            })),
+          }
+        : {}),
+      ...(published ? { published } : {}),
+    },
+  };
 }
 
 const EXPORTS: Record<string, Exporter> = {

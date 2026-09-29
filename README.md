@@ -256,9 +256,11 @@ webhook deliveries and the voters' address hashes are yours to clear with `scrip
   reason, where co-organizers can read it.
 - **Three or more copies.** A team that entered the same project three or more times: the overview merges two copies; merge the others over
   the API (`POST /api/events/<event>/duplicates/merge`).
-- **Moving an event.** The portal imports only `fixtures.json`, so settings, pairwise answers and the organizer's decisions (a merge, a
-  reinstated judge, a project published as it is) do not move to another portal; `event.json` keeps them as a
-  record, and `comparisons.csv` lists every pairwise answer, taken-back ones included.
+- **Moving an event.** An event's `fixtures.json` imported on another portal as a new event leaves behind its
+  drafts, open judge assignments and recusals, pending invitations, co-organizers, signed records (the new portal
+  signs its own) and its audit log (the new one starts at the import's entry; keep the old `audit.csv`). Ballots
+  move only once voting has closed, and the old portal's voting links open nothing on the new one. See
+  [`docs/OPERATIONS.md`](docs/OPERATIONS.md#moving-an-event-to-another-portal).
 - **Signed records cannot be revoked,** and the signing key cannot be rotated from the interface (a new
   `DOGFOOD_SEED_SECRET` makes the next start use a new one); a record keeps what was true when it was issued.
 - **No calibrated prize probabilities or rank intervals:** normalized ranks compare within a track, and close scores

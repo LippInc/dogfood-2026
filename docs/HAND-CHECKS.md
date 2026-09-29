@@ -114,11 +114,11 @@ checks what arrives (the header in the script says how; on Linux, give the porta
   `fixtures.json` in the organizers' own fixture format; import on Your events or `POST /api/imports`
   ([`FEATURES.md`, "Import and export"](FEATURES.md#import-and-export)).
 - **Checks:** C7 (export, then an import that changes nothing; once results are published a file that would add
-  is 409), C8 (a new event imported and one person walked in by a personal link), C12 (an organizer who is not an
+  is 409, and a file with one comment the event does not hold is 409 `new_event_only`), C8 (a new event imported and one person walked in by a personal link), C12 (an organizer who is not an
   administrator gets no link for someone in an event they do not run, checked again when the link is used).
-- **By hand:** export `fixtures.json` from the Integrations tab and import it on a fresh portal: the same tables
-  and a byte-identical `normalized.csv`, as long as no decision has been made (`tests/import-claims.test.ts` does
-  exactly this).
+- **By hand:** export `fixtures.json` from the Integrations tab and import it on a fresh portal: the same event,
+  decisions, ballots, comments and published results included; exported there it is the same file, with a
+  byte-identical `normalized.csv` (`tests/event-round-trip.test.ts` does exactly this).
 
 ## The stability check
 

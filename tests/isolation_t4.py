@@ -701,6 +701,23 @@ def section_c(u, people, cfg):
                "the gallery without the refused project")
     else:
         expect(c, False, organizer, "GET", fixtures_url, "no teams, projects or tracks to extend", "an export to extend")
+    # known-bad: the file with one comment the event does not hold. An event's history (ballots, comments, pairwise
+    # answers, merges, decisions, a published ranking) comes only into a new event, so the file is refused whole.
+    if fixtures and fixtures.get("projects"):
+        planted_id = f"cmt_iso_{secrets.token_hex(3)}"
+        planted = json.loads(json.dumps(fixtures))
+        planted.setdefault("comments", []).append({"id": planted_id, "project": planted["projects"][0]["id"],
+                                                   "author": f"iso-planted-{secrets.token_hex(3)}@example.org",
+                                                   "body": "Planted by the isolation check", "at": "2026-03-01T12:00:00Z"})
+        s, body, _ = organizer.request("POST", imports_url, planted)
+        expect(c, s == 409 and error_code(body) == "new_event_only", organizer, "POST", imports_url,
+               f"{s} ({error_code(body)})", "409 new_event_only: an import adds no comment to an event that is here")
+        s, body, _ = organizer.request("GET", fixtures_url)
+        held = [x.get("id") for x in (as_json(body).get("comments") or [])] if s == 200 else []
+        expect(c, s == 200 and planted_id not in held, organizer, "GET", fixtures_url,
+               f"{s}, the planted comment {'present' if planted_id in held else 'absent'}", "the planted comment absent")
+    else:
+        expect(c, False, organizer, "GET", fixtures_url, "no projects to comment on", "an export to extend")
     checks.append(c)
 
     # C8 -- import a new event, then walk one person in through a personal link

@@ -15,7 +15,7 @@ promoted, so name an address that has no account yet in `ADMIN_EMAILS`.
 
 An administrator creates an event on **Your events** (dates, tracks, prizes, rubric) or imports one from a
 `fixtures.json`-format file (up to 2,000 projects and 16,000 reviews per file; a bigger event goes in over several
-files).
+files), such as another portal's export (below: moving an event).
 
 Running the same event again (next month, next year): **Your events**, **New event**, and pick last time's event
 under "Start from the settings of". Give the new one its name and dates; its tracks, rubric, questions to teams,
@@ -24,6 +24,32 @@ what teams fill in, team size, prizes, certificate places, judging mode and voti
 does. The list shows only events you organize: an administrator who does not organize last year's event asks one
 of its organizers to add them first. Re-importing an event's own `fixtures.json` is not the way: the file keeps the
 event's id, so it adds to that same event.
+
+## Moving an event to another portal
+
+1. On the old portal, the event's **Integrations** tab: download `fixtures.json` (and `audit.csv`, to keep). If the
+   event had a community vote, wait until voting has closed: until then its ballots are sealed, as in `audit.csv`,
+   and the file carries only the voter list and how many ballots stayed behind.
+2. On the new portal, an administrator imports it on **Your events** (Import an event), or `POST /api/imports`.
+3. The event arrives as it was: tracks, rubric, questions and answers, judges, teams, projects, finished reviews (with
+   their times, feedback and private notes), its dates, settings and prizes, the duplicate merges, every organizer
+   decision with its reason (a judge left out or reinstated, pairs ruled not duplicates, projects published as they
+   are, weight and vote-rule changes), the pairwise answers (taken-back ones too), the ballots (a set-aside one still
+   set aside, with its reason), the comments (a hidden one still hidden, with its reason) and the published results as
+   they were published. The import's audit entry lists every row it restored by id, and its importer stands for
+   whoever made each decision (their names are in the old `audit.csv`).
+4. It does not bring: drafts, open judge assignments and recusals, pending judge invitations, co-organizers, signed
+   records (the new portal signs its own on request) or the old audit log. Pictures uploaded to the old portal's
+   gallery stay there: the file names them by the old portal's full address, so they show only while it serves them.
+   The results page shows its audit seal only for results published on that portal. People get into their accounts through personal links (Integrations tab);
+   the old portal's voting links open nothing, so a vote still to come needs new ones.
+
+An event that is already on the new portal keeps its own history: a file whose ballots, comments, pairwise answers,
+merges, decisions or published results it does not hold is refused whole (409 `new_event_only`, naming what the file
+would add), and the event's own dates, settings and prizes stand (the report's `skipped` says where the file differs).
+Its own export imported again adds nothing. An id another event on the new portal holds gets `.<event id>` appended
+(the report's `renamed`), and everything restored follows the renamed row. An event past one file's limits
+(2,000 projects, 16,000 reviews) cannot move whole: its history comes only with the file that creates it.
 
 ## Demo mode off
 

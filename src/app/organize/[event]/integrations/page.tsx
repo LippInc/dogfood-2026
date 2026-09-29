@@ -214,11 +214,11 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
             </h2>
             <p className="mt-1 max-w-[760px] text-15 text-ink-2">
               Take everything out at any stage. <code className="font-mono text-13">fixtures.json</code> is the file that moves this event to
-              another portal: the organizers&rsquo; fixture format, with your rubric (labels, prompts, weights), your questions to teams and their
-              answers, and each project&rsquo;s description and links added. An administrator imports it there (Your events, Import an event) and
-              gets the same projects, judges, scores and rubric, and the same ranking as before any decision.{" "}
-              <code className="font-mono text-13">event.json</code> is the whole record, to keep: settings and your decisions (a merge, a
-              reinstated judge) are only in it and do not move.
+              another portal: the organizers&rsquo; fixture format with the rest of the event added, from the rubric, dates, settings and prizes
+              to your decisions, the pairwise answers, the ballots (once voting has closed), the comments and the published results. An
+              administrator imports it there as a new event (Your events, Import an event) and gets the same event back. Drafts and open judge
+              assignments stay here; keep <code className="font-mono text-13">audit.csv</code> with it, as the new portal&rsquo;s log starts at
+              the import. <code className="font-mono text-13">event.json</code> is the whole record, to keep.
             </p>
           </div>
           <ul aria-label="Exports" className="grid border-t border-rule md:grid-cols-2 md:gap-x-10">

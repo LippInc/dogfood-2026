@@ -103,7 +103,7 @@ function loadNames(db: DbOrTx, eventId: string): Names {
   };
 }
 
-/** Whether a ballot's picks are sealed: until the event's voting window has closed (audit.csv, the log, votes.csv). */
+/** Whether a ballot's picks are sealed: until the event's voting window has closed (audit.csv, the log, votes.csv and the fixtures.json export). */
 export function ballotsSealed(db: DbOrTx, eventId: string): boolean {
   const e = db.select({ votingOpenAt: events.votingOpenAt, votingCloseAt: events.votingCloseAt }).from(events).where(eq(events.id, eventId)).get();
   return !e || votingState(e) !== "closed";
