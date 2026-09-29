@@ -6,7 +6,7 @@ import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { currentActor, getUpdatesAdmin, UPDATE_BODY_MAX, UPDATE_TITLE_MAX } from "@/server/dal";
 import { postUpdateAction } from "./actions";
-import { EditUpdate, RemoveUpdate } from "./forms";
+import { EditUpdate, PostedUpdates, RemoveUpdate } from "./forms";
 import { BODY_INPUT, TITLE_INPUT } from "./styles";
 
 export const dynamic = "force-dynamic";
@@ -77,10 +77,7 @@ export default async function UpdatesAdminPage({ params }: PageProps<"/organize/
           )}
         </SectionForm>
 
-        <section aria-labelledby="posted-title" className="flex flex-col gap-3">
-          <h2 id="posted-title" className="text-17 font-semibold">
-            Posted <span className="tnum text-14 font-normal text-ink-2">{updates.length}</span>
-          </h2>
+        <PostedUpdates count={updates.length}>
           {updates.length ? (
             <ol className="divide-y divide-rule rounded-sm border border-rule bg-surface">
               {updates.map((u) => (
@@ -104,7 +101,7 @@ export default async function UpdatesAdminPage({ params }: PageProps<"/organize/
           ) : (
             <p className="rounded-sm border border-dashed border-edge px-5 py-6 text-14 text-ink-2">No update yet. What you post shows on the event&apos;s public pages at once.</p>
           )}
-        </section>
+        </PostedUpdates>
       </div>
     </WorkShell>
   );

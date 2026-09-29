@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useFormAction } from "@/components/use-form-action";
 import type { ActionResult } from "@/server/dal";
@@ -51,10 +51,44 @@ export function EditUpdate({ eventSlug, id, title, body, titleMax, bodyMax }: { 
   );
 }
 
+/** Told by a Remove that succeeded, with the update's title. */
+const Removed = createContext<(title: string) => void>(() => {});
+
+/**
+ * The list of posted updates under its heading. A removal takes its update, and the focused Remove button, off the
+ * page: the heading then says what was removed (a polite status beside it, so nothing below moves for it) and takes
+ * the focus, so a keyboard or screen-reader user keeps their place instead of starting again at the top.
+ */
+export function PostedUpdates({ count, children }: { count: number; children: React.ReactNode }) {
+  const [removed, setRemoved] = useState<{ title: string; n: number } | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (removed) heading.current?.focus();
+  }, [removed]);
+  return (
+    <section aria-labelledby="posted-title" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 ref={heading} tabIndex={-1} id="posted-title" className="text-17 font-semibold">
+          Posted <span className="tnum text-14 font-normal text-ink-2">{count}</span>
+        </h2>
+        <p role="status" aria-live="polite" className="text-13 text-ok wrap-anywhere">
+          {removed ? `Removed \u201c${removed.title}\u201d. The audit log keeps its words.` : ""}
+        </p>
+      </div>
+      <Removed.Provider value={(title) => setRemoved((r) => ({ title, n: (r?.n ?? 0) + 1 }))}>{children}</Removed.Provider>
+    </section>
+  );
+}
+
 /** Remove, in two steps: the first click asks, the second removes. */
 export function RemoveUpdate({ eventSlug, id, title }: { eventSlug: string; id: string; title: string }) {
   const [asking, setAsking] = useState(false);
-  const [state, form, pending] = useFormAction<ActionResult>(removeUpdateAction, { ok: false, message: null });
+  const removed = useContext(Removed);
+  const [state, form, pending] = useFormAction<ActionResult>(async (prev, data) => {
+    const result = await removeUpdateAction(prev, data);
+    if (result.ok) removed(title);
+    return result;
+  }, { ok: false, message: null });
   if (!asking)
     return (
       <Button type="button" variant="outline" size="sm" onClick={() => setAsking(true)} aria-label={`Remove the update ${title}`}>
