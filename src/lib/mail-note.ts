@@ -15,6 +15,11 @@ export function mailNote(report: MailReport): string | null {
   const sent = report.mailed.filter((m) => m.status === "sent");
   const failed = report.mailed.filter((m) => m.status === "failed");
   const unknown = report.mailed.filter((m) => m.status === "unknown");
+  const pending = report.mailed.filter((m) => m.status === "pending");
+  if (pending.length) {
+    const head = pending.length === total ? (total === 1 ? "Mailing it now" : `Mailing all ${total} now`) : `Mailing ${pending.length} of ${total} now`;
+    return `${head}: the mail server is slow to answer, so the links are here first. The outbox shows each result as it comes.`;
+  }
   if (!failed.length && !unknown.length) return sent.length === 1 ? `Mailed to ${sent[0]!.to}.` : `Mailed to all ${sent.length}.`;
   const parts: string[] = [];
   if (sent.length) parts.push(`Mailed ${sent.length} of ${total}.`);

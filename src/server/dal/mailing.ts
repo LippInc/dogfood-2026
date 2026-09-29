@@ -18,11 +18,13 @@ import { RESET_HOURS } from "./password-resets";
 // audited write, so the database never holds a working key and no message goes out unrecorded; only then
 // is it sent (only when SMTP_URL is set), and a second audited write marks each row sent, failed (it did
 // not go out) or unknown (the connection broke after it may have been handed over). A row left at
-// "sending" means the portal stopped before the mail server answered. A message cannot be mailed again
+// "sending" means the portal stopped before the mail server answered. The page waits at most MAIL_WAIT_MS for
+// the sends, then answers with the links (their only copy) while the rest finish. A message cannot be mailed again
 // later; making a new link is how to send again. With email off nothing is sent or recorded, and each
 // screen shows the link to copy, as it always has.
 
-export type Mailed = { to: string; status: "sent" | "failed" | "unknown"; error?: string };
+/** pending: still being sent when the page answered (a slow mail server); the outbox shows its result once it has one. */
+export type Mailed = { to: string; status: "sent" | "failed" | "unknown" | "pending"; error?: string };
 /** on: false, email is off; on: true with an empty list, there was no address to mail. */
 export type MailReport = { on: boolean; mailed: Mailed[] };
 
@@ -38,6 +40,16 @@ const BODY_MAX = 20_000;
 export function fitSubject(subject: string): string {
   const one = subject.replace(/[\r\n]+/g, " ");
   return one.length > SUBJECT_MAX ? `${one.slice(0, SUBJECT_MAX - 1)}…` : one;
+}
+
+/** How long the page that made the links waits for the mail server before it answers anyway: the links are its
+ *  only copy, so they never wait behind a slow server. The sends go on after the answer, within sendMany's own
+ *  budget, and write their outcome to the rows recorded before them. */
+export const MAIL_WAIT_MS = 5_000;
+let waitMs = MAIL_WAIT_MS;
+/** Tests shorten the wait; null puts it back. */
+export function setMailWaitForTests(ms: number | null): void {
+  waitMs = ms ?? MAIL_WAIT_MS;
 }
 
 type Letter = { to: string; subject: string; body: (link: string) => string; path: string };
@@ -97,8 +109,35 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, al
     return { on: true, mailed: [...letters.map((l): Mailed => ({ to: l.to, status: "failed", error: "not sent: the portal could not record it first" })), ...refused] };
   }
 
-  // 2. the sends
+  // 2. the sends and 3. their outcome, waited for at most waitMs; past that the page answers with the links and
+  //    "pending", and the sends finish on their own (they never throw: every failure is caught and logged).
   const base = mailBase();
+  const finished = sendAndRecord(actor, scope, kind, action, load, letters, ids, base).catch((err: unknown) => {
+    console.error(`[mail] ${letters.length} ${kind} message(s): ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), waitMs);
+    timer.unref?.();
+  });
+  const mailed = await Promise.race([finished, late]);
+  clearTimeout(timer);
+  if (mailed) return { on: true, mailed: [...mailed, ...refused] };
+  return { on: true, mailed: [...letters.map((l): Mailed => ({ to: l.to, status: "pending" })), ...refused] };
+}
+
+async function sendAndRecord(
+  actor: Actor | null,
+  scope: Scope,
+  kind: MailKind,
+  action: "portal.accounts" | "event.manage",
+  load: (tx: Parameters<typeof requireEvent>[0]) => ReturnType<Parameters<typeof mutate>[0]["load"]>,
+  letters: Letter[],
+  ids: string[],
+  base: string,
+): Promise<Mailed[]> {
+  const portal = "portal" in scope;
   const results = await sendMany(letters.map((l) => ({ to: l.to, subject: l.subject, text: l.body(base + l.path) })));
   const mailed: Mailed[] = results.map((r, i) => {
     const to = letters[i]!.to;
@@ -135,7 +174,7 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, al
   } catch (err) {
     console.error(`[mail] the outcome of ${letters.length} ${kind} message(s) was not recorded; their rows still say sending: ${err instanceof Error ? err.message : String(err)}`);
   }
-  return { on: true, mailed: [...mailed, ...refused] };
+  return mailed;
 }
 
 const eventName = (eventIdOrSlug: string) => requireEvent(getDb(), eventIdOrSlug).name;

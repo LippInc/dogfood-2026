@@ -38,4 +38,11 @@ describe("mailNote", () => {
     const mixed = mailNote({ on: true, mailed: [{ to: "a@x.test", status: "sent" }, { to: "b@x.test", status: "unknown", error: "Timeout" }] })!;
     expect(mixed).toMatch(/^Mailed 1 of 2\. b@x\.test may have arrived/);
   });
+
+  it("a batch still being sent says so and points at the outbox, without calling anything failed", () => {
+    const note = mailNote({ on: true, mailed: [{ to: "a@x.test", status: "pending" }, { to: "b@x.test", status: "pending" }] })!;
+    expect(note).toMatch(/^Mailing all 2 now/);
+    expect(note).toMatch(/outbox/);
+    expect(note).not.toMatch(/Could not/);
+  });
 });

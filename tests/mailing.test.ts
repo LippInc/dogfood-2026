@@ -13,7 +13,7 @@ import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
 import { setMailTransportForTests } from "@/server/mail";
-import { BLANKED, mailClaimLinks, mailJudgeInvite, mailPasswordReset, mailVoterLinks } from "@/server/dal/mailing";
+import { BLANKED, mailClaimLinks, mailJudgeInvite, mailPasswordReset, mailVoterLinks, setMailWaitForTests } from "@/server/dal/mailing";
 import { listOutbox, listPortalOutbox } from "@/server/dal/outbox";
 import { inviteJudge } from "@/server/dal/judges";
 import { addListedVoters, saveVotingSettings } from "@/server/dal/voting-organizer";
@@ -410,6 +410,42 @@ describe("a bulk send with one bad recipient", () => {
     for (const m of out.mailed.filter((x) => x.to !== bad)) {
       expect(m.status).toBe("sent");
       expect(m.error).toBeUndefined();
+    }
+  });
+});
+
+describe("a slow mail server", () => {
+  it("does not hold the page: past the wait the links come back with pending, and the sends still finish and record their outcome", async () => {
+    const links = voterLinks(["slow1@example.org", "slow2@example.org"]);
+    const delivered: string[] = [];
+    setMailTransportForTests({
+      sendMail: (m: TransportMessage) => new Promise<void>((resolve) => setTimeout(() => resolve(void delivered.push(m.to)), 400)),
+    });
+    setMailWaitForTests(50);
+    try {
+      const started = Date.now();
+      const out = await mailVoterLinks(organizer(), EVENT, links);
+      expect(Date.now() - started).toBeLessThan(350); // answered before the server did
+      expect(out).toEqual({ on: true, mailed: [{ to: "slow1@example.org", status: "pending" }, { to: "slow2@example.org", status: "pending" }] });
+      expect(outboxAll().map((r) => r.status)).toEqual(["sending", "sending"]); // recorded before the answer
+      await vi.waitFor(() => expect(outboxAll().map((r) => r.status)).toEqual(["sent", "sent"]), { timeout: 3000, interval: 50 });
+      expect(delivered.sort()).toEqual(["slow1@example.org", "slow2@example.org"]);
+      const mailed = auditRows().filter((r) => r.action === "mail.sent");
+      expect(mailed.map((r) => r.after)).toEqual([{ kind: "voter_link", sending: 2 }, { kind: "voter_link", sent: 2, failed: 0 }]);
+    } finally {
+      setMailWaitForTests(null);
+    }
+  });
+
+  it("positive control: a server that answers within the wait gives the outcome itself, not pending", async () => {
+    const links = voterLinks(["quick@example.org"]);
+    setMailTransportForTests({ sendMail: (m: TransportMessage) => new Promise<void>((resolve) => setTimeout(() => resolve(void sentByTransport.push(m)), 20)) });
+    setMailWaitForTests(2000);
+    try {
+      const out = await mailVoterLinks(organizer(), EVENT, links);
+      expect(out.mailed).toEqual([{ to: "quick@example.org", status: "sent" }]);
+    } finally {
+      setMailWaitForTests(null);
     }
   });
 });
