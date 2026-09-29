@@ -67,7 +67,7 @@ export function Delivery({ delays }: { delays: readonly number[] }) {
           </text>
         </g>
       ))}
-      <text x={x1} y={H - 2} textAnchor="end" className="fill-ink-3 text-[10px]">
+      <text x={x1} y={H - 4} textAnchor="end" className="fill-ink-3 text-[10px]">
         time since the first try, on a log scale · after try {at.length}, the delivery is marked failed
       </text>
     </svg>
