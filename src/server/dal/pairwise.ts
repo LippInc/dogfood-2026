@@ -549,6 +549,11 @@ export type PairwiseRanking = {
   }[];
 };
 
+/** A project's published pairwise score: its win percentage, or null (not placed) when no judge compared it. */
+export function publishedWinPct(p: { comparisons: number; winPct: number }): number | null {
+  return p.comparisons > 0 ? p.winPct : null;
+}
+
 /** The organizer's pairwise ranking, live: the fit, the two pulls, the flags and every project's receipt. */
 export function getPairwiseRanking(actor: Actor | null, eventIdOrSlug: string): PairwiseRanking {
   const db = getDb();
@@ -707,7 +712,7 @@ export function storePairwiseRun(tx: DbOrTx, event: EventRow, actorId: string, p
   const overall = averageRanks(new Map(compared.map((p) => [p.id, p.winPct])));
   const plain = averageRanks(new Map(compared.map((p) => [p.id, pw.winRate.get(p.id) ?? 0])));
   for (const p of pw.fit.projects) {
-    const has = p.comparisons > 0;
+    const has = publishedWinPct(p) !== null;
     tx.insert(normalizedScores)
       .values({
         runId: id,
@@ -715,7 +720,7 @@ export function storePairwiseRun(tx: DbOrTx, event: EventRow, actorId: string, p
         // judges who compared it: the pairwise counterpart of a project's reviews
         n: pw.judgesPer.get(p.id) ?? 0,
         rawMean: has ? (pw.winRate.get(p.id) ?? null) : null,
-        normalizedMean: has ? p.winPct : null,
+        normalizedMean: publishedWinPct(p),
         se: has ? p.winPctSe : null,
         rankRaw: has ? (plain.get(p.id) ?? null) : null,
         rankNormalized: has ? (overall.get(p.id) ?? null) : null,

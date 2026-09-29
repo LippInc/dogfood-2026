@@ -9,7 +9,7 @@ import { RankLine, SlopeChart } from "@/components/figures/slope-chart";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
 import { formatUtc, plural } from "@/lib/format";
-import { candidatesOf, currentActor, getNormalization, getPairwiseRanking, getPrizeAwards, getTeamChangesAfterClose, judgingModeOf, listRecords, scoreCandidates, type ProjectRow } from "@/server/dal";
+import { currentActor, getNormalization, getPairwiseRanking, getPrizeAwards, getTeamChangesAfterClose, judgingModeOf, listRecords, pairwiseCandidates, scoreCandidates, type ProjectRow } from "@/server/dal";
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
 import { PairwiseResults } from "./pairwise-results";
@@ -86,7 +86,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
     const ranking = guardPage(() => getPairwiseRanking(actor, key));
     const known = ranking.tracks.some((t) => t.trackId === track) ? (track as string) : null;
     const candidates = prizes.length
-      ? candidatesOf(ranking.tracks.map((t) => ({ trackName: t.name, rows: t.rows.map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, score: r.winPct })) })))
+      ? pairwiseCandidates(ranking)
       : [];
     return (
       <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Results")} person={actor.name} role="Organizer">

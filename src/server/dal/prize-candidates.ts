@@ -1,6 +1,7 @@
 import "server-only";
 import { competitionPlaces } from "@/lib/places";
 import { breakTies } from "@/server/judging/tiebreak";
+import { publishedWinPct } from "./pairwise";
 
 /** A project that can win, with its place in its track as the results will publish it (null: not placed). */
 export type PrizeCandidate = { projectId: string; title: string; teamName: string; trackName: string; place: number | null; joint: boolean };
@@ -42,4 +43,13 @@ export function scoreCandidates(n: { projects: { id: string; title: string; team
     })),
     tieFiguresOf(tieBreak),
   );
+}
+
+/**
+ * The pairwise candidates, from the organizer's live ranking: each project scored as publishing stores it
+ * (publishedWinPct), so a project no judge compared is not placed here either and the places below it match the
+ * published ones.
+ */
+export function pairwiseCandidates(ranking: { tracks: { name: string; rows: { projectId: string; title: string; teamName: string; winPct: number; comparisons: number }[] }[] }): PrizeCandidate[] {
+  return candidatesOf(ranking.tracks.map((t) => ({ trackName: t.name, rows: t.rows.map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, score: publishedWinPct(r) })) })));
 }
