@@ -98,7 +98,7 @@ export const KEPT: KeptFact[] = [
     removedBy: "the portal, by itself",
   },
   {
-    what: "Mail the portal sent: address, subject, body with its private link blanked (an update's public link is kept; nothing while email is off)",
+    what: "Mail the portal sent: address, subject, body with its private link blanked (an update's public link and a judge reminder's console link, which needs the judge's sign-in, are kept; nothing while email is off)",
     where: "`outbox`",
     kept: "until the operator purges it (older than 90 days by default)",
     removedBy: "`scripts/purge.mjs`",
