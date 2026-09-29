@@ -429,6 +429,15 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" will publish "), project(target), t(` with fewer than two reviews: ${quote(after.reason)}`)];
     case "project.accept_under_reviewed_undo":
       return [actor, t(" undid publishing "), project(target), t(" as it is")];
+    case "results.close_call": {
+      const track = quote(after.track ?? n.track.get(target) ?? target);
+      if (after.mode === "judges") {
+        return [actor, t(` recorded the judges' decision on the close call in ${track}: `), project(after.winnerId), t(` wins, ${quote(after.reason)}`)];
+      }
+      return [actor, t(` kept the ranking's winner on the close call in ${track}`)];
+    }
+    case "results.close_call_undo":
+      return [actor, t(` undid the choice on the close call in ${quote(before.track ?? n.track.get(target) ?? target)}`)];
     case "results.publish":
       return [
         actor,

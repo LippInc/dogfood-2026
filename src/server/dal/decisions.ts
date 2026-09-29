@@ -13,6 +13,7 @@ import { finishedReviews, judgeSet, submittedProjects, type ProjectInfo } from "
 import { computePairwise, judgingModeOf, pairwiseDecisions, type CoinFlipDecision, type PairwiseComputed } from "./pairwise";
 import { parse } from "./parse";
 import { computeNormalization, type Normalized } from "./normalization";
+import { closeCallsOf, settled, type TrackCloseCall } from "./close-calls";
 import { countBeforeChange, recordCountChange } from "./voting-organizer";
 
 // The decisions that stand between an event's scores and published results, and the
@@ -63,7 +64,12 @@ export type Decision =
       /** set in pairwise mode, where n counts the judges who compared it */
       mode?: "pairwise";
     }
-  | CoinFlipDecision;
+  | CoinFlipDecision
+  | ({
+      kind: "close_call";
+      key: string;
+      resolved: "kept" | "judges" | null;
+    } & TrackCloseCall);
 
 export function decisions(db: DbOrTx, event: EventRow, now = computeNormalization(db, event)): Decision[] {
   const out: Decision[] = [];
@@ -158,6 +164,13 @@ export function decisions(db: DbOrTx, event: EventRow, now = computeNormalizatio
       waiting: pending.filter((a) => a.projectId === p.id).length,
       resolved: accepted.has(p.id) ? "accepted" : null,
     });
+  }
+
+  // A track too close to call, on scores that carry a signal, is a decision; so is a judges'
+  // decision recorded anywhere (it changes a first place). Scores without a signal only advise.
+  for (const c of closeCallsOf(db, event, now)) {
+    if (!c.required && c.choice?.mode !== "judges") continue;
+    out.push({ ...c, kind: "close_call", key: `close:${c.trackId}`, resolved: settled(c) ? (c.choice!.mode === "keep" ? "kept" : "judges") : null });
   }
   return out;
 }

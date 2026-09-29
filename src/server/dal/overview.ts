@@ -74,7 +74,7 @@ function publishedUnsettled(db: Db, event: EventRow): Unsettled | null {
   return (run?.params as { unsettled?: Unsettled } | undefined)?.unsettled ?? null;
 }
 
-const STAGE_OF: Record<Decision["kind"], string> = { duplicate: "04", under_reviewed: "06", flat_judge: "07", coin_flip_judge: "07" };
+const STAGE_OF: Record<Decision["kind"], string> = { duplicate: "04", under_reviewed: "06", flat_judge: "07", coin_flip_judge: "07", close_call: "07" };
 
 /**
  * Where an event stands: its decisions and its ten stages, from one run of each engine
@@ -262,6 +262,8 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       "project.not_duplicate_undo",
       "project.accept_under_reviewed",
       "project.accept_under_reviewed_undo",
+      "results.close_call",
+      "results.close_call_undo",
       "assignment.run",
       "assignment.by_hand",
       "assignment.remove",

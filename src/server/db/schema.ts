@@ -141,6 +141,8 @@ export type EventSettings = {
    * with it: the events_prize_awards_final trigger refuses a change once the results are published.
    */
   prizeAwards?: PrizeAward[];
+  /** The organizer's choice on each track whose top was too close to call from the scores (JUDGING.md, "Close calls"); absent until one is made. */
+  closeCalls?: CloseCallChoice[];
 };
 
 /** One change of the tie-break after judging began: when, why, and the criterion before and after (null: joint places). */
@@ -148,6 +150,12 @@ export type TieBreakChange = { at: string; reason: string; before: { id: string;
 
 /** One prize given to one or more projects (more than one: a joint award), with the organizer's optional note. */
 export type PrizeAward = { prizeId: string; projectIds: string[]; note: string; at: string };
+/**
+ * One track's close call, settled before publishing: keep the ranking's winner, or the judges'
+ * decision naming another of the close projects, with its reason. `top` is the ranking's first
+ * place when the choice was made; a choice stops counting when the scores move away from it.
+ */
+export type CloseCallChoice = { trackId: string; mode: "keep" | "judges"; top: string[]; winnerId?: string; reason?: string; at: string };
 
 /** Who may vote and how many favourites each: the community vote's counting rules. */
 export type VoteRules = { modes: ("account" | "listed" | "link")[]; votesPerVoter: number };

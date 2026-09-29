@@ -1,10 +1,16 @@
 /**
+/**
  * Competition-style places for rows sorted best first: tied projects share the first place of their group. A row may
  * carry `tie`, its figure on the event's tie-break criterion (src/server/judging/tiebreak.ts), set only on rows whose
  * score is exactly tied with another's: among those, a higher figure places first, and only rows tied on both share
- * a place. With no row carrying a figure, the places are exactly the scores' own.
+ * a place. With no row carrying a figure, the places are exactly the scores' own. A first row marked `decided` (the
+ * judges' decision on a close call named it the winner) is 1st alone, whatever its score, and the rest are placed by
+ * the same rule from 2nd on.
  */
-export function competitionPlaces(rows: { score: number | null; tie?: number | null }[]): { place: number | null; joint: boolean }[] {
+export function competitionPlaces(rows: { score: number | null; tie?: number | null; decided?: boolean }[]): { place: number | null; joint: boolean }[] {
+  if (rows[0]?.decided) {
+    return [{ place: 1, joint: false }, ...competitionPlaces(rows.slice(1)).map((p) => (p.place === null ? p : { ...p, place: p.place + 1 }))];
+  }
   if (rows.some((r) => typeof r.tie === "number")) return tieBrokenPlaces(rows);
   return rows.map((r, i) => {
     if (r.score === null) return { place: null, joint: false };

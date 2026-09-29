@@ -113,9 +113,29 @@ organizer's **Results** then shows each project's win % with its ±, the chance 
 receipt. Switch back to Scores (with a reason) before publishing: the scored ranking comes back unchanged, and the
 judge's record will count the answers given.
 
+## Close calls and the judges' decision
+
+The rule and its numbers are in [`JUDGING.md`](../JUDGING.md), "Close calls and the judges' decision"; this is what
+each person sees.
+
+- **The organizer's Results page** lists every track whose first place is too close to call from the scores, with
+  each close project's chance of really being first ("Too close to call from the scores: A 52 %, B 31 %, C 11 %").
+- **When the scores carry a signal,** such a track is also a decision on the Overview, and publishing waits for it:
+  **Keep the ranking's winner** settles it with one click; **Record the judges' decision…** names another of the
+  close projects, with the judges' reason (required). Either can be undone until publishing.
+- **When they carry none** (the signal check's share above 0.05, as on the sample event), the Results page only
+  advises: the ranking's winner stands unless the organizer records the judges' decision, which then shows on the
+  Overview as a decision made.
+- **Everyone, after publishing:** the judges' winner is first in its track, marked "Winner by the judges' decision"
+  with their reason, the close projects' chances and the order by score alone; every score is shown unchanged. The
+  project pages and the certificates follow the published places.
+- **API:** `GET /api/events/{event}/close-calls`, `PUT` and `DELETE /api/events/{event}/close-calls/{track}`
+  (organizers). A choice travels in the event's `fixtures.json` (`decisions.close_calls`) and a published decision
+  with its run.
+
 ## Results and exports
 
-Publishing is locked until every decision is made; it stores the exact normalization run it publishes, and the
+Publishing is locked until every decision is made (a close call on scores with a signal included); it stores the exact normalization run it publishes, and the
 database refuses to withdraw it or swap it for another run. The public results page shows every project in each
 track with its score and ±, and the audit entry the results were published as, with its hash. A second public page,
 `/events/{event}/results/overall`, linked from the first and hidden exactly as long, puts every ranked project in one

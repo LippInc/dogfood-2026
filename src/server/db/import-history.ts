@@ -136,6 +136,11 @@ export const HistoryFields = {
         .max(HISTORY_LIMITS.decisions, atMost(HISTORY_LIMITS.decisions, "track moves"))
         .optional()
         .default([]),
+      close_calls: z
+        .array(z.object({ track: id, mode: z.enum(["keep", "judges"]), top: z.array(id).max(2_000), winner: id.optional(), reason: reason.optional(), at: dateTime }))
+        .max(HISTORY_LIMITS.decisions, atMost(HISTORY_LIMITS.decisions, "close calls"))
+        .optional()
+        .default([]),
       vote_count_changes: z
         .array(
           z.looseObject({
@@ -367,6 +372,15 @@ export function refuseHistoryForExistingEvent(
       // a prize an earlier import renamed (another event held its id) is held under '<id>.<event id>'
       d?.prize_awards.map((a) => ({ prize: awardedPrizes.has(renamed(a.prize)) ? renamed(a.prize) : a.prize, projects: a.projects.map(own), note: a.note, at: a.at })),
       s.prizeAwards?.map((a) => ({ prize: a.prizeId, projects: a.projectIds, note: a.note, at: a.at })),
+      d?.close_calls.map((c) => ({
+        trackId: trackOf.get(c.track) ?? c.track,
+        mode: c.mode,
+        top: c.top.map(own),
+        ...(c.winner ? { winnerId: own(c.winner) } : {}),
+        ...(c.reason !== undefined ? { reason: c.reason } : {}),
+        at: c.at,
+      })),
+      s.closeCalls,
     ),
     inList(
       d?.track_moves.map((m) => ({ project: own(m.project), from: trackOf.get(m.from) ?? m.from, to: trackOf.get(m.to) ?? m.to, reason: m.reason, at: m.at })),
@@ -571,6 +585,21 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
     if (d.tie_break_changes.length) next.tieBreakChanges = d.tie_break_changes as EventSettings["tieBreakChanges"];
     if (d.vote_rule_changes.length) next.voteRuleChanges = d.vote_rule_changes as EventSettings["voteRuleChanges"];
     if (d.vote_count_changes.length) next.voteCountChanges = remapIds(d.vote_count_changes, ctx.projectOf) as EventSettings["voteCountChanges"];
+    // close calls settled before publishing, each on its own track; one that names a project or track not here stays behind
+    const closeCalls = d.close_calls.flatMap((c) => {
+      const track = ctx.trackOf.get(c.track);
+      const winner = c.winner ? projectHere(c.winner) : null;
+      if (!track || (c.winner && !winner)) {
+        ctx.skip("decision", `close_call:${c.track}`, !track ? `unknown track ${c.track}` : `unknown project ${c.winner}`);
+        return [];
+      }
+      const top = c.top.flatMap((p) => {
+        const here = projectHere(p);
+        return here ? [here] : [];
+      });
+      return [{ trackId: track, mode: c.mode, top, ...(winner ? { winnerId: winner } : {}), ...(c.reason !== undefined ? { reason: c.reason } : {}), at: c.at }];
+    });
+    if (closeCalls.length) next.closeCalls = closeCalls.sort((a, b) => (a.trackId < b.trackId ? -1 : 1));
     // track moves live in the audit log: this import's row carries them (db/track-moves.ts reads them there)
     const moves = d.track_moves.flatMap((m) => {
       const project = projectHere(m.project);
@@ -594,7 +623,7 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
       return [{ prizeId: prize, projectIds: winners as string[], note: a.note, at: a.at }];
     });
     if (awards.length) next.prizeAwards = awards;
-    const added = pairs.length + accepted.length + d.weight_changes.length + d.tie_break_changes.length + d.vote_rule_changes.length + d.vote_count_changes.length + awards.length;
+    const added = pairs.length + accepted.length + d.weight_changes.length + d.tie_break_changes.length + d.vote_rule_changes.length + d.vote_count_changes.length + awards.length + closeCalls.length;
     if (added) {
       tx.update(events).set({ settings: next }).where(eq(events.id, eventId)).run();
       out.decisions.push(...pairs.map((p) => `not_duplicate:${p}`), ...accepted.map((p) => `accepted_under_reviewed:${p}`));
@@ -603,6 +632,7 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
       if (d.vote_rule_changes.length) out.decisions.push(`vote_rule_changes:${d.vote_rule_changes.length}`);
       if (d.vote_count_changes.length) out.decisions.push(`vote_count_changes:${d.vote_count_changes.length}`);
       if (awards.length) out.decisions.push(`prize_awards:${awards.length}`);
+      out.decisions.push(...closeCalls.map((c) => `close_call:${c.trackId}`));
     }
   }
 

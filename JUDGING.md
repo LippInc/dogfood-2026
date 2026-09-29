@@ -264,6 +264,37 @@ Pairwise mode has no criteria, so the setting does not apply there. Setting one 
 
 It never names a judge or shows a judge's own figure, beyond the size of the largest correction; `tests/results-evidence.test.ts` holds it to that. The same numbers are the `evidence` field of `GET /api/events/{event}/results`.
 
+## Close calls and the judges' decision
+
+Scores this close often cannot name a winner, and real hackathons settle that by the judges deliberating. The portal says when a track's first place is too close to call and lets the organizer record what the judges decided.
+
+**The rule.** For each track, each ranked project's chance of really being first, P(first), is read from the engine's own score and ± (one standard error, as the results show it):
+
+- 4,000 draws, each giving every project of the track its score plus its ± times a standard normal number; P(first) is the share of draws in which the project comes out on top.
+- The draws come from one fixed seed (20260929) with the portal's one seeded generator, per track and in order of project id, so the same scores always give the same chances, on any machine, and one track's chances never depend on another track's projects (`src/server/judging/decision.ts`).
+- A track's top is **too close to call** when the ranking's top project comes out first in fewer than 95 % of the draws (3,800 of 4,000). An exact tie at the top is always too close to call.
+- **The close projects** are the fewest projects, highest chance first, that come out first in 95 % of the draws together. The judges' decision may name any of them.
+- A project without a ± (the engine could not measure its noise) makes the check stop for its track: a missing ± would read as certainty, so no call is made either way.
+- Nothing here changes a score or the score order. Pairwise events have no ± of this kind and no close calls.
+
+**Its validation** (the engine experiment of 2026-09-29; its verifier runs on the same simulation as `tests/normalization-mc.test.ts`, 1,000 runs per visible scenario and 500 per sealed one, and is not part of this repository's tests; SINGLE-SOURCE):
+
+- On simulated events with no real differences between projects, the rule named a winner in 0.13 % of 4,000 track-runs.
+- When it named a winner, that project was the true best 99.2 % of the time (7,313 winners named across the three leniency scenarios), and 97.5 % to 99.8 % in every scenario, the sealed ones included. The noisy-judges scenario is the low end.
+- It named a winner in 20 % (noisy judges) to 63 % (no bias) of track-runs where the projects really differ: the price of the 95 % line is many honest "too close to call" answers.
+- It changes no ranking, and its chances are the same P(first) as the verifier's baseline, so it is no better calibrated than the ±; only the 95 % line is validated. The chances below that line are shown as the scores' own reading, not as odds.
+- The verifier drew for the whole event from one stream; the portal draws per track from the same seed. The rule is the same; the two differ only by the draws' own noise (about 0.3 percentage points at 95 %).
+- `tests/close-calls.test.ts` holds the module to determinism (the same rows in any order give the same chances), a clear winner as the positive control, and a known-bad: a flat field (equal scores, equal ±) must not name a winner, while the same field read without its ± would.
+
+**When it is a decision.** The organizer's Results page shows every track that is too close to call, with each close project's chance, for example "Too close to call from the scores: Slow Trail 65 %, Salt Ferry 13 %, Flat Relay 10 %, Loud Ledger 8 %". Whether it must be settled before publishing depends on the signal check:
+
+- **Scores with a signal** (permutation share at or below 0.05, the line the Results page draws): a track too close to call is a decision on the Overview, like the others, and publishing is refused (409 `decisions_open`) until it is settled. "Keep the ranking's winner" settles it with one click; or the organizer records the judges' decision, naming another of the close projects, with a written reason.
+- **Scores without a signal** (share above 0.05): the scores cannot tell the projects apart anyway, so the close call only advises. The ranking's winner stands unless the organizer records the judges' decision, which is then listed on the Overview as a decision made.
+- This keeps the sample event, the README tour, the acceptance suite and the hand checks as they were: every one of its tracks is too close to call (the ranking's top at 25 % to 65 % after the tour's three decisions), but its signal check finds no signal (share 0.73 after them, 0.76 before), so nothing is added to its decisions.
+- Each choice is one audited action (`results.close_call`, with the chances it was made on; undo is `results.close_call_undo`) and can be undone until publishing. A choice stops counting when the scores move away from it (the ranking's first place changes, the named project leaves the close projects, or the track becomes clear); it is then an open decision again, and the page says why.
+
+**Publishing with a judges' decision.** The judges' winner is placed first in its track, the others keep their score order and are placed from 2nd on; every other track is untouched. The run stores the decision (winner, reason, when, the score order's first place and the close projects' chances), and the public results, the project pages and the certificates read it from there: the track says "Winner by the judges' decision" with the reason, the chances and the order by score alone, and every score is shown unchanged. The run is append-only, so the decision is frozen with it. A run without a judges' decision stores nothing new, so its results, exports and certificates are what they were before close calls existed (tested byte for byte on the keys).
+
 ## Validation
 
 This section is the evidence for normalization: the Monte Carlo against the raw mean, the assertions the test holds it to, and the check of the ±.
@@ -508,7 +539,7 @@ In its own file, `THREAT-MODEL.md`: Sybil votes, ballot stuffing, submission scr
 
 ## What it does not do
 
-- **No calibrated prize probabilities or rank intervals:** each score carries a ± of one standard error, and the portal does not turn it into rank intervals or prize odds. A method that produced them was tried in planning and cut: on simulated events with no real differences it named a 50 %+ favourite in 46 of 80 tracks (planning simulation of 2026-09-24, not re-run in this repository).
+- **No calibrated prize probabilities or rank intervals:** each score carries a ± of one standard error, and the portal does not turn it into rank intervals. The one reading it makes of the ± is each project's chance of being first, for close calls, where only the 95 % line is validated; below it the chances are the scores' own reading, not calibrated odds, and on scores without a signal the page says the scores cannot tell the projects apart. A method that produced calibrated odds was tried in planning and cut: on simulated events with no real differences it named a 50 %+ favourite in 46 of 80 tracks (planning simulation of 2026-09-24, not re-run in this repository).
 - **Places are decided within a track;** the overall ranking (the public page `/events/{event}/results/overall` in scores mode, the organizer's table, and the table above) is a convenience view, since tracks compare only through judges who score in both, so read the order across tracks loosely.
 - **With few reviews per judge the engine corrects little,** by design.
 - **No automatic cross-track assignment.**

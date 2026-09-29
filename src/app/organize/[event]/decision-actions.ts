@@ -11,7 +11,9 @@ import {
   revokeJudgeOverride,
   runAssignment,
   setJudgeOverride,
+  settleCloseCall,
   undoAcceptUnderReviewed,
+  undoCloseCall,
   undoNotDuplicate,
   unmergeDuplicate,
   type ActionResult,
@@ -114,4 +116,25 @@ export async function publishAction(_prev: ActionResult, form: FormData): Promis
   if (form.get("confirm") !== "yes") return { ok: false, message: "Tick the box to confirm." };
   const reason = form.get("reason");
   return settle(form, (slug) => publishResults(actor, slug, typeof reason === "string" && reason.trim() ? { reason } : {}), "Published.");
+}
+
+export async function keepRankingAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  return settle(form, (slug) => settleCloseCall(actor, slug, String(form.get("track") ?? ""), { mode: "keep" }), "Recorded: the ranking's winner stands.");
+}
+
+export async function judgesDecisionAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  const winner = form.get("winner");
+  if (typeof winner !== "string" || !winner) return { ok: false, message: "Choose the project the judges named." };
+  return settle(
+    form,
+    (slug) => settleCloseCall(actor, slug, String(form.get("track") ?? ""), { mode: "judges", winnerId: winner, reason: form.get("reason") ?? "" }),
+    "Recorded: the judges' decision names this track's winner.",
+  );
+}
+
+export async function undoCloseCallAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  return settle(form, (slug) => undoCloseCall(actor, slug, String(form.get("track") ?? "")), "Undone. The close call is open again.");
 }

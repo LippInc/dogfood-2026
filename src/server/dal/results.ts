@@ -22,6 +22,8 @@ import { computePairwise, judgingModeOf, PAIRWISE_METHOD, pullShare, storePairwi
 import { parse } from "./parse";
 import { METHOD, METHOD_LABEL, type ProjectRow, type Normalized, computeNormalization } from "./normalization";
 import { decisions, eventDecisions, notPublished } from "./decisions";
+import { appliedDecisions, closeCallsOf, type AppliedDecision } from "./close-calls";
+import { withDecidedWinner } from "../judging/decision";
 import { shownTitle } from "./project-fields";
 import { projectTrackMoves, type PublishedTrackMove } from "./corrections";
 import { organizerChangesAfterCloseByProject } from "./teams";
@@ -103,6 +105,8 @@ export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
     normalization: now,
     published: publishedCheck(db, event, now),
     decisions: decisions(db, event, now),
+    /** every track whose top is too close to call, or that holds a close-call choice: advisory ones too */
+    closeCalls: closeCallsOf(db, event, now).filter((c) => !c.callable || c.choice),
     notes: privateNotes(db, event.id, now.projects),
     crossCheck: judgingModeOf(event) === "scores" ? crossCheck(db, event, now.projects) : null,
     /** the event's tie-break over the live ranking, only when one is set (never in pairwise mode), so the answer is as before without one */
@@ -175,7 +179,7 @@ function crossCheck(db: DbOrTx, event: EventRow, rows: ProjectRow[]): CrossCheck
 // Publishing
 // ---------------------------------------------------------------------------
 
-function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: string, tie: TieBreakView | null): string {
+function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: string, tie: TieBreakView | null, judgesDecisions: AppliedDecision[] = []): string {
   const set = judgeSet(tx, event.id);
   const id = newId("nrm");
   tx.insert(normalizationRuns)
@@ -209,6 +213,8 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
           // a merged copy has no normalized_scores row: its own counts go here
           ...(p.duplicateOf ? { n: p.n, rawAll: p.rawAll } : {}),
         })),
+        // the judges' decisions on close calls this run publishes; absent when there is none, so such a run is what it always was
+        ...(judgesDecisions.length ? { judgesDecisions } : {}),
       },
       computedAt: at,
       computedBy: actor.userId,
@@ -301,7 +307,8 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string, body:
       throw new ConflictError("decisions_open", `${open.length} ${open.length === 1 ? "decision is" : "decisions are"} still open. Settle ${open.length === 1 ? "it" : "them"} before publishing.`);
     }
     const tie = tieBreakOf(tx, event, n);
-    const runId = storeRun(tx, event, actor!, n, at, tie);
+    const applied = appliedDecisions(closeCallsOf(tx, event, n));
+    const runId = storeRun(tx, event, actor!, n, at, tie, applied);
     const vote = endVoteForPublish(tx, event, at);
     tx.update(events)
       .set({ resultsPublishedAt: at, settings: { ...event.settings, publishedRunId: runId } })
@@ -322,6 +329,7 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string, body:
           ranked: n.ranked,
           excluded: n.excluded,
           ...(tie ? { tieBreak: auditedTieBreak(tie) } : {}),
+          ...(applied.length ? { judgesDecisions: applied.map((d) => ({ trackId: d.trackId, winnerId: d.winnerId })) } : {}),
           ...(vote ? { voteEnded: vote.ended, voting: vote.after } : {}),
         },
       },
@@ -398,9 +406,24 @@ export type PublishedResults =
           tie?: number | null;
           /** with a tie-break only: the criterion split this project's exact score tie */
           tieBroken?: boolean;
+          /** set only on a track's first row when the judges' decision named it the winner */
+          decided?: true;
         }[];
+        /** set only when the judges' decision named this track's winner on a close call: their reason, the score order and the close projects' chances */
+        decision?: PublishedDecision;
       }[];
     };
+
+/** A judges' decision as the published results show it. */
+export type PublishedDecision = {
+  winnerId: string;
+  reason: string;
+  at: string;
+  /** the track's projects by score alone, best first */
+  scoreOrder: string[];
+  /** the close projects and their chances of being first by the scores, highest first */
+  close: { id: string; title: string; p: number }[];
+};
 
 /** A pull the pairwise fit measured and corrected for, as the share of wins it gives between two equal projects; null until it is measured. */
 type Pull = { share: number; pm: number } | null;
@@ -539,6 +562,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     .orderBy(asc(tracks.position), desc(normalizedScores.normalizedMean))
     .all();
   const teamChanges = organizerChangesAfterCloseByProject(db, event);
+  const judgesDecisions = (run.params as { judgesDecisions?: AppliedDecision[] }).judgesDecisions ?? [];
   const byTrack = new Map<string, { id: string; name: string; rows: typeof rows }>();
   for (const r of rows) {
     const t = byTrack.get(r.trackId) ?? { id: r.trackId, name: r.trackName, rows: [] };
@@ -569,33 +593,70 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     ...(event.settings.tieBreakChanges?.length ? { tieBreakChanges: event.settings.tieBreakChanges } : {}),
     evidence: evidenceOf(run.method, run.params as Record<string, unknown>, [...byTrack.values()]),
     tracks: [...byTrack.values()].map((t) => {
-      const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
-      const row = (r: (typeof t.rows)[number]) => ({
-        projectId: r.projectId,
-        title: r.title,
-        teamName: r.teamName,
-        n: r.n,
-        score: r.score,
-        se: r.se,
-        raw: r.raw,
-        place: places.get(r.projectId) ?? null,
-        rankOverall: r.rankOverall,
-        teamChangedAt: teamChanges.get(r.projectId)?.at ?? null,
-      });
-      if (!tie) return { id: t.id, name: t.name, rows: t.rows.map(row) };
-      // the tie-break stage: exact score ties ordered by the stored figures; a tied group's average place then counts
-      // only the projects still tied on the criterion too
-      const broken = breakTies(t.rows, new Map(tie.figures.map((f) => [f.id, f.figure])));
-      const placed = competitionPlaces(broken);
-      return {
-        id: t.id,
-        name: t.name,
-        rows: broken.map((r, i) => {
-          const p = placed[i]!;
-          const alike = r.tie === null ? 1 : broken.filter((x) => x.tie !== null && x.score !== null && r.score !== null && Math.abs(x.score - r.score) <= 1e-9 && Math.abs(x.tie - r.tie!) <= 1e-9).length;
-          return { ...row(r), place: r.tie === null ? (places.get(r.projectId) ?? null) : p.place! + (alike - 1) / 2, tie: r.tie, tieBroken: r.tieBroken };
-        }),
-      };
+      // the published order: the engine's scores, then the tie-break among exact ties, then the judges' decision last
+      const decided = judgesDecisions.find((d) => d.trackId === t.id && t.rows.some((r) => r.projectId === d.winnerId));
+      if (decided) return decidedTrack(t, decided, tie, teamChanges);
+      return { id: t.id, name: t.name, rows: placedRows(t.rows, tie, teamChanges) };
     }),
+  };
+}
+
+type StoredRow = { projectId: string; title: string; teamName: string; n: number; score: number | null; se: number | null; raw: number | null; rankOverall: number | null };
+type PublishedTrack = Extract<PublishedResults, { published: true }>["tracks"][number];
+type PublishedRow = PublishedTrack["rows"][number];
+
+/** One published row with its place, before any tie-break or decision. */
+function publishedRow(r: StoredRow, place: number | null, teamChanges: Map<string, { at: string }>): PublishedRow {
+  return {
+    projectId: r.projectId,
+    title: r.title,
+    teamName: r.teamName,
+    n: r.n,
+    score: r.score,
+    se: r.se,
+    raw: r.raw,
+    place,
+    rankOverall: r.rankOverall,
+    teamChangedAt: teamChanges.get(r.projectId)?.at ?? null,
+  };
+}
+
+/**
+ * Rows in score order, placed by score (ties sharing their average place), then by the event's tie-break when the run
+ * stored one: exact score ties ordered by the stored figures; a tied group's average place then counts only the
+ * projects still tied on the criterion too.
+ */
+function placedRows(rows: StoredRow[], tie: StoredTieBreak | null, teamChanges: Map<string, { at: string }>): PublishedRow[] {
+  const places = averageRanks(new Map(rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
+  if (!tie) return rows.map((r) => publishedRow(r, places.get(r.projectId) ?? null, teamChanges));
+  const broken = breakTies(rows, new Map(tie.figures.map((f) => [f.id, f.figure])));
+  const placed = competitionPlaces(broken);
+  return broken.map((r, i) => {
+    const p = placed[i]!;
+    const alike = r.tie === null ? 1 : broken.filter((x) => x.tie !== null && x.score !== null && r.score !== null && Math.abs(x.score - r.score) <= 1e-9 && Math.abs(x.tie - r.tie!) <= 1e-9).length;
+    return { ...publishedRow(r, r.tie === null ? (places.get(r.projectId) ?? null) : p.place! + (alike - 1) / 2, teamChanges), tie: r.tie, tieBroken: r.tieBroken };
+  });
+}
+
+/**
+ * A track whose close call the judges decided: their winner first, the rest below it in the order the scores and the
+ * tie-break give them, placed 2nd on (ties among them share a place as everywhere). The score order stays on the record.
+ */
+function decidedTrack(t: { id: string; name: string; rows: StoredRow[] }, d: AppliedDecision, tie: StoredTieBreak | null, teamChanges: Map<string, { at: string }>): PublishedTrack {
+  const ordered = withDecidedWinner(t.rows, d.winnerId);
+  const rest = placedRows(ordered.slice(1), tie, teamChanges).map((r) => ({ ...r, place: r.place === null ? null : r.place + 1 }));
+  const title = new Map(t.rows.map((r) => [r.projectId, r.title]));
+  const winner: PublishedRow = { ...publishedRow(ordered[0]!, 1, teamChanges), ...(tie ? { tie: null, tieBroken: false } : {}), decided: true };
+  return {
+    id: t.id,
+    name: t.name,
+    rows: [winner, ...rest],
+    decision: {
+      winnerId: d.winnerId,
+      reason: d.reason,
+      at: d.at,
+      scoreOrder: t.rows.map((r) => r.projectId),
+      close: d.close.map((c) => ({ id: c.id, title: title.get(c.id) ?? c.id, p: c.p })),
+    },
   };
 }

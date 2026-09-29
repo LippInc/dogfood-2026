@@ -172,7 +172,9 @@ export default async function OverviewPage({
           ? d.copies.map((c) => c.id)
           : d.kind === "coin_flip_judge"
             ? []
-            : [d.projectId],
+            : d.kind === "close_call"
+              ? d.close
+              : [d.projectId],
     ),
   );
   const faces = Object.fromEntries(

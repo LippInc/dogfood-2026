@@ -12,7 +12,7 @@ import { PublicShell } from "@/components/shell/public-shell";
 import { YardstickLine } from "@/components/yardstick-line";
 import { movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
 import { formatUtc, plural } from "@/lib/format";
-import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, publishedPrizes, type Gallery } from "@/server/dal";
+import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, publishedPrizes, type Gallery, type PublishedDecision } from "@/server/dal";
 import { PrizeWinners } from "@/components/results/prize-winners";
 import { competitionPlaces, ordinal, tieBreakMethod, tieBrokenWords, tieDecided } from "@/lib/places";
 
@@ -225,6 +225,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                         {tieDecided(w.first, { place: 1, joint: w.joint.length > 0 }) && results.published && results.tieBreak ? (
                           <span className="mt-2 block text-13 text-ink-2">{tieBrokenWords(results.tieBreak.criterion)}</span>
                         ) : null}
+                        {w.track.decision ? <span className="mt-2 block text-13 text-ink-2">Winner by the judges&rsquo; decision</span> : null}
                       </a>
                     </li>
                   ))}
@@ -276,6 +277,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </h2>
                   <span className="label-mono ml-auto text-ink-3">{plural(t.rows.length, "project")}</span>
                 </div>
+                {t.decision ? <JudgesDecision decision={t.decision} titles={new Map(t.rows.map((r) => [r.projectId, r.title]))} /> : null}
                 <div className={`${ROW} pt-3`} aria-hidden="true">
                   <span className="col-start-2 col-span-2 max-md:pr-3 md:col-start-4 md:col-span-1">
                     <ScaleAxis scale={scale} />
@@ -302,6 +304,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           <Link href={`/events/${event.slug}/projects/${r.projectId}`} className="block truncate text-17 font-semibold hover:underline">
                             {r.title}
                           </Link>
+                          {r.decided ? <span className="block text-13 font-medium text-accent-ink">Winner by the judges&rsquo; decision</span> : null}
                           <span className="block truncate text-14 text-ink-2">
                             {r.teamName}
                             {/* the track's heading already says where; the place in words stays for screen readers */}
@@ -465,5 +468,21 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
         </section>
       )}
     </PublicShell>
+  );
+}
+
+/** A close call the judges decided: who they named, their reason, and the order the scores alone give. */
+function JudgesDecision({ decision, titles }: { decision: PublishedDecision; titles: Map<string, string> }) {
+  const pct = (p: number) => (p > 0 && p < 0.005 ? "under 1 %" : p < 1 && p >= 0.995 ? "over 99 %" : `${Math.round(p * 100)} %`);
+  return (
+    <div className="mt-3 border-l-[3px] border-accent bg-accent-tint px-4 py-3 text-14 leading-6 wrap-anywhere">
+      <p>
+        <strong>Winner by the judges&rsquo; decision: {titles.get(decision.winnerId) ?? decision.winnerId}.</strong> Their reason: &ldquo;{decision.reason}&rdquo;
+      </p>
+      <p className="mt-1 text-13 text-ink-2">
+        The scores were too close to call: each project&rsquo;s chance of really being first was {decision.close.map((c) => `${c.title} ${pct(c.p)}`).join(", ")}. By
+        score alone the order is {decision.scoreOrder.map((id) => titles.get(id) ?? id).join(", ")}; the scores below are unchanged.
+      </p>
+    </div>
   );
 }

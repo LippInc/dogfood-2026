@@ -166,6 +166,9 @@ Each item in full, with its rules: [`docs/FEATURES.md`](docs/FEATURES.md).
   the judges who have not started in a view of their own with their reminders (to copy, or mailed with email on), the decisions that must be made
   before results go out, leniency correction with receipts and a judge ledger.
 - **Pairwise judging (optional):** "which is better?" instead of scores, ranked by a Bradley-Terry fit.
+- **Close calls:** a track whose first place the scores cannot name at 95 % says so, with each close project's chance
+  of being first; the organizer keeps the ranking's winner or records the judges' decision with a reason, shown on
+  the public results beside the score order.
 - **Results and exports:** publishing locked until every decision is made; public places per track, and every
   project in one order by score across tracks; exact score ties within a track joint, or broken by a rubric criterion
   the organizer chooses (said wherever it decides a place); CSV (scores, projects, assignments, ranking, pairwise
@@ -276,8 +279,9 @@ webhook deliveries and the voters' address hashes are yours to clear with `scrip
 - **Signed records cannot be revoked,** and the signing key cannot be rotated from the interface (a new
   `DOGFOOD_SEED_SECRET` makes the next start use a new one); a record keeps what was true when it was issued.
 - **No calibrated prize probabilities or rank intervals:** normalized ranks compare within a track, and close scores
-  should be read as ties. Pairwise mode gives each place its chance of being ahead of the next one, not a full
-  interval.
+  should be read as ties. A close call shows each close project's chance of being first, where only the 95 % line
+  is validated (JUDGING.md, "Close calls"). Pairwise mode gives each place its chance of being ahead of the next one,
+  not a full interval, and has no close calls.
 - **Tactical pairwise answers.** Pairwise mode flags a judge who answers like a coin flip, but not one who calls "too close to call" whenever a
   favourite would lose (flagged in 14 of 120 simulated panels; the ties bought the favourite 0.258 places on
   average, at most 3; `THREAT-MODEL.md`, "Tactical pairwise answers").

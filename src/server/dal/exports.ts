@@ -772,6 +772,9 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
     .all()
     .filter((o) => judgeIds.has(o.judgeUserId));
   const moves = readTrackMoves(db, event.id).filter((m) => submitted.has(m.projectId));
+  const closeCalls = (s.closeCalls ?? [])
+    .filter((c) => !c.winnerId || submitted.has(c.winnerId))
+    .map((c) => ({ track: c.trackId, mode: c.mode, top: c.top.filter((id) => submitted.has(id)), ...(c.winnerId ? { winner: c.winnerId } : {}), ...(c.reason !== undefined ? { reason: c.reason } : {}), at: c.at }));
   const decisions: Record<string, unknown> = {
     ...(overrides.length
       ? {
@@ -784,6 +787,8 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
     ...(s.tieBreakChanges?.length ? { tie_break_changes: s.tieBreakChanges } : {}),
     ...(s.voteRuleChanges?.length ? { vote_rule_changes: s.voteRuleChanges } : {}),
     ...(s.voteCountChanges?.length ? { vote_count_changes: s.voteCountChanges } : {}),
+    // each close call settled before publishing: kept the ranking's winner, or the judges' decision with its reason
+    ...(closeCalls.length ? { close_calls: closeCalls } : {}),
     // projects moved to another track after judges were assigned, each with its reason (the audit log keeps them)
     ...(moves.length ? { track_moves: moves.map((m) => ({ project: m.projectId, from: m.fromTrackId, to: m.toTrackId, reason: m.reason, at: m.at })) } : {}),
     // the prizes given, by the file's prize and project ids; a winner the file does not carry stays out with its project

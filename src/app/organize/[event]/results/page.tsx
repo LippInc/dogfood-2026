@@ -18,6 +18,7 @@ import { ScoreOpening } from "./score-opening";
 import { PrizesSection } from "./prizes-section";
 import { exportHref } from "@/lib/export-href";
 import { ordinal } from "@/lib/places";
+import { CloseCallBody } from "../decisions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Results and their working" };
@@ -59,7 +60,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const { track } = await searchParams;
   const actor = await currentActor();
   if (!actor) unauthorized();
-  const { event, normalization: n, decisions, notes, crossCheck, published, tieBreak } = guardPage(() => getNormalization(actor, key));
+  const { event, normalization: n, decisions, closeCalls, notes, crossCheck, published, tieBreak } = guardPage(() => getNormalization(actor, key));
   // teams the organizers changed after the close (the teams the judges saw), marked on their rows: one query for the event
   const teamChanges = guardPage(() => getTeamChangesAfterClose(actor, key));
   const tracks = [...new Map(n.projects.map((p) => [p.trackId, p.trackName])).entries()];
@@ -203,6 +204,31 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                 <YardstickLine y={n.yardstick} figure />
               </div>
             ) : null}
+          </section>
+        ) : null}
+
+        {closeCalls.length ? (
+          <section aria-labelledby="close-calls-title" className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 id="close-calls-title" className="text-17 font-semibold">
+                Close calls
+              </h2>
+              <p className="text-13 text-ink-2">
+                {closeCalls.some((c) => c.required)
+                  ? "A track too close to call is a decision to settle before publishing."
+                  : "Advice only: these scores carry no signal, so nothing here holds publishing back."}
+              </p>
+            </div>
+            <ul className="flex flex-col gap-3">
+              {closeCalls.map((c) => (
+                <li key={c.trackId} className="rounded-sm border border-rule bg-surface p-5 wrap-anywhere">
+                  <p className="label-mono mb-3 text-ink-2">
+                    {c.trackName} · {c.required ? "decision" : c.choice?.mode === "judges" ? "judges' decision" : "advice"}
+                  </p>
+                  <CloseCallBody c={c} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} />
+                </li>
+              ))}
+            </ul>
           </section>
         ) : null}
 

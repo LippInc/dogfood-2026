@@ -8,9 +8,12 @@ import { useRescueFocus } from "@/components/use-rescue-focus";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatUtc, votersIn } from "@/lib/format";
-import type { ActionResult, Decision } from "@/server/dal";
+import type { ActionResult, Decision, TrackCloseCall } from "@/server/dal";
 import {
   acceptAction,
+  judgesDecisionAction,
+  keepRankingAction,
+  undoCloseCallAction,
   mergeAction,
   notDuplicateAction,
   overrideAction,
@@ -27,6 +30,7 @@ const STAGE: Record<Decision["kind"], string> = {
   under_reviewed: "06 Scoring",
   flat_judge: "07 Normalization",
   coin_flip_judge: "07 Ranking",
+  close_call: "07 Ranking",
 };
 const idle: ActionResult = { ok: false, message: null };
 
@@ -139,6 +143,7 @@ export function OneClick({
 }
 
 function sentence(d: Decision): string {
+  if (d.kind === "close_call") return `${d.trackName}: the top is too close to call from the scores`;
   if (d.kind === "flat_judge")
     return `${d.name} scored every project ${d.vector.join(" / ")}`;
   if (d.kind === "duplicate")
@@ -150,6 +155,11 @@ function sentence(d: Decision): string {
 }
 
 function stateLine(d: Decision): string {
+  if (d.kind === "close_call") {
+    if (d.resolved === "kept") return "Ranking's winner kept";
+    if (d.resolved === "judges") return `Judges' decision: ${titleOf(d, d.choice?.winnerId)}`;
+    return d.stale ? "Your choice no longer fits the scores" : `Top at ${pct(d.projects[0]?.p ?? 0)}`;
+  }
   if (d.kind === "flat_judge") {
     if (!d.resolved) return "Left out by the flat-judge rule";
     return d.resolved.mode === "include"
@@ -188,6 +198,7 @@ function Body({
   published: boolean;
   faces: Record<string, React.ReactNode>;
 }) {
+  if (d.kind === "close_call") return <CloseCallBody c={d} eventSlug={eventSlug} published={published} />;
   if (d.kind === "flat_judge") {
     const first = d.name.split(" ")[0];
     return (
@@ -414,6 +425,141 @@ function Body({
   );
 }
 
+/** A chance as the page prints it: whole percent, never 0 % or 100 % for a chance that is neither. */
+export function pct(p: number): string {
+  if (p > 0 && p < 0.005) return "under 1 %";
+  if (p < 1 && p >= 0.995) return "over 99 %";
+  return `${Math.round(p * 100)} %`;
+}
+
+function titleOf(c: TrackCloseCall, id: string | undefined): string {
+  return c.projects.find((p) => p.id === id)?.title ?? id ?? "";
+}
+
+/** "A 52 %, B 31 %, C 11 %": the close projects and their chances of really being first. */
+export function chancesLine(c: TrackCloseCall): string {
+  return c.projects
+    .filter((p) => c.close.includes(p.id))
+    .map((p) => `${p.title} ${pct(p.p)}`)
+    .join(", ");
+}
+
+/**
+ * One track's close call: the close projects' chances of being first, and the two audited choices,
+ * keep the ranking's winner or record the judges' decision with a reason. On scores without a
+ * signal it only advises, so keeping needs no click. The Overview's decisions and the Results page share it.
+ */
+export function CloseCallBody({
+  c,
+  eventSlug,
+  published,
+}: {
+  c: TrackCloseCall & { resolved?: "kept" | "judges" | null };
+  eventSlug: string;
+  published: boolean;
+}) {
+  const [choosing, setChoosing] = useState(false);
+  const [state, form, pending] = useFormAction(judgesDecisionAction, idle);
+  const opener = useRef<HTMLButtonElement>(null);
+  useRescueFocus(() => opener.current, choosing);
+  const leader = c.top.length === 1 ? titleOf(c, c.top[0]) : c.top.map((id) => titleOf(c, id)).join(" and ");
+  const others = c.projects.filter((p) => c.close.includes(p.id) && !(c.top.length === 1 && p.id === c.top[0]));
+  const settledNow = c.choice !== null && c.stale === null;
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-14 leading-6">
+        <strong>Too close to call from the scores: {chancesLine(c)}.</strong>{" "}
+        Each figure is that project&rsquo;s chance of really being first, from its score and its ± (JUDGING.md, &ldquo;Close calls&rdquo;); the scores name a
+        winner only at 95 %.{" "}
+        {published
+          ? ""
+          : c.signal
+          ? `Keep the ranking's winner, ${leader}, or record the judges' decision: after they deliberate, they name the winner among these projects, with the reason.`
+          : `The signal check finds that the scores cannot tell these projects apart, so this is advice, not a decision you must make: the ranking's winner, ${leader}, stands unless you record the judges' decision.`}{" "}
+        {published ? null : (
+          <>
+            A judges&rsquo; decision puts their winner first on the published results, marked &ldquo;Winner by the judges&rsquo; decision&rdquo; with the reason, and
+            the score order stays shown.
+          </>
+        )}
+      </p>
+      {c.stale && c.choice ? (
+        <p className="text-13 text-flag">
+          Your earlier choice ({c.choice.mode === "keep" ? "keep the ranking's winner" : `the judges named ${titleOf(c, c.choice.winnerId)}`}) no longer fits: {c.stale}.
+          Choose again, or undo it.
+        </p>
+      ) : null}
+      {settledNow ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-13 text-ink-2">
+            {c.choice!.mode === "keep"
+              ? `Kept: ${leader} is published as the winner.`
+              : `The judges' decision: ${titleOf(c, c.choice!.winnerId)} wins. Their reason: “${c.choice!.reason ?? ""}”`}
+          </p>
+          {published ? null : (
+            <OneClick label="Undo" variant="outline" action={undoCloseCallAction} fields={{ track: c.trackId }} eventSlug={eventSlug} />
+          )}
+        </div>
+      ) : published ? (
+        <p className="text-13 text-ink-2">Published with the ranking&rsquo;s winner, {leader}.</p>
+      ) : (
+        <div className="flex flex-wrap items-start gap-3">
+          {c.signal || c.choice ? (
+            <OneClick label={`Keep the ranking's winner, ${leader}`} action={keepRankingAction} fields={{ track: c.trackId }} eventSlug={eventSlug} />
+          ) : null}
+          {others.length && !choosing ? (
+            <Button ref={opener} type="button" variant="outline" onClick={() => setChoosing(true)}>
+              Record the judges&rsquo; decision…
+            </Button>
+          ) : null}
+          {c.stale && c.choice ? (
+            <OneClick label="Undo my earlier choice" variant="outline" action={undoCloseCallAction} fields={{ track: c.trackId }} eventSlug={eventSlug} />
+          ) : null}
+          {others.length && choosing ? (
+            <form {...form} className="flex w-full flex-col gap-3">
+              <input type="hidden" name="event" value={eventSlug} />
+              <input type="hidden" name="track" value={c.trackId} />
+              <fieldset className="flex flex-col gap-2">
+                <legend className="mb-1 text-13 font-medium">The winner the judges named</legend>
+                {others.map((p) => (
+                  <label
+                    key={p.id}
+                    className="flex items-start gap-3 rounded-sm border border-edge px-3 py-2.5 has-[:checked]:border-accent has-[:checked]:bg-accent-tint"
+                  >
+                    <input type="radio" name="winner" value={p.id} required className="mt-1 size-4 accent-[var(--primary)]" />
+                    <span>
+                      <span className="block text-14 font-medium">{p.title}</span>
+                      <span className="block text-13 text-ink-2 tnum">
+                        {pct(p.p)} chance of being first · score {p.score.toFixed(2)} ± {p.se.toFixed(2)}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              <label className="text-13 font-medium" htmlFor={`reason-close-${c.trackId}`}>
+                The judges&rsquo; reason, shown on the public results
+              </label>
+              <Textarea
+                id={`reason-close-${c.trackId}`}
+                name="reason"
+                rows={2}
+                aria-invalid={Boolean(state.fieldErrors?.reason)}
+              />
+              <div className="flex items-center gap-3">
+                <Button disabled={pending}>{pending ? "Recording…" : "Record the judges’ decision"}</Button>
+                <Button type="button" variant="ghost" onClick={() => setChoosing(false)}>
+                  Cancel
+                </Button>
+              </div>
+              <Result state={state} />
+            </form>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Decisions({
   eventSlug,
   decisions,
@@ -481,7 +627,9 @@ export function Decisions({
                   ? d.copies.map((c) => c.id)
                   : d.kind === "coin_flip_judge"
                     ? []
-                    : [d.projectId];
+                    : d.kind === "close_call"
+                      ? d.close
+                      : [d.projectId];
             return (
               <li
                 key={d.key}
