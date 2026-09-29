@@ -899,8 +899,8 @@ export const auditLog = sqliteTable(
     after: text("after", { mode: "json" }),
     prevHash: text("prev_hash").notNull(),
     hash: text("hash").notNull().unique(),
-    // 32 random bytes (hex) hashed with a row whose values some reader may not see yet (src/server/audit.ts,
-    // SEALED_ACTIONS); null for every other row and every row written before the column existed
+    // 32 random bytes (hex) hashed with a row whose values some reader may not see yet (the actions
+    // sealsValues() in src/server/webhooks.ts names); null for every other row and every row written before the column existed
     salt: text("salt"),
   },
   (t) => [

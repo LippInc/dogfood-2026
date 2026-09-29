@@ -141,20 +141,25 @@ const HIDDEN = "hidden until voting closes";
 /** A verifier holding only one line of audit.csv: the row's hash as recomputed from that line's own cells; null while they are hidden. */
 function recompute(line: Record<string, string>): string | null {
   if ([line.before, line.after, line.salt].includes(HIDDEN)) return null;
+  // DATA-MODEL.md's recipe: a text cell that starts with an apostrophe had one added against spreadsheet formulas.
+  const c = (k: string) => {
+    const s = line[k] ?? "";
+    return s.startsWith("'") ? s.slice(1) : s;
+  };
   const json = (s: string) => (s === "" ? null : JSON.parse(s));
   const payload = {
-    at: line.at,
-    actorUserId: line.actor_user_id || null,
-    actorLabel: line.actor,
-    action: line.action,
-    eventId: line.event_id || null,
-    targetType: line.target_type || null,
-    targetId: line.target_id || null,
-    before: json(line.before!),
-    after: json(line.after!),
-    ...(line.salt ? { salt: line.salt } : {}),
+    at: c("at"),
+    actorUserId: c("actor_user_id") || null,
+    actorLabel: c("actor"),
+    action: c("action"),
+    eventId: c("event_id") || null,
+    targetType: c("target_type") || null,
+    targetId: c("target_id") || null,
+    before: json(c("before")),
+    after: json(c("after")),
+    ...(c("salt") ? { salt: c("salt") } : {}),
   };
-  return sha(`${line.prev_hash}\n${canonical(payload)}`);
+  return sha(`${c("prev_hash")}\n${canonical(payload)}`);
 }
 
 const rowsOf = (action: string) => h.db.select().from(auditLog).where(eq(auditLog.action, action)).orderBy(auditLog.id).all();
@@ -295,6 +300,14 @@ describe("a row with sealed values: its hash gives them away to nobody", () => {
     expect(failing()).toEqual(["vote.cast"]);
     closeVoting();
     expect(failing()).toEqual([]);
+  });
+
+  it("a label that starts with a formula character, or with an apostrophe of its own, still recomputes from its line", () => {
+    const labels = ["'-Bob", "-Eve", "=sum", "'plain", "@here", "ordinary"];
+    for (const label of labels) appendAudit(h.db, { actorUserId: null, actorLabel: label, action: "test.label", eventId: "evt_01" });
+    const lines = csvRows().filter((l) => l.action === "test.label");
+    expect(lines.map((l) => l.actor)).toEqual(["''-Bob", "'-Eve", "'=sum", "''plain", "'@here", "ordinary"]);
+    expect(lines.filter((l) => recompute(l) !== l.hash).map((l) => l.actor)).toEqual([]);
   });
 });
 
