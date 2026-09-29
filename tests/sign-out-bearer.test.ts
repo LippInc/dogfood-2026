@@ -129,11 +129,11 @@ describe("POST /api/auth/sign-out with the session cookie (unchanged)", () => {
     expect(await meStatus(bearer(token))).toBe(401);
   });
 
-  it("a checker session in the cookie: this browser's cookie is cleared, the session itself stays live, and the answer says so", async () => {
+  it("a checker session in the cookie (a script sending the Cookie header the portal printed): never ended, so signedOut false with the reason; the cookie is still cleared", async () => {
     const token = checkerSessionToken();
     jar.cookie = token;
-    const res = await signOut();
-    expect(res.body.signedOut).toBe(true);
+    const res = await signOut({ cookie: `session=${token}` });
+    expect(res.body.signedOut).toBe(false);
     expect(res.body.reason).toMatch(/checker session/);
     expect(cookieDelete).toHaveBeenCalledWith("session");
     expect(sessionRows(token)).toBe(1);

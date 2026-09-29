@@ -136,8 +136,8 @@ function liveApiToken(db: DbOrTx, token: string, now: Date): boolean {
 
 /**
  * End the login sessions this request carries: the session cookie's (the cookie is cleared either way) and an
- * Authorization: Bearer session token's. Checker sessions are never ended; a checker session or an API token sent
- * as Bearer keeps working for its caller, so the answer is then signedOut: false, with the reason.
+ * Authorization: Bearer session token's. Checker sessions are never ended and an API token sent as Bearer is not a
+ * session: either keeps working for its caller, so the answer is then signedOut: false, with the reason.
  */
 export async function endSession(db: DbOrTx, now = new Date()): Promise<SignOutResult> {
   const jar = await cookies();
@@ -145,7 +145,12 @@ export async function endSession(db: DbOrTx, now = new Date()): Promise<SignOutR
   const fromHeader = bearerToken(await headers());
   const reasons = new Set<string>();
   let stillSignedIn = false;
-  if (fromCookie && endLoginSession(db, fromCookie) === "checker") reasons.add(CHECKER_KEPT);
+  // A checker session is never ended, so whoever holds its token (a script sending the printed Cookie header, or a
+  // Bearer) is still signed in; a browser's own form post gets the 303, not this answer.
+  if (fromCookie && endLoginSession(db, fromCookie) === "checker") {
+    stillSignedIn = true;
+    reasons.add(CHECKER_KEPT);
+  }
   if (fromHeader) {
     if (fromHeader.startsWith(API_TOKEN_PREFIX)) {
       if (liveApiToken(db, fromHeader, now)) {
