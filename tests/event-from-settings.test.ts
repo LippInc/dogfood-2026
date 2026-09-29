@@ -145,6 +145,15 @@ describe("who may start from an event", () => {
     expectHttpError(() => createEvent(organizer(), body()), 403, "not_an_admin");
   });
 
+  it("decides who may create before it checks the source: 401 without a session, 403 for a non-administrator", () => {
+    for (const sourceEventId of [5, "x".repeat(101), "evt_nope", SOURCE]) {
+      expectHttpError(() => createEvent(null, body({ sourceEventId })), 401, "unauthenticated");
+      expectHttpError(() => createEvent(organizer(), body({ sourceEventId })), 403, "not_an_admin");
+    }
+    // Positive control: past both checks, a malformed source is named under its own field.
+    expectHttpError(() => createEvent(adminOrganizer(), body({ sourceEventId: 5 })), 422, "invalid");
+  });
+
   it("an unknown source is named under its own field", () => {
     expectHttpError(() => createEvent(adminOrganizer(), body({ sourceEventId: "evt_nope" })), 422, "invalid");
   });

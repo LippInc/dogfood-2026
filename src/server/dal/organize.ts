@@ -222,11 +222,13 @@ function copySettingsRows(tx: Tx, from: EventRow, to: string) {
  * and the copy commit in one transaction with one event.create audit row that names the source.
  */
 export function createEvent(actor: Actor | null, body: unknown) {
+  const sent = body && typeof body === "object" ? (body as { sourceEventId?: unknown }).sourceEventId : undefined;
+  // Who may create is decided (and a refusal audited) before the source is checked or read, so no session is 401 and
+  // a non-administrator 403 whatever the field holds; both are decided again inside the transaction.
+  if (sent !== undefined && sent !== null && sent !== "") guardRead(actor, "event.create", { kind: "platform" }, new Date(), "write");
   const sourceRef = sourceRefOf(body);
   let source: EventRow | undefined;
   if (sourceRef) {
-    // Decided (and a refusal audited) before anything is read from the source; decided again inside the transaction.
-    guardRead(actor, "event.create", { kind: "platform" }, new Date(), "write");
     source = findEvent(getDb(), sourceRef);
     if (!source) throw new ValidationError("Check the highlighted fields.", { sourceEventId: ["no event has that id or web address"] });
     guardRead(actor, "event.manage", { kind: "event", event: eventFacts(source) }, new Date(), "write");
