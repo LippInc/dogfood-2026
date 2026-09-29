@@ -167,7 +167,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
                         {p ? `${p.joint ? "Joint " : ""}${p.ordinal} place` : z ? (z.joint ? "Joint winner" : "Winner") : a}
                       </span>
                       {p ? <span className="font-serif text-17 text-ink-2 sm:text-20">in the {p.track} track</span> : null}
-                      {p?.tieBrokenBy ? <span className="text-14 text-ink-2">{tieBrokenWords(p.tieBrokenBy)}</span> : null}
+                      {p?.tieBrokenBy && !p.joint ? <span className="text-14 text-ink-2">{tieBrokenWords(p.tieBrokenBy)}</span> : null}
                       {z ? <span className="font-serif text-17 text-ink-2 sm:text-20">of the prize {z.prize}</span> : null}
                     </p>
                   </li>
