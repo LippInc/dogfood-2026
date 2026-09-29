@@ -39,6 +39,19 @@ describe("mailNote", () => {
     expect(mixed).toMatch(/^Mailed 1 of 2\. b@x\.test may have arrived/);
   });
 
+  it("a batch still being sent names an address refused before sending too, with its reason", () => {
+    const note = mailNote({
+      on: true,
+      mailed: [
+        { to: "a@x.test", status: "pending" },
+        { to: "b@x.test", status: "pending" },
+        { to: "ana@localhost", status: "failed", error: "that is not an email address" },
+      ],
+    })!;
+    expect(note).toMatch(/^Mailing 2 of 3 now/);
+    expect(note).toContain("Could not mail ana@localhost (that is not an email address).");
+  });
+
   it("a batch still being sent says so and points at the outbox, without calling anything failed", () => {
     const note = mailNote({ on: true, mailed: [{ to: "a@x.test", status: "pending" }, { to: "b@x.test", status: "pending" }] })!;
     expect(note).toMatch(/^Mailing all 2 now/);

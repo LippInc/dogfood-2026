@@ -414,6 +414,67 @@ describe("a bulk send with one bad recipient", () => {
   });
 });
 
+describe("an address refused before sending", () => {
+  const REFUSED = "that is not an email address";
+
+  it("is recorded as a failed outbox row with its reason, beside the messages that go out, and never offered to the server", async () => {
+    sentByTransport.length = 0;
+    setMailTransportForTests(recordingTransport);
+    const out = await mailClaimLinks(organizer(), EVENT, [
+      { email: "good@example.org", path: "/claim/tok_good_secret" },
+      { email: "ana@localhost", path: "/claim/tok_ana_secret" },
+    ]);
+    expect(sentByTransport.map((m) => m.to)).toEqual(["good@example.org"]);
+    expect(out).toEqual({ on: true, mailed: [{ to: "good@example.org", status: "sent" }, { to: "ana@localhost", status: "failed", error: REFUSED }] });
+    const rows = outboxAll();
+    expect(rows).toHaveLength(2);
+    const ana = rows.find((r) => r.to_email === "ana@localhost")!;
+    expect(ana.status).toBe("failed");
+    expect(ana.error).toBe(REFUSED);
+    expect(ana.sent_at).toBeNull();
+    expect(ana.body).not.toContain("tok_ana_secret");
+    expect(ana.body).toContain(BLANKED);
+    const mailed = auditRows().filter((r) => r.action === "mail.sent");
+    expect(mailed.map((r) => r.after)).toEqual([{ kind: "claim_link", sending: 1, refused: 1 }, { kind: "claim_link", sent: 1, failed: 0 }]);
+    // the outbox the organizer reads counts it with the failures
+    expect(listOutbox(organizer(), EVENT).counts).toMatchObject({ total: 2, sent: 1, failed: 1 });
+  });
+
+  it("a list of refused addresses alone still leaves a row each; one the outbox cannot hold is still named to the page", async () => {
+    setMailTransportForTests(recordingTransport);
+    sentByTransport.length = 0;
+    const out = await mailClaimLinks(organizer(), EVENT, [
+      { email: "ana@localhost", path: "/claim/tok_ana" },
+      { email: "bo@", path: "/claim/tok_bo" },
+    ]);
+    expect(sentByTransport).toHaveLength(0);
+    expect(out).toEqual({ on: true, mailed: [{ to: "ana@localhost", status: "failed", error: REFUSED }, { to: "bo@", status: "failed", error: REFUSED }] });
+    expect(outboxAll().map((r) => [r.to_email, r.status, r.error])).toEqual([["ana@localhost", "failed", REFUSED]]);
+  });
+
+  it("with a slow server the page answers pending for the rest and failed for the refused one, which is already on record", async () => {
+    setMailTransportForTests({ sendMail: () => new Promise<void>((resolve) => setTimeout(resolve, 300)) });
+    setMailWaitForTests(30);
+    try {
+      const out = await mailClaimLinks(organizer(), EVENT, [
+        { email: "slow1@example.org", path: "/claim/tok_1" },
+        { email: "slow2@example.org", path: "/claim/tok_2" },
+        { email: "ana@localhost", path: "/claim/tok_3" },
+      ]);
+      expect(out.mailed).toEqual([
+        { to: "slow1@example.org", status: "pending" },
+        { to: "slow2@example.org", status: "pending" },
+        { to: "ana@localhost", status: "failed", error: REFUSED },
+      ]);
+      expect(outboxAll().map((r) => [r.to_email, r.status]).sort()).toEqual([["ana@localhost", "failed"], ["slow1@example.org", "sending"], ["slow2@example.org", "sending"]]);
+      await vi.waitFor(() => expect(outboxAll().filter((r) => r.status === "sent")).toHaveLength(2), { timeout: 3000, interval: 50 });
+      expect(outboxAll().find((r) => r.to_email === "ana@localhost")!.status).toBe("failed"); // the outcome write leaves it as recorded
+    } finally {
+      setMailWaitForTests(null);
+    }
+  });
+});
+
 describe("a slow mail server", () => {
   it("does not hold the page: past the wait the links come back with pending, and the sends still finish and record their outcome", async () => {
     const links = voterLinks(["slow1@example.org", "slow2@example.org"]);

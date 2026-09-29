@@ -15,7 +15,8 @@ import { RESET_HOURS } from "./password-resets";
 // Email, sending side. The portal mails each link when it is made and keeps no key: the function that
 // makes a link commits and returns it once, as before; the route or form that called it then hands the
 // link here. Each message is first recorded in the outbox as "sending", with the link blanked, in one
-// audited write, so the database never holds a working key and no message goes out unrecorded; only then
+// audited write, so the database never holds a working key and no message goes out unrecorded (an address the
+// mail server would never be offered is recorded in the same write as failed, with its reason); only then
 // is it sent (only when SMTP_URL is set), and a second audited write marks each row sent, failed (it did
 // not go out) or unknown (the connection broke after it may have been handed over). A row left at
 // "sending" means the portal stopped before the mail server answered. The page waits at most MAIL_WAIT_MS for
@@ -57,6 +58,10 @@ type Scope = { eventIdOrSlug: string } | { portal: true };
 
 const emailOn = () => mailSettings().on;
 const isAddress = (to: string) => z.email().safeParse(to.trim()).success;
+/** The outbox's own rule for to_email (schema.ts, outbox_to_email): a refused address outside it is only said on the page. */
+const fitsOutbox = (to: string) => /[\s\S]@[\s\S]/.test(to);
+/** Why an address is never offered to the mail server. */
+const REFUSED = "that is not an email address";
 
 async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, all: Letter[]): Promise<MailReport> {
   const portal = "portal" in scope;
@@ -66,10 +71,13 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, al
   // decided (and a refusal audited) before anything is recorded or sent, with the question the writes ask again
   guardRead(actor, action, load(getDb()), new Date(), "write");
   if (!emailOn()) return { on: false, mailed: [] };
-  // an address the mail server would never be offered is said at once; it has no row, as it had no send
+  // an address the mail server would never be offered is failed at once, and recorded with the rest as failed, with
+  // its reason, so the outbox holds every address the organizer meant to mail
   const letters = all.filter((l) => isAddress(l.to)).map((l) => ({ ...l, subject: fitSubject(l.subject) }));
-  const refused: Mailed[] = all.filter((l) => !isAddress(l.to)).map((l) => ({ to: l.to, status: "failed", error: "that is not an email address" }));
-  if (!letters.length) return { on: true, mailed: refused };
+  const refusedLetters = all.filter((l) => !isAddress(l.to)).map((l) => ({ ...l, subject: fitSubject(l.subject) }));
+  const refused: Mailed[] = refusedLetters.map((l) => ({ to: l.to, status: "failed", error: REFUSED }));
+  const recordRefused = refusedLetters.filter((l) => fitsOutbox(l.to));
+  if (!letters.length && !recordRefused.length) return { on: true, mailed: refused };
   const ids = letters.map(() => newId("mail"));
   const now = nowIso();
 
@@ -82,24 +90,26 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, al
       load,
       run: (tx) => {
         const eventId = portal ? null : requireEvent(tx, scope.eventIdOrSlug).id;
-        letters.forEach((l, i) => {
+        const row = (l: Letter, id: string, status: "sending" | "failed", error: string | null) =>
           tx.insert(outbox)
             .values({
-              id: ids[i]!,
+              id,
               eventId,
               kind,
               toEmail: l.to,
               subject: l.subject,
               body: l.body(BLANKED).slice(0, BODY_MAX),
-              status: "sending",
-              error: null,
+              status,
+              error,
               createdBy: actor?.userId ?? null,
               createdAt: now,
               sentAt: null,
             })
             .run();
-        });
-        return { result: undefined, audit: { action: "mail.sent", eventId, targetType: "outbox", targetId: kind, after: { kind, sending: letters.length } } };
+        letters.forEach((l, i) => row(l, ids[i]!, "sending", null));
+        recordRefused.forEach((l) => row(l, newId("mail"), "failed", REFUSED));
+        const after = { kind, sending: letters.length, ...(recordRefused.length ? { refused: recordRefused.length } : {}) };
+        return { result: undefined, audit: { action: "mail.sent", eventId, targetType: "outbox", targetId: kind, after } };
       },
     });
   } catch (err) {
@@ -108,6 +118,7 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, al
     console.error(`[mail] ${letters.length} ${kind} message(s) not sent: the outbox could not record them: ${why}`);
     return { on: true, mailed: [...letters.map((l): Mailed => ({ to: l.to, status: "failed", error: "not sent: the portal could not record it first" })), ...refused] };
   }
+  if (!letters.length) return { on: true, mailed: refused };
 
   // 2. the sends and 3. their outcome, waited for at most waitMs; past that the page answers with the links and
   //    "pending", and the sends finish on their own (they never throw: every failure is caught and logged).

@@ -16,13 +16,13 @@ export function mailNote(report: MailReport): string | null {
   const failed = report.mailed.filter((m) => m.status === "failed");
   const unknown = report.mailed.filter((m) => m.status === "unknown");
   const pending = report.mailed.filter((m) => m.status === "pending");
+  const parts: string[] = [];
   if (pending.length) {
     const head = pending.length === total ? (total === 1 ? "Mailing it now" : `Mailing all ${total} now`) : `Mailing ${pending.length} of ${total} now`;
-    return `${head}: the mail server is slow to answer, so the links are here first. The outbox shows each result as it comes.`;
-  }
-  if (!failed.length && !unknown.length) return sent.length === 1 ? `Mailed to ${sent[0]!.to}.` : `Mailed to all ${sent.length}.`;
-  const parts: string[] = [];
+    parts.push(`${head}: the mail server is slow to answer, so the links are here first. The outbox shows each result as it comes.`);
+  } else if (!failed.length && !unknown.length) return sent.length === 1 ? `Mailed to ${sent[0]!.to}.` : `Mailed to all ${sent.length}.`;
   if (sent.length) parts.push(`Mailed ${sent.length} of ${total}.`);
+  // a failure is named in every branch, a still-sending batch included: an address refused before sending is final
   if (failed.length) {
     const byReason = new Map<string, string[]>();
     for (const m of failed) {
