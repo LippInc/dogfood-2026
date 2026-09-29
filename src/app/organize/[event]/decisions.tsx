@@ -453,10 +453,13 @@ export function CloseCallBody({
   c,
   eventSlug,
   published,
+  explain = true,
 }: {
   c: TrackCloseCall & { resolved?: "kept" | "judges" | null };
   eventSlug: string;
   published: boolean;
+  /** the Results page lists every close track and says what the figures mean once, above them */
+  explain?: boolean;
 }) {
   const [choosing, setChoosing] = useState(false);
   const [state, form, pending] = useFormAction(judgesDecisionAction, idle);
@@ -467,6 +470,12 @@ export function CloseCallBody({
   const settledNow = c.choice !== null && c.stale === null;
   return (
     <div className="flex flex-col gap-3">
+      {explain ? null : (
+        <p className="text-14 leading-6">
+          <strong>{chancesLine(c)}.</strong> Ranking&rsquo;s winner: {leader}.
+        </p>
+      )}
+      {explain ? (
       <p className="text-14 leading-6">
         <strong>Too close to call from the scores: {chancesLine(c)}.</strong>{" "}
         Each figure is that project&rsquo;s chance of really being first, from its score and its ± (JUDGING.md, &ldquo;Close calls&rdquo;); the scores name a
@@ -483,6 +492,7 @@ export function CloseCallBody({
           </>
         )}
       </p>
+      ) : null}
       {c.stale && c.choice ? (
         <p className="text-13 text-flag">
           Your earlier choice ({c.choice.mode === "keep" ? "keep the ranking's winner" : `the judges named ${titleOf(c, c.choice.winnerId)}`}) no longer fits: {c.stale}.
@@ -521,12 +531,13 @@ export function CloseCallBody({
               <input type="hidden" name="track" value={c.trackId} />
               <fieldset className="flex flex-col gap-2">
                 <legend className="mb-1 text-13 font-medium">The winner the judges named</legend>
-                {others.map((p) => (
+                {others.map((p, i) => (
                   <label
                     key={p.id}
                     className="flex items-start gap-3 rounded-sm border border-edge px-3 py-2.5 has-[:checked]:border-accent has-[:checked]:bg-accent-tint"
                   >
-                    <input type="radio" name="winner" value={p.id} required className="mt-1 size-4 accent-[var(--primary)]" />
+                    {/* the button that opened the form is gone: focus starts on the first choice, as the reason boxes start on theirs */}
+                    <input type="radio" name="winner" value={p.id} required autoFocus={i === 0} className="mt-1 size-4 accent-[var(--primary)]" />
                     <span>
                       <span className="block text-14 font-medium">{p.title}</span>
                       <span className="block text-13 text-ink-2 tnum">

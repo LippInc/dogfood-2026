@@ -209,25 +209,29 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
 
         {closeCalls.length ? (
           <section aria-labelledby="close-calls-title" className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 id="close-calls-title" className="text-17 font-semibold">
-                Close calls
-              </h2>
-              <p className="text-13 text-ink-2">
-                {event.resultsPublishedAt
-                  ? "Read from the scores; the published places are final."
-                  : closeCalls.some((c) => c.required)
-                    ? "A track too close to call is a decision to settle before publishing."
-                    : "Advice only: these scores carry no signal, so nothing here holds publishing back."}
-              </p>
-            </div>
-            <ul className="flex flex-col gap-3">
+            <h2 id="close-calls-title" className="text-17 font-semibold">
+              Close calls: {plural(closeCalls.length, "track")} too close to call from the scores
+            </h2>
+            {/* what the figures mean, said once for every track below */}
+            <p className="max-w-[80ch] text-14 leading-6 text-ink-2">
+              Each figure is a project&rsquo;s chance of really being first, from its score and its ± (JUDGING.md, &ldquo;Close calls&rdquo;); the scores name a
+              winner only at 95 %.{" "}
+              {event.resultsPublishedAt
+                ? "The published places are final."
+                : closeCalls.some((c) => c.signal)
+                  ? "Settle each before publishing: keep the ranking's winner, or record the judges' decision, naming another of the close projects with their reason."
+                  : "The signal check finds that these scores cannot tell the projects apart, so this only advises: each ranking's winner stands unless you record the judges' decision, naming another of the close projects with their reason."}{" "}
+              {event.resultsPublishedAt
+                ? null
+                : "A judges' decision puts their winner first on the published results, marked “Winner by the judges' decision” with the reason, and the score order stays shown."}
+            </p>
+            <ul className="flex flex-col rounded-sm border border-rule bg-surface wrap-anywhere">
               {closeCalls.map((c) => (
-                <li key={c.trackId} className="rounded-sm border border-rule bg-surface p-5 wrap-anywhere">
-                  <p className="label-mono mb-3 text-ink-2">
+                <li key={c.trackId} className="border-t border-rule p-5 first:border-t-0">
+                  <p className="label-mono mb-2 text-ink-2">
                     {c.trackName} · {c.required ? "decision" : c.choice?.mode === "judges" ? "judges' decision" : "advice"}
                   </p>
-                  <CloseCallBody c={c} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} />
+                  <CloseCallBody c={c} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} explain={false} />
                 </li>
               ))}
             </ul>
