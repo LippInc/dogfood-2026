@@ -7,7 +7,7 @@ import { ProjectImage } from "@/components/project-cover";
 import { PublicShell } from "@/components/shell/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc, isPast } from "@/lib/format";
-import { tieBrokenWords } from "@/lib/places";
+import { ordinal, tieBrokenWords } from "@/lib/places";
 import { actorNav, currentActor, getMyWork, myRecords, NotFoundError, PAIRWISE_METHOD, type MyWork } from "@/server/dal";
 import { openOwnRecord } from "../../../records/actions";
 import { HandedIn } from "./handed-in";
@@ -282,11 +282,14 @@ function Stages({ work, solo }: { work: MyWork; solo: boolean }) {
 function PlaceHeading({ feedback }: { feedback: TeamFeedback }) {
   return (
     <h2 id="feedback-title" className="flex flex-wrap items-end gap-x-4 gap-y-1">
-      {feedback.place !== null ? (
+      {feedback.standing ? (
         <>
+          {/* the place as the public results show it: two projects sharing first are "Joint 1st", never 1.5 */}
           <span className="flex flex-col">
-            <span className="label-mono text-ink-3">Place</span>{" "}
-            <span className="font-display text-[88px] leading-[80px] tnum">{feedback.place}</span>
+            <span className="label-mono text-ink-3">{feedback.standing.joint ? `Joint ${ordinal(feedback.standing.place)}` : "Place"}</span>{" "}
+            <span className="font-display text-[88px] leading-[80px] tnum" aria-hidden={feedback.standing.joint || undefined}>
+              {feedback.standing.place}
+            </span>
           </span>{" "}
           <span className="pb-1.5 text-24 font-semibold">in {feedback.trackName}</span>
         </>
