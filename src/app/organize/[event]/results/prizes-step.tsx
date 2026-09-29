@@ -4,11 +4,10 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useFormAction } from "@/components/use-form-action";
-import type { ActionResult, PrizeStanding } from "@/server/dal";
+import type { ActionResult, PrizeCandidate, PrizeStanding } from "@/server/dal";
 import { awardAction } from "./prize-actions";
 
-/** A project that can win, with its place in its track as the ranking stands (null: not placed). */
-export type PrizeCandidate = { projectId: string; title: string; teamName: string; trackName: string; place: number | null; joint: boolean };
+export type { PrizeCandidate };
 
 const idle: ActionResult = { ok: false, message: null };
 

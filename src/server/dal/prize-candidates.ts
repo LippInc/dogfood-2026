@@ -1,7 +1,9 @@
 import "server-only";
 import { competitionPlaces } from "@/lib/places";
 import { breakTies } from "@/server/judging/tiebreak";
-import type { PrizeCandidate } from "./prizes-step";
+
+/** A project that can win, with its place in its track as the results will publish it (null: not placed). */
+export type PrizeCandidate = { projectId: string; title: string; teamName: string; trackName: string; place: number | null; joint: boolean };
 
 type CandidateRow = { projectId: string; title: string; teamName: string; score: number | null };
 

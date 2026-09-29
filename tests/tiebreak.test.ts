@@ -10,7 +10,7 @@ import { setJudgingMode } from "@/server/dal/pairwise";
 import { getRecord, issueOwnRecord } from "@/server/dal/records";
 import { getNormalization, getPublishedResults, publishResults } from "@/server/dal/results";
 import { setTieBreak } from "@/server/dal/tiebreak";
-import { scoreCandidates } from "@/app/organize/[event]/results/prize-candidates";
+import { scoreCandidates } from "@/server/dal/prize-candidates";
 import { latestAudit } from "@/server/dal/audit-log";
 import { getDb } from "@/server/db/client";
 import { actorById, addUser, auditRows, expectHttpError, organizer, sqlAll, sqlGet, sqlRun, withFixtureEvent } from "./support/fixture-harness";

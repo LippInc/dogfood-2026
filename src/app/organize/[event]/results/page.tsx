@@ -9,14 +9,13 @@ import { RankLine, SlopeChart } from "@/components/figures/slope-chart";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
 import { formatUtc, plural } from "@/lib/format";
-import { currentActor, getNormalization, getPairwiseRanking, getPrizeAwards, getTeamChangesAfterClose, judgingModeOf, listRecords, type ProjectRow } from "@/server/dal";
+import { candidatesOf, currentActor, getNormalization, getPairwiseRanking, getPrizeAwards, getTeamChangesAfterClose, judgingModeOf, listRecords, scoreCandidates, type ProjectRow } from "@/server/dal";
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
 import { PairwiseResults } from "./pairwise-results";
 import { plainSummary } from "./plain-summary";
 import { ScoreOpening } from "./score-opening";
 import { PrizesSection } from "./prizes-section";
-import { candidatesOf, scoreCandidates } from "./prize-candidates";
 import { exportHref } from "@/lib/export-href";
 import { ordinal } from "@/lib/places";
 
