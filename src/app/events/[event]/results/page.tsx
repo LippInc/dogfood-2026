@@ -163,8 +163,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                     Each project&rsquo;s win % is its chance to beat an average project of its track, fitted from {pw ? pairwiseSources(pw) : "judges’ answers"}
                     {pw?.fromScores ? " (a judge’s scores in a track count as the order they imply)" : ""}.{pwMostly ? ` ${pwMostly}` : ""}{" "}
                     {pw?.left && pw.fresh
-                      ? "The pull of the side a project was shown on and of the project a judge had just opened were measured and taken out."
-                      : "The fit takes out the pull of the side a project was shown on and of the project a judge had just opened once there are answers enough to measure them; “How this ranking was reached” below says which it could."}{" "}
+                      ? "The pull of the side a project was shown on and of the project a judge had just opened were measured and corrected for."
+                      : "The fit corrects for the pull of the side a project was shown on and of the project a judge had just opened once there are answers enough to measure them; “How this ranking was reached” below says which it could."}{" "}
                     The ± is one standard error: win % closer than about two of them are not told apart.
                   </p>
                 ) : (

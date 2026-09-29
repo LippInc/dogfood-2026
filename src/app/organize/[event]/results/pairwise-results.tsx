@@ -22,7 +22,7 @@ function PullCard({ pull, answers, what, done }: { pull: ReturnType<typeof pullS
         {!pull
           ? `No answers yet: ${what} is measured once judges answer.`
           : pull.measured
-            ? `is how often ${done} (± ${pull.pm} points). The ranking takes this pull out.`
+            ? `is how often ${done} (± ${pull.pm} points). The ranking is corrected for this pull as measured; in simulation the fit reads a pull low, so part of the real one may stay in.`
             : `Not measured yet: after ${plural(answers, "answer")}, ${what} is known only within ± ${pull.pm} points; it is shown once that is ${PULL_SHOWN_WITHIN} or less. Until then the fit assumes almost none.`}
       </p>
     </div>

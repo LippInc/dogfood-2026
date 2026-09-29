@@ -174,4 +174,22 @@ describe("How this ranking was reached (public results page)", () => {
     expect(mostlyFromScores({ ...base, answers: 40, fromScores: 12 })).toBeNull();
     expect(mostlyFromScores({ ...base, answers: 12, fromScores: 0 })).toBeNull();
   });
+
+  it("says a measured pull was measured and corrected for, never that it was taken out: the fit under-reads the pulls, so part of each stays in", () => {
+    const org = checker("organizer");
+    setJudgingMode(org, "evt_01", { mode: "pairwise", reason: "try the better-of-two mode" });
+    settle();
+    publishResults(org, "evt_01");
+    const results = getPublishedResults("evt_01");
+    if (!results.published || results.evidence.kind !== "pairwise") throw new Error("expected a published pairwise run");
+    // the fixture's scores alone measure no pull: plant the published evidence of an event with enough answers
+    const withPulls = (left: { share: number; pm: number } | null, fresh: { share: number; pm: number } | null) =>
+      render({ ...results, evidence: { ...results.evidence, kind: "pairwise", left, fresh } } as PublishedResults);
+    const both = withPulls({ share: 0.57, pm: 3 }, { share: 0.54, pm: 4 });
+    expect(both).toContain("The fit measured two pulls and corrected every strength for them: the side a project was shown on (57 % ± 3 between two equal projects)");
+    expect(both).toContain("the project a judge had just opened (54 % ± 4 between two equal projects)");
+    const one = withPulls({ share: 0.57, pm: 3 }, null);
+    expect(one).toContain("The fit measured one pull and corrected for it, the side a project was shown on (57 % ± 3");
+    for (const html of [both, one]) expect(html).not.toMatch(/took (them |it )?out|taken out/);
+  });
 });

@@ -48,7 +48,7 @@ export function pullShare(b: { est: number; se: number } | null): { share: numbe
   const pm = Math.max(1, Math.round(p * (1 - p) * b.se * 100));
   return { share: p, pm, measured: pm <= PULL_SHOWN_WITHIN };
 }
-export const PAIRWISE_METHOD_LABEL = "Bradley-Terry fit of every judge's either/or answers, with the pull of the left side and of the project just opened estimated and taken out";
+export const PAIRWISE_METHOD_LABEL = "Bradley-Terry fit of every judge's either/or answers, with the pull of the left side and of the project just opened estimated and corrected for";
 
 function pairwiseOn(event: EventRow) {
   if (judgingModeOf(event) !== "pairwise") {

@@ -354,7 +354,7 @@ export type PublishedResults =
       }[];
     };
 
-/** A pull the pairwise fit took out, as the share of wins it gives between two equal projects; null until it is measured. */
+/** A pull the pairwise fit measured and corrected for, as the share of wins it gives between two equal projects; null until it is measured. */
 type Pull = { share: number; pm: number } | null;
 
 /**
