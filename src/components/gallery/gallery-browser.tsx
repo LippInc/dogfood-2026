@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { plural } from "@/lib/format";
+import { fold, matchRanges, projectMatches, searchWords } from "@/lib/search";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 export type BrowserItem = {
@@ -27,24 +28,14 @@ const ORDER_HINT: Record<Order, string> = {
   track: "grouped by track, then by title",
 };
 
-function matches(item: BrowserItem, q: string): boolean {
-  if (!q) return true;
-  const hay = `${item.title} ${item.teamName} ${item.trackName} ${item.id} ${item.tags.join(" ")}`.toLowerCase();
-  return q
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((word) => hay.includes(word));
-}
+/** The same search as GET /api/events/{event}/projects?q=: every word, case and accents ignored (src/lib/search.ts). */
+const matches = (item: BrowserItem, q: string) => projectMatches(item, searchWords(q));
 
-/** Marks every part of `text` a search word matched, so a result shows why it is there. */
+/** Marks every part of `text` a search word matched, so a result shows why it is there ("ecole" marks "École"). */
 function Hl({ text, words }: { text: string; words: string[] }) {
-  const lower = text.toLowerCase();
-  if (!words.length || lower.length !== text.length) return <>{text}</>;
+  if (!words.length) return <>{text}</>;
   const on = new Array<boolean>(text.length).fill(false);
-  for (const w of words) {
-    for (let at = lower.indexOf(w); at !== -1; at = lower.indexOf(w, at + 1)) on.fill(true, at, at + w.length);
-  }
+  for (const [start, end] of matchRanges(text, words)) on.fill(true, start, end);
   const parts: ReactNode[] = [];
   for (let i = 0; i < text.length; ) {
     const start = i;
@@ -136,8 +127,8 @@ export function GalleryBrowser({
   // The Field draws what the grid shows: faces the grid has left out fade back.
   const shown = useMemo(() => new Set(visible.map((i) => i.id)), [visible]);
   const q = query.trim();
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const hits = (text: string) => words.some((w) => text.toLowerCase().includes(w));
+  const words = searchWords(q);
+  const hits = (text: string) => words.some((w) => fold(text).includes(w));
   const matchesIn = (trackId: string) => items.filter((i) => i.trackId === trackId && matches(i, q)).length;
   const elsewhere = q ? items.filter((i) => matches(i, q)).length : 0;
   const trackName = track ? tracks.find((t) => t.id === track)?.name : undefined;

@@ -149,8 +149,9 @@ hand. Paths assume the seeded event, `sample-hack-2026` (id `evt_01`).
   before stays stored and returns if the field comes back).
   With one person per team (most people on one team: 1), taking part is one
   step: no team to name (the entry goes by the person's name) and no invite link.
-  The public gallery shows every submitted project, searchable (tags included)
-  and filterable by track.
+  The public gallery shows every submitted project, searchable (tags included,
+  case and accents ignored: `ecole` finds `École`) and filterable by track, in
+  the page and through `GET /api/events/{event}/projects?q=&track=`.
 - **Judging.** The organizer invites judges by link, one at a time or from a
   pasted list of names and addresses, one link each (no mail server needed; a
   link stops admitting judges once judging closes or the results are out) and

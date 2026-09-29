@@ -1,12 +1,16 @@
-import { createProject, currentActor, getGallery, json, route } from "@/server/dal";
+import { createProject, currentActor, json, route, searchGallery } from "@/server/dal";
 
 export const dynamic = "force-dynamic";
 
-/** The event's submitted projects, as JSON (public, like the gallery). */
-export async function GET(_req: Request, { params }: RouteContext<"/api/events/[event]/projects">) {
+/**
+ * The event's submitted projects, as JSON (public, like the gallery). ?q= searches them as the gallery's search box
+ * does (every word, case and accents ignored) and ?track=<id> keeps one track's; 422 for a track the event lacks.
+ */
+export async function GET(req: Request, { params }: RouteContext<"/api/events/[event]/projects">) {
   return route(async () => {
     const { event } = await params;
-    const gallery = getGallery(event);
+    const sp = new URL(req.url).searchParams;
+    const gallery = searchGallery(event, { q: sp.get("q"), track: sp.get("track") });
     return json({ event: gallery.event, projects: gallery.projects });
   });
 }

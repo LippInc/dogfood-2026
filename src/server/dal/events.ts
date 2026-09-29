@@ -3,8 +3,9 @@ import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import type { EventFacts } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { events, prizes, projects, rubricCriteria, teams, tracks, userRoles } from "../db/schema";
-import { NotFoundError } from "../errors";
+import { NotFoundError, ValidationError } from "../errors";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
+import { projectMatches, searchWords } from "@/lib/search";
 import { fieldModes, trackCount, shownTitle } from "./project-fields";
 
 export type EventRow = typeof events.$inferSelect;
@@ -172,6 +173,26 @@ export function getGallery(idOrSlug: string): Gallery {
       judges: judges?.n ?? 0,
     },
   };
+}
+
+/** The longest search a gallery takes: a sentence, not a document. */
+export const MAX_SEARCH = 200;
+
+/**
+ * The gallery narrowed as its search box and track buttons narrow it (src/lib/search.ts): q's words must all appear
+ * in a project's title, team, track, id or tags, ignoring case and accents; track keeps one track's projects. Only
+ * what the gallery shows is searched, so a field the organizers hide finds nothing. Public, like the gallery.
+ */
+export function searchGallery(idOrSlug: string, filter: { q?: string | null; track?: string | null }): Gallery {
+  const gallery = getGallery(idOrSlug);
+  const q = filter.q ?? "";
+  if (q.length > MAX_SEARCH) throw new ValidationError(`A search is at most ${MAX_SEARCH} characters.`, { q: [`at most ${MAX_SEARCH} characters`] });
+  const track = filter.track || null;
+  if (track && !gallery.tracks.some((t) => t.id === track)) {
+    throw new ValidationError(`This event has no track ${track}.`, { track: [`not one of ${gallery.tracks.map((t) => t.id).join(", ")}`] });
+  }
+  const words = searchWords(q);
+  return { ...gallery, projects: gallery.projects.filter((p) => (!track || p.trackId === track) && projectMatches(p, words)) };
 }
 
 export type About = {
