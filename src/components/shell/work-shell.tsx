@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { HelpSlot } from "@/components/help/help-slot";
 import { ModeToggle } from "@/components/mode-toggle";
+import { AccountMenu } from "@/components/shell/account-menu";
 import { PageBand, PageMark } from "@/components/page-mark";
 
 export type WorkTab = { href: string; label: string; active?: boolean };
@@ -53,10 +54,10 @@ export function WorkShell({
         {/* on a phone the bar wraps, and the mark sits in the brand row's right-hand corner */}
         <PageMark anchor="right" cols={12} rows={11} extra={markExtra} className="absolute top-0 right-4 sm:hidden" />
         {/* On a phone the header wraps: the brand on the first row (beside the page's mark), the
-            controls on the next, the tabs on a scrolling row of their own, so Sign out and the
+            controls on the next, the tabs on a scrolling row of their own, so the account menu and the
             mode toggle never sit off-screen or under the mark. */}
-        <div className="flex flex-wrap items-stretch gap-x-6 px-4 sm:h-12 sm:flex-nowrap sm:overflow-x-auto lg:px-8">
-          <Link href={eventHref} className="flex min-w-0 shrink-0 items-center gap-3 self-center py-3 max-sm:basis-full max-sm:pr-16 sm:py-0">
+        <div className="flex flex-wrap items-stretch gap-x-4 px-4 sm:h-12 sm:flex-nowrap sm:overflow-x-auto lg:px-8 2xl:gap-x-6">
+          <Link href={eventHref} className="flex min-w-0 shrink-0 items-center gap-3 self-center py-3 max-sm:basis-full max-sm:pr-16 sm:shrink sm:py-0">
             <span className="size-3 shrink-0 bg-accent" aria-hidden />
             <span title={eventName} className="max-w-[20rem] min-w-0 truncate text-15 font-semibold sm:max-w-[28rem]">
               {eventName}
@@ -71,7 +72,7 @@ export function WorkShell({
             ) : null}
           </Link>
           {tabs.length ? (
-            <nav aria-label="Sections" className="flex items-stretch gap-6 max-sm:order-last max-sm:-mx-4 max-sm:h-11 max-sm:w-[calc(100%+2rem)] max-sm:overflow-x-auto max-sm:border-t max-sm:border-rule max-sm:px-4">
+            <nav aria-label="Sections" className="flex items-stretch gap-5 max-sm:order-last max-sm:-mx-4 max-sm:h-11 max-sm:w-[calc(100%+2rem)] max-sm:overflow-x-auto max-sm:border-t max-sm:border-rule max-sm:px-4 2xl:gap-6">
               {tabs.map((t) => (
                 <Link
                   key={t.href}
@@ -86,14 +87,10 @@ export function WorkShell({
           ) : null}
           <div className="ml-auto flex flex-wrap items-center justify-end gap-3 py-2 sm:shrink-0 sm:flex-nowrap sm:py-0">
             {tools}
-            {/* on a phone the name and role give way, so the mode toggle and Sign out stay on screen */}
-            <span className="text-14 font-medium whitespace-nowrap max-sm:hidden">{person}</span>
-            <span className="text-14 whitespace-nowrap text-ink-3 max-sm:hidden">{role}</span>
             <HelpSlot event={slug ? { slug, name: eventName } : null} variant="work" questionKey={role !== "Judge"} />
             <ModeToggle />
-            <form action="/api/auth/sign-out" method="post">
-              <button className="h-8 rounded-sm px-2 text-13 text-ink-2 hover:bg-raised hover:text-ink">Sign out</button>
-            </form>
+            {/* the name, the role and Sign out live in the account menu, so the bar fits from 1280 px up on every page */}
+            <AccountMenu person={person} role={role} />
           </div>
           {/* the page's mark closes the bar on the right, only in room the bar does not use */}
           <div className="@container relative hidden max-w-[80px] min-w-0 flex-1 overflow-hidden sm:block" aria-hidden="true">

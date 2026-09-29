@@ -71,7 +71,7 @@ About ten minutes, in this order; nothing needs a restart.
    tokens; `/api-docs` is the API reference.
 7. **Hand in a project.** The sample event is closed on purpose, so try the participant side on an event of your
    own (about two minutes, and the sample event is untouched): as the organizer, **Your events**, **New event**,
-   with a name, a close date in the future and one track. Sign out, open `/events/<its web address>`, **Take part**,
+   with a name, a close date in the future and one track. Sign out (the account menu, top right), open `/events/<its web address>`, **Take part**,
    create an account, **Start a team**, fill in the title and one-line summary, **Save draft**, then **Submit
    project**.
 
