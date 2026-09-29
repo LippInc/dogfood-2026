@@ -31,38 +31,12 @@ export default async function JudgePage({ params, searchParams }: PageProps<"/ju
       },
     ]),
   );
-  const closes = data.event.judgingCloseAt
-    ? `Judging closes ${formatUtc(data.event.judgingCloseAt, { weekday: true })}`
-    : data.event.resultsPublishedAt
-      ? `Results published ${formatUtc(data.event.resultsPublishedAt)}`
-      : "Judging stays open until the organizers publish results";
-  const record = data.event.resultsPublishedAt ? myRecords(actor, key).find((r) => r.kind === "judge") : undefined;
-  const finished = data.items.some((i) => i.status === "done");
-  const recordButton = "inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium whitespace-nowrap hover:bg-raised";
   return (
     <WorkShell
       eventName={data.event.name}
       eventHref={`/events/${data.event.slug}`}
       crumb="Judging"
-      tools={
-        <>
-          <span className="hidden text-13 whitespace-nowrap text-ink-2 xl:inline">{closes}</span>
-          {record ? (
-            <Link href={`/records/${record.id}`} className={recordButton}>
-              Your judging record
-            </Link>
-          ) : data.event.resultsPublishedAt && finished ? (
-            <form action={openOwnRecord.bind(null, data.event.slug, "judge")}>
-              {/* on phones the long label pushed Sign out onto a line of its own; the name is the visible label at each width (WCAG 2.5.3) */}
-              <button className={recordButton}>
-                <span className="sm:hidden">Get your record</span>
-                <span className="max-sm:hidden">Get your signed judging record</span>
-              </button>
-            </form>
-          ) : null}
-          <KeysButton />
-        </>
-      }
+      tools={<JudgeTools actor={actor} event={data.event} judged={data.items.some((i) => i.status === "done")} keys />}
       person={actor.name}
       role="Judge"
       flush
@@ -85,44 +59,54 @@ function ComparePage({ actor, state }: { actor: Actor; state: PairwiseState }) {
       },
     ]),
   );
-  const closes = state.event.judgingCloseAt
-    ? `Judging closes ${formatUtc(state.event.judgingCloseAt, { weekday: true })}`
-    : state.event.resultsPublishedAt
-      ? `Results published ${formatUtc(state.event.resultsPublishedAt)}`
-      : "Judging stays open until the organizers publish results";
-  const record = state.event.resultsPublishedAt ? myRecords(actor, state.event.slug).find((r) => r.kind === "judge") : undefined;
-  const answered = state.tracks.some((t) => t.answered > 0);
-  const recordButton = "inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium whitespace-nowrap hover:bg-raised";
   return (
     <WorkShell
       eventName={state.event.name}
       eventHref={`/events/${state.event.slug}`}
       crumb="Judging"
-      tools={
-        <>
-          <span className="hidden text-13 whitespace-nowrap text-ink-2 xl:inline">{closes}</span>
-          {record ? (
-            <Link href={`/records/${record.id}`} className={recordButton}>
-              Your judging record
-            </Link>
-          ) : state.event.resultsPublishedAt && answered ? (
-            <form action={openOwnRecord.bind(null, state.event.slug, "judge")}>
-              {/* on phones the long label pushed Sign out onto a line of its own; the name is the visible label at each width (WCAG 2.5.3) */}
-              <button className={recordButton}>
-                <span className="sm:hidden">Get your record</span>
-                <span className="max-sm:hidden">Get your signed judging record</span>
-              </button>
-            </form>
-          ) : null}
-          {/* once answers are final no key answers anything, so the keys are not offered */}
-          {state.readOnly ? null : <KeysButton />}
-        </>
-      }
+      // once answers are final no key answers anything, so the keys are not offered
+      tools={<JudgeTools actor={actor} event={state.event} judged={state.tracks.some((t) => t.answered > 0)} keys={!state.readOnly} />}
       person={actor.name}
       role="Judge"
       flush
     >
       <CompareView initial={state} faces={faces} />
     </WorkShell>
+  );
+}
+
+type JudgeEvent = { slug: string; judgingCloseAt: string | null; resultsPublishedAt: string | null };
+
+/**
+ * The judge's toolbar, the same in both modes: when judging closes, the signed judging record once results are
+ * published (a link when it exists, else the button that makes it, for a judge who did some judging), and the
+ * keyboard keys when `keys`.
+ */
+function JudgeTools({ actor, event, judged, keys }: { actor: Actor; event: JudgeEvent; judged: boolean; keys: boolean }) {
+  const closes = event.judgingCloseAt
+    ? `Judging closes ${formatUtc(event.judgingCloseAt, { weekday: true })}`
+    : event.resultsPublishedAt
+      ? `Results published ${formatUtc(event.resultsPublishedAt)}`
+      : "Judging stays open until the organizers publish results";
+  const record = event.resultsPublishedAt ? myRecords(actor, event.slug).find((r) => r.kind === "judge") : undefined;
+  const recordButton = "inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium whitespace-nowrap hover:bg-raised";
+  return (
+    <>
+      <span className="hidden text-13 whitespace-nowrap text-ink-2 xl:inline">{closes}</span>
+      {record ? (
+        <Link href={`/records/${record.id}`} className={recordButton}>
+          Your judging record
+        </Link>
+      ) : event.resultsPublishedAt && judged ? (
+        <form action={openOwnRecord.bind(null, event.slug, "judge")}>
+          {/* on phones the long label pushed Sign out onto a line of its own; the name is the visible label at each width (WCAG 2.5.3) */}
+          <button className={recordButton}>
+            <span className="sm:hidden">Get your record</span>
+            <span className="max-sm:hidden">Get your signed judging record</span>
+          </button>
+        </form>
+      ) : null}
+      {keys ? <KeysButton /> : null}
+    </>
   );
 }
