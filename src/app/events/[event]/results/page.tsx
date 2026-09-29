@@ -158,6 +158,15 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                 <ChevronDown className="size-4 shrink-0 text-ink-2 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
               </summary>
               <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
+                {/* what the figures below mean for the places, in one plain sentence; the step-by-step lives in its own block, not here */}
+                <p className="text-ink">
+                  What this means for the places: a project ahead of the next by less than the ± could as well have been behind it, and the
+                  figures below measure that margin; each step, project by project, is under{" "}
+                  <a href="#how-reached" className="underline underline-offset-4 hover:text-accent-ink">
+                    How this ranking was reached
+                  </a>
+                  .
+                </p>
                 {pairwise ? (
                   <p>{winPctMethod(pw)}</p>
                 ) : (
@@ -194,7 +203,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                 <LogSeal
                   entry={results.anchor.entry}
                   hash={results.anchor.hash}
-                  what="These results were published as this entry of the portal’s audit log. A later change to the log up to it would change the hash, and the picture drawn from it."
+                  what="What this proves: the results were published as this entry of the portal’s audit log, and the hash seals every entry up to it. Had anyone changed an earlier entry afterwards (a score, a decision, these results), the log would no longer lead to this hash, and the picture drawn from it would differ."
                 />
               </div>
             ) : null}
