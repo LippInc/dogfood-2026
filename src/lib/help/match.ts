@@ -5,8 +5,10 @@
  * slip away, and each word also stands for its synonyms at a lower weight. Entries are scored with BM25 over three
  * fields (title, keywords, answer), each with its own weight and length normalization, and an entry whose whole
  * title the question names gets a bonus. An entry is a match only when it covers enough of what was asked, both
- * weighted by how rare each word is (COVERAGE_FLOOR) and counted word by word (more than half the question's words,
- * WORD_SHARE_FLOOR), and scores above MATCH_FLOOR: otherwise the answer is "no match", and the panel never guesses.
+ * weighted by how rare each word is (COVERAGE_FLOOR) and counted word by word (at least 60 % of the question's words,
+ * WORD_SHARE_FLOOR), and scores above MATCH_FLOOR. A word covers fully only when the entry's title or keywords name it
+ * (or its typing slip); a hit through a synonym (SYNONYM_COVER) or only in the answer's text (ANSWER_COVER) covers
+ * part of it: otherwise the answer is "no match", and the panel never guesses.
  * The stemmer never merges two different words ("tracking" is not "track"; KEEP_WHOLE).
  */
 
@@ -18,8 +20,9 @@ export const MATCH_FLOOR = 0.8;
 export const COVERAGE_FLOOR = 0.35;
 /** A second or third match must reach this share of the best one's score. */
 export const RELATIVE_FLOOR = 0.45;
-/** The share of the question's words (counted, not weighted) an entry must cover, so more than half of them: one rare word no longer
- *  carries a question whose other words point elsewhere ("become" in "how do I become an organizer"). */
+/** The share of the question's words (counted, not weighted; a synonym-only or answer-only hit counts for part of a
+ *  word) an entry must cover, at least 60 %: one rare word no longer carries a question whose other words point
+ *  elsewhere ("become" in "how do I become an organizer"). */
 export const WORD_SHARE_FLOOR = 0.6;
 
 const K1 = 1.2;
@@ -32,6 +35,10 @@ const TYPO_WEIGHT = 0.8;
 /** How much a word the guide never uses counts against coverage: as much as a fairly rare word, not more. */
 const UNKNOWN_WORD_WEIGHT = 2.5;
 const TITLE_BONUS = 1.35;
+/** How much of a question word a hit covers when it comes only through a synonym, or only from the answer's running
+ *  text: part of it, so "judging" in a sign-out answer or "password" for "open link" never counts as a word answered. */
+export const SYNONYM_COVER = 0.5;
+export const ANSWER_COVER = 0.15;
 
 // Words that say nothing about what is asked. "who", "where" and the like stay out of the index too.
 const STOP = new Set(
@@ -54,6 +61,10 @@ const PHRASES: [RegExp, string][] = [
   [/\b(?:log|sign)\s*-?\s*out\b|\blogout\b/g, " signout "],
   [/\bsign\s*-?\s*up\b|\bregister\b|\bcreate an account\b|\bnew account\b/g, " signup "],
   [/\bopen\s*-?\s*link\b/g, " openlink "],
+  // "who can see my email": who sees one's own details, not the general word
+  [/\bwho\s+(?:can\s+)?sees?\s+my\b/g, "$& whoseesmy "],
+  // the team's name is not the person's own ("how do I change my name" is not a team rename)
+  [/\bteam'?s?\s+name\b/g, " teamname "],
   // "my reviews", "my score": one's own outcome, not the idea of a review; the words stay too
   [/\b(?:my|our)\s+(?:own\s+)?(?:reviews?|feedback|scores?|place|results?|rank)\b/g, "$& myresult "],
   // "see the votes", "vote count", "live count": the count, not the ballot; the words stay too
@@ -428,7 +439,9 @@ export function buildMatcher(docs: MatchDoc[]): Matcher {
         let covered = 0;
         let coveredWords = 0;
         for (const q of qs) {
-          let hit = false;
+          // how fully this entry answers the word: the word itself (or its typing slip) in the title or keywords
+          // counts whole; only a synonym, or only the answer's running text, counts for part of it
+          let hit = 0;
           for (const [t, weight] of q.alts) {
             let tf = 0;
             for (const f of Object.keys(FIELDS) as Field[]) {
@@ -436,18 +449,20 @@ export function buildMatcher(docs: MatchDoc[]): Matcher {
               if (c) tf += (FIELDS[f] * c) / (1 - B[f] + (B[f] * d.len[f]) / avg[f]);
             }
             if (!tf) continue;
-            hit = true;
+            const named = d.tf.title.has(t) || d.tf.keywords.has(t);
+            hit = Math.max(hit, (weight >= TYPO_WEIGHT ? 1 : SYNONYM_COVER) * (named ? 1 : ANSWER_COVER));
             score += weight * idf(t) * ((tf * (K1 + 1)) / (tf + K1));
           }
-          if (hit) {
-            covered += q.weight;
-            coveredWords++;
-          }
+          covered += q.weight * hit;
+          coveredWords += hit;
         }
         if (score <= 0) continue;
+        // a match through synonyms or the answer's running text scores for less than one that names the words
+        const share = coveredWords / qs.length;
+        score *= share * share;
         // the question is mostly the entry's whole title ("invite judges", "audit log", "pairwise mode")
         if (d.title.size && d.title.size * 2 >= qs.length && [...d.title].every((t) => named.has(t))) score *= TITLE_BONUS;
-        out.push({ id: d.id, score, coverage: covered / total, wordShare: coveredWords / qs.length });
+        out.push({ id: d.id, score, coverage: covered / total, wordShare: share });
       }
       return out.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
     },

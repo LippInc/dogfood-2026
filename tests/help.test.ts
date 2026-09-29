@@ -463,13 +463,15 @@ describe("the second review: rank, labels, no confident wrong answers", () => {
       "how do i book a flight",
       "can i bring my dog",
       "recipe for pancakes",
-      "is my activity tracked",
-      "where is the logout button",
       "can i submit a video",
       "what is the wifi password",
       "where is the venue",
       "is lunch provided",
       "how do i get a refund",
+      // the portal has no way to change one's own email address or name (FEATURES.md, README.md)
+      "can i change my email address",
+      "how do i change my name",
+      "how do i change my email",
     ];
     expect(misses.length).toBeGreaterThanOrEqual(20);
     for (const v of [visitor, participant, organizer]) {
@@ -497,5 +499,112 @@ describe("the second review: rank, labels, no confident wrong answers", () => {
       expect(a, id).toMatch(/email off/);
       expect(a, id).not.toMatch(/sends no email|no mail server is needed/i);
     }
+  });
+});
+
+describe("the third pass: partial hits count for less, strong matches stay first", () => {
+  const readers: [string, { signedIn: boolean; roles: HelpRole[] }][] = [
+    ["visitor", visitor],
+    ["participant", { signedIn: true, roles: ["participant"] }],
+    ["judge", { signedIn: true, roles: ["judge"] }],
+    ["organizer", { signedIn: true, roles: ["organizer"] }],
+  ];
+
+  it("answers the second review's questions, for every reader, with the entry that answers them", () => {
+    const cases: [string, string][] = [
+      ["when does judging end", "judging-close"],
+      ["what time does judging close", "judging-close"],
+      ["change password", "change-password"],
+      ["how do i change my password", "change-password"],
+      ["how are projects scored", "how-scored"],
+      ["how many judges per project", "reviews-per-project"],
+      ["where is the logout button", "sign-out"],
+      ["is my activity tracked", "privacy"],
+    ];
+    const wrong: string[] = [];
+    for (const [name, v] of readers) for (const [q, id] of cases) if (top(q, v) !== id) wrong.push(`${name}: ${q} -> ${top(q, v)}`);
+    expect(wrong).toEqual([]);
+    // "can i judge my own project": the rule that keeps a judge off their own team, never the judge console or the
+    // organizers' count of judges
+    for (const [name, v] of readers) expect(["assignment", "conflict"], `${name}`).toContain(top("can i judge my own project", v));
+  });
+
+  it("answers realistic questions from each kind of reader, or says no match where the portal has no answer", () => {
+    // each expectation checked against the code: the entry's answer is true of the page it names
+    const cases: [string, string][] = [
+      // visitors
+      ["how do i sign up", "sign-up"],
+      ["how do i verify a certificate", "verify"],
+      ["what is demo mode", "demo-mode"],
+      ["how do i run it with docker", "run-it"],
+      ["is there an api", "api"],
+      ["when are results published", "publish"],
+      ["forgot my password", "change-password"],
+      // participants
+      ["how do i join a team", "teams"],
+      ["how do i leave my team", "teams"],
+      ["can i edit my project after submitting", "hand-in"],
+      ["how many projects can i vote for", "vote"],
+      ["can i vote for my own team", "vote"],
+      ["can i delete my account", "privacy"],
+      ["how do i make an api token", "api-tokens"],
+      // judges
+      ["where is the judge console", "judge-console"],
+      ["can judges see each other's scores", "other-judges"],
+      ["where do i declare a conflict", "conflict"],
+      ["what is the flat judge rule", "flat-judge"],
+      ["what does the signal check mean", "signal-check"],
+      // organizers
+      ["how do i add a co-organizer", "co-organizers"],
+      ["how do i change the rubric weights", "weights"],
+      ["where do i export scores", "exports"],
+      ["how do i back up the portal", "backups"],
+      ["how do i switch to pairwise", "switch-pairwise"],
+      ["how do i import fixtures", "imports"],
+      ["how do i embed the gallery", "embed"],
+      ["how do i set the judging close time", "judging-close"],
+      ["what is the audit log", "audit-tab"],
+      ["how do i create an event", "new-event"],
+      ["change the team name", "teams"],
+    ];
+    expect(cases.length).toBeGreaterThanOrEqual(25);
+    const wrong = cases.map(([q, id]) => ({ q, id, got: top(q, visitor) })).filter((c) => c.got !== c.id);
+    expect(wrong).toEqual([]);
+    const misses = ["can i change my email address", "how do i change my name", "who can see my scores", "can i rename my account"];
+    for (const [name, v] of readers) expect(misses.filter((q) => ask(q, v).matches.length), name).toEqual([]);
+  });
+
+  it("a synonym or an answer-only hit covers only part of a word (the instrument fails a known-bad)", () => {
+    // the review's case: "judging" only in the running text, "end" in a keyword, used to count as the whole question
+    const m = buildMatcher([
+      { id: "out", title: "Sign out", keywords: ["end session"], answer: "It is in the top bar on the judging pages." },
+      { id: "vote", title: "Vote", keywords: ["ballot"], answer: "Pick three." },
+      { id: "x", title: "Unrelated", keywords: ["other"], answer: "Nothing." },
+    ]);
+    const out = m.score("when does judging end").find((s) => s.id === "out")!;
+    expect(out.wordShare).toBeLessThan(WORD_SHARE_FLOOR);
+    // a synonym hit ("favourite" stands for "ballot") covers half a word, never the whole
+    const fav = m.score("favourite ballot").find((s) => s.id === "vote")!;
+    const named = m.score("vote ballot").find((s) => s.id === "vote")!;
+    expect(fav.wordShare).toBeLessThan(1);
+    expect(named.wordShare).toBe(1);
+    // positive control: the words in the title and keywords cover the question whole
+    expect(m.score("sign out end session").find((s) => s.id === "out")!.wordShare).toBe(1);
+  });
+
+  it("keeps a strong match the reader cannot use above weaker ones they can (the old ranking fails this)", () => {
+    const judge = { signedIn: true, roles: ["judge"] as HelpRole[] };
+    const a = ask("how many judges per project", judge);
+    expect(a.matches[0]!.entry.id).toBe("reviews-per-project");
+    expect(a.matches[0]!.usable).toBe(false);
+    // what the judge can do still comes first among truly close matches (positive control)
+    expect(top("how to change team name", { signedIn: true, roles: ["participant"] })).toBe("teams");
+  });
+
+  it("an administrator with no event roles gets three to five suggestions, each finding its entry", () => {
+    const s = suggestionsFor({ signedIn: true, roles: ["admin"] });
+    expect(s.length).toBeGreaterThanOrEqual(3);
+    expect(s.length).toBeLessThanOrEqual(5);
+    for (const { q, expect: id } of HELP_SUGGESTIONS.admin) expect(top(q, { signedIn: true, roles: ["admin"] }), q).toBe(id);
   });
 });

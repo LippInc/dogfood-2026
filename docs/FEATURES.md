@@ -252,14 +252,15 @@ nowhere.
   check, pairwise mode, the audit chain, the freeze after publishing, ballots, open-link votes, demo mode, backups,
   the API).
 - **Each answer** is the best one to three entries: a sentence or two, a link to the page for the event in view,
-  who it is for, and for an idea the document and heading to read. Among close matches, what the reader can do
+  who it is for, and for an idea the document and heading to read. Among close matches (within 80 % of the best text score), what the reader can do
   ranks first (for a visitor, what any account can do counts); the rest is labelled whose it is, in plain words:
   "Organizers only", "Judges and organizers only", "Sign in to do this". A weaker match never jumps a much better
   one. When nothing matches well enough it says so and offers the main places; it never guesses.
 - **How it matches.** In the browser, with nothing sent: word stems (never merging two different words: "tracking"
   is not "track"), synonyms and the words people type, a slip of one letter forgiven, BM25 over each entry's title,
-  keywords and answer, and floors below which the answer is "no match": a match must cover more than half of the
-  question's words and enough of its rarer ones, and score high enough. The reader's roles come with the page, read
+  keywords and answer, and floors below which the answer is "no match": a match must cover at least 60 % of the
+  question's words and enough of its rarer ones, and score high enough; a word counts in full only when the entry's
+  title or keywords name it, and for part of a word when it comes through a synonym or only from the answer's text. The reader's roles come with the page, read
   on the server through the data access layer.
 - **Its limit.** It finds pages and answers from the portal's own guide; it is not an AI model.
 

@@ -126,7 +126,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["signed-in"],
     answer:
       "On the event's pages, Sign out is in the top bar (on a phone, in the Menu); on the judging and organizer pages it is in the account menu, the person icon at the top right. It ends this browser's session; your API tokens keep working until you revoke them.",
-    keywords: ["sign out", "log out", "logout", "leave my account", "end session", "switch account"],
+    keywords: ["sign out", "log out", "logout", "logout button", "sign out button", "leave my account", "end session", "switch account"],
   },
   {
     id: "sign-up",
@@ -136,6 +136,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["everyone"],
     answer: "Make an account with your name, email and a password. Taking part, judging and voting all start from an account.",
     keywords: ["sign up", "register", "new account", "create account", "join the portal"],
+  },
+  {
+    id: "change-password",
+    kind: "task",
+    title: "Change your password",
+    href: null,
+    who: ["everyone"],
+    answer:
+      "The portal has no page to change your own password. A portal administrator makes you a one-time reset link on Accounts; opening it sets a new password and signs you out everywhere else.",
+    keywords: ["change password", "change my password", "new password", "update password", "forgot my password", "password"],
+    doc: { file: "README.md", heading: "What it does not do yet" },
   },
   {
     id: "verify",
@@ -155,7 +166,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/privacy",
     who: ["everyone"],
     answer: "Everything the portal stores about people, how long it stays and what removes it. There are no analytics or tracking scripts, and no raw network addresses are stored.",
-    keywords: ["privacy", "personal data", "gdpr", "data kept", "tracking", "cookies", "delete my data", "delete my account", "who can see my email", "retention", "what do you store"],
+    keywords: ["privacy", "personal data", "gdpr", "data kept", "tracking", "is my activity tracked", "activity", "cookies", "delete my data", "delete my account", "who can see my email", "retention", "what do you store"],
     doc: { file: "docs/OPERATIONS.md", heading: "Personal data" },
   },
   {
@@ -198,7 +209,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["signed-in", "participant"],
     answer:
       "On My project, Start a team (or join one with a teammate's invite link), fill in the title and one-line summary, Save draft, then Submit project. You can edit it until submissions close; the server refuses changes after that.",
-    keywords: ["submit", "hand in", "submission", "submit project", "save draft", "deadline", "enter the hackathon", "upload project", "take part", "start a team"],
+    keywords: ["submit", "hand in", "submission", "submit project", "save draft", "edit my project", "deadline", "enter the hackathon", "upload project", "take part", "start a team"],
     doc: { file: "README.md", heading: "A guided tour" },
   },
   {
@@ -242,7 +253,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["signed-in"],
     answer:
       "While the community vote is open, pick up to three favourite projects; each pick saves at once. Nobody signed in can vote for their own team's project, and the count stays hidden until voting closes.",
-    keywords: ["vote", "voting", "ballot", "favourites", "favorites", "pick", "community vote", "peoples choice", "how do i vote", "cast a vote"],
+    keywords: ["vote", "voting", "ballot", "favourites", "favorites", "pick", "community vote", "peoples choice", "how do i vote", "cast a vote", "vote for projects", "vote for my own team"],
     doc: { file: "docs/FEATURES.md", heading: "Community vote" },
   },
   {
@@ -280,6 +291,28 @@ export const HELP_ENTRIES: HelpEntry[] = [
   },
 
   // ---- judges -------------------------------------------------------------------------------------------------
+  {
+    id: "judging-close",
+    kind: "task",
+    title: "When judging closes",
+    href: "/events/[event]/about",
+    who: ["everyone"],
+    answer:
+      "Organizers set \"Judging closes\" (UTC) in Settings; the event's About page shows it in its timeline and the judge console says when judging closes. Scoring stops then, or when results are published if that comes first; with no time set, judging runs until publishing.",
+    keywords: ["judging closes", "judging close", "judging ends", "judging end", "end of judging", "close time", "judging time", "how long can judges score", "timeline"],
+    doc: { file: "JUDGING.md", heading: "Scoring" },
+  },
+  {
+    id: "how-scored",
+    kind: "concept",
+    title: "How projects are scored",
+    href: null,
+    who: ["everyone"],
+    answer:
+      "Judges score each rubric criterion (1 to 5 on the sample event); a review's total is Σ weight × score ÷ Σ weight and counts only once every criterion is scored. Each judge's leniency is corrected before ranking, and every score carries its ±; in pairwise mode judges pick the better of two instead.",
+    keywords: ["how are projects scored", "projects scored", "how scoring works", "score calculation", "calculated", "total score", "weighted total", "review total", "how is the score calculated"],
+    doc: { file: "JUDGING.md", heading: "Scoring" },
+  },
   {
     id: "judge-console",
     kind: "page",
@@ -320,7 +353,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["judge"],
     answer:
       "In the judge console, \"Declare a conflict of interest\" takes the project out of your batch; the organizers see why. A judge on a project's team is never given it.",
-    keywords: ["conflict of interest", "recuse", "recusal", "i know this team", "friend", "my own team", "skip project"],
+    keywords: ["conflict of interest", "recuse", "recusal", "i know this team", "friend", "my own team", "judge my own project", "skip project"],
     doc: { file: "JUDGING.md", heading: "Assignment" },
   },
   {
@@ -458,7 +491,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["organizer"],
     answer:
       "Open the team from Submissions: an organizer renames it, adds someone or takes someone off, each with a reason for the audit log, until results are published. The project page says the organizers changed the team.",
-    keywords: ["change team", "add member after the close", "take someone off a team", "rename team", "team page organizer"],
+    keywords: ["change team", "change team name", "add member after the close", "take someone off a team", "rename team", "team page organizer"],
     doc: { file: "docs/FEATURES.md", heading: "Events and teams" },
   },
   {
@@ -778,7 +811,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["everyone"],
     answer:
       "A permutation test: it shuffles the review totals 2,000 times and counts how often the shuffled projects spread as far apart as the real ones. A share near 0 means real differences; on the sample event it is about 0.76, so neighbouring places are close to ties.",
-    keywords: ["signal check", "permutation", "permutation share", "significance", "is it random", "chance", "luck", "noise", "p value"],
+    keywords: ["signal check", "permutation", "permutation share", "significance", "is it random", "random", "is the ranking random", "chance", "luck", "noise", "p value"],
     doc: { file: "JUDGING.md", heading: "The finding on the sample event" },
   },
   {
@@ -943,6 +976,7 @@ export const HELP_SUGGESTIONS: Record<"visitor" | HelpRole, { q: string; expect:
   admin: [
     { q: "How do I create a new event?", expect: "new-event" },
     { q: "How do I import an event?", expect: "imports" },
+    { q: "How do I reset someone's password?", expect: "accounts" },
   ],
 };
 
@@ -1033,12 +1067,14 @@ export function helpEntry(id: string): HelpEntry | undefined {
 }
 
 /** Matches within this share of the best text score, covering as much of the question, are close: among them, what
- *  the person can do ranks first. */
-export const CLOSE_SHARE = 0.6;
+ *  the person can do ranks first. Narrow on purpose: a strong match the reader cannot use stays above weak ones they
+ *  can ("how many judges per project" is the organizers' Judges per project, also for a judge). */
+export const CLOSE_SHARE = 0.8;
 
 /**
  * The best one to three entries for a question. The text decides what matches: an entry must clear the floors
- * (./match.ts) and reach RELATIVE_FLOOR of the best text score. Among the close matches (CLOSE_SHARE of the best),
+ * (./match.ts: enough of the rarer words, at least 60 % of the words, a score over MATCH_FLOOR) and reach
+ * RELATIVE_FLOOR of the best text score. Among the close matches (CLOSE_SHARE of the best),
  * what this person can do comes first, then what they could do once signed in, then what is someone else's
  * (reach), each group best text first; a weaker match never jumps a much better one. None when nothing clears the
  * floors, and then `places` holds the top-level places to offer instead.
