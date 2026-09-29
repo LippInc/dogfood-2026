@@ -527,7 +527,8 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
 
   // Pairwise answers, taken-back ones included, each between two of the file's projects in the track it names. An
   // answer keeps its own track: a project moved to another track later (a move the file's track_moves record) still
-  // has its answers from the old one, which the live engine keeps and stops counting, as it does on the old portal.
+  // has its answers from the old one, which the live engine counts only while both projects share a track, as it does
+  // on the old portal.
   const tracksOf = new Map<string, Set<string>>();
   const wasIn = (project: string, track: string) => tracksOf.set(project, (tracksOf.get(project) ?? new Set<string>()).add(track));
   for (const [project, track] of ctx.trackOfProject) wasIn(project, track);
