@@ -5,7 +5,7 @@ import type { Actor } from "../authz";
 import type { DbOrTx } from "../db/client";
 import { assignments, events, judgeOverrides, projects } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
-import { mutate } from "../mutate";
+import { mutate, type MutationAudit } from "../mutate";
 import { newId } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { isJudgeIn } from "./judges";
@@ -182,7 +182,7 @@ export function eventDecisions(
 // Audited actions
 // ---------------------------------------------------------------------------
 
-export function organizerMutation<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOrTx, event: EventRow) => { result: T; audit: Parameters<typeof mutate<T>>[0]["run"] extends (tx: never) => { audit: infer A } ? A : never }) {
+export function organizerMutation<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOrTx, event: EventRow) => { result: T; audit: MutationAudit }) {
   let event: EventRow;
   return mutate<T>({
     actor,

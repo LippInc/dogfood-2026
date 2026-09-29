@@ -12,6 +12,9 @@ import { LIMITS, take } from "./rate-limit";
 
 type AuditDetail = Omit<AuditEntry, "actorUserId" | "actorLabel" | "action"> & { action?: string };
 
+/** What a change says to the audit log: one row, a row per thing changed, or null when nothing changed. */
+export type MutationAudit = AuditDetail | AuditDetail[] | null;
+
 export type MutationSpec<T> = {
   actor: Actor | null;
   /** who the audit row names when there is no session: a voter holding a voting link */
@@ -25,7 +28,7 @@ export type MutationSpec<T> = {
    * each, in order, for a change made of several things (a batch of invitations).
    * Must be synchronous.
    */
-  run: (tx: Tx) => { result: T; audit: AuditDetail | AuditDetail[] | null };
+  run: (tx: Tx) => { result: T; audit: MutationAudit };
   now?: Date;
 };
 

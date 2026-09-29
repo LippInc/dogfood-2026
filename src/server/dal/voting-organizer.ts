@@ -7,7 +7,7 @@ import { auditLog, events, projects, teamMembers, teams, users, voters, votes, t
 import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { appendAudit } from "../audit";
-import { guardRead, mutate } from "../mutate";
+import { guardRead, mutate, type MutationAudit } from "../mutate";
 import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
 import { parse, utcTimeOrEmpty } from "./parse";
@@ -34,7 +34,7 @@ export const SettingsInput = z
   .refine((v) => (v.votingOpenAt === "") === (v.votingCloseAt === ""), { message: "set both times or neither", path: ["votingCloseAt"] })
   .refine((v) => !v.votingOpenAt || Date.parse(v.votingOpenAt) < Date.parse(v.votingCloseAt), { message: "must be after voting opens", path: ["votingCloseAt"] });
 
-function organizer<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOrTx, event: EventRow) => { result: T; audit: Parameters<typeof mutate<T>>[0]["run"] extends (tx: never) => { audit: infer A } ? A : never }) {
+function organizer<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOrTx, event: EventRow) => { result: T; audit: MutationAudit }) {
   let event: EventRow;
   return mutate<T>({
     actor,
