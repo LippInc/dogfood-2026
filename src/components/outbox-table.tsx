@@ -21,9 +21,11 @@ const RESULT: Record<string, { label: string; tone: string }> = {
   failed: { label: "Failed", tone: "font-medium text-flag" },
   unknown: { label: "May have arrived", tone: "font-medium text-ink" },
   sending: { label: "No answer recorded", tone: "font-medium text-ink" },
+  underway: { label: "Sending…", tone: "text-ink-2" },
   off: { label: "Not sent: email is off", tone: "text-ink-2" },
 };
-const resultOf = (status: string) => RESULT[status] ?? { label: status, tone: "text-ink-2" };
+/** A row at "sending" is still under way for about a minute (the DAL says which); after that no answer was recorded. */
+const resultOf = (m: Pick<OutboxView, "status" | "underway">) => RESULT[m.underway ? "underway" : m.status] ?? { label: m.status, tone: "text-ink-2" };
 
 /**
  * `page` is one page of the outbox; `href(before)` makes the address of another page (null: the newest),
@@ -32,7 +34,7 @@ const resultOf = (status: string) => RESULT[status] ?? { label: status, tone: "t
 export function OutboxTable({ page, href, older = false }: { page: OutboxPage; href: (before: string | null) => string; older?: boolean }) {
   const mail = page.messages;
   if (!mail.length && !older) return null;
-  const { sent, failed, total, unknown } = page.counts;
+  const { sent, failed, total, unknown, sending } = page.counts;
   const newest = mail[0];
   const troubled = !older && newest?.status === "failed";
   const paged = older || page.next !== null;
@@ -44,6 +46,12 @@ export function OutboxTable({ page, href, older = false }: { page: OutboxPage; h
           <>
             {" "}
             · <span className="font-medium text-ink">{unknown}</span> may have arrived
+          </>
+        ) : null}
+        {sending ? (
+          <>
+            {" "}
+            · <span className="text-ink">{sending}</span> sending
           </>
         ) : null}
         {paged ? <span className="text-ink-3"> · {total} in all</span> : null}
@@ -107,7 +115,7 @@ function MailRow({ m }: { m: OutboxView }) {
         </details>
       </td>
       <td className="py-2 align-top max-sm:col-start-2 max-sm:row-start-1 max-sm:justify-self-end max-sm:p-0">
-        <span className={resultOf(m.status).tone}>{resultOf(m.status).label}</span>
+        <span className={resultOf(m).tone}>{resultOf(m).label}</span>
         {m.status !== "sent" && m.error ? <span className="mt-0.5 block text-12 text-ink-2">{m.error}</span> : null}
       </td>
     </tr>

@@ -112,6 +112,11 @@ const SERVER_DOWN = new Set(["ECONNECTION", "ETIMEDOUT", "ESOCKET", "EDNS", "ETL
  *  up on it (the sends already under way still finish, within the timeouts); the rest are shown to copy. */
 export const MAIL_BATCH_MS = 20_000;
 
+/** How long after it was recorded a message may still be on its way: the batch's budget, then one last send waiting
+ *  out every timeout. A row still at "sending" within this is being sent; past it, no answer was recorded (the
+ *  portal stopped mid-send), and the outbox counts it with the ones that may have arrived. */
+export const MAIL_SETTLE_MS = MAIL_BATCH_MS + MAIL_TIMEOUTS.connectionTimeout + MAIL_TIMEOUTS.greetingTimeout + MAIL_TIMEOUTS.socketTimeout;
+
 /**
  * Sends several messages, at most `concurrency` at a time, the results in the same order. Once the server
  * cannot be used at all, the messages not yet tried fail at once instead of each waiting out the timeouts;

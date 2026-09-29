@@ -4,6 +4,7 @@ import type { Actor } from "../authz";
 import { getDb } from "../db/client";
 import { outbox } from "../db/schema";
 import { ValidationError } from "../errors";
+import { MAIL_SETTLE_MS } from "../mail";
 import { guardRead } from "../mutate";
 import { eventFacts, requireEvent } from "./events";
 
@@ -23,13 +24,17 @@ export type OutboxView = {
   error: string | null;
   createdAt: string;
   sentAt: string | null;
+  /** true for a "sending" row recorded within MAIL_SETTLE_MS (about a minute): its send may still be going on. A
+   *  "sending" row older than that has no answer recorded (the portal stopped mid-send), and may have arrived. */
+  underway: boolean;
 };
 
 /** One page of messages, newest first; next: the id to pass as `before` for the older page, or null at the end. Counts are over every message. */
 export type OutboxPage = {
   messages: OutboxView[];
   next: string | null;
-  counts: { total: number; sent: number; failed: number; unknown: number };
+  /** unknown: may have arrived (the line broke after hand-over, or an old row with no answer recorded); sending: still under way. */
+  counts: { total: number; sent: number; failed: number; unknown: number; sending: number };
 };
 
 export const OUTBOX_PAGE = 100;
@@ -61,6 +66,8 @@ function pageSize(limit: OutboxPaging["limit"]): number {
 function readPage(scope: SQL | undefined, paging: OutboxPaging): OutboxPage {
   const db = getDb();
   const limit = pageSize(paging.limit);
+  // one instant for the rows and the counts, so a row the table calls under way is the one the count line counts
+  const settled = new Date(Date.now() - MAIL_SETTLE_MS).toISOString();
   let after: SQL | undefined;
   if (paging.before) {
     // the cursor is a message of the same list: another event's (or a made-up) id is refused, not ignored
@@ -75,14 +82,16 @@ function readPage(scope: SQL | undefined, paging: OutboxPaging): OutboxPage {
     .orderBy(desc(outbox.createdAt), desc(outbox.id))
     .limit(limit + 1)
     .all();
-  const messages = rows.slice(0, limit);
+  const messages = rows.slice(0, limit).map((m) => ({ ...m, underway: m.status === "sending" && m.createdAt >= settled }));
   const counts = db
     .select({
       total: sql<number>`count(*)`,
       sent: sql<number>`coalesce(sum(${outbox.status} = 'sent'), 0)`,
       failed: sql<number>`coalesce(sum(${outbox.status} = 'failed'), 0)`,
       // may have arrived: the line broke after hand-over, or no answer was recorded (the portal stopped mid-send)
-      unknown: sql<number>`coalesce(sum(${outbox.status} in ('unknown', 'sending')), 0)`,
+      unknown: sql<number>`coalesce(sum(${outbox.status} = 'unknown' or (${outbox.status} = 'sending' and ${outbox.createdAt} < ${settled})), 0)`,
+      // still being sent: recorded within the time a batch and its last send can take
+      sending: sql<number>`coalesce(sum(${outbox.status} = 'sending' and ${outbox.createdAt} >= ${settled}), 0)`,
     })
     .from(outbox)
     .where(scope)

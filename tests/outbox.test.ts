@@ -13,7 +13,7 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
-import { MAIL_TIMEOUTS, mailBase, mailProblem, mailSettings, outcomeOf, sendMail, sendMany, setMailTransportForTests } from "@/server/mail";
+import { MAIL_BATCH_MS, MAIL_SETTLE_MS, MAIL_TIMEOUTS, mailBase, mailProblem, mailSettings, outcomeOf, sendMail, sendMany, setMailTransportForTests } from "@/server/mail";
 import { listOutbox, listPortalOutbox, type OutboxView } from "@/server/dal/outbox";
 import type { Actor } from "@/server/authz";
 
@@ -481,7 +481,7 @@ describe("reading the outbox", () => {
     const first = listOutbox(organizer(), EVENT);
     expect(first.messages).toHaveLength(100);
     expect(first.messages[0]!.subject).toBe("Cap 229"); // newest first
-    expect(first.counts).toEqual({ total: 230, sent: 207, failed: 23, unknown: 0 }); // over every message, not the page
+    expect(first.counts).toEqual({ total: 230, sent: 207, failed: 23, unknown: 0, sending: 0 }); // over every message, not the page
     const second = listOutbox(organizer(), EVENT, { before: first.next });
     expect(second.messages[0]!.subject).toBe("Cap 129");
     // mail arriving between two reads shifts nothing on the next page
@@ -494,6 +494,18 @@ describe("reading the outbox", () => {
     expect(new Set(seen).size).toBe(230);
     // a smaller page on request; the same order
     expect(listOutbox(organizer(), EVENT, { limit: "5" }).messages.map((m) => m.subject)).toEqual(["Arrived meanwhile", "Cap 229", "Cap 228", "Cap 227", "Cap 226"]);
+  });
+
+  it("a sending row younger than a batch's budget and timeouts is still under way; an older one has no answer recorded and may have arrived", () => {
+    const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+    insertOutbox({ id: "obx_fresh", status: "sending", createdAt: ago(5_000) }); // a slow server, still answering
+    insertOutbox({ id: "obx_stale", status: "sending", createdAt: ago(MAIL_SETTLE_MS + 30_000) }); // the portal stopped mid-send
+    insertOutbox({ id: "obx_broke", status: "unknown", error: "Timeout", createdAt: ago(10 * 60_000) });
+    const page = listOutbox(organizer(), EVENT);
+    expect(page.counts).toEqual({ total: 3, sent: 0, failed: 0, unknown: 2, sending: 1 });
+    const byId = Object.fromEntries(page.messages.map((m) => [m.id, m.underway]));
+    expect(byId).toEqual({ obx_fresh: true, obx_stale: false, obx_broke: false });
+    expect(MAIL_SETTLE_MS).toBe(MAIL_BATCH_MS + MAIL_TIMEOUTS.connectionTimeout + MAIL_TIMEOUTS.greetingTimeout + MAIL_TIMEOUTS.socketTimeout);
   });
 
   it("two messages in the same second page by id, so neither is skipped or shown twice", () => {
