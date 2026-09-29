@@ -9,7 +9,7 @@ import { canonicalJson, newId, nowIso } from "./util";
 
 // Signed records: the portal holds one Ed25519 key, made at first boot and kept in
 // the database on the data volume. A record is signed over its canonical JSON (keys
-// sorted at every depth, no whitespace), so anyone holding the record and the public
+// sorted at every depth, no whitespace: src/lib/canonical-json.ts), so anyone holding the record and the public
 // key can check it without asking the portal: in a browser with WebCrypto, with
 // scripts/verify-record.mjs, or with any Ed25519 library.
 //

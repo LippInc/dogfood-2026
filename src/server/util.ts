@@ -32,22 +32,8 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
-/** JSON with object keys sorted at every depth, so equal values hash equally. */
-export function canonicalJson(value: unknown): string {
-  return JSON.stringify(sortKeys(value));
-}
-
-function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.keys(value as Record<string, unknown>)
-        .sort()
-        .map((k) => [k, sortKeys((value as Record<string, unknown>)[k])]),
-    );
-  }
-  return value;
-}
+// The canonical JSON every hash and signature covers: one copy, shared with the browser's signature check.
+export { canonicalJson } from "@/lib/canonical-json";
 
 /** Letters with no Latin base that NFKD cannot take apart: Cyrillic, Greek and a few Latin ones, spelt out. */
 const SPELT: Record<string, string> = {

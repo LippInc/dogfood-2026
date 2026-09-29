@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
 import { SignatureBits } from "@/components/signature-bits";
+import { canonicalJson } from "@/lib/canonical-json";
 
 type Envelope = { record: Record<string, unknown>; signature: string };
 type Key = { kid: string; kty: string; crv: string; x: string };
@@ -12,21 +13,6 @@ type State =
   | { at: "valid"; kid: string }
   | { at: "invalid"; why: string }
   | { at: "unsupported"; why: string };
-
-/** Keys sorted at every depth, arrays in order, no whitespace: the exact bytes the portal signed. */
-function canonical(value: unknown): string {
-  const sort = (v: unknown): unknown =>
-    Array.isArray(v)
-      ? v.map(sort)
-      : v && typeof v === "object"
-        ? Object.fromEntries(
-            Object.keys(v as Record<string, unknown>)
-              .sort()
-              .map((k) => [k, sort((v as Record<string, unknown>)[k])]),
-          )
-        : v;
-  return JSON.stringify(sort(value));
-}
 
 function fromBase64url(s: string): Uint8Array<ArrayBuffer> {
   const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
@@ -62,7 +48,7 @@ export async function checkInBrowser(envelope: Envelope, keysUrl = "/.well-known
     { name: "Ed25519" },
     publicKey,
     signature,
-    new TextEncoder().encode(canonical(envelope.record)),
+    new TextEncoder().encode(canonicalJson(envelope.record)),
   );
   return ok ? { at: "valid", kid: key.kid } : { at: "invalid", why: "The signature does not match this record." };
 }

@@ -2,16 +2,20 @@
 //
 // What it checks: that a record's Ed25519 signature (base64url) matches the record's
 // canonical JSON — object keys sorted at every depth, arrays in order, JSON.stringify
-// with no whitespace (canonicalJson in src/server/util.ts). Only Node built-ins;
-// no portal, no database, no npm packages.
+// with no whitespace — computed exactly as the portal computes it (src/lib/canonical-json.ts,
+// which says the one detail: keys that are array indices, such as "2" and "10", come
+// first, by number; a record has none). Only Node built-ins; no portal, no database,
+// no npm packages. tests/canonical-json.test.ts holds this copy to the portal's.
 //
-// Usage: node scripts/verify-record.mjs <record> [--keys <keys>]
+// Usage: node scripts/verify-record.mjs <record> [--keys <keys>] [--canonical]
 //   <record>  a path to a JSON file holding the envelope { record, signature }
 //             itself (or { envelope, ... } as GET /api/records/<id> serves), or
 //             an http(s):// URL of /api/records/<id> or of the page /records/<id>.
 //   --keys    a path or http(s):// URL of a saved keys document
 //             ({ issuer, format, keys: [...] } as /.well-known/dogfood-keys.json
 //             serves).
+//   --canonical  print the record's canonical JSON, the exact bytes the signature
+//             covers, and stop (no key is needed): to check them with other tools.
 //
 // Trust: without --keys the keys are fetched from
 // <record.issuer>/.well-known/dogfood-keys.json — the issuer named inside the
@@ -22,12 +26,13 @@
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 
-const USAGE = "usage: node scripts/verify-record.mjs <record> [--keys <keys>]";
+const USAGE = "usage: node scripts/verify-record.mjs <record> [--keys <keys>] [--canonical]";
 
 const args = process.argv.slice(2);
 const keysAt = args.indexOf("--keys");
 const keysRef = keysAt >= 0 ? args[keysAt + 1] : undefined;
-const recordRef = args.filter((a, i) => a !== "--keys" && args[i - 1] !== "--keys")[0];
+const printCanonical = args.includes("--canonical");
+const recordRef = args.filter((a, i) => a !== "--keys" && a !== "--canonical" && args[i - 1] !== "--keys")[0];
 if (!recordRef || (keysAt >= 0 && !keysRef)) {
   console.error(USAGE);
   process.exit(2);
@@ -35,14 +40,15 @@ if (!recordRef || (keysAt >= 0 && !keysRef)) {
 
 const isUrl = (ref) => /^https?:\/\//i.test(ref);
 
-/** Canonical JSON: keys sorted at every depth, arrays in order, no whitespace. */
+/** Canonical JSON: keys sorted at every depth, arrays in order, no whitespace; written as the portal writes it. */
 function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") {
-    const body = Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonical(value[k])}`);
-    return `{${body.join(",")}}`;
-  }
-  return JSON.stringify(value);
+  const sortKeys = (v) =>
+    Array.isArray(v)
+      ? v.map(sortKeys)
+      : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])]))
+        : v;
+  return JSON.stringify(sortKeys(value));
 }
 
 function die(message) {
@@ -78,6 +84,11 @@ async function main() {
   const e = envelope && typeof envelope === "object" && !Array.isArray(envelope) ? envelope : null;
   const record = e && e.record && typeof e.record === "object" && !Array.isArray(e.record) ? e.record : null;
   const signature = e && typeof e.signature === "string" ? e.signature : null;
+  if (printCanonical) {
+    if (!record) die(`no record in "${recordRef}"`);
+    process.stdout.write(canonical(record));
+    return;
+  }
 
   const field = (obj, k) => (obj && typeof obj[k] === "string" ? obj[k] : "?");
   console.log(`format:    ${field(record, "format")}`);
