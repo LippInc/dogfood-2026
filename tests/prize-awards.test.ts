@@ -153,6 +153,43 @@ describe("awarding a prize before publishing", () => {
   });
 });
 
+describe("merging a winner away", () => {
+  const duplicateOf = (id: string) => (h.sqlite.prepare("SELECT duplicate_of AS d FROM projects WHERE id = ?").get(id) as { d: string | null }).d;
+
+  it("is refused, 409 prize_awarded, logged as a refusal; nothing merges and the award stands", () => {
+    const [best] = twoPrizes();
+    awardPrize(organizer(), "evt_01", best, { projectIds: ["prj_41"] });
+    const err = expectHttp(() => mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" }), 409, "prize_awarded");
+    expect(err.message).toMatch(/Best hack/);
+    expect(err.message).toMatch(/Take the award back first, then merge/);
+    expect(duplicateOf("prj_41")).toBeNull();
+    expect(auditOf("project.merge")).toHaveLength(0);
+    const refused = auditOf("authz.refused").at(-1)!;
+    expect(refused).toMatchObject({ eventId: "evt_01", targetType: "project", targetId: "prj_41", actorUserId: "usr_organizer" });
+    expect(refused.after).toMatchObject({ attempted: "project.merge", status: 409, code: "prize_awarded" });
+    expect(getPrizeAwards(organizer(), "evt_01").prizes[0]!.winners.map((w) => w.projectId)).toEqual(["prj_41"]);
+  });
+
+  it("positive controls: the kept copy may hold the award, and once the award is taken back the merge goes through", () => {
+    const [best] = twoPrizes();
+    awardPrize(organizer(), "evt_01", best, { projectIds: ["prj_07"] });
+    mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    expect(duplicateOf("prj_41")).toBe("prj_07");
+    expect(getPrizeAwards(organizer(), "evt_01").prizes[0]!.winners.map((w) => w.projectId)).toEqual(["prj_07"]);
+    expect(auditOf("authz.refused")).toHaveLength(0);
+  });
+
+  it("positive control: take the award back, then the merge goes through", () => {
+    const [best] = twoPrizes();
+    awardPrize(organizer(), "evt_01", best, { projectIds: ["prj_41"] });
+    expectHttp(() => mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" }), 409, "prize_awarded");
+    awardPrize(organizer(), "evt_01", best, { projectIds: [] });
+    mergeDuplicate(organizer(), "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    expect(duplicateOf("prj_41")).toBe("prj_07");
+    expect(auditOf("project.merge")).toHaveLength(1);
+  });
+});
+
 describe("who may award and read", () => {
   it("no session is 401, a judge or a team member 403 (logged); the organizer is the positive control", () => {
     const [best] = twoPrizes();

@@ -61,7 +61,8 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
   // the prizes given so far: before publishing each is named, since removing its prize takes the award back; once
   // published with any given, the prize list is final (the database's prizes_final_* triggers refuse a change)
   const awarded = o.prizes.length ? guardPage(() => getPrizeAwards(actor, key)).prizes.filter((p) => p.winners.length) : [];
-  const prizesFinal = Boolean(event.resultsPublishedAt) && awarded.length > 0;
+  // the same list savePrizes and the prizes_final triggers read: the stored awards
+  const prizesFinal = Boolean(event.resultsPublishedAt) && (event.settings.prizeAwards?.length ?? 0) > 0;
   // the criterion that breaks exact ties, when one is set and the event judges by scores (pairwise has no criteria)
   const tieId = mode === "scores" ? (event.settings.tieBreak?.criterionId ?? null) : null;
   const tieLabel = o.rubric.find((c) => c.id === tieId)?.label ?? null;

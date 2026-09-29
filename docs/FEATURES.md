@@ -138,8 +138,8 @@ also stay unawarded, which is where every prize starts: the Overview's Publish p
 yet, and publishing is allowed anyway (they stay unawarded). Every award, change or taking back is one entry in the
 audit log ("awarded the prize ... to ..."), and removing an awarded prize on Settings takes its award with it, logged
 as taken back (the Prizes section names each award and says so before you save). Once published with a prize
-awarded, the Prizes section on Settings is locked like Tracks. Only the event's submitted projects can win; a winner later merged into its other copy
-no longer counts. Publishing makes the awards final: the app answers 409 `results_published`, and the database
+awarded, the Prizes section on Settings is locked like Tracks. Only the event's submitted projects can win. Merging away a project that holds an award is
+refused (409 `prize_awarded`: take the award back first, then merge), and the refusal is logged; the kept copy may hold one. Publishing makes the awards final: the app answers 409 `results_published`, and the database
 refuses a changed award, and any edit to the prize list of an event that awarded one. Once published, the public
 results show each prize with its winners (each with its published place in its track) and note, a winner's project page says "Winner, <prize>", and so does its
 team's certificate ("Joint winner, <prize>" for a joint award). `GET /api/events/{event}/awards` lists them

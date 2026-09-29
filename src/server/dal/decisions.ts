@@ -2,10 +2,11 @@ import "server-only";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
-import type { DbOrTx } from "../db/client";
-import { assignments, events, judgeOverrides, projects } from "../db/schema";
+import { getDb, type DbOrTx } from "../db/client";
+import { assignments, events, judgeOverrides, prizes, projects } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
-import { newId } from "../util";
+import { appendAudit } from "../audit";
+import { newId, nowIso } from "../util";
 import { organizerMutation, type EventRow } from "./events";
 import { isJudgeIn } from "./judges";
 import { finishedReviews, judgeSet, submittedProjects, type ProjectInfo } from "./judging";
@@ -254,6 +255,51 @@ export const MergeInput = z.object({ keepId: z.string().min(1), duplicateId: z.s
  * no score row is deleted and both copies stay visible in the raw table.
  */
 export function mergeDuplicate(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
+  try {
+    return mergeOnce(actor, eventIdOrSlug, body);
+  } catch (err) {
+    // the prize refusal is recorded as a refusal is, in a transaction of its own (the merge's rolled back)
+    if (err instanceof PrizeAwardedError && actor) {
+      getDb().transaction((tx) => {
+        appendAudit(
+          tx,
+          {
+            actorUserId: actor.userId,
+            actorLabel: actor.name,
+            action: "authz.refused",
+            eventId: err.eventId,
+            targetType: "project",
+            targetId: err.projectId,
+            after: { attempted: "project.merge", status: 409, code: "prize_awarded", prizes: err.prizes },
+          },
+          nowIso(),
+        );
+      });
+    }
+    throw err;
+  }
+}
+
+/** 409 prize_awarded: the project holds a prize award, so it cannot be merged away until the award is taken back. */
+export class PrizeAwardedError extends ConflictError {
+  constructor(
+    readonly eventId: string,
+    readonly projectId: string,
+    readonly prizes: string[],
+  ) {
+    super("prize_awarded", `This project holds ${prizes.length === 1 ? "the prize" : "the prizes"} ${prizes.map((n) => `"${n}"`).join(", ")}. Take the award back first, then merge.`);
+  }
+}
+
+/** The names of the prizes an award gives the project, from the event's settings (the list the prizes_final triggers and the Settings lock read). */
+export function prizesHeldBy(tx: DbOrTx, event: EventRow, projectId: string): string[] {
+  const ids = (event.settings.prizeAwards ?? []).filter((a) => a.projectIds.includes(projectId)).map((a) => a.prizeId);
+  if (!ids.length) return [];
+  const names = new Map(tx.select({ id: prizes.id, name: prizes.name }).from(prizes).where(inArray(prizes.id, ids)).all().map((p) => [p.id, p.name]));
+  return ids.map((id) => names.get(id) ?? id);
+}
+
+function mergeOnce(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     notPublished(event);
     const { keepId, duplicateId } = parse(MergeInput, body);
@@ -268,6 +314,9 @@ export function mergeDuplicate(actor: Actor | null, eventIdOrSlug: string, body:
     if (!keep || !dup || keep.status !== "submitted" || dup.status !== "submitted") throw new NotFoundError("Submitted project");
     if (dup.duplicateOf || keep.duplicateOf) throw new ConflictError("already_merged", "One of these copies is already merged.");
     if (rows.some((r) => r.duplicateOf === duplicateId)) throw new ConflictError("already_merged", "Another copy is merged into this one; undo that first.");
+    // a winner is never merged away quietly: the kept copy may hold an award, the merged-away one may not
+    const held = prizesHeldBy(tx, event, duplicateId);
+    if (held.length) throw new PrizeAwardedError(event.id, duplicateId, held);
     const count = countBeforeChange(tx, event);
     tx.update(projects).set({ duplicateOf: keepId }).where(eq(projects.id, duplicateId)).run();
     const countChange = recordCountChange(tx, event, count, { kind: "merge", keepId, duplicateId });

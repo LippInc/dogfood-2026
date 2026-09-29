@@ -45,9 +45,9 @@ function eligible(db: DbOrTx, eventId: string): Map<string, PrizeWinner> {
 }
 
 /**
- * Every prize of the event, in its order, with its winners. An award that names a prize removed since, or a
- * project merged into its other copy since it was given, counts only for what still stands:
- * a prize whose every winner went is unawarded again (the Overview says so before publishing).
+ * Every prize of the event, in its order, with its winners. A winner cannot be merged away (mergeDuplicate refuses it,
+ * 409 prize_awarded) and removing a prize takes its award with it, so every stored award stands; the filter below
+ * only keeps a page from naming a project that is not a submitted, unmerged one.
  */
 export function prizeStandings(db: DbOrTx, event: EventRow): PrizeStanding[] {
   const list = db
