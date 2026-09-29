@@ -6,21 +6,30 @@ driver wires them together), so voting is closed, the comment Section B hid has
 been unhidden and deleted again, and the results are not yet published when it starts. It then publishes the sample
 event, so the instance is spent for A and B afterwards.
 
-Covers, as numbered checks: the OpenAPI document and bearer auth, a settings
-round trip, webhooks (private targets refused, a change queued with its audit
-hash), signed records end to end (publish, issue, verify, tamper), the offline
-verifier script, the embed widget and its frame headers, and bulk import and
-export with personal claim links, and pairwise judging (C9, run before C4 because
-publishing makes the judging mode final). Standard library only.
+Covers, as numbered checks: the OpenAPI document and bearer auth (a session
+token and a real API token, revoked), a settings round trip read back, webhooks
+(private targets refused, a change queued with its audit hash; C10 a failed
+delivery retried with backoff), signed records end to end (publish, issue,
+verify, tamper), the awards on every certificate (C11), the offline verifier
+script, the embed widget and which pages may be framed, bulk import and export
+(a file bringing a new criterion to a scored event, and one that would add
+to a published event, refused), personal claim links and
+their refusal for someone another organizer's event holds (C12), and pairwise
+judging with a "too close to call" answer (C9, run before C4 because publishing
+makes the judging mode final). The signed webhook request itself is checked by
+tests/webhook_live_check.py, on a portal that may send to a local receiver.
+Standard library only.
 """
 
 import csv
+import html
 import io
 import json
 import secrets
 import shutil
 import subprocess
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -81,6 +90,41 @@ def section_c(u, people, cfg):
     expect(c, s == 403, participant_bearer, "GET", overview_url, s, "403 with the participant's bearer token")
     s, _, _ = visitor.request("GET", overview_url)
     expect(c, s == 401, visitor, "GET", overview_url, s, "401 with no auth")
+    # a real API token, made the way /account/tokens makes one: it acts with its owner's permissions, cannot make
+    # more tokens, and stops working the moment it is revoked
+    tokens_url = u("/api/tokens")
+    made = {}
+    for person, key in ((organizer, "organizer"), (participant, "participant")):
+        s, body, _ = person.request("POST", tokens_url, {"name": f"isolation check {secrets.token_hex(2)}", "days": 1})
+        if expect(c, s == 201, person, "POST", tokens_url, f"{s} ({error_code(body)})", "201"):
+            data = as_json(body)
+            expect(c, str(data.get("token", "")).startswith("dfk_") and bool(data.get("id")), person, "POST", tokens_url,
+                   f"token {str(data.get('token'))[:6]!r}, id {data.get('id')!r}", "a dfk_ token and its id")
+            made[key] = (data.get("id"), Person(f"{person.name} by API token", f"Authorization: Bearer {data.get('token')}"))
+    s, _, _ = visitor.request("POST", tokens_url, {"name": "no session", "days": 1})
+    expect(c, s == 401, visitor, "POST", tokens_url, s, "401 with no auth")
+    if "organizer" in made and "participant" in made:
+        org_id, org_token = made["organizer"]
+        _, part_token = made["participant"]
+        s, _, _ = org_token.request("GET", overview_url)
+        expect(c, s == 200, org_token, "GET", overview_url, s, "200 with the organizer's API token")
+        s, _, _ = part_token.request("GET", overview_url)
+        expect(c, s == 403, part_token, "GET", overview_url, s, "403 with the participant's API token")
+        s, body, _ = org_token.request("POST", tokens_url, {"name": "made by a token", "days": 1})
+        expect(c, s == 403 and error_code(body) == "token_cannot_manage_tokens", org_token, "POST", tokens_url,
+               f"{s} {error_code(body)}", "403 token_cannot_manage_tokens")
+        revoke_url = u(f"/api/tokens/{org_id}/revoke")
+        s, _, _ = participant.request("POST", revoke_url)
+        expect(c, s == 404, participant, "POST", revoke_url, s, "404: someone else's token is not theirs to revoke")
+        s, _, _ = org_token.request("GET", overview_url)
+        expect(c, s == 200, org_token, "GET", overview_url, s, "200: still working after the refused revoke")
+        s, _, _ = organizer.request("POST", revoke_url)
+        expect(c, s == 200, organizer, "POST", revoke_url, s, "200")
+        s, _, _ = org_token.request("GET", overview_url)
+        expect(c, s == 401, org_token, "GET", overview_url, s, "401 once revoked")
+    made_up = Person("a made-up API token", f"Authorization: Bearer dfk_{secrets.token_hex(20)}")
+    s, _, _ = made_up.request("GET", overview_url)
+    expect(c, s == 401, made_up, "GET", overview_url, s, "401 for a token the portal never made")
     checks.append(c)
 
     # C2 -- a settings round trip: read the prizes from event.json, PUT them back
@@ -96,6 +140,28 @@ def section_c(u, people, cfg):
     expect(c, s == 200, organizer, "PUT", prizes_url, s, f"200 putting the {len(rows)} exported rows back")
     s, _, _ = participant.request("PUT", prizes_url, rows)
     expect(c, s == 403, participant, "PUT", prizes_url, s, "403")
+
+    def prizes_now():
+        s, body, _ = organizer.request("GET", event_json_url)
+        if not expect(c, s == 200, organizer, "GET", event_json_url, s, "200"):
+            return None
+        return [(p.get("name"), p.get("description") or "") for p in as_json(body).get("prizes", [])]
+
+    # the round trip proper: change something, read it back, put the original back, read that back too
+    extra = {"id": "", "name": f"Isolation prize {secrets.token_hex(3)}", "description": "added by the isolation check"}
+    changed = [dict(r, description=(r["description"] + " (edited)").strip()) for r in rows] + [extra]
+    s, _, _ = organizer.request("PUT", prizes_url, changed)
+    if expect(c, s == 200, organizer, "PUT", prizes_url, s, f"200 for {len(changed)} changed rows"):
+        got = prizes_now()
+        expect(c, got == [(r["name"], r["description"]) for r in changed], organizer, "GET", event_json_url,
+               f"prizes {got!r}", "the prizes as just saved, in order")
+    s, _, _ = participant.request("PUT", prizes_url, [])
+    expect(c, s == 403, participant, "PUT", prizes_url, s, "403 for a participant emptying the list")
+    s, _, _ = organizer.request("PUT", prizes_url, rows)
+    if expect(c, s == 200, organizer, "PUT", prizes_url, s, "200 putting the original rows back"):
+        got = prizes_now()
+        expect(c, got == [(r["name"], r["description"]) for r in rows], organizer, "GET", event_json_url,
+               f"prizes {got!r}", "the original prizes again (the participant's refused save changed nothing)")
     # what teams fill in: public to read; put back unchanged by the organizer only
     fields_url = u(f"/api/events/{EVENT_ID}/project-fields")
     fields = {}
@@ -110,6 +176,22 @@ def section_c(u, people, cfg):
     expect(c, s == 403, participant, "PUT", fields_url, s, "403")
     s, _, _ = visitor.request("PUT", fields_url, fields)
     expect(c, s == 401, visitor, "PUT", fields_url, s, "401")
+    # one field changed, read back by anyone, then put back
+    field = next((f for f in ("summary", "repoUrl", "demoUrl") if f in fields), None)
+    if expect(c, field is not None, visitor, "GET", fields_url, f"fields {sorted(fields)}", "a summary, repoUrl or demoUrl field"):
+        was = fields[field]
+        to = "optional" if was != "optional" else "required"
+        s, body, _ = organizer.request("PUT", fields_url, {field: to})
+        if expect(c, s == 200, organizer, "PUT", fields_url, f"{s} ({error_code(body)})", f"200 making {field} {to}"):
+            s, body, _ = visitor.request("GET", fields_url)
+            now = as_json(body).get("fields", {})
+            expect(c, now == dict(fields, **{field: to}), visitor, "GET", fields_url,
+                   f"fields {now!r}", f"the fields as before with {field} {to}")
+        s, _, _ = organizer.request("PUT", fields_url, {field: was})
+        if expect(c, s == 200, organizer, "PUT", fields_url, s, f"200 putting {field} back to {was}"):
+            s, body, _ = visitor.request("GET", fields_url)
+            now = as_json(body).get("fields", {})
+            expect(c, now == fields, visitor, "GET", fields_url, f"fields {now!r}", "the fields as they were")
     checks.append(c)
 
     # C3 -- webhooks: private target refused, a change queued in the same transaction
@@ -184,6 +266,59 @@ def section_c(u, people, cfg):
             expect(c, s == 200, organizer, "POST", one + "/" + what, s, "200")
     checks.append(c)
 
+    # C10 -- a delivery that fails is tried again, 10 s and then 60 s later (RETRY_DELAYS_S in src/server/webhooks.ts).
+    # The target is under .invalid, a name that never resolves (RFC 6761): accepted when added, since an offline
+    # portal cannot tell, and refused at every send, so this works the same with the network on or off. The signed
+    # request itself needs a receiver the portal may reach: tests/webhook_live_check.py, on a portal started with
+    # WEBHOOKS_ALLOW_PRIVATE=true (that setting would make C3's private-target refusal wrong here).
+    c = Check("C", "webhooks: a failed delivery is retried with backoff, 10 s then 60 s")
+    s, body, _ = organizer.request("POST", hooks_url, {"url": f"https://hook-{secrets.token_hex(3)}.invalid/dogfood", "actions": ["comment.post"]})
+    retry_hook = as_json(body).get("id") if s == 201 else None
+    expect(c, bool(retry_hook), organizer, "POST", hooks_url, f"{s} ({error_code(body)})", "201 for a name that does not resolve yet")
+    if retry_hook:
+        one = u(f"/api/events/{EVENT_ID}/webhooks/{retry_hook}")
+        s, _, _ = organizer.request("POST", one + "/test")
+        expect(c, s == 200, organizer, "POST", one + "/test", s, "200")
+
+        def attempts_reach(n, within):
+            """Poll the delivery log until the test delivery has n attempts; return it, or None after `within` s."""
+            end = time.monotonic() + within
+            while True:
+                s, body, _ = organizer.request("GET", one + "/deliveries")
+                d = next((x for x in as_json(body).get("deliveries", []) if x.get("action") == "webhook.test"), None) if s == 200 else None
+                if d and d.get("attempts", 0) >= n:
+                    return d
+                if time.monotonic() > end:
+                    return d
+                time.sleep(0.5)
+
+        def gap(d):
+            try:
+                last = datetime.fromisoformat(d["lastAttemptAt"].replace("Z", "+00:00"))
+                nxt = datetime.fromisoformat(d["nextAttemptAt"].replace("Z", "+00:00"))
+                return round((nxt - last).total_seconds())
+            except (KeyError, TypeError, AttributeError, ValueError):
+                return None
+
+        first = attempts_reach(1, 30)
+        if expect(c, bool(first) and first.get("attempts") == 1, organizer, "GET", one + "/deliveries",
+                  f"delivery {first!r}"[:200], "one attempt within 30 s (the worker runs every 2 s)"):
+            expect(c, first.get("status") == "pending" and "not sent" in str(first.get("error")), organizer, "GET",
+                   one + "/deliveries", f"status {first.get('status')!r}, error {first.get('error')!r}",
+                   "still pending, with why it was not sent")
+            expect(c, gap(first) == 10, organizer, "GET", one + "/deliveries",
+                   f"next attempt {gap(first)!r} s after the first", "10 s after the first")
+            second = attempts_reach(2, 30)
+            if expect(c, bool(second) and second.get("attempts") == 2, organizer, "GET", one + "/deliveries",
+                      f"delivery {second!r}"[:200], "a second attempt about 10 s later"):
+                expect(c, second.get("status") == "pending" and gap(second) == 60, organizer, "GET", one + "/deliveries",
+                       f"status {second.get('status')!r}, next attempt {gap(second)!r} s after the second", "pending, 60 s after the second")
+                expect(c, second.get("id") == first.get("id"), organizer, "GET", one + "/deliveries",
+                       f"delivery {second.get('id')!r} after {first.get('id')!r}", "the same delivery tried again, not a new one")
+        s, _, _ = organizer.request("POST", one + "/disable")
+        expect(c, s == 200, organizer, "POST", one + "/disable", s, "200 turning the test webhook off")
+    checks.append(c)
+
     # C9 -- pairwise judging (JUDGING.md "Pairwise mode"). It runs here, before C4, because
     # publishing makes the judging mode final; it puts the event back in scores mode after.
     c = Check("C", "pairwise judging: only judges answer, only the question asked, peers isolated, only organizers rank")
@@ -231,6 +366,32 @@ def section_c(u, people, cfg):
             expect(c, picks == 1, organizer, "GET", ranking_url, f"{picks} answers", "1 answer in the fit")
         s, _, _ = judge_a.request("POST", undo_url, {"trackId": question["trackId"]})
         expect(c, s == 200, judge_a, "POST", undo_url, s, "200: the answer is taken back")
+        # the same question again, answered "too close to call": the new project goes right below the other one,
+        # and the ranking counts it as a tie (half a win each way), not as a win for either side
+        s, body, _ = judge_a.request("GET", state_url)
+        track = next((t for t in as_json(body).get("tracks", []) if t.get("trackId") == question["trackId"]), {})
+        cur = track.get("current") or {}
+        expect(c, (cur.get("left") or {}).get("id") == question["left"] and (cur.get("right") or {}).get("id") == question["right"],
+               judge_a, "GET", state_url, f"current {str(cur)[:120]}", "the question back after the undo")
+        new_id = cur.get("newId")
+        other = question["right"] if new_id == question["left"] else question["left"]
+        s, body, _ = judge_a.request("POST", pick_url, {**question, "outcome": "tie"})
+        if expect(c, s == 200, judge_a, "POST", pick_url, f"{s} {error_code(body)}", "200 for too close to call"):
+            s, body, _ = judge_a.request("GET", state_url)
+            track = next((t for t in as_json(body).get("tracks", []) if t.get("trackId") == question["trackId"]), {})
+            order = [p.get("id") for p in track.get("list", [])]
+            placed = new_id in order and other in order and order.index(new_id) == order.index(other) + 1
+            expect(c, placed, judge_a, "GET", state_url, f"list {order!r} (new {new_id}, other {other})",
+                   "the new project right below the one it tied with")
+            s, body, _ = organizer.request("GET", ranking_url)
+            if expect(c, s == 200, organizer, "GET", ranking_url, s, "200"):
+                rows = [r for t in as_json(body).get("tracks", []) for r in t.get("rows", [])]
+                row = next((r for r in rows if r.get("projectId") == new_id), {})
+                lines = [x for x in row.get("receipt", []) if x.get("kind") == "pick" and x.get("opponentId") == other]
+                expect(c, [x.get("result") for x in lines] == ["tie"], organizer, "GET", ranking_url,
+                       f"receipt lines {lines!r}"[:200], f"one 'tie' against {other} on {new_id}'s receipt")
+            s, _, _ = judge_a.request("POST", undo_url, {"trackId": question["trackId"]})
+            expect(c, s == 200, judge_a, "POST", undo_url, s, "200: the tie is taken back too")
         s, body, _ = judge_a.request("POST", undo_url, {"trackId": question["trackId"]})
         expect(c, s == 409 and error_code(body) == "nothing_to_undo", judge_a, "POST", undo_url,
                f"{s} {error_code(body)}", "409 nothing_to_undo")
@@ -334,6 +495,69 @@ def section_c(u, people, cfg):
                    f"project {rec.get('project')!r}", "a project title")
     checks.append(c)
 
+    # C11 -- every certificate carries exactly the awards the published results and the community vote give its
+    # project: a place from 1st to the event's certificatePlaces (3 unless set) in its track, "Joint" when shared, and
+    # a community-vote win. Worked out here from the public results and community APIs, and from nothing the
+    # certificate says; at least one certificate must carry a place and one the vote, so the check cannot pass empty.
+    c = Check("C", "certificates carry the podium places and the community-vote win, and nothing else")
+    expected = {}
+    s, body, _ = visitor.request("GET", u(f"/api/events/{EVENT_ID}/results"))
+    published = as_json(body) if s == 200 else {}
+    expect(c, published.get("published") is True, visitor, "GET", u(f"/api/events/{EVENT_ID}/results"),
+           f"{s} published {published.get('published')!r}", "200, published")
+    s, body, _ = organizer.request("GET", event_json_url)
+    upto = ((as_json(body).get("event") or {}).get("settings") or {}).get("certificatePlaces") or 3
+    for t in published.get("tracks", []):
+        rows = t.get("rows", [])
+        for i, r in enumerate(rows):
+            if r.get("score") is None:
+                continue
+            same = [x for x in rows if x.get("score") is not None and abs(x["score"] - r["score"]) <= 1e-9]
+            place = rows.index(same[0]) + 1
+            if place <= upto:
+                n = place
+                word = f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+                joint = len(same) > 1 or rows.index(same[0]) != i
+                expected.setdefault(r["projectId"], []).append(f"{'Joint ' if joint else ''}{word} place, {t.get('name')}")
+    s, body, _ = visitor.request("GET", u(f"/api/events/{EVENT_ID}/community"))
+    tally = as_json(body).get("tally") or []
+    winners = [t.get("projectId") for t in tally if t.get("place") == 1 and (t.get("votes") or 0) > 0]
+    expect(c, len(winners) >= 1, visitor, "GET", u(f"/api/events/{EVENT_ID}/community"),
+           f"winners {winners!r}", "at least one community-vote winner (Section B voted)")
+    for p in winners:
+        expected.setdefault(p, []).append("Joint winner of the community vote" if len(winners) > 1 else "Winner of the community vote")
+    s, body, _ = organizer.request("GET", mine_url)
+    listed_records = [r for r in as_json(body).get("records", []) if r.get("kind") == "participant"] if s == 200 else []
+    expect(c, len(listed_records) >= 40, organizer, "GET", mine_url, f"{s}, {len(listed_records)} certificates",
+           "200 and a certificate for every member of a submitting team")
+    with_place = with_vote = 0
+    wrong = []
+    first_place = None  # (record id, its first award) of a certificate with a 1st place
+    for r in listed_records:
+        s, body, _ = visitor.request("GET", u(f"/api/records/{r.get('id')}"))
+        rec = ((as_json(body).get("envelope") or {}).get("record") or {}) if s == 200 else {}
+        project = rec.get("project") or {}
+        got = project.get("awards")
+        want = expected.get(project.get("id"), [])
+        if got != want:
+            wrong.append(f"{r.get('id')} ({project.get('id')}): {got!r}, wanted {want!r}")
+        with_place += any("place," in a for a in got or [])
+        with_vote += any("community vote" in a for a in got or [])
+        if first_place is None and got and "1st place" in got[0]:
+            first_place = (r.get("id"), got[0])
+    expect(c, not wrong, visitor, "GET", u("/api/records/<id>"), f"{len(wrong)} wrong: " + "; ".join(wrong[:3]),
+           "every certificate's awards as the results and the vote give them")
+    expect(c, with_place > 0 and with_vote > 0, visitor, "GET", u("/api/records/<id>"),
+           f"{with_place} with a place, {with_vote} with the vote", "at least one of each")
+    # and the printable page says it
+    if expect(c, first_place is not None, visitor, "GET", u("/api/records/<id>"),
+              "no certificate with a 1st place", "a 1st-place certificate to open"):
+        page_url = u(f"/records/{first_place[0]}")
+        s, body, _ = visitor.request("GET", page_url)
+        expect(c, s == 200 and first_place[1] in body, visitor, "GET", page_url,
+               f"{s}, {first_place[1]!r} not on the page", f"the page saying {first_place[1]!r}")
+    checks.append(c)
+
     # C5 -- the same check offline, with scripts/verify-record.mjs and pinned keys
     c = Check("C", "records: checked offline with scripts/verify-record.mjs")
     node = shutil.which("node")
@@ -376,11 +600,32 @@ def section_c(u, people, cfg):
         expect(c, "data-event" in body, visitor, "GET", u("/embed.js"),
                "no 'data-event' in the script", "the data-event attribute")
     frame_url = u(f"/embed/{EVENT_SLUG}")
-    s, _, headers = visitor.request("GET", frame_url)
+    s, frame, headers = visitor.request("GET", frame_url)
     if expect(c, s == 200, visitor, "GET", frame_url, s, "200"):
         expect(c, "frame-ancestors *" in headers.get("content-security-policy", ""), visitor,
                "GET", frame_url, f"content-security-policy {headers.get('content-security-policy')!r}",
                "frame-ancestors *")
+        expect(c, "x-frame-options" not in {k.lower() for k in headers.keys()}, visitor, "GET", frame_url,
+               f"x-frame-options {headers.get('x-frame-options')!r}", "no X-Frame-Options on the one framable page")
+        # the frame is the gallery: every submitted project, by title, each linking to its page
+        s, body, _ = visitor.request("GET", u(f"/api/events/{EVENT_ID}/projects"))
+        gallery = as_json(body).get("projects", []) if s == 200 else []
+        missing = [p.get("id") for p in gallery if html.escape(p.get("title", ""), quote=False) not in frame]
+        unlinked = [p.get("id") for p in gallery if f"/projects/{p.get('id')}" not in frame]
+        expect(c, len(gallery) >= 30 and not missing and not unlinked, visitor, "GET", frame_url,
+               f"{len(gallery)} gallery projects; titles missing {missing[:5]}, links missing {unlinked[:5]}",
+               "every gallery project's title and link in the frame")
+    # every other page refuses to be framed: a sample of public, signed-in and API pages
+    for person, path in ((visitor, "/"), (visitor, f"/events/{EVENT_SLUG}/results"), (visitor, "/sign-in"),
+                         (visitor, "/api-docs"), (visitor, "/verify"), (visitor, f"/events/{EVENT_SLUG}/projects/prj_01"),
+                         (visitor, "/api/openapi.json"), (visitor, "/embed.js"), (visitor, "/no-such-page"),
+                         (organizer, f"/organize/{EVENT_SLUG}"), (judge_a, f"/judge/{EVENT_SLUG}"),
+                         (participant, "/account/tokens")):
+        s, _, headers = person.request("GET", u(path))
+        expect(c, "deny" in (headers.get("x-frame-options") or "").lower()
+               and "frame-ancestors 'none'" in (headers.get("content-security-policy") or ""),
+               person, "GET", u(path), f"{s}, x-frame-options {headers.get('x-frame-options')!r}, "
+               f"csp {headers.get('content-security-policy')!r}", "DENY and frame-ancestors 'none'")
     gallery_url = u(f"/events/{EVENT_SLUG}")
     s, _, headers = visitor.request("GET", gallery_url)
     if expect(c, s == 200, visitor, "GET", gallery_url, s, "200"):
@@ -412,6 +657,11 @@ def section_c(u, people, cfg):
                   f"inserted {inserted!r}", "a count for every table"):
             expect(c, all(v == 0 for v in inserted.values()), organizer, "POST", imports_url,
                    f"inserted {inserted}", "all zeros: importing what is there changes nothing")
+    # Both steps below run on the published event (C4 published it). Each still isolates its own guard: the import
+    # decides the rubric while it reads the file, before the publish guard at its end, so only the rubric guard
+    # answers rubric_in_use; the late file brings no new criterion, so only the publish guard can refuse it. The
+    # rubric step goes first: "judges have scored" was true before "results are published".
+    if fixtures and fixtures.get("projects") and isinstance(fixtures.get("judges"), list) and isinstance(fixtures.get("scores"), list):
         # known-bad: the same file with a review that brings a criterion the scored event does not have
         changed = json.loads(json.dumps(fixtures))
         project = changed["projects"][0]
@@ -422,6 +672,26 @@ def section_c(u, people, cfg):
         s, body, _ = organizer.request("POST", imports_url, changed)
         expect(c, s == 409 and error_code(body) == "rubric_in_use", organizer, "POST", imports_url,
                f"{s} ({error_code(body)})", "409 rubric_in_use: judges have scored, the criteria are fixed")
+    else:
+        expect(c, False, organizer, "GET", fixtures_url, "no projects, judges or scores to extend", "an export to extend")
+    # the results are published (C4), so a file that would add to the event is refused whole, and adds nothing
+    if fixtures and fixtures.get("teams") and fixtures.get("projects") and fixtures.get("tracks"):
+        late_team, late_project = f"team_late_{secrets.token_hex(3)}", f"prj_late_{secrets.token_hex(3)}"
+        late = json.loads(json.dumps(fixtures))
+        late["teams"].append({"id": late_team, "name": "Late Team", "members": [f"late-{secrets.token_hex(3)}@example.org"]})
+        late["projects"].append({"id": late_project, "team": late_team, "track": late["tracks"][0]["id"],
+                                 "title": "A project added after publishing", "summary": "written by the isolation check",
+                                 "repo_url": "", "submitted_at": late["projects"][0].get("submitted_at", "")})
+        s, body, _ = organizer.request("POST", imports_url, late)
+        expect(c, s == 409 and error_code(body) == "results_published", organizer, "POST", imports_url,
+               f"{s} {error_code(body)}", "409 results_published")
+        s, body, _ = visitor.request("GET", u(f"/api/events/{EVENT_ID}/projects"))
+        ids = [p.get("id") for p in as_json(body).get("projects", [])]
+        expect(c, s == 200 and len(ids) > 0 and late_project not in ids, visitor, "GET", u(f"/api/events/{EVENT_ID}/projects"),
+               f"{s}, {len(ids)} projects, the late one {'listed' if late_project in ids else 'absent'}",
+               "the gallery without the refused project")
+    else:
+        expect(c, False, organizer, "GET", fixtures_url, "no teams, projects or tracks to extend", "an export to extend")
     checks.append(c)
 
     # C8 -- import a new event, then walk one person in through a personal link
@@ -430,12 +700,17 @@ def section_c(u, people, cfg):
     trk, judge_id = f"trk_iso_{suffix}", f"jdg_iso_{suffix}"
     team_id, prj = f"team_iso_{suffix}", f"prj_iso_{suffix}"
     past = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    captain, member, judge_email = f"captain-{suffix}@example.org", f"member-{suffix}@example.org", f"judge-{suffix}@example.org"
+    # someone from the sample event, without a password, joins this team too (C12: only an administrator's link
+    # may reach a person who also belongs to an event the link's organizer does not run)
+    sample_member = next((m for t in reversed((fixtures or {}).get("teams", [])) for m in t.get("members", [])
+                          if isinstance(m, str) and "@" in m), None)
     event_file = {
         "event": {"id": f"evt_iso_{suffix}", "name": f"Isolation Import {suffix}", "submissions_close": past},
         "tracks": [{"id": trk, "name": "Solo track"}],
-        "judges": [{"id": judge_id, "name": "Iso Judge", "email": f"judge-{suffix}@example.org", "tracks": [trk]}],
+        "judges": [{"id": judge_id, "name": "Iso Judge", "email": judge_email, "tracks": [trk]}],
         "teams": [{"id": team_id, "name": "Iso Team",
-                   "members": [f"captain-{suffix}@example.org", f"member-{suffix}@example.org"]}],
+                   "members": [captain, member] + ([sample_member] if sample_member else [])}],
         "projects": [{"id": prj, "team": team_id, "track": trk, "title": "Isolation import project",
                       "summary": "written by the isolation check", "repo_url": "", "submitted_at": past}],
         "scores": [{"judge": judge_id, "project": prj,
@@ -443,6 +718,7 @@ def section_c(u, people, cfg):
     }
     s, body, _ = organizer.request("POST", imports_url, event_file)
     slug = None
+    admin_reach = set()
     if expect(c, s == 201, organizer, "POST", imports_url, f"{s} ({error_code(body)})", "201"):
         slug = as_json(body).get("eventSlug")
         expect(c, bool(slug), organizer, "POST", imports_url, f"no eventSlug ({body[:120]!r})", "an eventSlug")
@@ -456,10 +732,11 @@ def section_c(u, people, cfg):
             links = as_json(body).get("links", [])
             expect(c, len(links) >= 3, organizer, "POST", claims_url,
                    f"{len(links)} links", "at least 3 (the judge and both members)")
-            path = links[0].get("path", "") if links else ""
+            path = next((x.get("path", "") for x in links if x.get("email") == captain), "")
             expect(c, path.startswith("/claim/"), organizer, "POST", claims_url,
-                   f"path {path!r}", "a path starting with /claim/")
+                   f"path {path!r}", "a path starting with /claim/ for the captain")
             token = path[len("/claim/"):] if path.startswith("/claim/") else ""
+            admin_reach = {x.get("email") for x in links}
         if token:
             claim_api = u(f"/api/claims/{token}")
             s, body, _ = visitor.request("GET", claim_api)
@@ -473,6 +750,68 @@ def section_c(u, people, cfg):
                        "no session cookie in the jar", "a session cookie")
             s, _, _ = claimer.request("POST", claim_api, {"password": "isolation-check-pass"})
             expect(c, s == 410, claimer, "POST", claim_api, s, "410 the second time")
+    checks.append(c)
+
+    # C12 -- a claim link sets the password of an account the whole portal shares, so an organizer who is not an
+    # administrator gets no link for someone who also belongs to an event they do not run, and a link they got stops
+    # working if the person joins such an event before using it (checked again at use). The administrator's links
+    # above reached everyone: the positive control.
+    c = Check("C", "claim links: none for someone in an event the organizer does not run, checked again at use")
+    co = Person("a co-organizer who is not an administrator")
+    co_email = f"iso-coorg-{secrets.token_hex(4)}@example.org"
+    s, body, _ = co.request("POST", u("/api/auth/sign-up"), {"name": "Iso Co-organizer", "email": co_email, "password": "isolation-check-pass"})
+    ready = expect(c, s == 201, co, "POST", u("/api/auth/sign-up"), f"{s} ({error_code(body)})", "201")
+    ready = ready and expect(c, bool(slug) and bool(sample_member), organizer, "POST", imports_url,
+                             f"event {slug!r}, sample member {sample_member!r}", "the imported event, with a sample-event member in it")
+    if ready:
+        expect(c, sample_member in admin_reach, organizer, "POST", u(f"/api/events/{slug}/claims"),
+               f"{sample_member} not among the administrator's links", "the administrator reaching the sample-event member")
+        claims_url = u(f"/api/events/{slug}/claims")
+        s, _, _ = co.request("POST", claims_url)
+        expect(c, s == 403, co, "POST", claims_url, s, "403 before they are an organizer here")
+        organizers_url = u(f"/api/events/{slug}/organizers")
+        s, body, _ = organizer.request("POST", organizers_url, {"email": co_email})
+        expect(c, s == 201, organizer, "POST", organizers_url, f"{s} ({error_code(body)})", "201 adding the co-organizer")
+        s, body, _ = co.request("POST", claims_url)
+        co_links = {}
+        if expect(c, s == 201, co, "POST", claims_url, f"{s} ({error_code(body)})", "201"):
+            data = as_json(body)
+            co_links = {x.get("email"): x.get("path", "") for x in data.get("links", [])}
+            elsewhere = [x.get("email") for x in data.get("elsewhere", [])]
+            expect(c, sample_member not in co_links and sample_member in elsewhere, co, "POST", claims_url,
+                   f"links for {sorted(co_links)}, left out {elsewhere}", f"no link for {sample_member}, named as left out")
+            expect(c, judge_email in co_links and member in co_links, co, "POST", claims_url,
+                   f"links for {sorted(co_links)}", "links for the judge and the member, who are only in this event")
+        if judge_email in co_links and member in co_links:
+            # the judge now joins a second event, which the co-organizer does not run
+            other = {
+                "event": {"id": f"evt_iso2_{suffix}", "name": f"Isolation Import Two {suffix}", "submissions_close": past},
+                "tracks": [{"id": f"trk_iso2_{suffix}", "name": "Other track"}],
+                "judges": [],
+                "teams": [{"id": f"team_iso2_{suffix}", "name": "Other Team", "members": [judge_email]}],
+                "projects": [{"id": f"prj_iso2_{suffix}", "team": f"team_iso2_{suffix}", "track": f"trk_iso2_{suffix}",
+                              "title": "Second isolation import", "summary": "written by the isolation check",
+                              "repo_url": "", "submitted_at": past}],
+                "scores": [],
+            }
+            s, body, _ = organizer.request("POST", imports_url, other)
+            if expect(c, s == 201, organizer, "POST", imports_url, f"{s} ({error_code(body)})", "201 for the second event"):
+                judge_api = u(f"/api/claims/{co_links[judge_email][len('/claim/'):]}")
+                s, body, _ = visitor.request("GET", judge_api)
+                expect(c, s == 410 and error_code(body) == "claim_out_of_reach", visitor, "GET", judge_api,
+                       f"{s} {error_code(body)}", "410 claim_out_of_reach")
+                taker = Person("the judge opening the co-organizer's link")
+                s, body, _ = taker.request("POST", judge_api, {"password": "isolation-check-pass"})
+                expect(c, s == 410 and error_code(body) == "claim_out_of_reach" and not taker.has_cookie("session"),
+                       taker, "POST", judge_api, f"{s} {error_code(body)}", "410 claim_out_of_reach and no session")
+                s, body, _ = taker.request("POST", u("/api/auth/sign-in"), {"email": judge_email, "password": "isolation-check-pass"})
+                expect(c, s == 401, taker, "POST", u("/api/auth/sign-in"), f"{s} {error_code(body)}",
+                       "401: the refused link set no password")
+            member_api = u(f"/api/claims/{co_links[member][len('/claim/'):]}")
+            joiner = Person("the member opening the co-organizer's link")
+            s, body, _ = joiner.request("POST", member_api, {"password": "isolation-check-pass"})
+            expect(c, s == 200 and joiner.has_cookie("session"), joiner, "POST", member_api,
+                   f"{s} {error_code(body)}", "200 and a session: a link for someone only in this event still works")
     checks.append(c)
 
     return checks
