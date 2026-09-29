@@ -252,7 +252,7 @@ It never names a judge or shows a judge's own figure, beyond the size of the lar
 
 ## Validation
 
-This section is the evidence that normalization helps where it should and costs little where it should not.
+This section is the evidence for normalization: the Monte Carlo against the raw mean, the assertions the test holds it to, and the check of the ±.
 
 The Monte Carlo (`tests/normalization-mc.test.ts`): 1,000 fixed-seed runs per scenario on the fixture's own 126 judge–project pairs. Each run draws true project qualities, judge offsets and scales and review noise, rounds and clips to 1–5, and keeps the flat judge's real 4 / 4 / 4.
 

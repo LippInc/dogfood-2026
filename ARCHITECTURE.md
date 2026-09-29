@@ -149,7 +149,7 @@ Two timers run inside the server process, both started at boot (`src/server/boot
 
 ## The client's address
 
-The rate limits and the duplicate-ballot flags key on the requester's network address, read from `X-Forwarded-For`, so the portal sets that header itself.
+The rate limits and the duplicate-ballot flags key on the requester's network address, read from `X-Forwarded-For`, so the container rewrites that header itself.
 
 Next.js fills that header from the connection only when a request arrives without one, so a client talking to the portal directly could name any address it liked.
 
