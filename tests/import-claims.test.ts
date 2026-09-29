@@ -462,12 +462,14 @@ describe("what an import adds to a judged event is named in the log and marked i
   const csvRows = () => {
     const [head, ...rows] = exportFile(organizer(), EVENT, "scores.csv").body.trim().split(/\r?\n/);
     const source = head!.split(",").indexOf("source");
-    // the source is the last column, read from the end so a quoted comma in a title or the feedback cannot shift it;
+    // the cells are read with their quotes, so a comma in a title or the feedback cannot shift the source column;
     // a row is found by its project (the first column) and its judge's id (a column of its own, never quoted)
+    const cells = (line: string) => [...line.matchAll(/(?:^|,)("(?:[^"]|"")*"|[^,]*)/g)].map((m) => m[1]!);
+    const read = (line: string) => ({ line, source: cells(line)[source]! });
     return {
       source,
-      rows: rows.map((line) => ({ line, source: line.split(",").at(-1)! })),
-      of: (projectId: string, judgeId: string) => rows.map((line) => ({ line, source: line.split(",").at(-1)! })).find((r) => r.line.startsWith(`${projectId},`) && r.line.includes(`,${judgeId},`))!,
+      rows: rows.map(read),
+      of: (projectId: string, judgeId: string) => rows.map(read).find((r) => r.line.startsWith(`${projectId},`) && r.line.includes(`,${judgeId},`))!,
     };
   };
 
