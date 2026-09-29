@@ -443,7 +443,7 @@ describe("an event with no close-call choice", () => {
     for (const t of r.tracks) for (let i = 1; i < t.rows.length; i++) expect(t.rows[i - 1]!.score! >= t.rows[i]!.score!).toBe(true);
     const settingsAfter = JSON.parse((h.sqlite.prepare("SELECT settings FROM events WHERE id = 'evt_01'").get() as { settings: string }).settings);
     expect(Object.keys(settingsAfter).sort()).toEqual([...Object.keys(JSON.parse(settingsBefore)), "publishedRunId"].sort());
-    for (const file of ["event.json", "normalized.csv", "fixtures.json"]) expect(exportFile(organizer(), "evt_01", file).body).not.toMatch(/closeCalls|judgesDecisions/);
+    for (const file of ["event.json", "normalized.csv", "fixtures.json"]) expect(exportFile(organizer(), "evt_01", file).body).not.toMatch(/closeCalls|close_calls|judgesDecisions/);
   });
 
   it("known-bad guard: with a decision, the same checks do see the new keys", () => {
