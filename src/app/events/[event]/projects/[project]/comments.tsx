@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FieldError } from "@/components/field";
 import { useFormAction } from "@/components/use-form-action";
 import { useRescueFocus } from "@/components/use-rescue-focus";
@@ -16,6 +16,10 @@ const idle: ActionResult = { ok: false, message: null };
 /** mine: the viewer's own comments still on the page; "Posted." goes when the one it announced does. */
 export function CommentForm({ projectId, path, mine }: { projectId: string; path: string; mine: string[] }) {
   const [state, form, pending] = useFormAction(postCommentAction, idle);
+  // "Post comment" turns into a disabled "Posting…" and loses focus: when the answer comes, focus goes
+  // back to the box (cleared after a post, still holding the text after a refusal), not to the top of the page
+  const box = useRef<HTMLTextAreaElement>(null);
+  useRescueFocus(() => box.current, state);
   return (
     <form {...form} className="flex flex-col gap-3">
       <input type="hidden" name="project" value={projectId} />
@@ -24,6 +28,7 @@ export function CommentForm({ projectId, path, mine }: { projectId: string; path
         Add a comment
       </label>
       <Textarea
+        ref={box}
         id="comment-body"
         name="body"
         rows={3}
@@ -107,6 +112,19 @@ export function DeleteOwnComment({ commentId, path }: { commentId: string; path:
   // "Keep" removes the question: focus goes back to Delete
   const opener = useRef<HTMLButtonElement>(null);
   useRescueFocus(() => opener.current, asking);
+  // a refused delete keeps the question: focus goes to its safe answer
+  const keep = useRef<HTMLButtonElement>(null);
+  useRescueFocus(() => keep.current, state);
+  // A deleted comment takes this control, and the focus, with it: focus moves on to the next comment,
+  // or to the comment box when it was the last, instead of falling to the top of the page.
+  const after = useRef<HTMLElement | null>(null);
+  useEffect(
+    () => () => {
+      const next = after.current;
+      if (next?.isConnected && (!document.activeElement || document.activeElement === document.body)) next.focus();
+    },
+    [],
+  );
   if (!asking) {
     return (
       <button ref={opener} type="button" onClick={() => setAsking(true)} className={quiet}>
@@ -115,7 +133,15 @@ export function DeleteOwnComment({ commentId, path }: { commentId: string; path:
     );
   }
   return (
-    <form {...form} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <form
+      {...form}
+      onSubmit={(e) => {
+        const item = e.currentTarget.closest("li");
+        after.current = (item?.nextElementSibling as HTMLElement | null) ?? document.getElementById("comment-body");
+        form.onSubmit(e);
+      }}
+      className="flex flex-wrap items-center gap-x-3 gap-y-1"
+    >
       <input type="hidden" name="comment" value={commentId} />
       <input type="hidden" name="path" value={path} />
       <span className="text-13 text-ink-2">Delete your comment for good?</span>
@@ -123,7 +149,7 @@ export function DeleteOwnComment({ commentId, path }: { commentId: string; path:
         {pending ? "Deleting…" : "Yes, delete"}
       </button>
       {/* the question replaces the focused button: focus lands on the safe answer */}
-      <button type="button" autoFocus onClick={() => setAsking(false)} className={quiet}>
+      <button ref={keep} type="button" autoFocus onClick={() => setAsking(false)} className={quiet}>
         Keep
       </button>
       {state.message && !state.ok ? (

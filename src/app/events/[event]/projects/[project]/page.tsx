@@ -369,7 +369,13 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             {comments.length ? (
               <ol className="mt-5 flex flex-col border-t border-rule wrap-anywhere">
                 {comments.map((c, n) => (
-                  <li key={c.id} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 border-b border-rule py-5 sm:grid-cols-[3rem_minmax(0,1fr)]">
+                  // tabIndex -1: when the author deletes the comment above, focus moves on to this one (comments.tsx)
+                  <li
+                    key={c.id}
+                    id={`comment-${c.id}`}
+                    tabIndex={-1}
+                    className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 border-b border-rule py-5 sm:grid-cols-[3rem_minmax(0,1fr)]"
+                  >
                     <span className="pt-0.5 font-mono text-12 text-ink-3 tnum" aria-hidden="true">
                       {String(n + 1).padStart(2, "0")}
                     </span>
