@@ -3,15 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { actionError, currentActor, deleteComment, hideComment, postComment, takeDownProjectImage, unhideComment, type ActionResult } from "@/server/dal";
 
-export async function postCommentAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+/** A posted comment's id comes back, so the box drops "Posted." once that comment is deleted. */
+export async function postCommentAction(_prev: ActionResult & { commentId?: string }, form: FormData): Promise<ActionResult & { commentId?: string }> {
   const projectId = String(form.get("project") ?? "");
+  let commentId: string;
   try {
-    postComment(await currentActor(), projectId, { body: form.get("body") ?? "" });
+    ({ id: commentId } = postComment(await currentActor(), projectId, { body: form.get("body") ?? "" }));
   } catch (err) {
     return actionError(err);
   }
   revalidatePath(String(form.get("path") ?? "/"));
-  return { ok: true, message: "Posted." };
+  return { ok: true, message: "Posted.", commentId };
 }
 
 export async function hideCommentAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {

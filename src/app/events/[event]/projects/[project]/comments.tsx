@@ -7,12 +7,14 @@ import { useRescueFocus } from "@/components/use-rescue-focus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { commentStatusShows } from "@/lib/comment-status";
 import type { ActionResult } from "@/server/dal";
 import { deleteCommentAction, hideCommentAction, postCommentAction, unhideCommentAction } from "./actions";
 
 const idle: ActionResult = { ok: false, message: null };
 
-export function CommentForm({ projectId, path }: { projectId: string; path: string }) {
+/** mine: the viewer's own comments still on the page; "Posted." goes when the one it announced does. */
+export function CommentForm({ projectId, path, mine }: { projectId: string; path: string; mine: string[] }) {
   const [state, form, pending] = useFormAction(postCommentAction, idle);
   return (
     <form {...form} className="flex flex-col gap-3">
@@ -33,7 +35,7 @@ export function CommentForm({ projectId, path }: { projectId: string; path: stri
       <FieldError id="comment-body-error" message={state.fieldErrors?.body} />
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={pending}>{pending ? "Posting…" : "Post comment"}</Button>
-        {state.message && !state.fieldErrors?.body ? (
+        {commentStatusShows(state, mine) && !state.fieldErrors?.body ? (
           <span role={state.ok ? "status" : "alert"} className={`text-13 ${state.ok ? "text-ok" : "text-flag"}`}>
             {state.message}
           </span>

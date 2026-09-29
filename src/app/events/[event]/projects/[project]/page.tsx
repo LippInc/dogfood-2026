@@ -402,7 +402,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
             )}
             <div className="mt-6">
               {actor ? (
-                <CommentForm projectId={p.id} path={path} />
+                <CommentForm projectId={p.id} path={path} mine={comments.filter((c) => c.mine).map((c) => c.id)} />
               ) : (
                 <p className="text-15 text-ink-2">
                   <Link href={`/sign-in?next=${encodeURIComponent(path)}`} className="font-medium text-ink underline underline-offset-4">
