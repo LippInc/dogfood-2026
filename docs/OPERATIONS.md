@@ -36,8 +36,8 @@ event's id, so it adds to that same event.
    their times, feedback and private notes), its dates, settings and prizes, the duplicate merges, every organizer
    decision with its reason (a judge left out or reinstated, pairs ruled not duplicates, projects published as they
    are, projects moved to another track, weight and vote-rule changes), the pairwise answers (taken-back ones too), the ballots (a set-aside one still
-   set aside, with its reason), the comments (a hidden one still hidden, with its reason) and the published results as
-   they were published. The import's audit entry lists every row it restored by id, and its importer stands for
+   set aside, with its reason), the comments (a hidden one still hidden, with its reason), the organizers' updates (with their times, an edited
+   one marked edited) and the published results as they were published. The import's audit entry lists every row it restored by id, and its importer stands for
    whoever made each decision (their names are in the old `audit.csv`).
 4. It does not bring: drafts, open judge assignments and recusals, pending judge invitations, co-organizers, signed
    records (the new portal signs its own on request, with the same places), the duplicate-voter flags (they rest on
@@ -48,7 +48,7 @@ event's id, so it adds to that same event.
    the old portal's voting links open nothing, so a vote still to come needs new ones.
 
 An event that is already on the new portal keeps its own history: a file whose ballots, comments, pairwise answers,
-merges, decisions or published results it does not hold is refused whole (409 `new_event_only`, naming what the file
+merges, decisions, updates or published results it does not hold is refused whole (409 `new_event_only`, naming what the file
 would add), and the event's own dates, settings and prizes stand (the report's `skipped` says where the file differs).
 Its own export imported again adds nothing. An id another event on the new portal holds gets `.<event id>` appended
 (the report's `renamed`), and everything restored follows the renamed row. An event past one file's limits

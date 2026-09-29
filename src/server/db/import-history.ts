@@ -2,8 +2,8 @@ import "server-only";
 // An event's history in its event file: what the portal's own fixtures.json export carries beyond the organizers'
 // format (dal/exports.ts eventHistory), and how an import restores it. All of it comes into a NEW event only; into an
 // event that is here already a row the event holds counts as present, and a file that would add one is refused whole
-// (409 new_event_only), so an import never adds a ballot, a comment, a pairwise answer, a merge, a decision or a
-// published ranking to an event that is running here.
+// (409 new_event_only), so an import never adds a ballot, a comment, a pairwise answer, a merge, a decision, an update
+// or a published ranking to an event that is running here.
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Tx } from "./client";

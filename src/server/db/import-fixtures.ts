@@ -371,7 +371,7 @@ export function importFixtures(
     );
 
     // An event that is here keeps what it is: a file never adds a ballot, a comment, a pairwise answer, a merge, a
-    // decision or a published ranking to it (refused whole, 409 new_event_only; those it holds already count as
+    // decision, an update or a published ranking to it (refused whole, 409 new_event_only; those it holds already count as
     // present), and its own dates, settings and prizes stand (a file that differs gets a skipped line saying so).
     if (here) keepExistingEvent(tx, fixture, report, projectOf, trackOf);
 
