@@ -13,7 +13,7 @@ import {
   tracks,
 } from "../db/schema";
 import { guardRead } from "../mutate";
-import { inJudgeTracks } from "./judging";
+import { inJudgeTracks, weightedTotal } from "./judging";
 import { shownTitle } from "./project-fields";
 
 export type ReviewItem = { key: string; label: string; value: number; weight: number };
@@ -131,14 +131,9 @@ export function reviewsOf(db: DbOrTx, judgeUserId: string, opts: { ownTracksOnly
       position: r.position,
       status: r.status,
       items: its,
-      total: complete ? weightedMean(its) : null,
+      total: complete ? weightedTotal(its, its.map((i) => i.value)) : null,
       submittedAt: r.submittedAt,
       feedback: r.feedback ?? "",
     };
   });
-}
-
-export function weightedMean(items: { value: number; weight: number }[]): number {
-  const w = items.reduce((s, i) => s + i.weight, 0);
-  return w > 0 ? items.reduce((s, i) => s + i.value * i.weight, 0) / w : 0;
 }
