@@ -2,7 +2,8 @@
 
 import { Check, CircleAlert, CloudOff, Lock } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useFlip } from "@/components/use-flip";
@@ -12,7 +13,7 @@ import { pageIsStale, personHeaders } from "@/lib/session-watch";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
 import { Kbd, letters, paragraphs, RecuseDialog, shortUrl } from "./judge-bits";
 import { afterRefusal, type Draft } from "./refusal";
-import { saveAndNextTarget } from "./save-next";
+import { batchFinished, saveAndNextTarget } from "./save-next";
 import "./judge.css";
 
 // The judge console (DESIGN.md: the judge keys with autosave and "your ranking so
@@ -117,8 +118,12 @@ export function JudgeConsoleView({
   const [keysOpen, setKeysOpen] = useState(false);
   const [recuseOpen, setRecuseOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
-  // Once every project is scored, Save and open next says so; on the last one it stays instead of wrapping to the first.
-  const [batchDone, setBatchDone] = useState(false);
+  // The finished batch, in the middle pane: shown when the judge saves the last open project (Save and finish), and
+  // on arrival when every project is already scored; it shows only while the batch is finished (see `finished`).
+  const [showDone, setShowDone] = useState(
+    () => !startProject && batchFinished(items.map((i) => ({ recused: i.status === "recused", scored: totalOf(criteria, i.values) !== null }))),
+  );
+  const doneRef = useRef<HTMLHeadingElement>(null);
   // Said to a screen reader on every switch (J, K, Ctrl+Enter, the rail), since focus stays where it
   // was: which project is now being scored, and its place in the batch.
   const [switched, setSwitched] = useState("");
@@ -272,7 +277,7 @@ export function JudgeConsoleView({
       }
       setFocus(firstOpen(criteria, reviewsRef.current[items[next]!.assignmentId]!.values));
       setNoteOpen(false);
-      setBatchDone(false);
+      setShowDone(false);
     },
     [criteria, current, flush, index, items],
   );
@@ -280,13 +285,16 @@ export function JudgeConsoleView({
   const saveAndNext = useCallback(() => {
     if (!current) return;
     void flush(current.assignmentId);
-    const slots = items.map((i) => {
-      const r = reviewsRef.current[i.assignmentId]!;
-      return { open: r.status !== "recused" && !r.readOnly, scored: totalOf(criteria, r.values) !== null };
-    });
-    const { to, batchDone: done } = saveAndNextTarget(slots, index);
+    const all = items.map((i) => reviewsRef.current[i.assignmentId]!);
+    // nothing left to score: the finished batch, not a walk on to the next project
+    if (batchFinished(all.map((r) => ({ recused: r.status === "recused", scored: totalOf(criteria, r.values) !== null })))) {
+      setShowDone(true);
+      requestAnimationFrame(() => doneRef.current?.focus());
+      return;
+    }
+    const slots = all.map((r) => ({ open: r.status !== "recused" && !r.readOnly, scored: totalOf(criteria, r.values) !== null }));
+    const { to } = saveAndNextTarget(slots, index);
     if (to !== index) go(to);
-    setBatchDone(done);
   }, [criteria, current, flush, go, index, items]);
 
   useEffect(() => {
@@ -354,6 +362,9 @@ export function JudgeConsoleView({
   const active = items.filter((i) => reviews[i.assignmentId]!.status !== "recused");
   const done = active.filter((i) => totalOf(criteria, reviews[i.assignmentId]!.values) !== null).length;
   const left = active.length - done;
+  // done only when every project that counts is scored: clearing a score takes the finished view away again
+  const finished = batchFinished(items.map((i) => ({ recused: reviews[i.assignmentId]!.status === "recused", scored: totalOf(criteria, reviews[i.assignmentId]!.values) !== null })));
+  const recusedCount = items.length - active.length;
 
   const ranking = useMemo(() => {
     const rows = items
@@ -526,8 +537,25 @@ export function JudgeConsoleView({
         </div>
       </aside>
 
-      {/* The project, as a document */}
+      {/* The project, as a document; once the batch is finished and saved through, what that means */}
       <article ref={docRef} aria-labelledby="project-title" className="min-w-0 lg:overflow-y-auto">
+        {showDone && finished ? (
+          <BatchDone
+            headingRef={doneRef}
+            scored={done}
+            total={active.length}
+            recused={recusedCount}
+            saving={active.some((i) => {
+              const k = saveState[i.assignmentId]?.kind;
+              return k === "saving" || k === "offline" || k === "error";
+            })}
+            final={active.every((i) => reviews[i.assignmentId]!.readOnly)}
+            judgingCloseAt={data.event.judgingCloseAt}
+            resultsPublished={Boolean(data.event.resultsPublishedAt)}
+            eventSlug={data.event.slug}
+            onReview={() => go(Math.max(0, items.findIndex((i) => reviews[i.assignmentId]!.status !== "recused")))}
+          />
+        ) : (
         <div className="mx-auto max-w-[680px] px-6 py-8 wrap-anywhere lg:px-0">
           <p className="text-14 text-ink-2">
             Project {index + 1} of {items.length} · {p.trackName}
@@ -607,6 +635,7 @@ export function JudgeConsoleView({
             </div>
           ) : null}
         </div>
+        )}
       </article>
 
       {/* The score pane */}
@@ -831,15 +860,9 @@ export function JudgeConsoleView({
             ) : null}
           </div>
         </div>
-        {batchDone ? (
-          <p role="status" className="flex items-center gap-1.5 border-t border-rule bg-surface px-6 py-2.5 text-13 text-ink max-lg:px-4">
-            <Check className="size-3.5 text-ok" aria-hidden />
-            Every project in your batch is scored. You can still change any score until judging closes.
-          </p>
-        ) : null}
         <div className="flex items-center gap-2 border-t border-rule bg-surface px-6 py-3 max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:px-4">
           <Button size="lg" onClick={saveAndNext} className="flex-1 justify-between">
-            {readOnly ? "Open next" : "Save and open next"}
+            {readOnly ? "Open next" : finished ? "Save and finish" : "Save and open next"}
             <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">Ctrl ↵</kbd>
           </Button>
           {readOnly ? null : (
@@ -867,6 +890,75 @@ export function JudgeConsoleView({
           setRecuseOpen(false);
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * The end of the batch, in the middle pane: every project scored and saved (N of N), when judging closes, that a
+ * score can still change until then, and what happens next; the way back to the scores and out to the event.
+ */
+function BatchDone({
+  headingRef,
+  scored,
+  total,
+  recused,
+  saving,
+  final,
+  judgingCloseAt,
+  resultsPublished,
+  eventSlug,
+  onReview,
+}: {
+  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  scored: number;
+  total: number;
+  recused: number;
+  saving: boolean;
+  final: boolean;
+  judgingCloseAt: string | null;
+  resultsPublished: boolean;
+  eventSlug: string;
+  onReview: () => void;
+}) {
+  const closes = judgingCloseAt ? formatUtc(judgingCloseAt, { weekday: true }) : null;
+  return (
+    <div className="mx-auto max-w-[680px] px-6 py-10 lg:px-0 lg:py-16">
+      <p className="label-mono text-ink-3">Your batch</p>
+      <h1 id="project-title" ref={headingRef} tabIndex={-1} className="mt-3 font-serif text-38 font-semibold outline-none">
+        Batch complete
+      </h1>
+      <p role="status" className="mt-4 flex items-start gap-2 text-17">
+        <Check className="mt-1 size-4 shrink-0 text-ok" aria-hidden />
+        <span className="tnum">
+          {scored} of {total} {total === 1 ? "project" : "projects"} scored{saving ? "; the last change is still saving." : " and saved."}
+          {recused ? ` ${recused === 1 ? "The project you declared a conflict on counts" : `The ${recused} projects you declared a conflict on count`} as done.` : ""}
+        </span>
+      </p>
+      <dl className="mt-8 grid gap-x-8 gap-y-4 border-t border-rule pt-6 text-15 sm:grid-cols-[10rem_minmax(0,1fr)]">
+        <dt className="text-ink-2">Judging closes</dt>
+        <dd>{closes ?? (resultsPublished ? "Closed: results are published." : "When the organizers publish results.")}</dd>
+        <dt className="text-ink-2">Until then</dt>
+        <dd>
+          {final
+            ? "Your scores are final now."
+            : "You can change any score or your feedback; what is saved when judging closes is what counts."}
+        </dd>
+        <dt className="text-ink-2">What happens next</dt>
+        <dd>
+          {resultsPublished
+            ? "The results are published; each team can read your feedback."
+            : "The organizers publish the results; then each team reads the feedback you wrote to it. Nothing else is needed from you."}
+        </dd>
+      </dl>
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Button size="lg" onClick={onReview}>
+          Review my scores
+        </Button>
+        <Link href={`/events/${eventSlug}`} className={buttonVariants({ size: "lg", variant: "outline" })}>
+          Back to the event
+        </Link>
+      </div>
     </div>
   );
 }
