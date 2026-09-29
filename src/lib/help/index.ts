@@ -219,8 +219,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/events/[event]/my-project",
     who: ["signed-in", "participant"],
     answer:
-      "On My project, Start a team (or join one with a teammate's invite link), fill in the title and one-line summary, Save draft, then Submit project. You can edit it until submissions close; the server refuses changes after that.",
-    keywords: ["submit", "hand in", "submit project", "save draft", "edit my project", "enter the hackathon", "upload project", "take part", "start a team", "submit late", "late"],
+      "On My project, Start a team (or join one with a teammate's invite link), fill in the title and one-line summary, Save draft, then Submit project. Pick up to 8 tech tags from the list or type your own. You can edit it until submissions close; the server refuses changes after that.",
+    keywords: ["submit", "hand in", "submit project", "save draft", "edit my project", "enter the hackathon", "upload project", "take part", "start a team", "submit late", "late", "tech tags", "add tags"],
     doc: { file: "README.md", heading: "A guided tour" },
   },
   {

@@ -8,7 +8,9 @@ ranking is in [`JUDGING.md`](../JUDGING.md), and what the portal stops is in [`T
 An administrator creates an event with dates, tracks, prizes, custom questions and a weighted rubric. People
 sign up, form a team, share an invite link and draft and edit a project until the deadline (name, tagline,
 description, repository, demo video and live links, a picture, an image gallery, tech tags, the track and the
-organizer's questions); the server refuses changes after it.
+organizer's questions); the server refuses changes after it. Tech tags are picked, up to 8: type to filter a list
+of about 270 common ones, the tags the event's other projects already show coming first, or add your own (no comma,
+at most 40 characters); the same tag in another case is not added twice.
 
 - **A second event from the first one's settings.** On New event, "Start from the settings of" lists the events
   the administrator organizes; the new event takes that event's tracks, rubric (labels, prompts, weights, anchor
