@@ -222,7 +222,8 @@ export function getBallot(actor: Actor | null, eventIdOrSlug: string, token: str
   const event = requireEvent(db, eventIdOrSlug);
   const settings = votingSettings(event);
   const who = resolveVoter(db, event, actor, token);
-  const usable = who && (who.viaAccount ? settings.modes.includes("account") : true) ? who : null;
+  // a ballot the organizer turned its way of voting off for (accounts, the voter list or the open link) is no ballot here: no picks, no live form
+  const usable = who && settings.modes.includes(who.kind) ? who : null;
   const person = voterPerson(db, actor, who);
   const own = person ? ownProjectIds(db, event.id, person) : new Set<string>();
   const list = ballotProjects(db, event.id).map((p) => ({ ...p, own: own.has(p.id) }));

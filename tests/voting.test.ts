@@ -301,6 +301,33 @@ describe("castBallot over the open link", () => {
     expect(refusals).toHaveLength(refusalsBefore + 1);
     expect(JSON.stringify(refusals.at(-1)!.after)).toContain('"voting_mode_off"');
   });
+
+  it("known-bad: a listed or link voter whose way of voting the organizer turned off gets no ballot back: no voter, no picks", () => {
+    openVoting();
+    const { links } = addListedVoters(org(), "evt_01", { emails: "listed@example.org" });
+    const listed = links[0]!.path.slice("/vote/".length);
+    const link = linkToken();
+    castBallot(null, "evt_01", listed, { projectIds: ["prj_01"] }, CLIENT);
+    castBallot(null, "evt_01", link, { projectIds: ["prj_02"] }, CLIENT);
+    // positive control: while their way of voting is on, each gets their live ballot and picks back
+    expect(getBallot(null, "evt_01", listed)).toMatchObject({ voter: { kind: "listed" }, picks: ["prj_01"] });
+    expect(getBallot(null, "evt_01", link)).toMatchObject({ voter: { kind: "link" }, picks: ["prj_02"] });
+
+    saveVotingSettings(org(), "evt_01", {
+      votingOpenAt: "2026-01-01T00:00",
+      votingCloseAt: "2999-01-01T00:00",
+      modes: ["account"],
+      votesPerVoter: "3",
+      reason: "Only accounts vote, as announced",
+    });
+
+    for (const token of [listed, link]) {
+      const ballot = getBallot(null, "evt_01", token);
+      expect(ballot.voter).toBeNull();
+      expect(ballot.picks).toEqual([]);
+      expectHttpError(() => castBallot(null, "evt_01", token, { projectIds: ["prj_03"] }, CLIENT), 403, "voting_mode_off");
+    }
+  });
 });
 
 describe("one ballot per known person", () => {
