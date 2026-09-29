@@ -26,7 +26,7 @@ import { discardUpload } from "../uploads";
 import { newId, newSecret } from "../util";
 import { auditOfTarget, type AuditLine } from "./audit-log";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { issuesOf, parse } from "./parse";
+import { parse } from "./parse";
 
 // Teams form by invite link: a signed-in person creates a team (and becomes its
 // captain), the captain shares /join/<code>, anyone signed in who is not yet on a
@@ -110,10 +110,9 @@ export function createTeam(actor: Actor | null, eventIdOrSlug: string, body: unk
       return { kind: "team_work", event: eventFacts(event), onTeam: actor ? onTeamIn(tx, actor.userId, event.id) : false };
     },
     run: (tx) => {
-      const parsed = TeamName.safeParse(nameOrOwn(body, event, actor!));
-      if (!parsed.success) throw new ValidationError("The team is not valid.", issuesOf(parsed.error));
+      const { name } = parse(TeamName, nameOrOwn(body, event, actor!), "The team is not valid.");
       const now = new Date().toISOString();
-      const team = { id: newId("tm"), eventId: event.id, name: parsed.data.name, inviteCode: newSecret(12), createdAt: now };
+      const team = { id: newId("tm"), eventId: event.id, name, inviteCode: newSecret(12), createdAt: now };
       tx.insert(teams).values(team).run();
       tx.insert(teamMembers).values({ eventId: event.id, teamId: team.id, userId: actor!.userId, role: "captain", joinedAt: now }).run();
       addParticipantRole(tx, actor!.userId, event.id, now);
@@ -388,9 +387,7 @@ export function makeCaptain(actor: Actor | null, teamId: string, body: unknown) 
       return loaded.resource;
     },
     run: (tx) => {
-      const parsed = CaptainInput.safeParse(body);
-      if (!parsed.success) throw new ValidationError("Name the member who becomes captain.", issuesOf(parsed.error));
-      const next = parsed.data.userId;
+      const next = parse(CaptainInput, body, "Name the member who becomes captain.").userId;
       if (next === actor!.userId) throw new ConflictError("already_captain", "You are this team's captain already.");
       if (!memberOf(tx, team.id, next)) throw new NotFoundError("Team member");
       tx.update(teamMembers).set({ role: "member" }).where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, actor!.userId))).run();

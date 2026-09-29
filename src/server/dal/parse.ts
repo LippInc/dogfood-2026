@@ -13,10 +13,10 @@ export function issuesOf(error: z.ZodError): Record<string, string[] | undefined
   return formErrors.length ? { ...fieldErrors, request: formErrors } : fieldErrors;
 }
 
-/** Parse a request body or form payload; a failure is a 422 with the field errors. */
-export function parse<T extends z.ZodType>(schema: T, body: unknown): z.output<T> {
+/** Parse a request body or form payload; a failure is a 422 with the field errors, under the message given. */
+export function parse<T extends z.ZodType>(schema: T, body: unknown, message = "Check the highlighted fields."): z.output<T> {
   const parsed = schema.safeParse(body);
-  if (!parsed.success) throw new ValidationError("Check the highlighted fields.", issuesOf(parsed.error));
+  if (!parsed.success) throw new ValidationError(message, issuesOf(parsed.error));
   return parsed.data;
 }
 

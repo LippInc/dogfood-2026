@@ -5,12 +5,12 @@ import { adminEmails, consumeSetupCode, setupCodeValid } from "../admins";
 import { appendAudit } from "../audit";
 import { getDb } from "../db/client";
 import { users } from "../db/schema";
-import { ConflictError, HttpError, RateLimitedError, ValidationError } from "../errors";
+import { ConflictError, HttpError, RateLimitedError } from "../errors";
 import { createLoginSession, hashPassword, setSessionCookie } from "../session";
 import { newId } from "../util";
 import { addressLimit } from "./auth";
 import type { Client } from "./voting";
-import { issuesOf } from "./parse";
+import { parse } from "./parse";
 
 function refuseTaken(existing: { passwordHash: string | null } | undefined): void {
   if (existing && !existing.passwordHash) {
@@ -34,9 +34,7 @@ export const SignUp = z.object({
  * only with the setup code the portal printed in its log at start (admins.ts).
  */
 export async function signUp(body: unknown, client?: Client): Promise<{ userId: string }> {
-  const parsed = SignUp.safeParse(body);
-  if (!parsed.success) throw new ValidationError("Check the highlighted fields.", issuesOf(parsed.error));
-  const { name, email, password, setup } = parsed.data;
+  const { name, email, password, setup } = parse(SignUp, body);
   const wait = addressLimit(client);
   if (wait) throw new RateLimitedError(wait);
   const isAdmin = adminEmails().has(email);
