@@ -117,14 +117,32 @@ describe("plainSummary", () => {
       row({ id: "North Drift", trackId: "t3", trackName: "Security", score: 4.0, se: 0.3, trackRank: 2, rankKept: 6, rankNormalized: 6 }),
     );
     expect(say(n)).toContain("In 2 of the 3 tracks first place is too close to call from the scores: Climate and Security; see Close calls below.");
-    // a tied track has no lead to measure: the count says which tracks it is out of
+    // an exact tie at the top is always too close to call (JUDGING.md): the tied track counts among the close ones
     n.projects.push(
       row({ id: "Salt Kiln", trackId: "t4", trackName: "Health", score: 3.5, se: 0.3, trackRank: 1.5, rankKept: 7, rankNormalized: 7 }),
       row({ id: "Warm Beacon", trackId: "t4", trackName: "Health", score: 3.5, se: 0.3, trackRank: 1.5, rankKept: 8, rankNormalized: 8 }),
     );
-    expect(say(n)).toContain(
-      "In 2 of the 3 tracks with one leader first place is too close to call from the scores: Climate and Security; see Close calls below.",
-    );
+    expect(say(n)).toContain("In 3 of the 4 tracks first place is too close to call from the scores: Climate, Security and Health; see Close calls below.");
+  });
+
+  it("never calls a tied first place clear: a tie at the top is too close to call, or unchecked without a ±", () => {
+    // Developer tools tied at the top, Climate made clear: before, the summary said every first place was clear
+    const n = run();
+    n.projects[0] = { ...n.projects[0]!, trackRank: 1.5 };
+    n.projects[1] = { ...n.projects[1]!, trackRank: 1.5, score: 4.3 };
+    n.projects[3] = { ...n.projects[3]!, score: 3.2 };
+    expect(say(n).join(" ")).not.toContain("Every first place is clear");
+    expect(say(n)).toContain("In Developer tools, first place is too close to call from the scores: see Close calls below.");
+    // the tie with a project missing its ±: no verdict, so not enough reviews yet
+    const noSe = run();
+    noSe.projects[0] = { ...noSe.projects[0]!, trackRank: 1.5 };
+    noSe.projects[1] = { ...noSe.projects[1]!, trackRank: 1.5, score: 4.3, se: null };
+    noSe.projects[3] = { ...noSe.projects[3]!, score: 3.2 };
+    expect(say(noSe)).toContain("Not enough reviews yet to say whether first place is clear in Developer tools; every other first place is clear from the scores.");
+    // positive control: without the tie the same run is clear everywhere
+    const clear = run();
+    clear.projects[3] = { ...clear.projects[3]!, score: 3.2 };
+    expect(say(clear)).toContain("Every first place is clear from the scores: each leader comes out first in at least 95 % of the draws around the scores' ±.");
   });
 
   it("counts what evening out leniency moves, apart from leaving a judge out, which Fig. 01 counts", () => {

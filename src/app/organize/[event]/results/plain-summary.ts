@@ -18,7 +18,7 @@ function names(list: string[]): string {
   return list.length < 2 ? (list[0] ?? "") : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
 }
 
-/** `unchecked`: a lone leader the rule cannot check yet, because a ranked project of its track has no ± */
+/** `unchecked`: a first place the rule cannot check yet, because a ranked project of its track has no ± */
 type Leader = { track: string; titles: string[]; close: boolean; unchecked: boolean };
 
 /**
@@ -29,10 +29,11 @@ function leaderOf(track: string, rows: ProjectRow[]): Leader | null {
   const ranked = rows.filter((p) => p.trackRank !== null && p.score !== null && !p.duplicateOf).sort((a, b) => a.trackRank! - b.trackRank!);
   if (!ranked.length) return null;
   const top = ranked.filter((p) => p.trackRank === ranked[0]!.trackRank);
-  if (top.length > 1) return { track, titles: top.map((p) => p.title), close: false, unchecked: false };
+  // an exact tie at the top is always too close to call (JUDGING.md): the rule calls a winner only with one top project,
+  // so a tied track counts as close, as in the Close calls section, or as unchecked when a ± is missing
   const cc = closeCall(ranked.map((p) => ({ id: p.id, score: p.score!, se: p.se })));
   // a track of one ranked project has nothing to call; two or more with no call means a missing ±, which is no verdict
-  return { track, titles: [ranked[0]!.title], close: Boolean(cc && !cc.callable), unchecked: !cc && ranked.length > 1 };
+  return { track, titles: top.map((p) => p.title), close: Boolean(cc && !cc.callable), unchecked: !cc && ranked.length > 1 };
 }
 
 /**
@@ -57,20 +58,17 @@ export function plainSummary(n: Normalized, opts: { open: number; published: boo
 
   const leaders = tracks.map(([id, name]) => leaderOf(name, n.projects.filter((p) => p.trackId === id))).filter((l): l is Leader => l !== null);
   lines.push(`First in each track: ${leaders.map((l) => (l.titles.length > 1 ? `${names(l.titles)}, tied (${l.track})` : `${l.titles[0]} (${l.track})`)).join("; ")}.`);
+  // a tied first place is too close to call too, so every track counts
   const close = leaders.filter((l) => l.close).map((l) => l.track);
-  const leads = leaders.filter((l) => l.titles.length === 1).length;
-  // a tied track has no lead to measure, so a count says which tracks it is out of
-  const tracksLed = leads < leaders.length ? "tracks with one leader" : "tracks";
   const unchecked = leaders.filter((l) => l.unchecked).map((l) => l.track);
   if (!close.length && unchecked.length) {
     // without a ± the rule has not looked, so nothing is said to be clear
-    if (unchecked.length === leads) lines.push("Not enough reviews yet to say whether any first place is clear from the scores: a leader is checked once every project of its track has a ±.");
+    if (unchecked.length === leaders.length) lines.push("Not enough reviews yet to say whether any first place is clear from the scores: a leader is checked once every project of its track has a ±.");
     else lines.push(`Not enough reviews yet to say whether first place is clear in ${names(unchecked)}; every other first place is clear from the scores.`);
   } else if (!close.length) lines.push("Every first place is clear from the scores: each leader comes out first in at least 95 % of the draws around the scores' ±.");
   else if (close.length === 1) lines.push(`In ${close[0]}, first place is too close to call from the scores: see Close calls below.`);
-  else if (close.length === leads)
-    lines.push(`In every ${tracksLed === "tracks" ? "track" : "track with one leader,"} first place is too close to call from the scores: see Close calls below.`);
-  else lines.push(`In ${close.length} of the ${leads} ${tracksLed} first place is too close to call from the scores: ${names(close)}; see Close calls below.`);
+  else if (close.length === leaders.length) lines.push("In every track first place is too close to call from the scores: see Close calls below.");
+  else lines.push(`In ${close.length} of the ${leaders.length} tracks first place is too close to call from the scores: ${names(close)}; see Close calls below.`);
 
   if (!n.variance.measured) lines.push("No project has two counted reviews yet, so nothing is evened out: places come from the plain averages.");
   else if (!n.variance.leniencyMeasured) lines.push("Too few reviews to estimate how lenient each judge is, so scores are used as given: places come from the plain averages.");
