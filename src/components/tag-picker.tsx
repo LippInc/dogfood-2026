@@ -34,7 +34,11 @@ export function TagPicker({
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
 }) {
-  const [picked, setPicked] = useState<string[]>(() => initial.reduce<string[]>((acc, t) => addTag(acc, t), []));
+  // stored tags come in as they are, even one the picker would refuse typed (an API client or an import may have
+  // stored it), so a save never drops a tag without a word; only exact repeats are folded
+  const [picked, setPicked] = useState<string[]>(() =>
+    initial.reduce<string[]>((acc, t) => (t.trim() && !acc.some((x) => x.toLowerCase() === t.trim().toLowerCase()) ? [...acc, t.trim()] : acc), []),
+  );
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);

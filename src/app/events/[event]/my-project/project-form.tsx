@@ -59,8 +59,14 @@ function initialValue(field: ProjectField, p: FormProject | null, onlyTrack: str
 
 /** The fields a submission still needs: the ones the organizers made required, then their required questions. */
 function needed(form: HTMLFormElement | null, questions: Question[], fields: FieldModes, initial: FormProject | null, onlyTrack: string): Needed[] {
-  const value = (name: string, fallback: string) =>
-    form ? String((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim() : fallback.trim();
+  // by name only: the tag picker's visible box shares the id "tags" with nothing named so, and namedItem would answer a
+  // list whose value is always "" (a required Tech tags then never counted as done)
+  const value = (name: string, fallback: string) => {
+    if (!form) return fallback.trim();
+    const n = CSS.escape(name);
+    const el = form.querySelector<HTMLInputElement>(`[name="${n}"]:not([type="radio"]), [name="${n}"][type="radio"]:checked`);
+    return String(el?.value ?? "").trim();
+  };
   return [
     ...PROJECT_FIELDS.filter((f) => fields[f] === "required").map((f) => ({
       key: f,
