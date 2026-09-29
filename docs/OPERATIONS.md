@@ -91,6 +91,26 @@ docker compose start
 A backup made before backups were folders is a single `.db` file; restoring it brings the database back and
 leaves the pictures as they are (the next start deletes the ones no project names).
 
+## Personal data
+
+The portal's `/privacy` page ("What we keep") lists everything it stores about people, how long each thing stays
+and what removes it; DATA-MODEL.md carries the same table. It removes two things by itself, at every start and
+every hour: password sign-in sessions past their end, and rate-limit buckets idle for over an hour (a bucket's key
+is a keyed hash under `DOGFOOD_SEED_SECRET`, never an email or network address). The rest is yours to clear once it
+has done its job:
+
+```bash
+docker compose exec portal node scripts/purge.mjs              # shows what it would remove
+docker compose exec portal node scripts/purge.mjs --yes        # removes it
+docker compose exec portal node scripts/purge.mjs --days 30 --yes
+```
+
+It removes the mail log and finished webhook deliveries older than `--days` (default 90), and the voters' address
+and browser hashes of every event whose vote has closed. It never touches the audit log, scores, ballots, comments
+or accounts, and writes no audit row, so take a backup first if you may want the rows back. Backups hold a copy of
+everything: the newest 7 stay in the volume, and those copied off the machine are yours to delete. The portal cannot
+yet erase one person (see the README's "What it does not do yet").
+
 ## One process per volume
 
 Run one portal process per data volume: limits such as team size, rate limits and accepting an invitation hold

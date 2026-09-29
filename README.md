@@ -210,6 +210,11 @@ refuses to start with the default secret on an address that is not local.
 Each setting in full, accounts and password resets, health checks, backup and restore, and upgrading:
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
+People's data: the portal's `/privacy` page lists everything it keeps about the people who use it, how long and
+what removes it. It deletes ended sessions and idle rate-limit buckets by itself every hour; the mail log, finished
+webhook deliveries and the voters' address hashes are yours to clear with `scripts/purge.mjs`
+([`docs/OPERATIONS.md`, "Personal data"](docs/OPERATIONS.md#personal-data)).
+
 ## What it does not do yet
 
 - Only a project's gallery picture is uploaded (PNG, JPEG or WebP up to 8 MB, redrawn as a WebP without metadata
@@ -230,6 +235,9 @@ Each setting in full, accounts and password resets, health checks, backup and re
   which the operator can) and the duplicate-ballot flags key on the client's network address, so people behind
   one address (an office, a venue's wifi) share a limit.
 - Results cannot be unpublished.
+- One person cannot be erased: nothing in the portal deletes an account, and a judge's started reviews, the audit
+  log's entries and signed records stay for good (published scores are final and the audit log is append-only).
+  What the operator can clear, and how: [`docs/OPERATIONS.md`, "Personal data"](docs/OPERATIONS.md#personal-data).
 - A team is never left with nobody: its last member cannot leave, and an organizer cannot take them off. A team
   with a submitted project cannot be dissolved, so someone who handed in alone under the wrong team stays on it;
   the organizers can add them to the right team only after taking them off this one, which needs another member
