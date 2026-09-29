@@ -1,5 +1,5 @@
 # python tests/isolation_check.py .dogfood.toml, after run.py, on a clean docker compose down -v && up
-# image built from commit 8fc8bb2; run at 2026-09-29T05:54Z
+# image built from commit 218e277; run at 2026-09-29T16:48Z
 
 DOGFOOD 2026 isolation hand-check
 portal: http://localhost:8080
@@ -9,10 +9,10 @@ the sample event's results; run it on a fresh instance, after run.py, never on o
 A1   judge scores by role ................................................................................. PASS
 A2   peer scores refused, never handed out ................................................................ PASS
 A3   review save honours the assignment's judge ........................................................... PASS
-A4   score exports are organizer-only ..................................................................... PASS
+A4   score, assignment and prize exports are organizer-only ............................................... PASS
 A5   audit log is organizer-only .......................................................................... PASS
 A6   judge console is the event's judges' page ............................................................ PASS
-A7   judging set-up fixes are organizer-only .............................................................. PASS
+A7   judging set-up fixes, event updates and judge reminders are organizer-only ........................... PASS
 A8   a new event from an event's settings is for its organizers only ...................................... PASS
 B1   voting settings are organizer-only ................................................................... PASS
 B2   tally hidden from everyone but organizers while voting is open ....................................... PASS
