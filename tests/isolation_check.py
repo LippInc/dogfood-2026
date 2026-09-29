@@ -9,7 +9,10 @@ Section A walks each role (visitor, participant, judge_a, judge_b, organizer)
 through the judging APIs and accepts only real 4xx refusals — the opener never
 follows a redirect, so a redirect to a login page shows as a 3xx and fails the
 check. Section B exercises the T3 features: community voting through all three
-ways in, duplicate detection, voiding, comment moderation and rate limits.
+ways in (each ballot in its voter's own order), duplicate detection, voiding,
+comment moderation, the rate limits on comments, link entries, ballots and
+sign-ins, and the cap on audited refusals. JSON answers are checked to be JSON,
+so an error page never passes for a missing field.
 
 This check WRITES data: votes, comments and the event's voting settings. Run it
 on a fresh instance, after run.py, and never on one whose data you care about.
@@ -19,6 +22,7 @@ import argparse
 import csv
 import io
 import json
+import re
 import secrets
 import socket
 import sys
@@ -113,6 +117,25 @@ def as_json(text):
 
 def error_code(text):
     return as_json(text).get("error")
+
+
+def json_body(c, person, method, url, body, headers, key=None):
+    """The body as a JSON object, or None with the check failed: an HTML page (an error page, a sign-in page) must
+    never pass for a JSON answer whose field is merely missing. With `key`, the field must be present (null counts)."""
+    ctype = (headers.get("content-type") or "") if headers else ""
+    if not expect(c, ctype.startswith("application/json"), person, method, url,
+                  f"content-type {ctype!r} ({body[:60]!r})", "application/json"):
+        return None
+    try:
+        data = json.loads(body)
+    except ValueError:
+        data = None
+    if not expect(c, isinstance(data, dict), person, method, url, f"body {body[:80]!r}", "a JSON object"):
+        return None
+    if key is not None and not expect(c, key in data, person, method, url,
+                                      f"no {key!r} field in {sorted(data)[:8]}", f"a {key!r} field"):
+        return None
+    return data
 
 
 def expect(c, ok, person, method, url, got, wanted):
@@ -354,10 +377,12 @@ def run_checks(cfg):
     c = Check("B", "tally hidden from everyone but organizers while voting is open")
     community_url = u(f"/api/events/{EVENT_ID}/community")
     for person in (visitor, participant, organizer):
-        s, body, _ = person.request("GET", community_url)
+        s, body, headers = person.request("GET", community_url)
         if expect(c, s == 200, person, "GET", community_url, s, "200"):
-            expect(c, as_json(body).get("tally") is None, person, "GET", community_url,
-                   f"tally {as_json(body).get('tally')!r}", "tally null while open")
+            data = json_body(c, person, "GET", community_url, body, headers, "tally")
+            if data is not None:
+                expect(c, data.get("tally") is None and data.get("state") == "open", person, "GET", community_url,
+                       f"state {data.get('state')!r}, tally {data.get('tally')!r}", "state 'open', tally null")
     s, _, _ = participant.request("GET", settings_url)
     expect(c, s == 403, participant, "GET", settings_url, s, "403")
     s, _, _ = visitor.request("GET", settings_url)
@@ -459,10 +484,12 @@ def run_checks(cfg):
     # ... while a save that leaves it as it is still goes through (positive control)
     s, _, _ = organizer.request("PUT", settings_url, settings)
     expect(c, s == 200, organizer, "PUT", settings_url, s, "200 for the same settings")
-    s, body, _ = visitor.request("GET", community_url)
+    s, body, headers = visitor.request("GET", community_url)
     if expect(c, s == 200, visitor, "GET", community_url, s, "200"):
-        expect(c, as_json(body).get("tally") is None, visitor, "GET", community_url,
-               f"tally {str(as_json(body).get('tally'))[:80]}", "still null for everyone else, with ballots in")
+        data = json_body(c, visitor, "GET", community_url, body, headers, "tally")
+        if data is not None:
+            expect(c, data.get("tally") is None, visitor, "GET", community_url,
+                   f"tally {str(data.get('tally'))[:80]}", "still null for everyone else, with ballots in")
     checks.append(c)
 
     # B6 -- the voter list: a personal link in, a 'listed' ballot
@@ -487,6 +514,45 @@ def run_checks(cfg):
         if expect(c, s == 200, listed, "GET", ballot_url, s, "200"):
             expect(c, (as_json(body).get("voter") or {}).get("kind") == "listed", listed, "GET", ballot_url,
                    f"voter {(as_json(body).get('voter') or {}).get('kind')!r}", "voter.kind 'listed'")
+    checks.append(c)
+
+    # B13 -- every way in shuffles: account, listed and open-link ballots each get their voter's own order, the
+    # same order every time that voter looks, and none of them the gallery's order a visitor with no ballot sees
+    c = Check("B", "ballots shuffled per voter for all three ways in, and stable for each voter")
+    s, body, headers = visitor.request("GET", ballot_url)
+    gallery_order = []
+    if expect(c, s == 200, visitor, "GET", ballot_url, s, "200"):
+        data = json_body(c, visitor, "GET", ballot_url, body, headers, "projects") or {}
+        gallery_order = [p.get("id") for p in data.get("projects", [])]
+        expect(c, data.get("voter") is None, visitor, "GET", ballot_url,
+               f"voter {data.get('voter')!r}", "no voter (the unshuffled list)")
+        expect(c, len(gallery_order) == 41, visitor, "GET", ballot_url, f"{len(gallery_order)} projects", "41 projects")
+    ballots = {}
+    for person, kind in ((participant, "account"), (judge_a, "account"), (listed, "listed"),
+                         (link_a, "link"), (link_b, "link")):
+        seen = []
+        for _ in range(2):
+            s, body, headers = person.request("GET", ballot_url)
+            if not expect(c, s == 200, person, "GET", ballot_url, s, "200"):
+                break
+            data = json_body(c, person, "GET", ballot_url, body, headers, "projects") or {}
+            got = (data.get("voter") or {}).get("kind")
+            expect(c, got == kind, person, "GET", ballot_url, f"voter.kind {got!r}", f"voter.kind {kind!r}")
+            seen.append([p.get("id") for p in data.get("projects", [])])
+        if len(seen) == 2:
+            expect(c, seen[0] == seen[1], person, "GET", ballot_url,
+                   "a different order on the second look", "the same order every time this voter looks")
+            expect(c, sorted(seen[0]) == sorted(gallery_order), person, "GET", ballot_url,
+                   f"{len(seen[0])} projects, not the gallery's {len(gallery_order)}", "the same projects as the gallery")
+            expect(c, seen[0] != gallery_order, person, "GET", ballot_url,
+                   f"the gallery's own order for a {kind} ballot", "a shuffled order")
+            ballots[person.name] = seen[0]
+    names = list(ballots)
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            expect(c, ballots[a] != ballots[b], visitor, "GET", ballot_url,
+                   f"{a} and {b} got the same order", "a different order per voter")
+    expect(c, len(ballots) == 5, visitor, "GET", ballot_url, f"{len(ballots)} ballots read", "5 ballots to compare")
     checks.append(c)
 
     # B7 -- set the first link browser's ballot aside
@@ -588,6 +654,98 @@ def run_checks(cfg):
                "a 429 within 12 attempts")
     checks.append(c)
 
+    # B14 -- the ballot and password sign-in limits bite too, whatever address a client claims
+    c = Check("B", "ballot saves and password sign-ins are rate limited, whatever address a client claims")
+    # ballot saves: 30 per voter a minute, one back every 2 seconds. The participant saves the picks it already has
+    # (the count does not move), then one save with other picks must be refused and change nothing. 200 tries leave
+    # room for a slow portal (at 1.5 s a save the bucket still runs dry after about 120)
+    saw_429 = False
+    for i in range(1, 201):
+        s, body, headers = participant.request("PUT", ballot_url, {"projectIds": ["prj_02", "prj_06"]},
+                                               headers={"X-Forwarded-For": f"203.0.113.{i}"})
+        if s == 429:
+            saw_429 = True
+            expect(c, bool(headers.get("retry-after")), participant, "PUT", ballot_url,
+                   "429 without a retry-after header", "a retry-after header")
+            break
+        if not expect(c, s == 200, participant, "PUT", ballot_url, s, "200 until the limit, then 429"):
+            break
+    expect(c, saw_429, participant, "PUT", ballot_url, f"still not limited after {i} saves, each from a claimed new address",
+           "a 429 within 200 saves")
+    if saw_429:
+        s, _, _ = participant.request("PUT", ballot_url, {"projectIds": ["prj_02"]})
+        expect(c, s == 429, participant, "PUT", ballot_url, s, "429 again for a save with other picks")
+        s, body, headers = participant.request("GET", ballot_url)
+        if expect(c, s == 200, participant, "GET", ballot_url, s, "200"):
+            picks = (json_body(c, participant, "GET", ballot_url, body, headers, "picks") or {}).get("picks")
+            expect(c, picks == ["prj_02", "prj_06"], participant, "GET", ballot_url,
+                   f"picks {picks!r}", "picks ['prj_02', 'prj_06']: the refused save changed nothing")
+    # password sign-in: 10 tries per email address from one network address in 15 minutes. An address nobody
+    # uses, so no real account is locked out; each try claims a new X-Forwarded-For address.
+    signin_url = u("/api/auth/sign-in")
+    guess_email = f"iso-guess-{secrets.token_hex(4)}@example.org"
+    guesser = Person("a password-guessing browser")
+    saw_429 = False
+    for i in range(1, 16):
+        s, body, headers = guesser.request("POST", signin_url, {"email": guess_email, "password": f"wrong-guess-{i}"},
+                                           headers={"X-Forwarded-For": f"192.0.2.{i}"})
+        if s == 429:
+            saw_429 = True
+            expect(c, bool(headers.get("retry-after")), guesser, "POST", signin_url,
+                   "429 without a retry-after header", "a retry-after header")
+            expect(c, i == 11, guesser, "POST", signin_url, f"the first 429 at try {i}", "the first 429 at try 11 (10 allowed)")
+            break
+        if not expect(c, s == 401 and error_code(body) == "bad_credentials", guesser, "POST", signin_url,
+                      f"{s} {error_code(body)}", "401 bad_credentials until the limit, then 429"):
+            break
+    expect(c, saw_429, guesser, "POST", signin_url, f"still not limited after {i} wrong passwords, each from a claimed new address",
+           "a 429 within 15 tries")
+    # a sign-in belongs to no event, so its refusal row is in the portal's own log (administrators)
+    portal_log_url = u("/api/audit?limit=5000")
+    s, body, headers = organizer.request("GET", portal_log_url)
+    if expect(c, s == 200, organizer, "GET", portal_log_url, s, "200 (the organizer is the portal's administrator)"):
+        entries = (json_body(c, organizer, "GET", portal_log_url, body, headers, "entries") or {}).get("entries") or []
+        hit = [e for e in entries if e.get("action") == "ratelimit.refused" and e.get("targetId") == "sign-in"]
+        expect(c, len(hit) >= 1, organizer, "GET", portal_log_url, "no ratelimit.refused row for sign-in",
+               "a ratelimit.refused row for 'sign-in'")
+    checks.append(c)
+
+    # B15 -- refusals are audited one row each, up to 60 per person in 10 minutes; past that the answer is 429 and
+    # nothing is written, so one account cannot fill the log. A fresh account, so the checker sessions keep their room.
+    c = Check("B", "refusals past 60 in 10 minutes answer 429 and write no audit row")
+    capper = Person("a fresh account collecting refusals")
+    cap_name = f"Iso Refusal Probe {secrets.token_hex(3)}"
+    signup_url = u("/api/auth/sign-up")
+    s, body, _ = capper.request("POST", signup_url, {"name": cap_name, "email": f"iso-cap-{secrets.token_hex(4)}@example.org",
+                                                     "password": "isolation-check-pass"})
+    refused = 0
+    if expect(c, s == 201 and capper.has_cookie("session"), capper, "POST", signup_url, f"{s} ({error_code(body)})", "201 and a session"):
+        probe_url = u(f"/api/events/{EVENT_ID}/export/scores.csv")
+        saw_429 = False
+        for i in range(1, 121):
+            s, body, headers = capper.request("GET", probe_url)
+            if s == 429:
+                saw_429 = True
+                expect(c, bool(headers.get("retry-after")), capper, "GET", probe_url,
+                       "429 without a retry-after header", "a retry-after header")
+                break
+            if not expect(c, s == 403, capper, "GET", probe_url, s, "403 until the cap, then 429"):
+                break
+            refused += 1
+        expect(c, saw_429 and refused >= 60, capper, "GET", probe_url,
+               f"{refused} refusals, then {'a 429' if saw_429 else 'no 429 within 120'}", "at least 60 refusals, then 429")
+        for _ in range(5):
+            s, _, _ = capper.request("GET", probe_url)
+            expect(c, s == 429, capper, "GET", probe_url, s, "429 while the cap holds")
+        s, body, _ = organizer.request("GET", audit_url)
+        if expect(c, s == 200, organizer, "GET", audit_url, s, "200"):
+            rows = [r for r in csv.DictReader(io.StringIO(body))
+                    if r.get("action") == "authz.refused" and r.get("actor") == cap_name]
+            expect(c, len(rows) == refused and refused > 0, organizer, "GET", audit_url,
+                   f"{len(rows)} authz.refused rows for {cap_name!r} after {refused} 403s and 6 429s",
+                   f"exactly {refused}: one per 403, none past the cap")
+    checks.append(c)
+
     # B10 -- close the window: the tally appears, the voided pick does not count, and the
     # open link's ballot shows apart without adding to the count
     c = Check("B", "closed tally counts every ballot but the voided one, the open link's apart")
@@ -634,6 +792,30 @@ def run_checks(cfg):
         if expect(c, s == 200, visitor, "GET", results_url, s, "200"):
             expect(c, "Not yet published" in body, visitor, "GET", results_url,
                    "the page does not say 'Not yet published'", "the text 'Not yet published'")
+            # the words are not enough: no score may be in the page or its payload either. The organizer's live
+            # ranking says what each score would read; a published page shows each as "4.33" with "+/- 0.37" beside it.
+            page = body
+            s, body, _ = organizer.request("GET", u(f"/api/events/{EVENT_ID}/export/normalized.csv"))
+            if expect(c, s == 200, organizer, "GET", u(f"/api/events/{EVENT_ID}/export/normalized.csv"), s, "200"):
+                live = [r for r in csv.DictReader(io.StringIO(body)) if r.get("normalized")]
+                expect(c, len(live) >= 30, organizer, "GET", u(f"/api/events/{EVENT_ID}/export/normalized.csv"),
+                       f"{len(live)} scored rows", "a live score for at least 30 projects to look for")
+                shown = [r["project_id"] for r in live
+                         if f"{float(r['normalized']):.2f}" in page and f"{float(r['normalized_se']):.2f}" in page]
+                # \u00b1 is the plus-minus sign; React may put a <!-- --> between it and the number
+                margins = len(re.findall(r"(\u00b1|\\u00b1|&#177;|&plusmn;)\s*(<!-- -->)?\s*\d", page))
+                expect(c, len(shown) < 3 and margins == 0, visitor, "GET", results_url,
+                       f"{len(shown)} projects' score and margin in the page ({', '.join(shown[:5])}), {margins} '+/- <number>'",
+                       "no score and no '+/- <number>' before publishing")
+        # and the API the page is built on answers "not published" and nothing else, to everyone
+        results_api = u(f"/api/events/{EVENT_ID}/results")
+        for person in (visitor, participant, judge_a):
+            s, body, headers = person.request("GET", results_api)
+            if expect(c, s == 200, person, "GET", results_api, s, "200"):
+                data = json_body(c, person, "GET", results_api, body, headers, "published")
+                if data is not None:
+                    expect(c, data == {"published": False}, person, "GET", results_api,
+                           f"body {body[:120]!r}", '{"published": false} and no other field')
     checks.append(c)
 
     # B12 -- the anti-abuse audit trail: every step above left its row
@@ -656,7 +838,7 @@ def run_checks(cfg):
         expect(c, link_a_id in seen.get("voter.void", []), organizer, "GET", audit_url,
                f"voter.void targets {seen.get('voter.void', [])!r}", f"a voter.void row for {link_a_id!r}")
         limited = seen.get("ratelimit.refused", [])
-        for what in ("comment", "open-link entry"):
+        for what in ("comment", "open-link entry", "ballot"):
             expect(c, what in limited, organizer, "GET", audit_url,
                    f"ratelimit.refused targets {limited!r}", f"a refusal row for {what!r}")
     checks.append(c)
