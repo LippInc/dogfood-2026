@@ -286,8 +286,9 @@ export function JudgeConsoleView({
     if (!current) return;
     void flush(current.assignmentId);
     const all = items.map((i) => reviewsRef.current[i.assignmentId]!);
-    // nothing left to score: the finished batch, not a walk on to the next project
-    if (batchFinished(all.map((r) => ({ recused: r.status === "recused", scored: totalOf(criteria, r.values) !== null })))) {
+    // nothing left to score and nothing after this project: the finished batch; before the last project the button
+    // and Ctrl+Enter still walk on, so a judge revising scores keeps moving through the batch
+    if (index === items.length - 1 && batchFinished(all.map((r) => ({ recused: r.status === "recused", scored: totalOf(criteria, r.values) !== null })))) {
       setShowDone(true);
       requestAnimationFrame(() => doneRef.current?.focus());
       return;
@@ -862,7 +863,7 @@ export function JudgeConsoleView({
         </div>
         <div className="flex items-center gap-2 border-t border-rule bg-surface px-6 py-3 max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:px-4">
           <Button size="lg" onClick={saveAndNext} className="flex-1 justify-between">
-            {readOnly ? "Open next" : finished ? "Save and finish" : "Save and open next"}
+            {readOnly ? (finished && index === items.length - 1 ? "Finish" : "Open next") : finished && index === items.length - 1 ? "Save and finish" : "Save and open next"}
             <kbd className="rounded-[2px] border border-current/40 px-1 font-mono text-12 max-lg:hidden">Ctrl ↵</kbd>
           </Button>
           {readOnly ? null : (
