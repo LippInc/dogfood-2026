@@ -131,18 +131,53 @@ export function verifySignature(secret: string, body: string, header: string, no
 
 const allowPrivate = () => process.env.WEBHOOKS_ALLOW_PRIVATE === "true";
 
-/** Loopback, private, link-local, carrier-grade NAT, multicast and unspecified addresses. */
+function privateV4(a: number, b: number): boolean {
+  return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+}
+
+/** An IPv6 address as its eight 16-bit words ("::" expanded, a dotted IPv4 tail and a zone id read), or null. */
+function v6Words(ip: string): number[] | null {
+  let x = ip.toLowerCase().replace(/%.*$/, "");
+  const dotted = /(\d+\.\d+\.\d+\.\d+)$/.exec(x);
+  if (dotted) {
+    if (!net.isIPv4(dotted[1]!)) return null;
+    const [a, b, c, d] = dotted[1]!.split(".").map(Number) as [number, number, number, number];
+    x = x.slice(0, -dotted[1]!.length) + ((a << 8) | b).toString(16) + ":" + ((c << 8) | d).toString(16);
+  }
+  const halves = x.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (fill < 0 || (halves.length === 1 && head.length !== 8)) return null;
+  const words = [...head, ...Array<string>(fill).fill("0"), ...tail].map((w) => (/^[0-9a-f]{1,4}$/.test(w) ? parseInt(w, 16) : NaN));
+  return words.length === 8 && words.every((w) => !Number.isNaN(w)) ? words : null;
+}
+
+/**
+ * Loopback, private, link-local, carrier-grade NAT, multicast and unspecified addresses, in IPv4 or IPv6. An IPv6
+ * address that carries an IPv4 one (mapped ::ffff:a.b.c.d, the old compatible ::a.b.c.d, translated ::ffff:0:a.b.c.d,
+ * NAT64 64:ff9b::a.b.c.d, 6to4 2002:aabb:ccdd::, Teredo) is judged by the IPv4 address it reaches, in whichever
+ * notation it is written; local-use NAT64 (64:ff9b:1::/48), site-local, discard-only and documentation ranges count as
+ * private too. Anything that is not an address at all counts as private.
+ */
 export function privateAddress(ip: string): boolean {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split(".").map(Number) as [number, number];
-    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+    return privateV4(a, b);
   }
-  if (net.isIPv6(ip)) {
-    const x = ip.toLowerCase();
-    if (x.startsWith("::ffff:")) return privateAddress(x.slice(7));
-    return x === "::1" || x === "::" || x.startsWith("fc") || x.startsWith("fd") || x.startsWith("fe80") || x.startsWith("ff");
-  }
-  return true;
+  const w = net.isIPv6(ip.replace(/%.*$/, "")) ? v6Words(ip) : null;
+  if (!w) return true;
+  const v4 = (hi: number) => privateV4(hi >> 8, hi & 0xff);
+  const zero = (from: number, to: number) => w.slice(from, to).every((n) => n === 0);
+  if (zero(0, 5) && (w[5] === 0xffff || w[5] === 0)) return zero(0, 8) || v4(w[6]!); // ::, ::1, mapped, compatible
+  if (zero(0, 4) && w[4] === 0xffff && w[5] === 0) return v4(w[6]!); // translated
+  if (w[0] === 0x64 && w[1] === 0xff9b) return w[2] === 1 || v4(w[6]!); // NAT64, and local-use NAT64 as a whole
+  if (w[0] === 0x2002) return v4(w[1]!); // 6to4
+  if (w[0] === 0x2001 && w[1] === 0) return v4(w[2]!) || v4(~w[6]! & 0xffff); // Teredo: its server, and its client (bits flipped)
+  if (w[0] === 0x2001 && w[1] === 0xdb8) return true; // documentation
+  if (w[0] === 0x100 && zero(1, 4)) return true; // discard-only
+  return (w[0]! & 0xfe00) === 0xfc00 || (w[0]! & 0xffc0) === 0xfe80 || (w[0]! & 0xffc0) === 0xfec0 || (w[0]! & 0xff00) === 0xff00;
 }
 
 /**

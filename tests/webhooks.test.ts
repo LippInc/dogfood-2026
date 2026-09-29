@@ -241,6 +241,23 @@ describe("webhooks", () => {
     }
   });
 
+  it("privateAddress: an IPv6 address that carries a private IPv4 one is private, in every notation the URL parser leaves", () => {
+    // new URL() rewrites [::127.0.0.1] as [::7f00:1] and [64:ff9b::127.0.0.1] as [64:ff9b::7f00:1]: both notations count
+    const carried = [
+      "::7f00:1", "::127.0.0.1", "::a00:1", // IPv4-compatible
+      "::ffff:7f00:1", "::ffff:a9fe:a9fe", "::ffff:0:7f00:1", // mapped, translated
+      "64:ff9b::7f00:1", "64:ff9b::10.0.0.1", "64:ff9b::a9fe:a9fe", "64:ff9b:1::8.8.8.8", // NAT64, local-use NAT64
+      "2002:7f00:1::1", "2002:c0a8:101::", // 6to4
+      "2001:0:4136:e378:8000:63bf:80ff:fffe", // Teredo whose client is 127.0.0.1 (bits flipped)
+      "fe90::1", "febf::1", "fec0::1", "ff02::1", "fc00::1", "2001:db8::1", "100::1", "fe80::1%eth0",
+    ];
+    for (const ip of carried) expect(privateAddress(ip), ip).toBe(true);
+    for (const ip of ["::808:808", "::ffff:808:808", "64:ff9b::808:808", "2002:808:808::1", "2606:4700::1111", "2a00:1450:4001::200e"]) {
+      expect(privateAddress(ip), ip).toBe(false);
+    }
+    for (const junk of ["", "not-an-ip", "1::2::3", "12345::1"]) expect(privateAddress(junk), junk).toBe(true);
+  });
+
   it("an audited change queues one delivery per subscribed hook, in the same transaction, and secrets never reach the audit log", async () => {
     process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
     const hook = await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["comment.post"] });
