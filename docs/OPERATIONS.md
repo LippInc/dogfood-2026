@@ -39,9 +39,11 @@ event's id, so it adds to that same event.
    they were published. The import's audit entry lists every row it restored by id, and its importer stands for
    whoever made each decision (their names are in the old `audit.csv`).
 4. It does not bring: drafts, open judge assignments and recusals, pending judge invitations, co-organizers, signed
-   records (the new portal signs its own on request) or the old audit log. Pictures uploaded to the old portal's
-   gallery stay there: the file names them by the old portal's full address, so they show only while it serves them.
-   The results page shows its audit seal only for results published on that portal. People get into their accounts through personal links (Integrations tab);
+   records (the new portal signs its own on request, with the same places), the duplicate-voter flags (they rest on
+   hashes salted with the old portal's secret) or the old audit log. Pictures uploaded to the old portal's gallery
+   stay there: the file names them by the old portal's full address, so they show only while it serves them. The
+   results page shows its audit seal only for results published on that portal. People get into their accounts
+   through personal links (Integrations tab);
    the old portal's voting links open nothing, so a vote still to come needs new ones.
 
 An event that is already on the new portal keeps its own history: a file whose ballots, comments, pairwise answers,

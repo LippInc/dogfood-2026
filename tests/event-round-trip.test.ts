@@ -27,6 +27,7 @@ const { computeNormalization } = await import("@/server/dal/normalization");
 const { requireEvent } = await import("@/server/dal/events");
 const { getPairwiseState, pickPairwise, setJudgingMode, undoPairwise } = await import("@/server/dal/pairwise");
 const { moveProjectTrack, projectTrackMoves } = await import("@/server/dal/corrections");
+const { issueOwnRecord } = await import("@/server/dal/records");
 
 // Leaving without loss: an event exported from one portal after its whole life (ballots, comments, pairwise answers, a
 // merge, the organizers' decisions, published) and imported into another portal as a new event is the same event
@@ -216,6 +217,24 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     expect(b.prepare("SELECT results_published_at AS at, submissions_open_at AS o, judging_close_at AS j FROM events WHERE id = 'evt_01'").get()).toEqual(
       ha.sqlite.prepare("SELECT results_published_at AS at, submissions_open_at AS o, judging_close_at AS j FROM events WHERE id = 'evt_01'").get(),
     );
+    // a certificate the new portal signs names the same place (the certificate places moved with the settings)
+    const winner = (() => {
+      const r = getPublishedResults("evt_01");
+      if (!r.published) throw new Error("not published");
+      return r.tracks[0]!.rows[0]!.projectId;
+    })();
+    const memberEmail = (ha.sqlite.prepare("SELECT u.email FROM team_members m JOIN users u ON u.id = m.user_id JOIN projects p ON p.team_id = m.team_id WHERE p.id = ? ORDER BY u.email LIMIT 1").get(winner) as { email: string }).email;
+    const certificate = (h: Handle) =>
+      inPortal(h, () => {
+        const { id } = issueOwnRecord(actorIn(h, idOf(h, memberEmail)), "evt_01", "participant");
+        const row = h.sqlite.prepare("SELECT envelope FROM signed_records WHERE id = ?").get(id) as { envelope: string };
+        return (JSON.parse(row.envelope) as { record: { project: unknown; person: unknown } }).record;
+      });
+    const onA = certificate(ha);
+    const onB = certificate(hb!);
+    expect(onB.project).toEqual(onA.project);
+    expect(onB.person).toEqual(onA.person);
+    expect(JSON.stringify(onB.project)).toContain("place");
     // a hidden comment is still hidden, with its reason; the set-aside ballot is still set aside
     expect(b.prepare("SELECT hidden_reason AS r FROM comments WHERE hidden_at IS NOT NULL").all()).toEqual([{ r: "Advertising, not about the project" }]);
     expect(b.prepare("SELECT void_reason AS r FROM voters WHERE voided_at IS NOT NULL").all()).toEqual([{ r: "Same browser as another ballot" }]);
