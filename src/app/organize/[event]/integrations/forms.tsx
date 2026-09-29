@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useFormAction } from "@/components/use-form-action";
+import { personalLinksCsv } from "@/lib/csv";
 import { Field } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,18 +104,15 @@ export function RotateSecretForm({ eventSlug, webhookId }: { eventSlug: string; 
 
 const noLinks: ClaimResult = { ok: false, message: null };
 
-function csvCell(v: string) {
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-}
-
 export function ClaimLinksForm({ eventSlug, waiting, elsewhere }: { eventSlug: string; waiting: number; elsewhere: number }) {
   const [state, form, pending] = useFormAction(claimLinksAction, noLinks);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const links = state.links ?? [];
   const download = () => {
-    const rows = ["name,email,link", ...links.map((l) => [l.name, l.email, origin + l.path].map(csvCell).join(","))];
+    // Quoted like every server export (src/lib/csv.ts), formula guard included: a name
+    // such as =HYPERLINK(...) stays text in the organizer's spreadsheet.
     // The byte-order mark lets Excel read the names as UTF-8 (see src/lib/export-href.ts).
-    const url = URL.createObjectURL(new Blob(["\uFEFF" + rows.join("\n") + "\n"], { type: "text/csv;charset=utf-8" }));
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + personalLinksCsv(links, origin)], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `${eventSlug}-personal-links.csv`;
