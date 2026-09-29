@@ -507,7 +507,7 @@ export function CloseCallBody({
           {c.signal || c.choice ? (
             <OneClick label={`Keep the ranking's winner, ${leader}`} action={keepRankingAction} fields={{ track: c.trackId }} eventSlug={eventSlug} />
           ) : null}
-          {others.length && !choosing ? (
+          {others.length > 0 && !choosing ? (
             <Button ref={opener} type="button" variant="outline" onClick={() => setChoosing(true)}>
               Record the judges&rsquo; decision…
             </Button>
@@ -515,7 +515,7 @@ export function CloseCallBody({
           {c.stale && c.choice ? (
             <OneClick label="Undo my earlier choice" variant="outline" action={undoCloseCallAction} fields={{ track: c.trackId }} eventSlug={eventSlug} />
           ) : null}
-          {others.length && choosing ? (
+          {others.length > 0 && choosing ? (
             <form {...form} className="flex w-full flex-col gap-3">
               <input type="hidden" name="event" value={eventSlug} />
               <input type="hidden" name="track" value={c.trackId} />
@@ -536,6 +536,7 @@ export function CloseCallBody({
                   </label>
                 ))}
               </fieldset>
+              {state.fieldErrors?.winnerId ? <p className="text-13 text-flag">{state.fieldErrors.winnerId[0]}</p> : null}
               <label className="text-13 font-medium" htmlFor={`reason-close-${c.trackId}`}>
                 The judges&rsquo; reason, shown on the public results
               </label>

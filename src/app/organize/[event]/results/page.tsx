@@ -214,9 +214,11 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                 Close calls
               </h2>
               <p className="text-13 text-ink-2">
-                {closeCalls.some((c) => c.required)
-                  ? "A track too close to call is a decision to settle before publishing."
-                  : "Advice only: these scores carry no signal, so nothing here holds publishing back."}
+                {event.resultsPublishedAt
+                  ? "Read from the scores; the published places are final."
+                  : closeCalls.some((c) => c.required)
+                    ? "A track too close to call is a decision to settle before publishing."
+                    : "Advice only: these scores carry no signal, so nothing here holds publishing back."}
               </p>
             </div>
             <ul className="flex flex-col gap-3">
