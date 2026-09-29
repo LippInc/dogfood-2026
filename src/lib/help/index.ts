@@ -1,4 +1,4 @@
-import { buildMatcher, COVERAGE_FLOOR, MATCH_FLOOR, RELATIVE_FLOOR } from "./match";
+import { buildMatcher, COVERAGE_FLOOR, MATCH_FLOOR, RELATIVE_FLOOR, type Matcher } from "./match";
 
 /**
  * The Help panel's guide: every page a person can reach, the tasks the README tour walks through, and the ideas a
@@ -925,7 +925,9 @@ export const OTHERS_WEIGHT = 0.8;
 export type HelpMatch = { entry: HelpEntry; usable: boolean; score: number };
 export type HelpAnswer = { question: string; matches: HelpMatch[]; places: HelpEntry[] };
 
-const matcher = buildMatcher(HELP_ENTRIES.map((e) => ({ id: e.id, title: e.title, keywords: e.keywords, answer: e.answer })));
+// built on the first question, not on every page load
+let matcher: Matcher | null = null;
+const guide = () => (matcher ??= buildMatcher(HELP_ENTRIES.map((e) => ({ id: e.id, title: e.title, keywords: e.keywords, answer: e.answer }))));
 const byId = new Map(HELP_ENTRIES.map((e) => [e.id, e]));
 
 export function helpEntry(id: string): HelpEntry | undefined {
@@ -937,7 +939,7 @@ export function helpEntry(id: string): HelpEntry | undefined {
  * best scores under MATCH_FLOOR, and then `places` holds the top-level places to offer instead.
  */
 export function ask(question: string, viewer: Pick<HelpViewer, "signedIn" | "roles">): HelpAnswer {
-  const scored = matcher
+  const scored = guide()
     .score(question)
     .filter((m) => m.coverage >= COVERAGE_FLOOR && m.score >= MATCH_FLOOR)
     .map(({ id, score }) => {
