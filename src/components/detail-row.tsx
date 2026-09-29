@@ -44,7 +44,10 @@ export function DetailRows({
   );
 }
 
-/** The button that opens and closes its row's details; a chevron turns to show which. */
+/**
+ * The button that opens and closes its row's details; a chevron turns to show which, at once: a row can hold two
+ * toggles (the judges table's name and tracks), and an animated turn made the other one twitch as the row opened.
+ */
 export function DetailToggle({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const row = useContext(Row);
   if (!row) throw new Error("DetailToggle belongs inside DetailRows");
@@ -57,7 +60,7 @@ export function DetailToggle({ children, className = "" }: { children: React.Rea
       className={`group/toggle inline-flex min-h-6 cursor-pointer items-start gap-1 text-left ${className}`}
     >
       <ChevronRight
-        className="mt-[3px] size-3.5 shrink-0 text-ink-3 transition-transform duration-150 group-aria-expanded/toggle:rotate-90 motion-reduce:transition-none"
+        className="mt-[3px] size-3.5 shrink-0 text-ink-3 group-aria-expanded/toggle:rotate-90"
         aria-hidden
       />
       <span className="min-w-0">{children}</span>
