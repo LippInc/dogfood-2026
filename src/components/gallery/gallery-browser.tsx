@@ -434,7 +434,9 @@ export function GalleryBrowser({
             </select>
           </label>
           <span className="hidden text-13 text-ink-3 lg:inline">{ORDER_HINT[order]}</span>
-          <span className="label-mono tnum ml-auto text-ink-3" aria-live="polite">
+          {/* Below md the count takes a line of its own, so "41 shown" growing to "3 of 41 shown" never wraps it
+              onto a new line and pushes the grid down mid-typing; md and up it sits at the row's end. */}
+          <span className="label-mono tnum basis-full text-right text-ink-3 md:ml-auto md:basis-auto" aria-live="polite">
             {visible.length === items.length ? `${visible.length} shown` : `${visible.length} of ${items.length} shown`}
           </span>
         </div>
