@@ -171,7 +171,7 @@ export function OverallResults({
                   <RowChangeMarks
                     projectHref={`/events/${eventSlug}/projects/${r.projectId}`}
                     teamChangedAt={r.teamChangedAt}
-                    tieBrokenBy={tieBrokenByOf(r, results.tieBreak)}
+                    tieBrokenBy={tieBrokenByOf(r, results.tieBreak, e.trackPlace)}
                     moves={movesOf.get(r.projectId)}
                   />
                 </span>

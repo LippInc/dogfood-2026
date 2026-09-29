@@ -310,7 +310,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           <RowChangeMarks
                             projectHref={`/events/${event.slug}/projects/${r.projectId}`}
                             teamChangedAt={r.teamChangedAt}
-                            tieBrokenBy={results.published ? tieBrokenByOf(r, results.tieBreak) : null}
+                            tieBrokenBy={results.published ? tieBrokenByOf(r, results.tieBreak, p) : null}
                             moves={movesOf.get(r.projectId)}
                           />
                         </span>

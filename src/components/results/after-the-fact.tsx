@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatUtc, plural } from "@/lib/format";
+import { tieBrokenWords, tieDecided } from "@/lib/places";
 import { trackMoveWords } from "@/lib/track-move";
 import { weightMoves } from "@/lib/weight-change";
 
@@ -92,8 +93,13 @@ export function RowChangeMarks({
       ) : null}
       {tieBrokenBy ? (
         <span className="mt-1 block text-13 text-ink-2 wrap-anywhere">
-          Tied on score; tie broken by {tieBrokenBy.criterion}
-          {tieBrokenBy.figure !== null ? <span className="tnum">, {tieBrokenBy.figure.toFixed(2)}</span> : null}
+          {tieBrokenWords(tieBrokenBy.criterion)}
+          {/* the criterion's own figure, named as what it is: a plain average, not a scored number with a ± */}
+          {tieBrokenBy.figure !== null ? (
+            <>
+              , plain average on {tieBrokenBy.criterion} <span className="tnum">{tieBrokenBy.figure.toFixed(2)}</span>
+            </>
+          ) : null}
         </span>
       ) : null}
       {moves?.map((m, mi) => (
@@ -105,10 +111,15 @@ export function RowChangeMarks({
   );
 }
 
-/** The tie-break mark's words for a row, when the event's tie-break decided its place; null otherwise. */
+/**
+ * The tie-break mark's words for a row, only when the event's tie-break decided its place in its track (tieDecided: the
+ * criterion split the row's exact score tie and left it alone at that place); null otherwise, also for a place the
+ * criterion left joint.
+ */
 export function tieBrokenByOf(
   row: { tieBroken?: boolean; tie?: number | null },
   tieBreak: { criterion: string } | undefined,
+  place: { place: number | null; joint: boolean },
 ): { criterion: string; figure: number | null } | null {
-  return row.tieBroken && tieBreak ? { criterion: tieBreak.criterion, figure: typeof row.tie === "number" ? row.tie : null } : null;
+  return tieBreak && tieDecided(row, place) ? { criterion: tieBreak.criterion, figure: typeof row.tie === "number" ? row.tie : null } : null;
 }

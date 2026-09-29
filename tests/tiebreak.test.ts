@@ -111,6 +111,7 @@ describe("the pure stage", () => {
   it("uses that one condition on every surface that says \"tie broken by\": results, project page, embed, certificates, My project, normalized.csv", () => {
     const files = [
       "src/app/events/[event]/results/page.tsx",
+      "src/components/results/after-the-fact.tsx",
       "src/app/events/[event]/projects/[project]/page.tsx",
       "src/app/embed/[event]/page.tsx",
       "src/server/dal/records.ts",
@@ -128,6 +129,7 @@ describe("the pure stage", () => {
     expect(tieBrokenWords("Impact")).toBe("Exactly tied on score; tie broken by Impact");
     const files = [
       "src/app/events/[event]/results/page.tsx",
+      "src/components/results/after-the-fact.tsx",
       "src/app/events/[event]/projects/[project]/page.tsx",
       "src/app/events/[event]/my-project/page.tsx",
       "src/app/records/[record]/page.tsx",
@@ -148,7 +150,9 @@ describe("the pure stage", () => {
     );
     const page = fs.readFileSync(path.join(process.cwd(), "src/app/events/[event]/results/page.tsx"), "utf8");
     expect(page).toContain("{results.tieBreak ? ` ${tieBreakMethod(results.tieBreak.criterion)}` : null}");
-    expect(page).toMatch(/, plain average on \{results\.tieBreak\.criterion\} <span className="tnum">\{r\.tie\.toFixed\(2\)\}<\/span>/);
+    // the row's note is drawn once, in RowChangeMarks, for the per-track rows and the overall order alike
+    const marks = fs.readFileSync(path.join(process.cwd(), "src/components/results/after-the-fact.tsx"), "utf8");
+    expect(marks).toMatch(/, plain average on \{tieBrokenBy\.criterion\} <span className="tnum">\{tieBrokenBy\.figure\.toFixed\(2\)\}<\/span>/);
   });
 
   it("keeps a tie joint when the criterion ties too, and places without figures exactly as before", () => {

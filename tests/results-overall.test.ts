@@ -2,6 +2,7 @@ import path from "node:path";
 import type { ReactNode } from "react";
 import { prerender } from "react-dom/static";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { competitionPlaces, tieDecided } from "@/lib/places";
 
 // The request's session cookie, as the page reads it: null for a visitor.
 const session: { token: string | null } = { token: null };
@@ -309,19 +310,28 @@ describe("the public overall order", () => {
 
       const results = getPublishedResults("evt_01");
       if (!results.published || !results.tieBreak) throw new Error("expected a published tie-break");
-      const broken = results.tracks.flatMap((t) => t.rows).filter((r) => r.tieBroken).map((r) => r.projectId).sort();
+      // the rows whose track place the criterion decided (tieDecided), never the raw flag: a place it left joint says nothing
+      const broken = results.tracks
+        .flatMap((t) => {
+          const places = competitionPlaces(t.rows);
+          return t.rows.filter((r, k) => tieDecided(r, places[k]!));
+        })
+        .map((r) => r.projectId)
+        .sort();
       expect(broken).toEqual(expect.arrayContaining(["prj_05", "prj_21"]));
 
       const overall = await overallHtml();
       const perTrack = await perTrackHtml();
-      const note = (html: string, id: string) => itemOf(html, id)?.match(/Tied on score; tie broken by (<!-- -->)?[^<]*(<!-- -->)?(<span class="tnum">, [0-9.]+<\/span>)?/)?.[0] ?? null;
+      const note = (html: string, id: string) =>
+        itemOf(html, id)?.match(/Exactly tied on score; tie broken by [^<]*(?:<!-- -->[^<]*)*(?:<span class="tnum">[0-9.]+<\/span>)?/)?.[0] ?? null;
       for (const id of broken) {
         expect(note(overall, id)?.replaceAll("<!-- -->", ""), id).toContain(`tie broken by ${results.tieBreak.criterion}`);
         expect(note(overall, id), id).toBe(note(perTrack, id));
       }
       // only the decided rows carry it, on both pages (the per-track page also names it once under a track winner, in its figure of first places)
       expect(overallRows(overall).map((r) => r.id).filter((id) => note(overall, id) !== null).sort()).toEqual(broken);
-      expect(overall.match(/Tied on score; tie broken by/g)).toHaveLength(broken.length);
+      expect(overall.match(/tied on score; tie broken by/gi)).toHaveLength(broken.length);
+      for (const id of broken) expect(note(overall, id)?.replaceAll("<!-- -->", ""), id).toContain(`plain average on ${results.tieBreak.criterion}`);
       expect([...perTrackPlaces(perTrack).keys()].filter((id) => note(perTrack, id) !== null).sort()).toEqual(broken);
       // the change of rule, with its reason, on both pages
       for (const html of [overall, perTrack]) expect(html).toContain("Working software decides an exact tie");
