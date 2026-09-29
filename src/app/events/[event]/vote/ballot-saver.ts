@@ -43,6 +43,7 @@ export class BallotSaver {
   private dirty = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private delay = 0;
+  private left = false;
 
   constructor(
     private readonly send: (picks: string[]) => Promise<SendResult>,
@@ -76,9 +77,25 @@ export class BallotSaver {
     return this.inflight || this.dirty || this.timer !== null;
   }
 
-  /** Stop a waiting retry (the page is going away). */
-  stop(): void {
+  /**
+   * The ballot is on screen (again): retries run as usual. React may take effects down and put
+   * them back without the ballot going anywhere (Strict Mode, a hidden Activity), so every
+   * leave() is undone by the next attach().
+   */
+  attach(): void {
+    this.left = false;
+  }
+
+  /**
+   * The ballot is going away (the voter moved to another page). A retry that was waiting goes
+   * out now instead of being dropped; after that the saver makes no more retries, since
+   * nothing is left on screen to say how they went.
+   */
+  leave(): void {
+    this.left = true;
+    if (this.timer === null) return;
     this.clearTimer();
+    void this.flush();
   }
 
   private clearTimer() {
@@ -111,6 +128,7 @@ export class BallotSaver {
       }
       this.delay = Math.min(this.delay ? this.delay * 2 : this.firstDelay, this.maxDelay);
       this.onChange({ phase: "offline", picks: this.desired });
+      if (this.left) return;
       this.timer = setTimeout(() => {
         this.timer = null;
         void this.flush();

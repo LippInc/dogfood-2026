@@ -3,6 +3,7 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { leavesPage } from "@/lib/leaves-page";
 import { castAction } from "./actions";
 import { BallotSaver, type SaverView } from "./ballot-saver";
 
@@ -50,18 +51,46 @@ export function Ballot({
   const shown = projects.filter((p) => (show === "all" ? true : show === "picks" ? picks.includes(p.id) : p.trackName === show));
 
   useEffect(() => {
+    saver.attach();
     // back online: send a waiting save now instead of at the next retry
     const online = () => saver.retryNow();
-    // leaving with a pick the server does not hold yet: the browser asks first
-    const leave = (e: BeforeUnloadEvent) => {
-      if (saver.unsaved()) e.preventDefault();
+    // when the voter already said yes on a link below, the browser need not ask a second time
+    let confirmedAt = 0;
+    // leaving with a pick the server does not hold yet: the browser asks first (a full page load)
+    const unload = (e: BeforeUnloadEvent) => {
+      if (saver.unsaved() && Date.now() - confirmedAt > 2000) e.preventDefault();
+    };
+    // ...and so does the page for a link that changes the page without a full load (the shell's
+    // section links), which beforeunload never sees. Capture phase on the document runs before
+    // next/link's own handler, which leaves a click alone once it is defaultPrevented.
+    const click = (e: MouseEvent) => {
+      if (!saver.unsaved()) return;
+      const a = e.target instanceof Element ? e.target.closest("a") : null;
+      if (!a) return;
+      const leaving = leavesPage(
+        {
+          href: a.getAttribute("href"),
+          target: a.getAttribute("target"),
+          download: a.hasAttribute("download"),
+          button: e.button,
+          modified: e.metaKey || e.ctrlKey || e.shiftKey || e.altKey,
+          defaultPrevented: e.defaultPrevented,
+        },
+        window.location.href,
+      );
+      if (!leaving) return;
+      if (window.confirm("Your latest change to the ballot is not saved yet. Leave this page anyway?")) confirmedAt = Date.now();
+      else e.preventDefault();
     };
     window.addEventListener("online", online);
-    window.addEventListener("beforeunload", leave);
+    window.addEventListener("beforeunload", unload);
+    document.addEventListener("click", click, true);
     return () => {
       window.removeEventListener("online", online);
-      window.removeEventListener("beforeunload", leave);
-      saver.stop();
+      window.removeEventListener("beforeunload", unload);
+      document.removeEventListener("click", click, true);
+      // gone anyway (the back button, or the voter said leave): a waiting save goes out now, not never
+      saver.leave();
     };
   }, [saver]);
 

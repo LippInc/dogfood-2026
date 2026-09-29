@@ -173,6 +173,44 @@ describe("BallotSaver", () => {
     expect(isConnectionLost("nope")).toBe(false);
   });
 
+  it("sends a waiting retry at once when the ballot goes away, and does not keep retrying after", async () => {
+    vi.useFakeTimers();
+    const h = harness();
+    h.saver.want(["a"]);
+    h.calls[0]!.answer.reject(new TypeError("Failed to fetch"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.calls).toHaveLength(1);
+    h.saver.leave();
+    // the pick is not dropped silently: one last try goes out now
+    expect(h.calls.map((c) => c.picks)).toEqual([["a"], ["a"]]);
+    h.calls[1]!.answer.reject(new TypeError("Failed to fetch"));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.calls).toHaveLength(2);
+  });
+
+  it("keeps retrying after its effect was taken down and put back (React Strict Mode)", async () => {
+    vi.useFakeTimers();
+    const h = harness();
+    h.saver.attach();
+    h.saver.leave();
+    h.saver.attach();
+    h.saver.want(["a"]);
+    h.calls[0]!.answer.reject(new TypeError("Failed to fetch"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.saver.unsaved()).toBe(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(h.calls).toHaveLength(2);
+  });
+
+  it("positive control: leaving with nothing waiting sends nothing", async () => {
+    const h = harness();
+    h.saver.want(["a"]);
+    h.calls[0]!.answer.resolve({ ok: true, picks: ["a"] });
+    await tick();
+    h.saver.leave();
+    expect(h.calls).toHaveLength(1);
+  });
+
   it("draws the server's answer when it differs from what was sent", async () => {
     const h = harness();
     h.saver.want(["a", "b"]);
