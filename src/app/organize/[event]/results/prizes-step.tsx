@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useFormAction } from "@/components/use-form-action";
@@ -25,6 +25,8 @@ export function PrizeAwardForm({ eventSlug, prize, candidates }: { eventSlug: st
   const [ids, setIds] = useState<string[]>(saved);
   const [note, setNote] = useState(prize.note);
   const [choice, setChoice] = useState("");
+  // Add disables itself once used, so focus goes back to the list, not to the page
+  const list = useRef<HTMLSelectElement>(null);
   const [state, form, pending] = useFormAction(awardAction, idle, { resetOnSuccess: false });
   const byId = new Map(candidates.map((c) => [c.projectId, c]));
   // a project chosen in the list but not yet added counts as added when the award is saved
@@ -67,7 +69,11 @@ export function PrizeAwardForm({ eventSlug, prize, candidates }: { eventSlug: st
                     {c ? `${c.teamName} · ${placeWords(c)}` : "no longer a submitted project: it will not count"}
                   </span>
                 </span>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setIds((xs) => xs.filter((x) => x !== id))} aria-label={`Remove ${c?.title ?? id} from ${prize.name}`}>
+                <Button type="button" variant="ghost" size="sm" onClick={() => {
+                    setIds((xs) => xs.filter((x) => x !== id));
+                    // the row and its button go: focus waits in the list
+                    list.current?.focus();
+                  }} aria-label={`Remove ${c?.title ?? id} from ${prize.name}`}>
                   Remove
                 </Button>
               </li>
@@ -82,6 +88,7 @@ export function PrizeAwardForm({ eventSlug, prize, candidates }: { eventSlug: st
           adding on change would add each project passed on the way */}
       <div className="flex gap-2">
       <select
+        ref={list}
         id={pick}
         value={choice}
         onChange={(ev) => setChoice(ev.target.value)}
@@ -109,6 +116,7 @@ export function PrizeAwardForm({ eventSlug, prize, candidates }: { eventSlug: st
         onClick={() => {
           setIds((xs) => (xs.includes(choice) ? xs : [...xs, choice]));
           setChoice("");
+          list.current?.focus();
         }}
       >
         Add
