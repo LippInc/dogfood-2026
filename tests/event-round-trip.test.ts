@@ -340,6 +340,31 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     expect(count(hb!, "SELECT count(*) AS n FROM votes")).toBe(0);
   });
 
+  it("while voting is open a listed address set aside stays set aside, with its reason, and the picks still stay behind", () => {
+    const org = organizerA();
+    saveVotingSettings(org, "evt_01", { votingOpenAt: "2026-01-01T00:00", votingCloseAt: "2999-01-01T00:00", modes: ["listed"], votesPerVoter: "3" });
+    const { links } = addListedVoters(org, "evt_01", { emails: "ok@example.org, wrong@example.org" });
+    const ok = links.find((l) => l.email === "ok@example.org")!;
+    castBallot(null, "evt_01", ok.path.slice("/vote/".length), { projectIds: ["prj_02"] }, CLIENT);
+    const wrong = (ha.sqlite.prepare("SELECT id FROM voters WHERE email = 'wrong@example.org'").get() as { id: string }).id;
+    voidVoter(org, "evt_01", { voterId: wrong, reason: "Not a participant, added by mistake" });
+    const setAt = (ha.sqlite.prepare("SELECT voided_at AS at FROM voters WHERE id = ?").get(wrong) as { at: string }).at;
+    const file = JSON.parse(exported("fixtures.json"));
+    expect(file.ballots_sealed).toBe(1);
+    expect(file.ballots).toContainEqual(expect.objectContaining({ voter: { kind: "listed", email: "wrong@example.org" }, set_aside: { at: setAt, reason: "Not a participant, added by mistake" }, picks: [] }));
+    expect(file.ballots).toContainEqual(expect.not.objectContaining({ set_aside: expect.anything() }));
+    expect(JSON.stringify(file.ballots)).not.toContain("last_voted_at");
+    expect(file.ballots.every((b: { picks: unknown[] }) => b.picks.length === 0)).toBe(true);
+
+    importIntoB(file);
+    const onB = hb!.sqlite.prepare("SELECT email, voided_at AS at, void_reason AS reason, voided_by AS by FROM voters ORDER BY email").all();
+    expect(onB).toEqual([
+      { email: "ok@example.org", at: null, reason: null, by: null },
+      { email: "wrong@example.org", at: setAt, reason: "Not a participant, added by mistake", by: "usr_b" },
+    ]);
+    expect(count(hb!, "SELECT count(*) AS n FROM votes")).toBe(0);
+    expect(count(hb!, "SELECT count(*) AS n FROM voters WHERE last_voted_at IS NOT NULL")).toBe(0);
+  });
 });
 
 describe("an event that is here already: its history is its own", () => {

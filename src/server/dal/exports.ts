@@ -776,16 +776,20 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
   const sealed = ballotsSealed(db, event.id);
   const who = (v: (typeof voterRows)[number]) =>
     v.voter.kind === "account" ? { kind: "account", email: v.email ?? "" } : v.voter.kind === "listed" ? { kind: "listed", email: v.voter.email ?? "" } : { kind: "link" };
-  // While sealed, only the voter list moves (the addresses the organizers added), with nothing that says who voted.
+  // While sealed, only the voter list moves (the addresses the organizers added), with nothing that says who voted. An
+  // address set aside stays set aside, with its reason and when: that is the organizers' ruling, not a pick.
+  const setAside = (v: (typeof voterRows)[number]) => (v.voter.voidedAt ? { set_aside: { at: v.voter.voidedAt, reason: v.voter.voidReason ?? "" } } : {});
   const ballots = sealed
-    ? voterRows.filter((v) => v.voter.kind === "listed").map((v) => ({ id: v.voter.id, voter: who(v), order_seed: v.voter.orderSeed, created_at: v.voter.createdAt, picks: [] }))
+    ? voterRows
+        .filter((v) => v.voter.kind === "listed")
+        .map((v) => ({ id: v.voter.id, voter: who(v), order_seed: v.voter.orderSeed, created_at: v.voter.createdAt, ...setAside(v), picks: [] }))
     : voterRows.map((v) => ({
         id: v.voter.id,
         voter: who(v),
         order_seed: v.voter.orderSeed,
         created_at: v.voter.createdAt,
         ...(v.voter.lastVotedAt ? { last_voted_at: v.voter.lastVotedAt } : {}),
-        ...(v.voter.voidedAt ? { set_aside: { at: v.voter.voidedAt, reason: v.voter.voidReason ?? "" } } : {}),
+        ...setAside(v),
         picks: pickRows.filter((p) => p.voterId === v.voter.id && submitted.has(p.projectId)).map((p) => ({ project: p.projectId, at: p.at })),
       }));
   const sealedCount = sealed ? voterRows.filter((v) => v.voter.lastVotedAt !== null).length : 0;

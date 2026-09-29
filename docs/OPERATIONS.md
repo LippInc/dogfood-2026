@@ -29,7 +29,8 @@ event's id, so it adds to that same event.
 
 1. On the old portal, the event's **Integrations** tab: download `fixtures.json` (and `audit.csv`, to keep). If the
    event had a community vote, wait until voting has closed: until then its ballots are sealed, as in `audit.csv`,
-   and the file carries only the voter list and how many ballots stayed behind.
+   and the file carries only the voter list (an address set aside still set aside, with its reason) and how many
+   ballots stayed behind.
 2. On the new portal, an administrator imports it on **Your events** (Import an event), or `POST /api/imports`.
 3. The event arrives as it was: tracks, rubric, questions and answers, judges, teams, projects, finished reviews (with
    their times, feedback and private notes), its dates, settings and prizes, the duplicate merges, every organizer
