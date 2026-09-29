@@ -352,7 +352,16 @@ export function savePrizes(actor: Actor | null, idOrSlug: string, body: unknown)
     run: (tx) => {
       const e = ref.event!;
       const rows = parse(PrizeRows, body);
-      const before = tx.select({ name: prizes.name }).from(prizes).where(eq(prizes.eventId, e.id)).all().map((p) => p.name);
+      const stored = tx.select({ id: prizes.id, name: prizes.name }).from(prizes).where(eq(prizes.eventId, e.id)).orderBy(asc(prizes.position)).all();
+      // a row's id is its own stored prize's, once: another event's id or a repeated one would hit the primary key (a 500)
+      const own = new Set(stored.map((p) => p.id));
+      const seen = new Set<string>();
+      rows.forEach((p, i) => {
+        if (!p.id) return;
+        if (!own.has(p.id) || seen.has(p.id)) throw new ValidationError("Check the prizes.", { [`${i}.id`]: ["not one of this event's prizes, or on two rows"] });
+        seen.add(p.id);
+      });
+      const before = stored.map((p) => p.name);
       tx.delete(prizes).where(eq(prizes.eventId, e.id)).run();
       rows.forEach((p, position) =>
         tx.insert(prizes).values({ id: p.id || newId("prz"), eventId: e.id, name: p.name, description: p.description, position }).run(),
