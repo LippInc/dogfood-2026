@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { ActionResult } from "@/server/dal";
 import {
   assignByHandAction,
+  emailRemindersAction,
   inviteJudgeAction,
   inviteJudgesAction,
   revokeInviteAction,
@@ -42,6 +43,28 @@ export function CopyButton({ text, label = "Copy", done = "Copied" }: { text: st
       {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
       <span aria-live="polite">{copied ? done : label}</span>
     </Button>
+  );
+}
+
+/**
+ * Mail the reminder the copy button gives: to one judge (judge set) or to every judge who has not started. The
+ * portal mails a judge at most once an hour; a refusal (too soon, email off) shows under the button.
+ */
+export function EmailReminder({ eventSlug, judge, label, name }: { eventSlug: string; judge?: string; label: string; name?: string }) {
+  const [state, form, pending] = useFormAction<ActionResult>(emailRemindersAction, { ok: false, message: null });
+  return (
+    <form {...form} className="flex flex-col items-start gap-1">
+      <input type="hidden" name="event" value={eventSlug} />
+      {judge ? <input type="hidden" name="judge" value={judge} /> : null}
+      <Button size="sm" variant="outline" disabled={pending} aria-label={name ? `${label} to ${name}` : undefined}>
+        {pending ? "Mailing…" : label}
+      </Button>
+      {state.message ? (
+        <p role="status" className={`max-w-[320px] text-12 ${state.ok ? "text-ok" : "text-flag"}`}>
+          {state.message}
+        </p>
+      ) : null}
+    </form>
   );
 }
 

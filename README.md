@@ -163,7 +163,7 @@ Each item in full, with its rules: [`docs/FEATURES.md`](docs/FEATURES.md).
 - **Events and teams:** dates, tracks, prizes, custom questions, a weighted rubric; teams by invite link; the
   organizer picks which project fields are required, optional or hidden; one-person events in one step.
 - **Judging:** judges invited by link, a seeded and stored assignment run, a keyboard-first console with autosave,
-  the judges who have not started in a view of their own with their reminders, the decisions that must be made
+  the judges who have not started in a view of their own with their reminders (to copy, or mailed with email on), the decisions that must be made
   before results go out, leniency correction with receipts and a judge ledger.
 - **Pairwise judging (optional):** "which is better?" instead of scores, ranked by a Bradley-Terry fit.
 - **Results and exports:** publishing locked until every decision is made; public places per track, and every
@@ -240,7 +240,8 @@ webhook deliveries and the voters' address hashes are yours to clear with `scrip
   private or local addresses are refused when added and at every delivery, on the very addresses the delivery
   connects to, so a DNS answer that changes after the check cannot slip through; `WEBHOOKS_ALLOW_PRIVATE=true`
   lifts that for a receiver on your own network.
-- **Email** leaves out judges' reminders and the administrator's setup link (the link stays in the log).
+- **Email** leaves out the administrator's setup link (the link stays in the log). It mails a judge's reminder
+  only when an organizer asks, at most once an hour per judge; it has no reminder schedule of its own.
 - **Accounts are not email-verified,** so an invitation addressed to someone with no account yet can be taken by
   whoever holds its link and signs up with that address first; the Judges page names the account that accepted
   each invitation.

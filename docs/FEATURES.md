@@ -72,6 +72,14 @@ organizer's questions); the server refuses changes after it.
   "Not started" view (`?show=not-started`, a link to share) shows only them, with every reminder and their
   addresses to copy at once; `GET /api/events/{event}/judges` marks each judge `notStarted`, and its `started`
   counts the reviews a judge has saved something on or, in pairwise mode, answered about.
+- **Emailed reminders.** With `SMTP_URL` set, the Not started view also has "Email reminder" beside each judge's
+  copy button and "Email N reminders" for all of them, each mailing the same words the copy button gives (their
+  console's address from `PUBLIC_URL`) as one audited action, recorded in the outbox (kind `judge_reminder`). The
+  portal mails one judge at most once an hour, counting every reminder that may have reached them (one that failed
+  does not count): asked for one judge again sooner, it answers 429 with Retry-After and writes the refusal to the
+  audit log; in "Email N reminders" such a judge is left out and named with the minutes to wait. After publishing
+  there is nothing to remind anyone of. Without `SMTP_URL` the page keeps its copy buttons only, as before.
+  `POST /api/events/{event}/judges/reminders` with `{ judge }` or `{ notStarted: true }` does the same.
 - **Decisions before publishing.** The organizer's overview shows progress live and lists the decisions that
   must be made before results can go out: a flat judge, a duplicate entry, an under-reviewed project.
 - **Live pages.** The overview and the Judges, Voting and Integrations pages refresh every 15 s while the tab is

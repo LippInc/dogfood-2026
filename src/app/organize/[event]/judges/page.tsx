@@ -9,12 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DetailRows, DetailToggle } from "@/components/detail-row";
 import { formatUtc, plural } from "@/lib/format";
 import { openWork } from "@/lib/judge-open-work";
+import { reminderText } from "@/lib/judge-reminder";
 import { guardPage } from "@/lib/page-guard";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
 import { currentActor, emailIsOn, getAssignments, getJudges, getNormalization, judgingModeOf, publicUrl, type JudgeRow, type JudgeStanding } from "@/server/dal";
 import { removeJudgeAction } from "./actions";
 import { WithReason } from "../decisions";
-import { BatchInviteForm, ByHandForm, CopyButton, InviteForm, RevokeInviteForm, RunForm, TracksForm } from "./forms";
+import { BatchInviteForm, ByHandForm, CopyButton, EmailReminder, InviteForm, RevokeInviteForm, RunForm, TracksForm } from "./forms";
 
 export const dynamic = "force-dynamic";
 
@@ -79,8 +80,10 @@ export default async function JudgesPage({ params, searchParams }: PageProps<"/o
   const groups = groupNames(published);
   const origin = publicUrl();
   const console_ = `${origin}/judge/${event.slug}`;
-  const nudge = (j: JudgeRow) =>
-    `Hi ${j.name}, your ${plural(j.assigned, "review")} for ${event.name} ${j.assigned === 1 ? "is" : "are"} waiting for you, and none is started yet. Your console: ${console_}`;
+  // the same words the portal mails with "Email reminder" (lib/judge-reminder.ts)
+  const nudge = (j: JudgeRow) => reminderText(j, event.name, console_);
+  // with SMTP_URL set, the Not started view can also mail the reminders; without it, only the copy buttons, as before
+  const mailable = emailIsOn() && !published;
   const viewHref = (v: string | null) => `/organize/${event.slug}/judges${v ? `?show=${v}` : ""}`;
   const chip =
     "group inline-flex items-baseline gap-1.5 rounded-sm border border-edge px-3 py-1 text-13 hover:border-ink aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-surface";
@@ -173,6 +176,7 @@ export default async function JudgesPage({ params, searchParams }: PageProps<"/o
                     {published ? null : (
                       <CopyButton text={idle.map(nudge).join("\n\n")} label={`Copy ${idle.length} ${idle.length === 1 ? "reminder" : "reminders"}`} />
                     )}
+                    {mailable ? <EmailReminder eventSlug={event.slug} label={`Email ${idle.length} ${idle.length === 1 ? "reminder" : "reminders"}`} /> : null}
                     <CopyButton text={idle.map((j) => `${j.name} <${j.email}>`).join(", ")} label={idle.length === 1 ? "Copy address" : "Copy addresses"} />
                   </div>
                 ) : null}
@@ -221,9 +225,7 @@ export default async function JudgesPage({ params, searchParams }: PageProps<"/o
                       const g = groupOf(j);
                       const first = grouped && (n === 0 || groupOf(judges[n - 1]) !== g);
                       const work = openWork(j.pending, published);
-                      const reminder = j.notStarted
-                        ? nudge(j)
-                        : `Hi ${j.name}, ${j.pending} of your ${plural(j.assigned, "review")} for ${event.name} ${j.pending === 1 ? "is" : "are"} still open. Your console: ${console_}`;
+                      const reminder = nudge(j);
                       return (
                         <Fragment key={j.id}>
                         {first ? (
@@ -341,6 +343,7 @@ export default async function JudgesPage({ params, searchParams }: PageProps<"/o
                                   <p className="font-medium whitespace-nowrap">{work.label}</p>
                                   {/* once results are published scoring is over: there is nothing to remind anyone of */}
                                   {work.remind ? <CopyButton text={reminder} label="Copy reminder" /> : null}
+                                  {work.remind && mailable && onlyIdle ? <EmailReminder eventSlug={event.slug} judge={j.id} label="Email reminder" name={j.name} /> : null}
                                 </div>
                                 {/* When a judge last scored matters only while they still have work: it shows who has gone quiet. */}
                                 <p className={`text-12 text-ink-3 ${work.note ? "" : "whitespace-nowrap"}`}>

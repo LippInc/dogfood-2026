@@ -9,13 +9,15 @@ import {
   inviteJudges,
   mailJudgeInvite,
   mailJudgeInvites,
+  remindJudges,
   removeJudge,
   revokeJudgeInvite,
   runAssignment,
   setJudgeTracks,
+  RateLimitedError,
   type ActionResult,
 } from "@/server/dal";
-import { mailNote } from "@/lib/mail-note";
+import { mailedNote, mailNote } from "@/lib/mail-note";
 import { replacedNote } from "@/lib/invite-note";
 
 export type InviteResult = ActionResult & { path?: string };
@@ -155,6 +157,27 @@ export async function inviteJudgesAction(_prev: BatchInviteResult, form: FormDat
       skipped: made.skipped,
     };
   } catch (err) {
+    return actionError(err);
+  }
+}
+
+/** Email reminders: one judge (form field judge) or every judge who has not started. */
+export async function emailRemindersAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  const slug = String(form.get("event") ?? "");
+  const judge = form.get("judge");
+  try {
+    const report = await remindJudges(actor, slug, judge ? { judge: String(judge) } : { notStarted: true });
+    refresh(slug);
+    const later = report.tooSoon.length
+      ? ` Not mailed again within the hour: ${report.tooSoon.map((t) => `${t.name} (in ${Math.ceil(t.retryAfter / 60)} min)`).join(", ")}.`
+      : "";
+    return { ok: true, message: `${mailedNote(report, "judge")}${later}` };
+  } catch (err) {
+    if (err instanceof RateLimitedError) {
+      const minutes = Math.ceil(err.retryAfter / 60);
+      return { ok: false, message: `Reminded within the last hour: the portal mails ${judge ? "this judge" : "them"} again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.` };
+    }
     return actionError(err);
   }
 }

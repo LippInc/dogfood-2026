@@ -229,3 +229,4 @@ export {
   UPDATES_SHOWN,
   type UpdateView,
 } from "./updates";
+export { remindJudges, type ReminderReport } from "./reminders";

@@ -131,7 +131,7 @@ const linkRule = (after: Record<string, unknown>) =>
   (typeof after.linkPerAddress === "number" && ((after.modes as string[] | undefined) ?? []).includes("link")
     ? `; up to ${after.linkPerAddress} new open-link ${after.linkPerAddress === 1 ? "ballot" : "ballots"} per network address an hour`
     : "");
-const LIMIT_WORDS: Record<string, string> = { ballot: "ballot saves", comment: "comments", "open-link entry": "open-link entries", "sign-in": "sign-in attempts", "voting-code lookup": "unknown voting links" };
+const LIMIT_WORDS: Record<string, string> = { ballot: "ballot saves", comment: "comments", "open-link entry": "open-link entries", "sign-in": "sign-in attempts", "voting-code lookup": "unknown voting links", "judge reminder": "reminders to the same judge within the hour" };
 const andList = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});

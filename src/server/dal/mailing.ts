@@ -2,7 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "../authz";
-import { getDb } from "../db/client";
+import { getDb, type Tx } from "../db/client";
 import { outbox, type MailKind } from "../db/schema";
 import { mailBase, mailSettings, sendMany } from "../mail";
 import { HttpError } from "../errors";
@@ -64,7 +64,8 @@ const fitsOutbox = (to: string) => /[\s\S]@[\s\S]/.test(to);
 /** Why an address is never offered to the mail server. */
 const REFUSED = "that is not an email address";
 
-async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, all: Letter[]): Promise<MailReport> {
+/** gate: run inside the write that records the letters, before it does; it may throw (a reminder mailed too soon). */
+async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, all: Letter[], gate?: (tx: Tx) => void): Promise<MailReport> {
   const portal = "portal" in scope;
   const action = portal ? "portal.accounts" : "event.manage";
   const load = (tx: Parameters<typeof requireEvent>[0]) =>
@@ -90,6 +91,7 @@ async function mailLetters(actor: Actor | null, scope: Scope, kind: MailKind, al
       action,
       load,
       run: (tx) => {
+        gate?.(tx);
         const eventId = portal ? null : requireEvent(tx, scope.eventIdOrSlug).id;
         const base = mailBase();
         const row = (l: Letter, id: string, status: "sending" | "failed", error: string | null) =>
@@ -270,6 +272,24 @@ export function mailEventUpdate(actor: Actor | null, eventIdOrSlug: string, upda
     keepLink: true,
   }));
   return mailLetters(actor, { eventIdOrSlug }, "event_update", letters);
+}
+
+/** Reminders to judges, each with the words its copy button gives (text, from the judge's console address); gate runs inside the recording write. */
+export function mailJudgeReminders(
+  actor: Actor | null,
+  eventIdOrSlug: string,
+  reminders: { to: string; text: (consoleUrl: string) => string }[],
+  gate: (tx: Tx) => void,
+): Promise<MailReport> {
+  const event = requireEvent(getDb(), eventIdOrSlug);
+  const letters: Letter[] = reminders.map((r) => ({
+    to: r.to,
+    subject: `A reminder: your reviews for ${event.name}`,
+    body: (link) => `${r.text(link)}\n`,
+    path: `/judge/${event.slug}`,
+    keepLink: true,
+  }));
+  return mailLetters(actor, { eventIdOrSlug }, "judge_reminder", letters, gate);
 }
 
 /** Whether the portal mails the links it makes (SMTP_URL is set), for the screens' own words. */
