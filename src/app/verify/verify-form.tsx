@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DitherDigits } from "@/components/dither-digits";
 import { SignatureBits, bitsOf } from "@/components/signature-bits";
 import { formatUtc } from "@/lib/format";
-import { awardPlace as placeOf, prizeOf } from "@/lib/places";
+import { awardPlace as placeOf, prizeOf, tieBrokenWords } from "@/lib/places";
 import { checkInBrowser } from "../records/[record]/check";
 
 type Envelope = { record: Record<string, unknown>; signature: string };
@@ -358,7 +358,7 @@ export function VerifyForm() {
                               {p ? `${p.joint ? "Joint " : ""}${p.ordinal} place` : z ? (z.joint ? "Joint winner" : "Winner") : a}
                             </span>
                             {p ? <span className="font-serif text-15 text-ink-2 sm:text-17">in the {p.track} track</span> : null}
-                            {p?.tieBrokenBy ? <span className="text-13 text-ink-2">Tied on score; tie broken by {p.tieBrokenBy}</span> : null}
+                            {p?.tieBrokenBy ? <span className="text-13 text-ink-2">{tieBrokenWords(p.tieBrokenBy)}</span> : null}
                             {z ? <span className="font-serif text-15 text-ink-2 sm:text-17">of the prize {z.prize}</span> : null}
                           </p>
                         </li>

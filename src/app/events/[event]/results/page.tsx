@@ -14,7 +14,7 @@ import { movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, T
 import { formatUtc, plural } from "@/lib/format";
 import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, publishedPrizes, type Gallery } from "@/server/dal";
 import { PrizeWinners } from "@/components/results/prize-winners";
-import { competitionPlaces, ordinal, tieDecided } from "@/lib/places";
+import { competitionPlaces, ordinal, tieBrokenWords, tieDecided } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Results" };
@@ -222,7 +222,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                         </span>
                         {w.joint.length ? <span className="mt-2 block text-13 text-ink-2">Joint first with {w.joint.map((j) => j.title).join(", ")}</span> : null}
                         {tieDecided(w.first, { place: 1, joint: w.joint.length > 0 }) && results.published && results.tieBreak ? (
-                          <span className="mt-2 block text-13 text-ink-2">Tied on score; tie broken by {results.tieBreak.criterion}</span>
+                          <span className="mt-2 block text-13 text-ink-2">{tieBrokenWords(results.tieBreak.criterion)}</span>
                         ) : null}
                       </a>
                     </li>

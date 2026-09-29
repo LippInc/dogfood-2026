@@ -45,6 +45,12 @@ export function tieDecided(row: { tieBroken?: boolean }, place: { place: number 
   return row.tieBroken === true && place.place !== null && !place.joint;
 }
 
+/**
+ * The note beside a place the tie-break decided, the same words on every page. "Exactly": the public results call any
+ * gap under about two ± a tie, and this rule orders only scores that are the same number.
+ */
+export const tieBrokenWords = (criterion: string) => `Exactly tied on score; tie broken by ${criterion}`;
+
 /** Each id's competition place by its value, highest first, with the same tie rule as competitionPlaces: values within 1e-9 share a place. */
 export function competitionPlaceOf(values: Map<string, number>): Map<string, number> {
   const out = new Map<string, number>();

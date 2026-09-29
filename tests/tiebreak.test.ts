@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { awardPlace, competitionPlaces, tieDecided } from "@/lib/places";
+import { awardPlace, competitionPlaces, tieBrokenWords, tieDecided } from "@/lib/places";
 import { breakTies, criterionMeans } from "@/server/judging/tiebreak";
 import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
 import { exportFile } from "@/server/dal/exports";
@@ -122,6 +122,24 @@ describe("the pure stage", () => {
       expect(src, f).toContain("tieDecided(");
       expect(/\.tieBroken\s*(&&|\?)/.test(src), f).toBe(false);
     }
+  });
+
+  it("words the note \"Exactly tied on score\" on every page that shows it, so it never reads as the public page's looser tie", () => {
+    expect(tieBrokenWords("Impact")).toBe("Exactly tied on score; tie broken by Impact");
+    const files = [
+      "src/app/events/[event]/results/page.tsx",
+      "src/app/events/[event]/projects/[project]/page.tsx",
+      "src/app/events/[event]/my-project/page.tsx",
+      "src/app/records/[record]/page.tsx",
+      "src/app/verify/verify-form.tsx",
+    ];
+    for (const f of files) {
+      const src = fs.readFileSync(path.join(process.cwd(), f), "utf8");
+      expect(src, f).toContain("tieBrokenWords(");
+      expect(src, f).not.toContain("Tied on score");
+    }
+    // the certificate's award line keeps its own words, which the record page and /verify read back
+    expect(awardPlace("2nd place, Data and analytics, tie broken by Functionality")?.tieBrokenBy).toBe("Functionality");
   });
 
   it("keeps a tie joint when the criterion ties too, and places without figures exactly as before", () => {

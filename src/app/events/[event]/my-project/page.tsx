@@ -7,6 +7,7 @@ import { ProjectImage } from "@/components/project-cover";
 import { PublicShell } from "@/components/shell/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc, isPast } from "@/lib/format";
+import { tieBrokenWords } from "@/lib/places";
 import { actorNav, currentActor, getMyWork, myRecords, NotFoundError, PAIRWISE_METHOD, type MyWork } from "@/server/dal";
 import { openOwnRecord } from "../../../records/actions";
 import { HandedIn } from "./handed-in";
@@ -147,7 +148,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
             {work.feedback.tieBrokenBy ? (
               <div>
                 <PlaceHeading feedback={work.feedback} />
-                <p className="mt-3 text-14 text-ink-2">Tied on score; tie broken by {work.feedback.tieBrokenBy}</p>
+                <p className="mt-3 text-14 text-ink-2">{tieBrokenWords(work.feedback.tieBrokenBy)}</p>
               </div>
             ) : (
               <PlaceHeading feedback={work.feedback} />
