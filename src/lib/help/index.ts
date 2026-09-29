@@ -263,7 +263,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/events/[event]/vote",
     who: ["signed-in"],
     answer:
-      "While the community vote is open, pick up to three favourite projects; each pick saves at once. Nobody signed in can vote for their own team's project, and the count stays hidden until voting closes.",
+      "While the community vote is open, pick your favourite projects (as many as the organizers allow, three on the sample event); each pick saves at once. Nobody signed in can vote for their own team's project, and the count stays hidden until voting closes.",
     keywords: ["vote", "voting", "ballot", "favourites", "favorites", "pick", "community vote", "peoples choice", "how do i vote", "cast a vote", "vote for projects", "vote for my own team"],
     doc: { file: "docs/FEATURES.md", heading: "Community vote" },
   },
@@ -438,7 +438,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/[event]/judges",
     who: ["organizer"],
     answer:
-      "Every judge with their tracks, finished reviews and leniency; invite judges by link, change a judge's tracks, remove one, and run the assignment (a top-up fills only missing reviews).",
+      "Every judge with their tracks, finished reviews and, in scores mode, leniency; invite judges by link, change a judge's tracks, remove one, and run the assignment (a top-up fills only missing reviews).",
     keywords: ["judges", "judge list", "judge progress", "who has finished", "reminders", "remove judge", "judge tracks", "load"],
   },
   {
@@ -568,7 +568,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/[event]",
     who: ["organizer"],
     answer:
-      "The Overview lists what stands between the scores and the results (a flat judge, a duplicate entry, an under-reviewed project, a first place too close to call), each with its evidence and what it would move. Each choice is one audited action, with a written reason wherever it overrides a rule.",
+      "The Overview lists what stands between the scores and the results (a flat judge, a duplicate entry, an under-reviewed project, a first place too close to call, a coin-flip judge in pairwise), each with its evidence and what it would move. Each choice is one audited action, with a written reason wherever it overrides a rule.",
     keywords: ["decisions", "settle", "open decisions", "blocked", "why can't i publish", "3 decisions", "needs you", "resolve"],
     doc: { file: "README.md", heading: "A guided tour" },
   },
