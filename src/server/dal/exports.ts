@@ -732,6 +732,7 @@ function commentsCsv(db: DbOrTx, event: EventRow): string {
  */
 function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judgeIds: Set<string>) {
   const s = event.settings;
+  const tieKey = s.tieBreak ? (db.select({ key: rubricCriteria.key }).from(rubricCriteria).where(eq(rubricCriteria.id, s.tieBreak.criterionId)).get()?.key ?? null) : null;
   const settings: Record<string, unknown> = {
     ...(s.maxTeamSize !== undefined ? { max_team_size: s.maxTeamSize } : {}),
     ...(s.certificatePlaces !== undefined ? { certificate_places: s.certificatePlaces } : {}),
@@ -739,6 +740,8 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
     ...(s.judgeRanking !== undefined ? { judge_ranking: s.judgeRanking } : {}),
     ...(s.judgingMode !== undefined ? { judging_mode: s.judgingMode } : {}),
     ...(s.accent !== undefined ? { accent: s.accent } : {}),
+    // the criterion that breaks exact ties, by its key (the rubric travels by key; a new portal gives it its own id)
+    ...(tieKey ? { tie_break: tieKey } : {}),
     // who may vote and how many favourites each; never the open link's hash (a new portal makes its own link)
     ...(s.voting
       ? {
@@ -775,6 +778,7 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
     ...(s.notDuplicates?.length ? { not_duplicates: [...s.notDuplicates] } : {}),
     ...(s.acceptedUnderReviewed?.length ? { accepted_under_reviewed: [...s.acceptedUnderReviewed] } : {}),
     ...(s.weightChanges?.length ? { weight_changes: s.weightChanges } : {}),
+    ...(s.tieBreakChanges?.length ? { tie_break_changes: s.tieBreakChanges } : {}),
     ...(s.voteRuleChanges?.length ? { vote_rule_changes: s.voteRuleChanges } : {}),
     ...(s.voteCountChanges?.length ? { vote_count_changes: s.voteCountChanges } : {}),
     // projects moved to another track after judges were assigned, each with its reason (the audit log keeps them)

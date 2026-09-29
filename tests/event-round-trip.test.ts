@@ -28,6 +28,7 @@ const { requireEvent } = await import("@/server/dal/events");
 const { getPairwiseState, pickPairwise, setJudgingMode, undoPairwise } = await import("@/server/dal/pairwise");
 const { moveProjectTrack, projectTrackMoves } = await import("@/server/dal/corrections");
 const { issueOwnRecord } = await import("@/server/dal/records");
+const { setTieBreak } = await import("@/server/dal/tiebreak");
 
 // Leaving without loss: an event exported from one portal after its whole life (ballots, comments, pairwise answers, a
 // merge, the organizers' decisions, published) and imported into another portal as a new event is the same event
@@ -288,6 +289,49 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     for (const f of ["normalized.csv", "comparisons.csv"]) expect(exportedB(f), f).toBe(exported(f));
     const shown = (r: ReturnType<typeof getPublishedResults>) => ({ ...r, anchor: undefined });
     expect(shown(inB(() => getPublishedResults("evt_01")))).toEqual(shown(getPublishedResults("evt_01")));
+  });
+
+  it("a tie-break moves too: its criterion by key, its change with the reason, and the places it decided as published", () => {
+    const org = organizerA();
+    // plant an exact tie (tests/tiebreak.test.ts): prj_21 gets each judge's prj_05 review with functionality and
+    // innovation swapped, under equal weights, so functionality splits it
+    ha.sqlite.prepare("UPDATE rubric_criteria SET weight = 1 WHERE event_id = 'evt_01'").run();
+    const items = (project: string) =>
+      ha.sqlite
+        .prepare("SELECT a.judge_user_id AS judge, s.id AS scoreId, c.key AS key, si.value AS value FROM assignments a JOIN scores s ON s.assignment_id = a.id JOIN score_items si ON si.score_id = s.id JOIN rubric_criteria c ON c.id = si.criterion_id WHERE a.project_id = ?")
+        .all(project) as { judge: string; scoreId: string; key: string; value: number }[];
+    const from = items("prj_05");
+    const swap: Record<string, string> = { functionality: "innovation", innovation: "functionality", quality: "quality" };
+    for (const t of items("prj_21")) {
+      const src = from.find((x) => x.judge === t.judge && x.key === swap[t.key])!;
+      ha.sqlite.prepare("UPDATE score_items SET value = ? WHERE score_id = ? AND criterion_id = (SELECT id FROM rubric_criteria WHERE event_id = 'evt_01' AND key = ?)").run(src.value, t.scoreId, t.key);
+    }
+    const functionality = (ha.sqlite.prepare("SELECT id FROM rubric_criteria WHERE event_id = 'evt_01' AND key = 'functionality'").get() as { id: string }).id;
+    setTieBreak(org, "evt_01", { criterionId: functionality, reason: "Announced to teams at kickoff" });
+    mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    setJudgeOverride(org, "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
+    publishResults(org, "evt_01");
+    const results = getPublishedResults("evt_01");
+    if (!results.published) throw new Error("not published");
+    expect(results.tieBreak).toBeDefined();
+    expect(results.tracks.flatMap((t) => t.rows).filter((r) => r.tieBroken).map((r) => r.projectId)).toEqual(expect.arrayContaining(["prj_05", "prj_21"]));
+
+    const a = exported("fixtures.json");
+    const file = JSON.parse(a);
+    expect(file.settings.tie_break).toBe("functionality");
+    expect(file.decisions.tie_break_changes).toEqual([expect.objectContaining({ reason: "Announced to teams at kickoff", before: null })]);
+    const report = importIntoB(file);
+    expect(report.skipped).toEqual([]);
+    expect(exportedB("fixtures.json")).toBe(a);
+    expect(exportedB("normalized.csv")).toBe(exported("normalized.csv"));
+    const shown = (r: ReturnType<typeof getPublishedResults>) => ({ ...r, anchor: undefined });
+    expect(shown(inB(() => getPublishedResults("evt_01")))).toEqual(shown(results));
+    const settingsB = JSON.parse((hb!.sqlite.prepare("SELECT settings FROM events WHERE id = 'evt_01'").get() as { settings: string }).settings);
+    const keyB = hb!.sqlite.prepare("SELECT key FROM rubric_criteria WHERE id = ?").get(settingsB.tieBreak.criterionId) as { key: string };
+    expect(keyB.key).toBe("functionality");
+    // and it is final there too: the trigger refuses a change on the published event
+    expect(() => hb!.sqlite.prepare("UPDATE events SET settings = json_remove(settings, '$.tieBreak') WHERE id = 'evt_01'").run()).toThrow(/tie-break is final/);
   });
 
   it("a pairwise answer moves with its own track when one of its projects later moved to another track", () => {

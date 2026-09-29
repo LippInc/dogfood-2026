@@ -21,6 +21,7 @@ import {
   PAIRWISE_OUTCOMES,
   prizes,
   projects,
+  rubricCriteria,
   voters,
   votes,
   type EventSettings,
@@ -70,6 +71,8 @@ export const HistoryFields = {
       judge_ranking: z.boolean().optional(),
       judging_mode: z.enum(["scores", "pairwise"]).optional(),
       accent: z.string().max(40).optional(),
+      /** the key of the rubric criterion that breaks exact ties (JUDGING.md, "Breaking exact ties") */
+      tie_break: z.string().max(200).optional(),
       voting: z
         .object({
           modes: z.array(z.enum(VOTE_MODES)).max(3),
@@ -100,6 +103,18 @@ export const HistoryFields = {
             reason: z.string().max(2_000),
             before: z.array(z.looseObject({ id: z.string().max(200), label: z.string().max(200), weight: z.number() })).max(64),
             after: z.array(z.looseObject({ id: z.string().max(200), label: z.string().max(200), weight: z.number() })).max(64),
+          }),
+        )
+        .max(HISTORY_LIMITS.changes)
+        .optional()
+        .default([]),
+      tie_break_changes: z
+        .array(
+          z.looseObject({
+            at: dateTime,
+            reason: z.string().max(2_000),
+            before: z.looseObject({ id: z.string().max(200), label: z.string().max(200) }).nullable(),
+            after: z.looseObject({ id: z.string().max(200), label: z.string().max(200) }).nullable(),
           }),
         )
         .max(HISTORY_LIMITS.changes)
@@ -317,6 +332,7 @@ export function refuseHistoryForExistingEvent(
     ),
     inList(d?.accepted_under_reviewed.map(own), s.acceptedUnderReviewed),
     inList(d?.weight_changes, s.weightChanges),
+    inList(d?.tie_break_changes, s.tieBreakChanges),
     inList(d?.vote_rule_changes, s.voteRuleChanges),
     inList(remapIds(d?.vote_count_changes, projectOf) as unknown[] | undefined, s.voteCountChanges),
     inList(
@@ -445,6 +461,20 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
     out.prizes.push(prizeId);
   });
 
+  // The criterion that breaks exact ties, found by its key in the rubric this import made (scores mode only), before
+  // the published ranking goes in: from then on a trigger freezes it
+  const tieKey = file.settings?.tie_break;
+  if (tieKey) {
+    const settings = tx.select({ settings: events.settings }).from(events).where(eq(events.id, eventId)).get()!.settings;
+    const criterion = tx.select({ id: rubricCriteria.id }).from(rubricCriteria).where(and(eq(rubricCriteria.eventId, eventId), eq(rubricCriteria.key, tieKey))).get();
+    if (!criterion) ctx.skip("settings", tieKey, `tie_break names no criterion of this event's rubric (${tieKey})`);
+    else if (settings.judgingMode === "pairwise") ctx.skip("settings", tieKey, "tie_break does not apply to an event judged pairwise");
+    else {
+      tx.update(events).set({ settings: { ...settings, tieBreak: { criterionId: criterion.id } } }).where(eq(events.id, eventId)).run();
+      out.decisions.push(`tie_break:${tieKey}`);
+    }
+  }
+
   // Duplicate merges: a copy counts as the one it names, as the organizer's merge left it (one level, never itself)
   const mergedInto = new Map(file.projects.filter((p) => p.duplicate_of).map((p) => [p.id, p.duplicate_of!]));
   for (const [dup, keep] of mergedInto) {
@@ -501,6 +531,7 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
     if (pairs.length) next.notDuplicates = [...new Set(pairs)].sort();
     if (accepted.length) next.acceptedUnderReviewed = [...new Set(accepted)].sort();
     if (d.weight_changes.length) next.weightChanges = d.weight_changes as EventSettings["weightChanges"];
+    if (d.tie_break_changes.length) next.tieBreakChanges = d.tie_break_changes as EventSettings["tieBreakChanges"];
     if (d.vote_rule_changes.length) next.voteRuleChanges = d.vote_rule_changes as EventSettings["voteRuleChanges"];
     if (d.vote_count_changes.length) next.voteCountChanges = remapIds(d.vote_count_changes, ctx.projectOf) as EventSettings["voteCountChanges"];
     // track moves live in the audit log: this import's row carries them (db/track-moves.ts reads them there)
@@ -515,11 +546,12 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
       return [{ projectId: project, fromTrackId: from, toTrackId: to, reason: m.reason, at: m.at }];
     });
     if (moves.length) out.trackMoves = moves;
-    const added = pairs.length + accepted.length + d.weight_changes.length + d.vote_rule_changes.length + d.vote_count_changes.length;
+    const added = pairs.length + accepted.length + d.weight_changes.length + d.tie_break_changes.length + d.vote_rule_changes.length + d.vote_count_changes.length;
     if (added) {
       tx.update(events).set({ settings: next }).where(eq(events.id, eventId)).run();
       out.decisions.push(...pairs.map((p) => `not_duplicate:${p}`), ...accepted.map((p) => `accepted_under_reviewed:${p}`));
       if (d.weight_changes.length) out.decisions.push(`weight_changes:${d.weight_changes.length}`);
+      if (d.tie_break_changes.length) out.decisions.push(`tie_break_changes:${d.tie_break_changes.length}`);
       if (d.vote_rule_changes.length) out.decisions.push(`vote_rule_changes:${d.vote_rule_changes.length}`);
       if (d.vote_count_changes.length) out.decisions.push(`vote_count_changes:${d.vote_count_changes.length}`);
     }
