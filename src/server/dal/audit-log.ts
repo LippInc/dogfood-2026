@@ -399,8 +399,11 @@ function sentence(r: Row, n: Names): Part[] {
     }
     case "pairwise.undo":
       return [actor, t(" took back an answer about "), project(String(before.left)), t(" and "), project(String(before.right))];
-    case "event.judging_mode":
-      return [actor, t(after.mode === "pairwise" ? " switched judging to pairwise: " : " switched judging to rubric scores: "), t(quote(after.reason))];
+    case "event.judging_mode": {
+      // switching to pairwise turns a tie-break off in the same change (pairwise has no criteria): the row keeps its label
+      const tieOff = after.mode === "pairwise" && after.tieBreak === null && typeof before.tieBreak === "string" ? ` and turned off breaking exact ties by ${before.tieBreak}` : "";
+      return [actor, t(after.mode === "pairwise" ? ` switched judging to pairwise${tieOff}: ` : " switched judging to rubric scores: "), t(quote(after.reason))];
+    }
     case "event.tie_break": {
       const c = after.criterion as { label?: string } | null | undefined;
       const why = typeof after.reason === "string" && after.reason ? `: ${quote(after.reason)}` : "";

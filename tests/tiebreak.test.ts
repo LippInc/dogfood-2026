@@ -320,8 +320,18 @@ describe("setTieBreak", () => {
     const mode = auditRows().filter((r) => r.action === "event.judging_mode").at(-1)!;
     expect(mode.before).toMatchObject({ mode: "scores", tieBreak: expect.any(String) });
     expect(mode.after).toMatchObject({ mode: "pairwise", tieBreak: null });
+    const label = sqlGet<{ label: string }>("SELECT label FROM rubric_criteria WHERE id = ?", crit("quality"))!.label;
+    const said = latestAudit(getDb(), "evt_01", 1, ["event.judging_mode"])[0]!.parts.map((p) => p.text).join("");
+    expect(said).toContain(`switched judging to pairwise and turned off breaking exact ties by ${label}: `);
     expectHttpError(() => setTieBreak(organizer(), "evt_01", { criterionId: crit("quality"), reason }), 409, "pairwise_mode");
     expect(setTieBreak(organizer(), "evt_01", { criterionId: null, reason })).toMatchObject({ changed: false });
+  });
+
+  it("says only the switch when no tie-break was set: the audit line for pairwise names no tie-break", () => {
+    setJudgingMode(organizer(), "evt_01", { mode: "pairwise", reason: "Too few judges for the rubric" });
+    const said = latestAudit(getDb(), "evt_01", 1, ["event.judging_mode"])[0]!.parts.map((p) => p.text).join("");
+    expect(said).toContain("switched judging to pairwise: ");
+    expect(said).not.toContain("tie");
   });
 
   it("keeps its criterion in the rubric: removing it is refused (409) until another tie-break is chosen", () => {
