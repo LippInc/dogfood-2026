@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { plural } from "@/lib/format";
-import { fold, matchRanges, projectMatches, searchWords } from "@/lib/search";
+import { fold, hasTag, matchRanges, projectMatches, searchWords, shownHay, tagCounts, tagKey } from "@/lib/search";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 export type BrowserItem = {
@@ -15,6 +15,8 @@ export type BrowserItem = {
   trackId: string;
   trackName: string;
   tags: string[];
+  /** the write-up's words (searchText): searched, never shown */
+  text: string;
 };
 export type BrowserTrack = { id: string; name: string; count: number };
 type Order = "shuffled" | "az" | "track";
@@ -28,7 +30,7 @@ const ORDER_HINT: Record<Order, string> = {
   track: "grouped by track, then by title",
 };
 
-/** The same search as GET /api/events/{event}/projects?q=: every word, case and accents ignored (src/lib/search.ts). */
+/** The same search as GET /api/events/{event}/projects?q=: every word, case and accents ignored, write-ups included (src/lib/search.ts). */
 const matches = (item: BrowserItem, q: string) => projectMatches(item, searchWords(q));
 
 /** Marks every part of `text` a search word matched, so a result shows why it is there ("ecole" marks "École"). */
@@ -67,6 +69,7 @@ export function GalleryBrowser({
   smallFaces,
   initialTrack,
   initialQuery,
+  initialTag = null,
   mine = null,
 }: {
   eventSlug: string;
@@ -76,6 +79,8 @@ export function GalleryBrowser({
   smallFaces: Record<string, ReactNode>;
   initialTrack: string | null;
   initialQuery: string;
+  /** ?tag= from the link: kept when a project carries it, in any case or accents */
+  initialTag?: string | null;
   /** The signed-in participant's own project, marked in the Field and the grid. */
   mine?: string | null;
 }) {
@@ -83,6 +88,13 @@ export function GalleryBrowser({
     initialTrack && tracks.some((t) => t.id === initialTrack) ? initialTrack : null,
   );
   const [query, setQueryState] = useState(initialQuery);
+  // The tags the projects carry, the most carried first; none while no team gave one or the organizers hide tags.
+  const tags = useMemo(() => tagCounts(items), [items]);
+  const [tag, setTagState] = useState<string | null>(() => {
+    const key = initialTag ? tagKey(initialTag) : "";
+    return tags.find((t) => t.key === key)?.key ?? null;
+  });
+  const tagLabel = tag ? tags.find((t) => t.key === tag)?.label : undefined;
   const [order, setOrder] = useState<Order>("shuffled");
   // The face under the pointer in the Field: named in the Field's caption and lit in the grid.
   const [peek, setPeek] = useState<string | null>(null);
@@ -98,40 +110,60 @@ export function GalleryBrowser({
     if (row && chosen) row.scrollLeft = chosen.offsetLeft - row.offsetLeft - (row.clientWidth - chosen.offsetWidth) / 2;
   }, [track]);
 
-  const syncUrl = (nextTrack: string | null, nextQuery: string) => {
+  // The filters live in the address too, so a filtered gallery can be shared as a link.
+  const syncUrl = (next: { track: string | null; query: string; tag: string | null }) => {
     const url = new URL(window.location.href);
-    if (nextTrack) url.searchParams.set("track", nextTrack);
+    if (next.track) url.searchParams.set("track", next.track);
     else url.searchParams.delete("track");
-    if (nextQuery) url.searchParams.set("q", nextQuery);
+    if (next.query) url.searchParams.set("q", next.query);
     else url.searchParams.delete("q");
+    const label = next.tag ? tags.find((t) => t.key === next.tag)?.label : undefined;
+    if (label) url.searchParams.set("tag", label);
+    else url.searchParams.delete("tag");
     window.history.replaceState(null, "", url);
   };
   const setTrack = (t: string | null) => {
     setTrackState(t);
-    syncUrl(t, query);
+    syncUrl({ track: t, query, tag });
   };
   const setQuery = (q: string) => {
     setQueryState(q);
-    syncUrl(track, q);
+    syncUrl({ track, query: q, tag });
+  };
+  const setTag = (t: string | null) => {
+    setTagState(t);
+    syncUrl({ track, query, tag: t });
   };
 
   const visible = useMemo(() => {
-    const list = items.filter((i) => (!track || i.trackId === track) && matches(i, query.trim()));
+    const list = items.filter((i) => (!track || i.trackId === track) && hasTag(i, tag) && matches(i, query.trim()));
     if (order === "az") return [...list].sort((a, b) => a.title.localeCompare(b.title));
     if (order === "track") {
       const pos = new Map(tracks.map((t, i) => [t.id, i]));
       return [...list].sort((a, b) => pos.get(a.trackId)! - pos.get(b.trackId)! || a.title.localeCompare(b.title));
     }
     return list;
-  }, [items, tracks, track, query, order]);
+  }, [items, tracks, track, tag, query, order]);
   // The Field draws what the grid shows: faces the grid has left out fade back.
   const shown = useMemo(() => new Set(visible.map((i) => i.id)), [visible]);
   const q = query.trim();
   const words = searchWords(q);
   const hits = (text: string) => words.some((w) => fold(text).includes(w));
-  const matchesIn = (trackId: string) => items.filter((i) => i.trackId === trackId && matches(i, q)).length;
-  const elsewhere = q ? items.filter((i) => matches(i, q)).length : 0;
+  // What the search and the tag leave, per track and in every track, for the counts beside the track filter.
+  const narrowed = Boolean(q || tag);
+  const passes = (i: BrowserItem) => hasTag(i, tag) && matches(i, q);
+  const matchesIn = (trackId: string) => items.filter((i) => i.trackId === trackId && passes(i)).length;
+  const elsewhere = narrowed ? items.filter(passes).length : 0;
+  const anyTag = tag ? items.filter((i) => (!track || i.trackId === track) && matches(i, q)).length : 0;
   const trackName = track ? tracks.find((t) => t.id === track)?.name : undefined;
+  // The words a project matched only in its write-up, which the tile does not show: named on the tile, so a result says why it is there.
+  const inWriteUp = (i: BrowserItem) => {
+    if (!words.length) return [];
+    const hay = shownHay(i);
+    return words.filter((w) => !hay.includes(w));
+  };
+  // "match “ai” tagged Rust in Security", as much of it as applies
+  const why = [q ? `match “${q}”` : "", tagLabel ? `tagged ${tagLabel}` : "", trackName ? `in ${trackName}` : ""].filter(Boolean).join(" ");
 
   const tile = (i: BrowserItem) => (
     <li key={i.id} className="border-b border-rule pb-6 last:border-b-0 sm:border-0 sm:pb-0">
@@ -156,7 +188,19 @@ export function GalleryBrowser({
           <h3 className="font-display text-20 leading-tight sm:mt-4">
             <Hl text={i.title} words={words} />
           </h3>
-          {i.summary ? <p className="mt-1 text-15 text-ink-2">{i.summary}</p> : null}
+          {i.summary ? (
+            <p className="mt-1 text-15 text-ink-2">
+              <Hl text={i.summary} words={words} />
+            </p>
+          ) : null}
+          {inWriteUp(i).length ? (
+            <p className="mt-1 text-13 text-ink-3">
+              {inWriteUp(i)
+                .map((w) => `“${w}”`)
+                .join(", ")}{" "}
+              in what they built
+            </p>
+          ) : null}
           <p className="mt-2 text-13 text-ink-3">
             {i.id === mine ? (
               <Badge className="mr-2 border-ink align-[1px] text-ink">Your team</Badge>
@@ -165,12 +209,15 @@ export function GalleryBrowser({
           </p>
           {i.tags.length ? (
             <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Tech tags">
-              {/* A tag the search matched comes first, so it is never hidden behind "+n". */}
+              {/* The chosen tag, then a tag the search matched, come first, so neither is hidden behind "+n". */}
               {[...i.tags]
-                .sort((x, y) => Number(hits(y)) - Number(hits(x)))
+                .sort((x, y) => Number(tagKey(y) === tag) - Number(tagKey(x) === tag) || Number(hits(y)) - Number(hits(x)))
                 .slice(0, 4)
                 .map((t) => (
-                  <li key={t} className="rounded-xs border border-rule px-1.5 py-0.5 font-mono text-12 text-ink-2">
+                  <li
+                    key={t}
+                    className={`rounded-xs border px-1.5 py-0.5 font-mono text-12 ${tag && tagKey(t) === tag ? "border-ink text-ink" : "border-rule text-ink-2"}`}
+                  >
                     <Hl text={t} words={words} />
                   </li>
                 ))}
@@ -199,12 +246,12 @@ export function GalleryBrowser({
                 <span className="font-mono text-12 text-accent-ink">{peeked.id}</span> <span className="font-semibold text-ink">{peeked.title}</span> by{" "}
                 {peeked.teamName}
               </>
-            ) : q || track ? (
+            ) : why ? (
               <>
                 <span className="tnum font-semibold text-ink">
                   {visible.length} of {items.length}
                 </span>{" "}
-                {q ? <>match “{q}”{trackName ? ` in ${trackName}` : ""}</> : <>in {trackName}</>}. The rest fade back.
+                {why}. The rest fade back.
               </>
             ) : (
               <>
@@ -231,7 +278,7 @@ export function GalleryBrowser({
             onClick={() => setTrack(null)}
             className="ml-auto h-7 rounded-xs border border-edge px-3 text-13 font-medium aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
           >
-            All <span className="tnum">{q ? `${elsewhere} of ${items.length}` : items.length}</span>
+            All <span className="tnum">{narrowed ? `${elsewhere} of ${items.length}` : items.length}</span>
           </button>
         </div>
         <div className="mt-6 grid grid-cols-4 gap-x-4 gap-y-8 xl:grid-cols-8">
@@ -247,7 +294,7 @@ export function GalleryBrowser({
                   className="group flex w-full items-baseline gap-1.5 border-t-2 border-ink pt-2 text-left text-13 text-ink-2 hover:text-ink aria-pressed:border-accent aria-pressed:text-ink"
                 >
                   <span className="truncate">{t.name}</span>
-                  <span className="tnum text-ink-3">{q ? `${matchesIn(t.id)} of ${t.count}` : t.count}</span>
+                  <span className="tnum text-ink-3">{narrowed ? `${matchesIn(t.id)} of ${t.count}` : t.count}</span>
                 </button>
                 <div className="mt-3 grid grid-cols-2 gap-1" aria-hidden="true" onMouseLeave={() => setPeek(null)}>
                   {inTrack.map((i, k) => (
@@ -317,7 +364,7 @@ export function GalleryBrowser({
         aria-label="Filter by track"
       >
         <button type="button" aria-pressed={track === null} onClick={() => setTrack(null)} className={`${chip} border-edge`}>
-          All <span className="tnum">{q ? `${elsewhere} of ${items.length}` : items.length}</span>
+          All <span className="tnum">{narrowed ? `${elsewhere} of ${items.length}` : items.length}</span>
         </button>
         {tracks.map((t) => (
           <button
@@ -328,7 +375,7 @@ export function GalleryBrowser({
             onClick={() => setTrack(track === t.id ? null : t.id)}
             className={`${chip} border-edge`}
           >
-            {t.name} <span className="tnum">{q ? `${matchesIn(t.id)} of ${t.count}` : t.count}</span>
+            {t.name} <span className="tnum">{narrowed ? `${matchesIn(t.id)} of ${t.count}` : t.count}</span>
           </button>
         ))}
       </div>
@@ -341,7 +388,7 @@ export function GalleryBrowser({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search projects, teams, tracks"
-            aria-label="Search projects, teams and tracks"
+            aria-label="Search projects, their write-ups, teams and tracks"
             className="h-11 w-full rounded-sm border border-edge bg-surface pl-10 pr-10 text-15 placeholder:text-ink-3 md:h-10"
           />
           {query ? (
@@ -355,7 +402,25 @@ export function GalleryBrowser({
             </button>
           ) : null}
         </div>
-        <div className="flex items-center justify-between gap-4 md:contents">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 md:contents">
+          {tags.length ? (
+            // The tag filter: the tags the projects carry, each with how many carry it; combines with the track and the search.
+            <label className="flex min-w-0 items-center gap-2 text-14 text-ink-2">
+              Tag
+              <select
+                value={tag ?? ""}
+                onChange={(e) => setTag(e.target.value || null)}
+                className={`h-9 max-w-[11rem] cursor-pointer truncate rounded-sm bg-transparent pr-1 text-14 font-semibold ${tag ? "text-accent-ink" : "text-ink"}`}
+              >
+                <option value="">Any</option>
+                {tags.map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.label} ({t.count})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label className="flex items-center gap-2 text-14 text-ink-2">
             Order
             <select
@@ -369,7 +434,7 @@ export function GalleryBrowser({
             </select>
           </label>
           <span className="hidden text-13 text-ink-3 lg:inline">{ORDER_HINT[order]}</span>
-          <span className="label-mono tnum text-ink-3 md:ml-auto" aria-live="polite">
+          <span className="label-mono tnum ml-auto text-ink-3" aria-live="polite">
             {visible.length === items.length ? `${visible.length} shown` : `${visible.length} of ${items.length} shown`}
           </span>
         </div>
@@ -384,11 +449,23 @@ export function GalleryBrowser({
         <div className="mt-10 rounded-sm border border-dashed border-edge px-6 py-12 text-center">
           <p className="text-17">
             No project matches {q ? `“${q}”` : "this filter"}
+            {tagLabel ? ` tagged ${tagLabel}` : ""}
             {trackName ? ` in ${trackName}` : ""}.
           </p>
-          <p className="mt-2 text-14 text-ink-2">Search reads titles, teams, tracks, ids and tags, and every word has to match.</p>
+          <p className="mt-2 text-14 text-ink-2">
+            Search reads titles, summaries, what each team wrote about its project, teams, tracks, ids and tags, and every word has to match.
+          </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
-            {track && q && elsewhere > 0 ? (
+            {tag && anyTag > 0 ? (
+              <button
+                type="button"
+                onClick={() => setTag(null)}
+                className="h-10 rounded-sm border border-accent bg-accent px-4 text-14 font-medium text-on-accent"
+              >
+                Any tag ({anyTag})
+              </button>
+            ) : null}
+            {track && narrowed && elsewhere > 0 ? (
               <button
                 type="button"
                 onClick={() => setTrack(null)}
@@ -401,7 +478,9 @@ export function GalleryBrowser({
               type="button"
               onClick={() => {
                 setTrackState(null);
-                setQuery("");
+                setQueryState("");
+                setTagState(null);
+                syncUrl({ track: null, query: "", tag: null });
               }}
               className="h-10 rounded-sm border border-edge px-4 text-14 hover:bg-surface"
             >

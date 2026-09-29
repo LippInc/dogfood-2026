@@ -4,13 +4,14 @@ export const dynamic = "force-dynamic";
 
 /**
  * The event's submitted projects, as JSON (public, like the gallery). ?q= searches them as the gallery's search box
- * does (every word, case and accents ignored) and ?track=<id> keeps one track's; 422 for a track the event lacks.
+ * does (every word, in the title, summary, write-up, team, track, id or tags, case and accents ignored), ?track=<id>
+ * keeps one track's and ?tag= the projects carrying that tag; they combine. 422 for a track the event lacks.
  */
 export async function GET(req: Request, { params }: RouteContext<"/api/events/[event]/projects">) {
   return route(async () => {
     const { event } = await params;
     const sp = new URL(req.url).searchParams;
-    const gallery = searchGallery(event, { q: sp.get("q"), track: sp.get("track") });
+    const gallery = searchGallery(event, { q: sp.get("q"), track: sp.get("track"), tag: sp.get("tag") });
     return json({ event: gallery.event, projects: gallery.projects });
   });
 }

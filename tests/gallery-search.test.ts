@@ -4,7 +4,8 @@ import { searchGallery } from "@/server/dal/events";
 import { expectHttpError, sqlRun, withFixtureEvent } from "./support/fixture-harness";
 
 // The gallery's search, in the browser and at GET /api/events/{event}/projects?q=&track=: every word must appear in a
-// project's title, team, track, id or tags, with case and accents folded away, so "ecole" finds "École".
+// project's title, team, track, id or tags (or its summary or write-up: gallery-tags-writeups.test.ts), with case and
+// accents folded away, so "ecole" finds "École".
 
 withFixtureEvent();
 

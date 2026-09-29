@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 
 function loadGallery(key: string): Gallery {
   try {
-    return getGallery(key);
+    // with each write-up's words, so the search box finds what a team wrote about their project too
+    return getGallery(key, { withText: true });
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;
@@ -63,6 +64,7 @@ export default async function GalleryPage({ params, searchParams }: PageProps<"/
     trackId: p.trackId,
     trackName: p.trackName,
     tags: p.tags,
+    text: p.text ?? "",
   }));
   const thumbnails = new Map(gallery.projects.map((p) => [p.id, p.thumbnailUrl]));
   const tileFaces = Object.fromEntries(
@@ -90,6 +92,7 @@ export default async function GalleryPage({ params, searchParams }: PageProps<"/
         smallFaces={smallFaces}
         initialTrack={typeof sp.track === "string" ? sp.track : null}
         initialQuery={typeof sp.q === "string" ? sp.q : ""}
+        initialTag={typeof sp.tag === "string" ? sp.tag : null}
         mine={mine}
       />
     </PublicShell>

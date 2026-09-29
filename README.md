@@ -157,6 +157,8 @@ platforms we checked describes it in its public documentation.
 
 Each item in full, with its rules: [`docs/FEATURES.md`](docs/FEATURES.md).
 
+- **Gallery:** every submitted project on its first page, searched by title, summary, write-up, team and tags,
+  filtered by track and by tag, the filters kept in the link.
 - **Events and teams:** dates, tracks, prizes, custom questions, a weighted rubric; teams by invite link; the
   organizer picks which project fields are required, optional or hidden; one-person events in one step.
 - **Judging:** judges invited by link, a seeded and stored assignment run, a keyboard-first console with autosave,
@@ -216,6 +218,8 @@ webhook deliveries and the voters' address hashes are yours to clear with `scrip
 
 ## What it does not do yet
 
+- **Gallery pages.** The gallery has none: every submitted project is on its first page (the organizers' checker
+  reads them all from the first paint), with the search, track and tag filters to narrow it.
 - **Uploads.** Images only: a project's picture and up to 6 gallery images (PNG, JPEG or WebP up to 8 MB each,
   redrawn as a WebP without metadata such as a photo's location; an organizer can take any of them down). A demo
   video or a slide deck is a link.

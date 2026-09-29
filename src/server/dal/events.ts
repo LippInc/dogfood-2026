@@ -6,7 +6,7 @@ import { events, prizes, projects, rubricCriteria, teams, tracks, userRoles } fr
 import { NotFoundError, ValidationError } from "../errors";
 import { mutate, type MutationAudit } from "../mutate";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
-import { projectMatches, searchWords } from "@/lib/search";
+import { hasTag, projectMatches, searchText, searchWords } from "@/lib/search";
 import { fieldModes, trackCount, shownTitle } from "./project-fields";
 
 export type EventRow = typeof events.$inferSelect;
@@ -109,6 +109,8 @@ export type GalleryProject = {
   submittedAt: string | null;
   thumbnailUrl: string | null;
   tags: string[];
+  /** only when asked for (getGallery's withText): the write-up as the search reads it (searchText), empty while hidden */
+  text?: string;
 };
 
 export type Gallery = {
@@ -121,9 +123,10 @@ export type Gallery = {
 /**
  * Everything the public gallery shows: every submitted project of the event (a
  * project merged away as a duplicate is left out), with team and track names.
- * Public: no actor needed. Scores never appear here.
+ * Public: no actor needed. Scores never appear here. withText adds each project's write-up in the form the search
+ * reads (searchText), for the gallery page and its search; a field the organizers hide gives an empty one.
  */
-export function getGallery(idOrSlug: string): Gallery {
+export function getGallery(idOrSlug: string, opts: { withText?: boolean } = {}): Gallery {
   const db = getDb();
   const found = findEvent(db, idOrSlug);
   if (!found) throw new NotFoundError("Event");
@@ -151,6 +154,8 @@ export function getGallery(idOrSlug: string): Gallery {
       submittedAt: projects.submittedAt,
       thumbnailUrl: projects.thumbnailUrl,
       tags: projects.tags,
+      // read only for the search (withText): the home page and the other pages that count projects skip it
+      description: opts.withText ? projects.description : sql<string>`''`,
     })
     .from(projects)
     .innerJoin(teams, eq(teams.id, projects.teamId))
@@ -184,7 +189,10 @@ export function getGallery(idOrSlug: string): Gallery {
   return {
     event,
     tracks: trackRows.map((t) => ({ ...t, count: perTrack.get(t.id) ?? 0 })),
-    projects: rows.map((p) => withoutHidden(p, modes)),
+    projects: rows.map((row) => {
+      const { description, ...p } = withoutHidden(row, modes);
+      return opts.withText ? { ...p, text: searchText(description) } : p;
+    }),
     counts: {
       projects: rows.length,
       teams: teamCount?.n ?? 0,
@@ -197,21 +205,34 @@ export function getGallery(idOrSlug: string): Gallery {
 /** The longest search a gallery takes: a sentence, not a document. */
 export const MAX_SEARCH = 200;
 
+/** The longest tag the gallery's tag filter takes. */
+export const MAX_TAG = 60;
+
 /**
- * The gallery narrowed as its search box and track buttons narrow it (src/lib/search.ts): q's words must all appear
- * in a project's title, team, track, id or tags, ignoring case and accents; track keeps one track's projects. Only
- * what the gallery shows is searched, so a field the organizers hide finds nothing. Public, like the gallery.
+ * The gallery narrowed as its search box, track buttons and tag filter narrow it (src/lib/search.ts): q's words must
+ * all appear in a project's title, summary, write-up, team, track, id or tags, ignoring case and accents; track keeps
+ * one track's projects; tag keeps the projects carrying that tag (case and accents ignored; a tag no project carries
+ * keeps none). Only what the gallery shows is searched, so a field the organizers hide finds nothing. Public, like the
+ * gallery.
  */
-export function searchGallery(idOrSlug: string, filter: { q?: string | null; track?: string | null }): Gallery {
-  const gallery = getGallery(idOrSlug);
+export function searchGallery(idOrSlug: string, filter: { q?: string | null; track?: string | null; tag?: string | null }): Gallery {
+  const gallery = getGallery(idOrSlug, { withText: true });
   const q = filter.q ?? "";
   if (q.length > MAX_SEARCH) throw new ValidationError(`A search is at most ${MAX_SEARCH} characters.`, { q: [`at most ${MAX_SEARCH} characters`] });
+  const tag = filter.tag?.trim() || null;
+  if (tag && tag.length > MAX_TAG) throw new ValidationError(`A tag is at most ${MAX_TAG} characters.`, { tag: [`at most ${MAX_TAG} characters`] });
   const track = filter.track || null;
   if (track && !gallery.tracks.some((t) => t.id === track)) {
     throw new ValidationError(`This event has no track ${track}.`, { track: [`not one of ${gallery.tracks.map((t) => t.id).join(", ")}`] });
   }
   const words = searchWords(q);
-  return { ...gallery, projects: gallery.projects.filter((p) => (!track || p.trackId === track) && projectMatches(p, words)) };
+  return {
+    ...gallery,
+    projects: gallery.projects
+      .filter((p) => (!track || p.trackId === track) && hasTag(p, tag) && projectMatches(p, words))
+      // the write-up's word list is the search's working copy, not part of the answer
+      .map(({ text: _text, ...p }) => p),
+  };
 }
 
 export type About = {

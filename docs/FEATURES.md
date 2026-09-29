@@ -44,9 +44,13 @@ organizer's questions); the server refuses changes after it.
   time, with a reason for the audit log. Through the API: `POST /api/projects/{project}/image` and
   `POST /api/projects/{project}/gallery` take the file as the body, `PUT /api/projects/{project}/gallery` sets
   the gallery's order.
-- **Gallery.** The public gallery shows every submitted project, searchable (tags included, case and accents
-  ignored: `ecole` finds `École`) and filterable by track, in the page and through
-  `GET /api/events/{event}/projects?q=&track=`.
+- **Gallery.** The public gallery shows every submitted project, searchable and filterable by track and by tag,
+  in the page and through `GET /api/events/{event}/projects?q=&track=&tag=`. The search reads each project's
+  title, one-line summary, what the team wrote about it, team, track, id and tags, with case and accents ignored
+  (`ecole` finds `École`); a project found only through its write-up says which words matched there. The tag
+  filter lists the tags the projects carry with how many carry each ("Rust" and "rust" are one tag). The three
+  combine, and the filters go into the page's address, so a filtered gallery can be shared as a link. A field
+  the organizers hide is not searched.
 
 ## Judging
 
