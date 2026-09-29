@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
@@ -239,6 +240,38 @@ describe("the judge ledger", () => {
     expect([kept.rankRaw, kept.rankNormalized, merged.ranked]).toEqual([25.5, 22, 40]);
     expect(largest).toBeCloseTo(0.062, 3);
     expect(seRange.map((x) => Number(x.toFixed(3)))).toEqual([0.093, 0.099]);
+  });
+
+  it("the run after the README tour (duplicate merged, Small Relay's single review accepted), as JUDGING.md states them", () => {
+    const org = organizer();
+    mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
+    acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+    const n = computeNormalization(h.db, requireEvent(h.db, "evt_01"), { signal: true });
+    expect(n.ranked).toBe(40);
+    expect(n.variance.k!.toFixed(1)).toBe("36.1");
+    expect(n.variance.beta2.toFixed(4)).toBe("0.0113");
+    expect(n.variance.sigma2.toFixed(4)).toBe("0.4065");
+    // the largest leniency among the judges the run keeps (the flat judge is out)
+    const kept = n.judges.filter((j) => !j.excluded);
+    expect(kept.length).toBeLessThan(n.judges.length);
+    const top = [...kept].sort((a, b) => Math.abs(b.leniency) - Math.abs(a.leniency))[0]!;
+    expect(top.name).toBe("Wei Lindqvist");
+    expect(Math.abs(top.leniency).toFixed(3)).toBe("0.072");
+    expect(n.signal!.trials).toBe(2000);
+    expect(n.signal!.share.toFixed(4)).toBe("0.7285");
+    const relay = n.projects.find((p) => p.id === "prj_19")!;
+    expect(relay.title).toBe("Small Relay");
+    expect([relay.rankRaw, relay.rankNormalized]).toEqual([13, 30]);
+    // and JUDGING.md says exactly these, written from the computed figures: an edit to either side fails
+    const doc = fs.readFileSync(path.join(process.cwd(), "JUDGING.md"), "utf8");
+    const ord = (x: number) => `${x}${x % 10 === 3 && x !== 13 ? "rd" : "th"}`;
+    for (const line of [
+      `- k = ${n.variance.k!.toFixed(1)} (β̂² = ${n.variance.beta2.toFixed(4)}, σ̂² = ${n.variance.sigma2.toFixed(4)});`,
+      `- the largest kept leniency ${Math.abs(top.leniency).toFixed(3)} (${top.name});`,
+      `- permutation share ${n.signal!.share.toFixed(4)} (${n.signal!.trials.toLocaleString("en")} shuffles, same seed);`,
+      `- Small Relay from ${ord(relay.rankRaw!)} on the raw mean to ${ord(relay.rankNormalized!)}.`,
+    ])
+      expect(doc, line).toContain(line);
   });
 
   it("known-bad: comparing a run with itself finds nothing to predict", () => {
