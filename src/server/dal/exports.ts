@@ -316,7 +316,7 @@ function normalizedCsv(db: DbOrTx, event: EventRow): string {
   const n = computeNormalization(db, event);
   const tie = tieBreakOf(db, event, n);
   const tied = new Map(tie?.groups.flatMap((g) => g.projects.map((p) => [p.id, p] as const)) ?? []);
-  const tieCols = (id: string) => [fixed(tied.get(id)?.figure, 4), tie!.places.get(id) ?? "", tied.get(id)?.broken ? tie!.criterion.label : ""];
+  const tieCols = (id: string) => [fixed(tied.get(id)?.figure, 4), tie!.places[id] ?? "", tied.get(id)?.broken ? tie!.criterion.label : ""];
   return toCsv(
     tie ? [...NORMALIZED_HEAD, ...TIE_HEAD] : NORMALIZED_HEAD,
     n.projects.map((p) => [

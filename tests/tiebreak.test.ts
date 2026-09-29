@@ -117,7 +117,7 @@ describe("setTieBreak", () => {
     const a = live.normalization.projects.find((p) => p.id === "prj_05")!;
     const b = live.normalization.projects.find((p) => p.id === "prj_21")!;
     expect(Math.abs(a.score! - b.score!)).toBeLessThanOrEqual(1e-9);
-    expect(live.tieBreak).toBeNull();
+    expect(live).not.toHaveProperty("tieBreak");
 
     expect(setTieBreak(organizer(), "evt_01", { criterionId: crit("functionality"), reason })).toMatchObject({ changed: true, criterion: { label: expect.any(String) } });
     const view = getNormalization(organizer(), "evt_01").tieBreak!;

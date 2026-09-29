@@ -127,7 +127,7 @@ export type TieBreakView = {
   /** every exact score tie within a track, in track order then best first, and how the criterion ordered it */
   groups: (Omit<TieBreakGroup, "projects"> & { trackName: string; projects: { id: string; title: string; figure: number | null; place: number; broken: boolean }[] })[];
   /** every ranked project's competition place in its track after the tie-break */
-  places: Map<string, number>;
+  places: Record<string, number>;
 };
 
 /** The tie-break over a normalization run's tracks: what the organizer's Results tab shows and publishing stores. Null with no tie-break. */
@@ -144,14 +144,14 @@ export function tieBreakOf(db: DbOrTx, event: EventRow, n: Normalized): TieBreak
     byTrack.set(p.trackId, t);
   }
   const groups: TieBreakView["groups"] = [];
-  const allPlaces = new Map<string, number>();
+  const allPlaces: Record<string, number> = {};
   for (const [trackId, t] of byTrack) {
     const sorted = [...t.rows].sort((a, b) => b.score! - a.score! || a.projectId.localeCompare(b.projectId));
     const broken = breakTies(sorted, figures);
     const placed = competitionPlaces(broken);
     const places = new Map(broken.map((r, i) => [r.projectId, placed[i]!.place!]));
     const split = new Map(broken.map((r) => [r.projectId, r.tieBroken]));
-    for (const [id, place] of places) allPlaces.set(id, place);
+    for (const [id, place] of places) allPlaces[id] = place;
     for (const g of tieGroups(trackId, broken)) {
       groups.push({ ...g, trackName: t.name, projects: g.projects.map((p) => ({ ...p, title: title.get(p.id) ?? p.id, place: places.get(p.id)!, broken: split.get(p.id)! })) });
     }

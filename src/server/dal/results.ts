@@ -96,6 +96,7 @@ export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
   const event = requireEvent(db, eventIdOrSlug);
   guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
   const now = computeNormalization(db, event, { signal: true, influence: true });
+  const tieBreak = tieBreakOf(db, event, now);
   return {
     event,
     method: METHOD_LABEL,
@@ -104,8 +105,8 @@ export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
     decisions: decisions(db, event, now),
     notes: privateNotes(db, event.id, now.projects),
     crossCheck: judgingModeOf(event) === "scores" ? crossCheck(db, event, now.projects) : null,
-    /** the event's tie-break over the live ranking; null with none set (or in pairwise mode) */
-    tieBreak: tieBreakOf(db, event, now),
+    /** the event's tie-break over the live ranking, only when one is set (never in pairwise mode), so the answer is as before without one */
+    ...(tieBreak ? { tieBreak } : {}),
   };
 }
 
