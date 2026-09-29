@@ -285,6 +285,43 @@ describe("settling a close call", () => {
     expect(d.kind === "close_call" && d.stale).toMatch(/first place changed/);
   });
 
+  // A judges' decision is made about the first place it saw. Rewriting the stored `top` is the cheapest way to make the
+  // ranking's first place move under a stored choice (as leaving out a flat judge can); the scores stay as they are.
+  function judgesChoiceSeenOn(top: string[], winnerId: string) {
+    settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "judges", winnerId: "prj_a2", reason: "Written about the project then first." });
+    const settings = JSON.parse((h.sqlite.prepare("SELECT settings FROM events WHERE id = 'evt_cc'").get() as { settings: string }).settings);
+    Object.assign(settings.closeCalls[0], { top, winnerId });
+    h.sqlite.prepare("UPDATE events SET settings = ? WHERE id = 'evt_cc'").run(JSON.stringify(settings));
+  }
+  const closeDecision = () => decisions(h.db, eventOf("evt_cc"), computeNormalization(h.db, eventOf("evt_cc"))).find((x) => x.kind === "close_call")!;
+
+  it("a judges' decision goes stale when another project is now first: its reason was written about the old first place", () => {
+    // decided while prj_a3 led; prj_a1 leads now, prj_a2 is still a close project
+    judgesChoiceSeenOn(["prj_a3"], "prj_a2");
+    const d = closeDecision();
+    expect(d.resolved).toBeNull();
+    expect(d.kind === "close_call" && d.stale).toMatch(/first place changed/);
+    expect(statusOf(() => publishResults(organizer(), "evt_cc"))).toEqual({ status: 409, code: "decisions_open" });
+  });
+
+  it("a judges' decision goes stale when the project it named is now first by score: no decision is claimed the scores made", () => {
+    // decided for prj_a1 while prj_a2 led; prj_a1 now leads by score
+    judgesChoiceSeenOn(["prj_a2"], "prj_a1");
+    const d = closeDecision();
+    expect(d.resolved).toBeNull();
+    expect(d.kind === "close_call" && d.stale).toMatch(/first place changed/);
+    expect(statusOf(() => publishResults(organizer(), "evt_cc"))).toEqual({ status: 409, code: "decisions_open" });
+  });
+
+  it("positive control: a judges' decision on the first place it saw stays in force and is published", () => {
+    judgesChoiceSeenOn(["prj_a1"], "prj_a2");
+    expect(closeDecision().resolved).toBe("judges");
+    publishResults(organizer(), "evt_cc");
+    const r = getPublishedResults("evt_cc");
+    if (!r.published) throw new Error("not published");
+    expect(r.tracks.find((x) => x.id === "trk_close")!.rows[0]!.projectId).toBe("prj_a2");
+  });
+
   it("undo takes the choice back, and the last undo leaves the settings as they were before any choice", () => {
     const before = (h.sqlite.prepare("SELECT settings FROM events WHERE id = 'evt_cc'").get() as { settings: string }).settings;
     settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "keep" });

@@ -47,8 +47,11 @@ const sameSet = (a: string[], b: string[]) => a.length === b.length && [...a].so
 /** Null when the stored choice still fits the track's close call; otherwise why it does not. */
 function staleness(choice: CloseCallChoice, cc: CloseCall | null): string | null {
   if (!cc) return "the track no longer has two ranked projects";
-  if (choice.mode === "keep") return sameSet(choice.top, cc.top) ? null : "the ranking's first place changed since the choice was made";
-  if (cc.callable) return "the scores now name the winner clearly, so the judges' decision no longer applies";
+  if (choice.mode === "judges" && cc.callable) return "the scores now name the winner clearly, so the judges' decision no longer applies";
+  // any choice was made about the first place it saw: a judges' reason written about A says nothing once C is on top,
+  // and a decision naming the project that is now first by score would claim a decision the scores already made
+  if (!sameSet(choice.top, cc.top)) return "the ranking's first place changed since the choice was made";
+  if (choice.mode === "keep") return null;
   if (!choice.winnerId || !cc.close.includes(choice.winnerId)) return "the project the judges named is no longer among the close projects";
   return null;
 }
