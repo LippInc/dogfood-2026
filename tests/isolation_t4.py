@@ -113,6 +113,15 @@ def section_c(u, people, cfg):
         s, body, _ = org_token.request("POST", tokens_url, {"name": "made by a token", "days": 1})
         expect(c, s == 403 and error_code(body) == "token_cannot_manage_tokens", org_token, "POST", tokens_url,
                f"{s} {error_code(body)}", "403 token_cannot_manage_tokens")
+        # nor anything that ends in a full sign-in: a password reset link, personal claim links
+        resets_url = u("/api/password-resets")
+        s, body, _ = org_token.request("POST", resets_url, {"email": "nobody@example.org"})
+        expect(c, s == 403 and error_code(body) == "token_cannot_reset_passwords", org_token, "POST", resets_url,
+               f"{s} {error_code(body)}", "403 token_cannot_reset_passwords")
+        claims_url = u(f"/api/events/{EVENT_ID}/claims")
+        s, body, _ = org_token.request("POST", claims_url, {})
+        expect(c, s == 403 and error_code(body) == "token_cannot_issue_claims", org_token, "POST", claims_url,
+               f"{s} {error_code(body)}", "403 token_cannot_issue_claims")
         revoke_url = u(f"/api/tokens/{org_id}/revoke")
         s, _, _ = participant.request("POST", revoke_url)
         expect(c, s == 404, participant, "POST", revoke_url, s, "404: someone else's token is not theirs to revoke")
