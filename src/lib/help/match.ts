@@ -61,6 +61,14 @@ const PHRASES: [RegExp, string][] = [
   [/\b(?:log|sign)\s*-?\s*out\b|\blogout\b/g, " signout "],
   [/\bsign\s*-?\s*up\b|\bregister\b|\bcreate an account\b|\bnew account\b/g, " signup "],
   [/\bopen\s*-?\s*link\b/g, " openlink "],
+  // "when does voting close", "until when", "how long is it open": a question about the timeline, not how to do it
+  [/\bwhen\b|\buntil\b|\bhow\s+long\b/g, " askwhen "],
+  // "how does judging work": how projects are scored, not the list of judges
+  [/\bhow\s+(?:does|do|is)\s+(?:the\s+)?(?:judging|scoring)\s+(?:work|done)\b/g, "$& scored "],
+  // "how do I score", "where do I score": scoring itself happens in the judge console
+  [/\b(?:do|can|should)\s+i\s+(?:score|rate|grade)\b/g, "$& console "],
+  // "delete my project": dissolving the team is what deletes a draft; not deleting a comment on a project
+  [/\bdelete\s+(?:a\s+|my\s+|our\s+|the\s+)?(?:project|draft)\b/g, " dissolve "],
   // "who can see my email": who sees one's own details, not the general word
   [/\bwho\s+(?:can\s+)?sees?\s+my\b/g, "$& whoseesmy "],
   // the team's name is not the person's own ("how do I change my name" is not a team rename)
@@ -69,6 +77,10 @@ const PHRASES: [RegExp, string][] = [
   [/\b(?:my|our)\s+(?:own\s+)?(?:reviews?|feedback|scores?|place|results?|rank)\b/g, "$& myresult "],
   // "see the votes", "vote count", "live count": the count, not the ballot; the words stay too
   [/\b(?:see|view|watch|check)\s+(?:the\s+)?votes?\b|\bvotes?\s+count\b|\blive\s+count\b/g, "$& votecount "],
+  // "how did my team do": the team's own outcome
+  [/\bhow\s+did\s+(?:my|our)\s+team\s+do\b|\bhow\s+did\s+we\s+do\b/g, "$& myresult "],
+  // "I got a judge invite": accepting one, not sending invitations
+  [/\b(?:got|received|have|get)\s+(?:a\s+|an\s+|the\s+|my\s+)?(?:judge|judging)\s+invit\w*/g, "$& accept "],
   [/\btoo\s+close\b/g, " tooclose "],
   [/\bpair\s*-?\s*wise\b/g, " pairwise "],
   [/\bco\s*-?\s*organi[sz]er/g, " coorganizer"],

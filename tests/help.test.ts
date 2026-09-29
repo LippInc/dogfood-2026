@@ -449,7 +449,6 @@ describe("the second review: rank, labels, no confident wrong answers", () => {
   it("says no match, rather than guess, for realistic questions the guide does not answer", () => {
     const misses = [
       "can i pay with a credit card",
-      "what time zone are the dates in",
       "how do i contact the organizers",
       "is there a mobile app",
       "what languages are supported",
@@ -458,7 +457,6 @@ describe("the second review: rank, labels, no confident wrong answers", () => {
       "how do i report a bug",
       "is there a chat",
       "how big can my picture be",
-      "how long is the hackathon",
       "where do i upload slides",
       "how do i book a flight",
       "can i bring my dog",
@@ -538,7 +536,7 @@ describe("the third pass: partial hits count for less, strong matches stay first
       ["what is demo mode", "demo-mode"],
       ["how do i run it with docker", "run-it"],
       ["is there an api", "api"],
-      ["when are results published", "publish"],
+      ["when are results published", "results-public"],
       ["forgot my password", "change-password"],
       // participants
       ["how do i join a team", "teams"],
@@ -570,7 +568,7 @@ describe("the third pass: partial hits count for less, strong matches stay first
     expect(cases.length).toBeGreaterThanOrEqual(25);
     const wrong = cases.map(([q, id]) => ({ q, id, got: top(q, visitor) })).filter((c) => c.got !== c.id);
     expect(wrong).toEqual([]);
-    const misses = ["can i change my email address", "how do i change my name", "who can see my scores", "can i rename my account"];
+    const misses = ["can i change my email address", "how do i change my name", "can i rename my account"];
     for (const [name, v] of readers) expect(misses.filter((q) => ask(q, v).matches.length), name).toEqual([]);
   });
 

@@ -267,6 +267,9 @@ nowhere.
 `tests/help.test.ts` holds the guide to the code (each link to a route file, each role to a real one, each
 document heading to its file) and the matcher to over 60 questions as people type them, with nonsense and over 20
 realistic questions the guide does not cover (a venue, a refund, a mobile app) answered "no match".
+`tests/help-corpus.test.ts` asks over 240 questions (when something opens or closes, where to do something, who can
+see what) as a visitor, a team member, a judge, an organizer and an administrator, and expects for each reader the
+entry that answers it first, or "no match" where the portal has no answer.
 
 ## Audit log
 

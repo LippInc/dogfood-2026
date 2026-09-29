@@ -77,7 +77,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["everyone"],
     answer:
       "Open any project from the gallery: its page has the team, the write-up, links, pictures and comments, and once results are out its place and score with the ±.",
-    keywords: ["project details", "project page", "one project", "demo link", "repository", "repo", "description", "team members"],
+    keywords: ["project details", "project page", "one project", "demo link", "repository", "repo", "description", "team members", "who can see my project", "can other teams see my project"],
   },
   {
     id: "about",
@@ -85,8 +85,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     title: "About",
     href: "/events/[event]/about",
     who: ["everyone"],
-    answer: "The event's dates (submissions, judging, voting), its tracks, prizes and the rubric judges score against, with each criterion's weight.",
-    keywords: ["dates", "deadline", "when", "schedule", "timeline", "rules", "prizes", "tracks", "criteria", "rubric", "how are projects judged"],
+    answer: "The event's dates (submissions, judging, voting), its tracks, prizes and the rubric judges score against, with each criterion's weight. Times are shown in UTC. Organizers set the dates in Settings and the vote's window on the Community vote tab.",
+    keywords: ["dates", "deadline", "when", "schedule", "timeline", "rules", "prizes", "tracks", "criteria", "rubric", "how are projects judged", "submissions close", "submit until", "voting opens", "voting closes", "vote until", "when is the event", "time zone"],
   },
   {
     id: "results-public",
@@ -96,7 +96,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["everyone"],
     answer:
       "Hidden until the organizers publish. Then every project in every track shows its place and its score with the ±, and \"How this ranking was reached\" explains the method.",
-    keywords: ["results", "winners", "who won", "ranking", "leaderboard", "places", "standings", "final scores", "public results"],
+    keywords: ["results", "winners", "who won", "ranking", "leaderboard", "places", "standings", "final scores", "public results", "results out", "results come out", "when are results out", "verify the results", "check the results"],
   },
   {
     id: "results-overall",
@@ -166,7 +166,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/privacy",
     who: ["everyone"],
     answer: "Everything the portal stores about people, how long it stays and what removes it. There are no analytics or tracking scripts, and no raw network addresses are stored.",
-    keywords: ["privacy", "personal data", "gdpr", "data kept", "tracking", "is my activity tracked", "activity", "cookies", "delete my data", "delete my account", "who can see my email", "retention", "what do you store"],
+    keywords: ["privacy", "personal data", "gdpr", "data kept", "tracking", "is my activity tracked", "activity", "cookies", "delete my data", "delete my account", "who can see my email", "retention", "what do you store", "is my data safe", "data safe"],
     doc: { file: "docs/OPERATIONS.md", heading: "Personal data" },
   },
   {
@@ -199,7 +199,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["signed-in", "participant"],
     answer:
       "Your team's page: start or join a team, fill in the project and hand it in before the close. Once results are published it shows your place, your score with its ±, each review's feedback and your certificate.",
-    keywords: ["my project", "my team", "team page", "my submission", "my reviews", "my feedback", "my score", "my place", "take part", "participate"],
+    keywords: ["my project", "my team", "team page", "my submission", "my feedback", "my score", "my place", "take part", "participate"],
   },
   {
     id: "hand-in",
@@ -209,7 +209,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["signed-in", "participant"],
     answer:
       "On My project, Start a team (or join one with a teammate's invite link), fill in the title and one-line summary, Save draft, then Submit project. You can edit it until submissions close; the server refuses changes after that.",
-    keywords: ["submit", "hand in", "submission", "submit project", "save draft", "edit my project", "deadline", "enter the hackathon", "upload project", "take part", "start a team"],
+    keywords: ["submit", "hand in", "submit project", "save draft", "edit my project", "enter the hackathon", "upload project", "take part", "start a team", "submit late", "late"],
     doc: { file: "README.md", heading: "A guided tour" },
   },
   {
@@ -219,7 +219,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/events/[event]/my-project",
     who: ["signed-in", "participant"],
     answer:
-      "Start a team on My project and share its invite link; teammates open it to join. Before the deadline a member can rename the team or leave, and the captain can take a member off or hand over the captaincy.",
+      "Start a team on My project and share its invite link; teammates open it to join. Before the deadline a member can rename the team or leave, and the captain can take a member off or hand over the captaincy. The last member can dissolve the team, which deletes its draft; a submitted project stays.",
     keywords: ["team", "teammate", "join team", "invite link", "add member", "captain", "leave team", "rename team", "change team name", "team name", "team size", "people per team", "dissolve"],
     doc: { file: "docs/FEATURES.md", heading: "Events and teams" },
   },
@@ -229,8 +229,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     title: "Your reviews and place",
     href: "/events/[event]/my-project",
     who: ["participant"],
-    answer: "After the results are published, My project shows your team's place, the score with its ±, and each judge's written feedback, with the judges unnamed.",
-    keywords: ["my reviews", "feedback", "what did judges say", "my score", "judge comments", "my place", "how did we do"],
+    answer: "After the results are published, My project shows your team's place, the score with its ±, and each judge's written feedback, with the judges unnamed. The place and score are public on the Results page too; the written feedback is on no public page.",
+    keywords: ["my reviews", "feedback", "what did judges say", "my score", "judge comments", "my place", "how did we do", "who can see my score", "who can see my feedback", "can participants see scores", "participants see scores"],
   },
   {
     id: "comments",
@@ -240,7 +240,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["signed-in", "organizer"],
     answer:
       "Signed in, you can comment on any project's page and delete your own comments; they cannot be edited. An organizer can hide a comment with a reason and unhide it again.",
-    keywords: ["comment", "comments", "discussion", "hide comment", "delete comment", "moderate", "reply"],
+    keywords: ["comment", "comments", "discussion", "hide comment", "delete comment", "moderate", "reply", "leave a comment", "write a comment", "post a comment"],
     doc: { file: "docs/FEATURES.md", heading: "Comments" },
   },
 
@@ -286,7 +286,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["everyone"],
     answer:
       "While voting is open only the organizers see the count; everyone sees it when the window closes, and it is final from then on. Publishing the results closes an open vote, so nobody votes with the ranking in view.",
-    keywords: ["hidden votes", "how many votes", "tally", "vote results", "when can i see the votes", "null count", "public count"],
+    keywords: ["hidden votes", "how many votes", "tally", "vote results", "see the votes", "null count", "public count"],
     doc: { file: "docs/FEATURES.md", heading: "Community vote" },
   },
 
@@ -298,8 +298,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/events/[event]/about",
     who: ["everyone"],
     answer:
-      "Organizers set \"Judging closes\" (UTC) in Settings; the event's About page shows it in its timeline and the judge console says when judging closes. Scoring stops then, or when results are published if that comes first; with no time set, judging runs until publishing.",
-    keywords: ["judging closes", "judging close", "judging ends", "judging end", "end of judging", "close time", "judging time", "how long can judges score", "timeline"],
+      "Judging starts when submissions close. Organizers set \"Judging closes\" (UTC) in Settings; the event's About page shows it in its timeline and the judge console says when judging closes. Scoring stops then, or when results are published if that comes first; with no time set, judging runs until publishing.",
+    keywords: ["when", "judging closes", "judging close", "judging ends", "judging end", "end of judging", "close time", "judging time", "how long can judges score", "timeline", "judging start", "judging starts", "when does judging start"],
     doc: { file: "JUDGING.md", heading: "Scoring" },
   },
   {
@@ -310,18 +310,18 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["everyone"],
     answer:
       "Judges score each rubric criterion (1 to 5 on the sample event); a review's total is Σ weight × score ÷ Σ weight and counts only once every criterion is scored. Each judge's leniency is corrected before ranking, and every score carries its ±; in pairwise mode judges pick the better of two instead.",
-    keywords: ["how are projects scored", "projects scored", "how scoring works", "score calculation", "calculated", "total score", "weighted total", "review total", "how is the score calculated"],
+    keywords: ["how are projects scored", "projects scored", "how scoring works", "score calculation", "calculated", "total score", "weighted total", "review total", "how is the score calculated", "how does judging work", "how judging works", "how winners are chosen", "winners chosen"],
     doc: { file: "JUDGING.md", heading: "Scoring" },
   },
   {
     id: "judge-console",
     kind: "page",
-    title: "Judge console",
+    title: "Score in the judge console",
     href: "/judge/[event]",
     who: ["judge"],
     answer:
       "Where a judge scores the projects they were given: keys 1 to 5 score each criterion, every change saves by itself, and \"your ranking so far\" lists your own finished reviews. You only ever see your own scores.",
-    keywords: ["judge console", "score", "scoring", "rate projects", "my batch", "my scores", "judging", "review projects", "grade", "autosave", "where do i judge"],
+    keywords: ["judge console", "score", "scoring", "rate projects", "my batch", "my scores", "judging", "review projects", "grade", "autosave", "where do i judge", "score a project", "edit a score"],
     doc: { file: "JUDGING.md", heading: "Scoring" },
   },
   {
@@ -342,7 +342,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["judge"],
     answer:
       "A judge sees only their own scores. Asking for another judge's scores is refused with 403, and that refusal is written to the audit log.",
-    keywords: ["other judges scores", "see other judges", "peer scores", "403", "forbidden", "isolation", "can i see", "another judge"],
+    keywords: ["other judges scores", "see other judges", "peer scores", "403", "forbidden", "isolation", "can i see", "another judge", "who can see my scores"],
     doc: { file: "JUDGING.md", heading: "Scoring" },
   },
   {
@@ -438,7 +438,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["organizer"],
     answer:
       "The vote's window and who may vote (accounts, a voter list, the open link), the live count only organizers see while it is open, suspected duplicate ballots to set aside, and personal voter links.",
-    keywords: ["voting tab", "votes", "vote count", "see votes", "live count", "turnout", "voter list", "duplicate ballots", "voting window", "open voting"],
+    keywords: ["voting tab", "votes", "vote count", "see votes", "live count", "turnout", "voter list", "duplicate ballots", "voting window", "open voting", "close voting"],
     doc: { file: "docs/FEATURES.md", heading: "Community vote" },
   },
   {
@@ -481,7 +481,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["organizer"],
     answer:
       "The event's name, dates, team size and certificate places, its organizers, tracks, prizes, what teams fill in, questions for teams, how judges judge (scores or pairwise), the scoring rubric with its weights and how exact ties are broken. Every save is audited.",
-    keywords: ["settings", "configure", "dates", "deadline", "team size", "tracks", "prizes", "rubric", "weights", "criteria", "questions", "fields", "co-organizer"],
+    keywords: ["settings", "configure", "dates", "deadline", "team size", "tracks", "prizes", "rubric", "weights", "criteria", "questions", "fields", "co-organizer", "change the deadline", "extend the deadline", "change dates", "close submissions", "reopen submissions", "extend submissions", "submission deadline", "add tracks"],
   },
   {
     id: "team-organizer",
@@ -624,7 +624,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["organizer"],
     answer:
       "Every stage exports as CSV (scores, projects, normalized ranking, audit log), and the whole event as event.json or fixtures.json: download them on the Overview or Integrations. Each is also an API route.",
-    keywords: ["export", "download", "csv", "excel", "event.json", "fixtures.json", "scores.csv", "normalized.csv", "audit.csv", "spreadsheet", "backup data"],
+    keywords: ["export", "download", "csv", "excel", "event.json", "fixtures.json", "scores.csv", "normalized.csv", "audit.csv", "spreadsheet", "backup data", "export results", "download results"],
     doc: { file: "docs/FEATURES.md", heading: "Import and export" },
   },
   {
@@ -844,7 +844,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["judge", "organizer"],
     answer:
       "Under the rubric, the console lists the judge's own finished reviews by their totals, so a judge can calibrate against themselves. It uses only that judge's scores; an organizer can hide it in Settings, \"How judges judge\".",
-    keywords: ["ranking so far", "my ranking", "own ranking", "calibrate", "compare my scores", "drift"],
+    keywords: ["ranking so far", "my ranking", "own ranking", "calibrate", "compare against own totals", "my rank", "drift"],
     doc: { file: "JUDGING.md", heading: "Scoring" },
   },
   {
@@ -861,12 +861,12 @@ export const HELP_ENTRIES: HelpEntry[] = [
   {
     id: "freeze",
     kind: "concept",
-    title: "After publishing: the freeze",
+    title: "After the results: the freeze",
     href: "/events/[event]/results",
     who: ["everyone"],
     answer:
       "Publishing stores the exact run it publishes; from then on the database refuses to change a score or answer or to swap the results, and the rubric, dates, tracks and assignments are final too. Results cannot be unpublished.",
-    keywords: ["freeze", "frozen", "after publish", "unpublish", "change results", "final", "locked", "edit scores after", "post-publish"],
+    keywords: ["freeze", "frozen", "unpublish", "change results", "final", "locked", "edit scores after"],
     doc: { file: "JUDGING.md", heading: "Normalization" },
   },
   {
