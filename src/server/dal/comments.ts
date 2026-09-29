@@ -133,7 +133,7 @@ export function deleteComment(actor: Actor | null, commentId: string) {
   });
 }
 
-/** An organizer shows a hidden comment again; the row keeps the reason it was hidden with. */
+/** An organizer shows a hidden comment again; the row's hidden reason is cleared, and the audit row keeps it. */
 export function unhideComment(actor: Actor | null, commentId: string) {
   let comment: typeof comments.$inferSelect;
   return mutate({

@@ -329,6 +329,7 @@ export const OPERATIONS: Operation[] = [
     body: In.RecordRequest,
     ok: 201,
     answers: { 200: "The record existed already: the same one again" },
+    note: "403 when there is no such record of yours: a judging record needs a judge of the event with a finished review or a pairwise answer, a certificate a member of a team that submitted, and both need the results published. 422 when kind is not judge or participant.",
   },
   { method: "POST", path: "/api/events/{event}/records/all", tag: "Records", summary: "Issue every record not issued yet", access: "organizer" },
   { method: "GET", path: "/api/records/{record}", tag: "Records", summary: "One signed record and the portal's check of it", access: "anyone" },

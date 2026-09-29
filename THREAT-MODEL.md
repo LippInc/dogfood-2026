@@ -64,7 +64,7 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 **What is built:** every refusal of a known person writes one audit row, so refusals are capped: past 60 in 10 minutes, one person (an account, or a voter holding a link) is answered 429 and nothing is written. A request with no valid session (401) never writes a row.
 
-**What is not:** a cap across people. Many accounts, each under its own ceiling, still add rows; making accounts is itself limited (60 sign-ups and password sign-ins per network address in 10 minutes).
+**What is not:** a cap across people. Many accounts, each under its own ceiling, still add rows; making accounts is itself limited (300 sign-ups and password sign-ins per network address in 10 minutes by default, the operator's `SIGN_IN_LIMIT_PER_ADDRESS`; see "Deadline gaming").
 
 ## The public default secret
 
