@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { compareNames } from "@/lib/names";
 import { z } from "zod";
-import { competitionPlaces, DECIDED_SUFFIX, ordinal, tieDecided } from "@/lib/places";
+import { DECIDED_SUFFIX, ordinal, publishedPlaces, tieDecided } from "@/lib/places";
 import { appendAudit, anchorHolds, chainHead, type ChainAnchor } from "../audit";
 import type { Actor, Resource } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
@@ -79,7 +79,7 @@ function awards(event: EventRow, projectId: string): string[] {
     for (const t of results.tracks) {
       const i = t.rows.findIndex((r) => r.projectId === projectId);
       if (i < 0) continue;
-      const p = competitionPlaces(t.rows)[i]!;
+      const p = publishedPlaces(t.rows)[i]!;
       // a place the event's tie-break decided says so (JUDGING.md, "Breaking exact ties"), and so does a winner the judges
       // named on a close call (JUDGING.md, "Close calls and the judges' decision")
       const broke = tieDecided(t.rows[i]!, p) && results.tieBreak ? `, tie broken by ${results.tieBreak.criterion}` : "";

@@ -622,6 +622,104 @@ export const normalizedScores = sqliteTable(
 );
 
 // ---------------------------------------------------------------------------
+// Finals: a second round in which a panel of judges scores the finalists (JUDGING.md, "Finals")
+// ---------------------------------------------------------------------------
+
+// One finals round for one track, or for every track at once (track_id null). The first round's
+// tables are not touched: the finals only add rows here, and the published places read both.
+export const finals = sqliteTable(
+  "finals",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").notNull().references(() => events.id),
+    // null: the finals take the finalists of every track, judged by one panel
+    trackId: text("track_id"),
+    // how many per track the organizer asked to be suggested (the top N by first-round places)
+    suggested: integer("suggested").notNull(),
+    openedAt: text("opened_at").notNull(),
+    openedBy: text("opened_by").notNull().references(() => users.id),
+    closedAt: text("closed_at"),
+    closedBy: text("closed_by").references(() => users.id),
+    // why the organizer closed before every panelist had scored every finalist; null otherwise
+    closeReason: text("close_reason"),
+  },
+  (t) => [
+    uniqueIndex("finals_id_event_uq").on(t.id, t.eventId),
+    index("finals_event_idx").on(t.eventId),
+    foreignKey({ columns: [t.trackId, t.eventId], foreignColumns: [tracks.id, tracks.eventId] }),
+    check("finals_suggested_range", sql`${t.suggested} between 1 and 50`),
+    check("finals_opened_iso", isoTimestamp(t.openedAt)),
+    check("finals_closed_iso", isoOrNull(t.closedAt)),
+    check("finals_closed_by", doneBy(t.closedAt, t.closedBy)),
+    check("finals_reason_only_closed", sql`${t.closeReason} is null or ${t.closedAt} is not null`),
+  ],
+);
+
+export const finalists = sqliteTable(
+  "finalists",
+  {
+    finalsId: text("finals_id").notNull(),
+    eventId: text("event_id").notNull(),
+    projectId: text("project_id").notNull(),
+    // why the organizer added it against the first-round ranking; null when it came from the suggestion
+    reason: text("reason"),
+    addedAt: text("added_at").notNull(),
+    addedBy: text("added_by").notNull().references(() => users.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.finalsId, t.projectId] }),
+    foreignKey({ columns: [t.finalsId, t.eventId], foreignColumns: [finals.id, finals.eventId] }),
+    foreignKey({ columns: [t.projectId, t.eventId], foreignColumns: [projects.id, projects.eventId] }),
+    check("finalists_added_iso", isoTimestamp(t.addedAt)),
+  ],
+);
+
+export const finalsPanel = sqliteTable(
+  "finals_panel",
+  {
+    finalsId: text("finals_id").notNull(),
+    eventId: text("event_id").notNull(),
+    judgeUserId: text("judge_user_id").notNull().references(() => users.id),
+    addedAt: text("added_at").notNull(),
+    addedBy: text("added_by").notNull().references(() => users.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.finalsId, t.judgeUserId] }),
+    foreignKey({ columns: [t.finalsId, t.eventId], foreignColumns: [finals.id, finals.eventId] }),
+    check("finals_panel_added_iso", isoTimestamp(t.addedAt)),
+  ],
+);
+
+// A panelist's score of one finalist: one row per panelist and finalist, its values per criterion below.
+export const finalsScores = sqliteTable(
+  "finals_scores",
+  {
+    id: text("id").primaryKey(),
+    finalsId: text("finals_id").notNull(),
+    eventId: text("event_id").notNull(),
+    projectId: text("project_id").notNull(),
+    judgeUserId: text("judge_user_id").notNull().references(() => users.id),
+    savedAt: text("saved_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("finals_scores_one_uq").on(t.finalsId, t.projectId, t.judgeUserId),
+    foreignKey({ columns: [t.finalsId, t.eventId], foreignColumns: [finals.id, finals.eventId] }),
+    foreignKey({ columns: [t.projectId, t.eventId], foreignColumns: [projects.id, projects.eventId] }),
+    check("finals_scores_saved_iso", isoTimestamp(t.savedAt)),
+  ],
+);
+
+export const finalsScoreItems = sqliteTable(
+  "finals_score_items",
+  {
+    finalsScoreId: text("finals_score_id").notNull().references(() => finalsScores.id),
+    criterionId: text("criterion_id").notNull().references(() => rubricCriteria.id),
+    value: integer("value").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.finalsScoreId, t.criterionId] })],
+);
+
+// ---------------------------------------------------------------------------
 // Community voting and comments (T3)
 // ---------------------------------------------------------------------------
 

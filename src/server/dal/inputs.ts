@@ -29,4 +29,6 @@ export { TieBreakInput } from "./tiebreak";
 export { PublishInput } from "./results";
 export { AwardInput } from "./prize-awards";
 export { UpdateEdit, UpdateInput } from "./updates";
-export { ReminderInput } from "./reminders";export { CloseCallInput } from "./close-calls";
+export { ReminderInput } from "./reminders";
+export { CloseCallInput } from "./close-calls";
+export { CloseFinalsInput, FinalistInput, FinalsScoreInput, OpenFinalsInput, PanelInput, RemoveFinalistInput } from "./finals";

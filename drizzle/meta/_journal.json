@@ -169,6 +169,13 @@
       "when": 1790688128555,
       "tag": "0023_close_calls_final",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1790688129555,
+      "tag": "0024_finals",
+      "breakpoints": true
     }
   ]
 }

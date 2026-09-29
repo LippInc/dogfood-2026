@@ -39,9 +39,10 @@ import { computeNormalization } from "./normalization";
 import { PAIRWISE_METHOD } from "./pairwise";
 import { answeredPairs } from "./judges";
 import { averageRanks } from "../judging/normalize";
-import { competitionPlaces, tieDecided } from "@/lib/places";
+import { publishedPlaces, tieDecided } from "@/lib/places";
 import { getPublishedResults } from "./results";
 import { tieBreakOf } from "./tiebreak";
+import { finalsCsv, finalsExport, finalsHistory } from "./finals";
 import { issuer } from "./records";
 import { eventReviews } from "./scores";
 import { changedFromDefaults } from "@/lib/project-fields";
@@ -236,8 +237,8 @@ function publishedRunCsv(db: DbOrTx, event: EventRow): string | null {
   for (const scores of byTrack.values()) for (const [id, place] of averageRanks(scores)) places.set(id, place);
   const byRank = [...stored].sort((a, b) => (a.rankNormalized ?? 1e9) - (b.rankNormalized ?? 1e9) || a.id.localeCompare(b.id));
 
-  // the tie-break stage, only when the published run used one: three columns more (TIE_HEAD), else the file is as before
-  const tie = tieColumnsFromPublished(event.id);
+  // the tie-break and finals stages, only when the published run used them: their columns follow, else the file is as before
+  const stage = stageColumnsFromPublished(event.id);
 
   if (run.method === PAIRWISE_METHOD) {
     return toCsv(
@@ -258,7 +259,7 @@ function publishedRunCsv(db: DbOrTx, event: EventRow): string | null {
     ];
   const measured = params.measured !== false;
   return toCsv(
-    tie ? [...NORMALIZED_HEAD, ...TIE_HEAD] : NORMALIZED_HEAD,
+    stage ? [...NORMALIZED_HEAD, ...stage.head] : NORMALIZED_HEAD,
     table.map((t) => {
       const p = info.get(t.id);
       const s = byId.get(t.id);
@@ -284,28 +285,53 @@ function publishedRunCsv(db: DbOrTx, event: EventRow): string | null {
         measured && typeof params.sigma2 === "number" ? params.sigma2.toFixed(4) : "",
         (params.excluded ?? []).join(" "),
       ];
-      return tie ? [...row, ...tie(t.id)] : row;
+      return stage ? [...row, ...stage.cols(t.id)] : row;
     }),
   );
 }
 
 const TIE_HEAD = ["tie_break_figure", "track_place", "tie_broken_by"];
 
+const FINALS_HEAD = ["finals_score"];
+
 /**
- * The tie-break's columns for the published run, read from the published results (the stored figures): each tied
- * project's figure on the criterion, every ranked project's place in its track after the tie-break, and the
- * criterion's name where it split the project's tie. Null when the run used no tie-break.
+ * The later stages' columns for the published run, read from the published results: with a tie-break, each tied
+ * project's figure on the criterion (a finalist's: on the panel's finals scores), every ranked project's published
+ * place in its track (`track_place`) and the criterion's name where it split the project's tie; with finals, the
+ * published place too and each finalist's finals score. `track_place` is always the place the results page shows,
+ * after the tie-break and the finals; `track_rank` stays the engine's own average rank. Null when the run used
+ * neither, so the file is exactly as before.
  */
-function tieColumnsFromPublished(eventId: string): ((id: string) => (string | number)[]) | null {
+function stageColumnsFromPublished(eventId: string): { head: string[]; cols: (id: string) => (string | number)[] } | null {
   const r = getPublishedResults(eventId);
-  if (!r.published || !r.tieBreak) return null;
-  const label = r.tieBreak.criterion;
+  if (!r.published) return null;
+  const finals = Boolean(r.finals?.length);
+  if (!r.tieBreak && !finals) return null;
+  const label = r.tieBreak?.criterion ?? "";
   const cols = new Map<string, (string | number)[]>();
   for (const t of r.tracks) {
-    const places = competitionPlaces(t.rows);
-    t.rows.forEach((row, i) => cols.set(row.projectId, [fixed(row.tie, 4), places[i]!.place ?? "", tieDecided(row, places[i]!) ? label : ""]));
+    const places = publishedPlaces(t.rows);
+    t.rows.forEach((row, i) => {
+      const place = places[i]!.place ?? "";
+      const fin = finals ? [fixed(row.finals?.score, 4)] : [];
+      cols.set(row.projectId, r.tieBreak ? [fixed(row.tie, 4), place, tieDecided(row, places[i]!) ? label : "", ...fin] : [place, ...fin]);
+    });
   }
-  return (id) => cols.get(id) ?? ["", "", ""];
+  const head = [...(r.tieBreak ? TIE_HEAD : ["track_place"]), ...(finals ? FINALS_HEAD : [])];
+  return { head, cols: (id) => cols.get(id) ?? head.map(() => "") };
+}
+
+/**
+ * Each project's published place in its track (the results page's, after the tie-break and the finals), for
+ * finals.csv; null before publishing.
+ */
+function publishedPlaceMap(event: EventRow): Map<string, number | null> | null {
+  if (!event.resultsPublishedAt) return null;
+  const r = getPublishedResults(event.id);
+  if (!r.published) return null;
+  const out = new Map<string, number | null>();
+  for (const t of r.tracks) publishedPlaces(t.rows).forEach((p, i) => out.set(t.rows[i]!.projectId, p.place));
+  return out;
 }
 
 /**
@@ -357,6 +383,7 @@ function eventJson(db: DbOrTx, event: EventRow): string {
     ? db.select().from(scores).where(inArray(scores.assignmentId, assignmentRows.map((a) => a.id))).all()
     : [];
   const scoreIds = scoreRows.map((x) => x.id);
+  const finals = finalsExport(db, event.id);
   return JSON.stringify(
     {
       format: "dogfood-portal/event-export/v1",
@@ -392,6 +419,8 @@ function eventJson(db: DbOrTx, event: EventRow): string {
       judgeOverrides: db.select().from(judgeOverrides).where(eq(judgeOverrides.eventId, event.id)).all(),
       normalizationRuns: db.select().from(normalizationRuns).where(eq(normalizationRuns.eventId, event.id)).all(),
       comparisons: db.select().from(comparisons).where(eq(comparisons.eventId, event.id)).all(),
+      // only an event that held finals has this key, so every other event's export is as it was
+      ...(finals ? { finals } : {}),
     },
     null,
     2,
@@ -858,6 +887,7 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
 
   // the organizers' updates, oldest first, as posted and last edited
   const updateRows = db.select().from(eventUpdates).where(eq(eventUpdates.eventId, event.id)).orderBy(asc(eventUpdates.createdAt), asc(eventUpdates.id)).all();
+  const finalsRounds = finalsHistory(db, event.id, submitted, judgeIds);
 
   let published: Record<string, unknown> | null = null;
   const runId = s.publishedRunId;
@@ -921,6 +951,8 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
       ...(updateRows.length
         ? { updates: updateRows.map((u) => ({ id: u.id, title: u.title, body: u.body, at: u.createdAt, ...(u.editedAt ? { edited_at: u.editedAt } : {}) })) }
         : {}),
+      // the finals (JUDGING.md, "Finals"), before the published ranking, as an import restores them
+      ...(finalsRounds.length ? { finals: finalsRounds } : {}),
       ...(published ? { published } : {}),
     },
   };
@@ -951,6 +983,7 @@ const EXPORTS: Record<string, Exporter> = {
   "votes.csv": votesCsv,
   "comments.csv": commentsCsv,
   "awards.csv": awardsCsv,
+  "finals.csv": (db, event) => finalsCsv(db, event, publishedPlaceMap(event)),
   "event.json": eventJson,
   "fixtures.json": fixturesJson,
 };

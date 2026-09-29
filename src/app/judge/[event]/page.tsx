@@ -5,7 +5,7 @@ import { Face } from "@/components/face";
 import { WorkShell } from "@/components/shell/work-shell";
 import { formatUtc } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, getJudgeConsole, getPairwiseState, myRecords, type Actor, type PairwiseState } from "@/server/dal";
+import { currentActor, getJudgeConsole, getPairwiseState, myRecords, onFinalsPanel, type Actor, type PairwiseState } from "@/server/dal";
 import { openOwnRecord } from "../../records/actions";
 import { CompareView } from "./compare";
 import { JudgeConsoleView } from "./console";
@@ -97,9 +97,16 @@ function JudgeTools({ actor, event, judged, keys }: { actor: Actor; event: Judge
       : "Judging stays open until the organizers publish results";
   const record = event.resultsPublishedAt ? myRecords(actor, event.slug).find((r) => r.kind === "judge") : undefined;
   const recordButton = "inline-flex h-8 items-center rounded-sm border border-edge px-3 text-13 font-medium whitespace-nowrap hover:bg-raised";
+  // only a judge on a finals panel gets the link, so every other judge's toolbar is as it was
+  const finals = onFinalsPanel(actor, event.slug);
   return (
     <>
       <span className="hidden text-13 whitespace-nowrap text-ink-2 xl:inline">{closes}</span>
+      {finals ? (
+        <Link href={`/judge/${event.slug}/finals`} className={recordButton}>
+          Finals
+        </Link>
+      ) : null}
       {record ? (
         <Link href={`/records/${record.id}`} className={recordButton}>
           Your judging record

@@ -2,8 +2,8 @@ import "server-only";
 // An event's history in its event file: what the portal's own fixtures.json export carries beyond the organizers'
 // format (dal/exports.ts eventHistory), and how an import restores it. All of it comes into a NEW event only; into an
 // event that is here already a row the event holds counts as present, and a file that would add one is refused whole
-// (409 new_event_only), so an import never adds a ballot, a comment, a pairwise answer, a merge, a decision, an update
-// or a published ranking to an event that is running here.
+// (409 new_event_only), so an import never adds a ballot, a comment, a pairwise answer, a merge, a decision, an update,
+// a finals round or a published ranking to an event that is running here.
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Tx } from "./client";
@@ -16,6 +16,11 @@ import {
   comparisons,
   eventUpdates,
   events,
+  finalists,
+  finals,
+  finalsPanel,
+  finalsScoreItems,
+  finalsScores,
   judgeOverrides,
   normalizationRuns,
   normalizedScores,
@@ -33,7 +38,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /** How many rows of each part one file may bring (the whole history of one event arrives in one file). */
-export const HISTORY_LIMITS = { prizes: 40, decisions: 2_000, changes: 500, comparisons: 50_000, ballots: 50_000, picks: 20, comments: 20_000, published: 2_000, updates: 2_000 } as const;
+export const HISTORY_LIMITS = { prizes: 40, decisions: 2_000, changes: 500, comparisons: 50_000, ballots: 50_000, picks: 20, comments: 20_000, published: 2_000, updates: 2_000, finals: 50, finalists: 500, finalsScores: 25_000 } as const;
 
 /** SQLite's trim() takes off spaces only; the database's checks count what is left, so the file is held to the same count. */
 const sqlTrimmed = (s: string) => s.replace(/^ +| +$/g, "");
@@ -248,6 +253,26 @@ export const HistoryFields = {
     )
     .max(HISTORY_LIMITS.updates, atMost(HISTORY_LIMITS.updates, "updates"))
     .optional(),
+  finals: z
+    .array(
+      z.object({
+        id,
+        track: id.nullable(),
+        suggested: z.number().int().min(1).max(50),
+        opened_at: dateTime,
+        closed_at: dateTime.optional(),
+        close_reason: reason.optional(),
+        finalists: z
+          .array(z.object({ project: id, added_at: dateTime, reason: reason.optional() }))
+          .max(HISTORY_LIMITS.finalists, atMost(HISTORY_LIMITS.finalists, "finalists")),
+        panel: z.array(id).max(50, "at most 50 panelists"),
+        scores: z
+          .array(z.object({ id, judge: id, project: id, saved_at: dateTime, values: z.record(z.string().max(200), z.number().int()) }))
+          .max(HISTORY_LIMITS.finalsScores, atMost(HISTORY_LIMITS.finalsScores, "finals scores")),
+      }),
+    )
+    .max(HISTORY_LIMITS.finals, atMost(HISTORY_LIMITS.finals, "finals rounds"))
+    .optional(),
   published: z
     .object({
       at: dateTime,
@@ -338,7 +363,7 @@ export function refuseHistoryForExistingEvent(
 ) {
   // a row an earlier import brought under a renamed id ('<id>.<event id>', another event held the file's) is present too
   const renamed = (x: string) => `${x}.${eventId}`;
-  const idsIn = (table: typeof comments | typeof comparisons | typeof judgeOverrides | typeof voters | typeof eventUpdates, ids: string[]) => {
+  const idsIn = (table: typeof comments | typeof comparisons | typeof judgeOverrides | typeof voters | typeof eventUpdates | typeof finals, ids: string[]) => {
     const held = new Set<string>();
     // in slices, so a file of 50,000 ballots stays inside SQLite's limit on one statement's variables
     for (let i = 0; i < ids.length; i += 500) {
@@ -364,6 +389,8 @@ export function refuseHistoryForExistingEvent(
   const judgeDecisions = count(decisionIds, idsIn(judgeOverrides, decisionIds));
   const updateIds = (file.updates ?? []).map((u) => u.id);
   const updateCount = count(updateIds, idsIn(eventUpdates, updateIds));
+  const roundIds = (file.finals ?? []).map((f) => f.id);
+  const rounds = count(roundIds, idsIn(finals, roundIds));
 
   const s = published.settings;
   const inList = <T>(list: T[] | undefined, held: T[] | undefined): Counts => {
@@ -434,6 +461,7 @@ export function refuseHistoryForExistingEvent(
   if (merges.missing) adds.push(plural(merges.missing, "duplicate merge"));
   if (judgeDecisions.missing + otherDecisions.missing) adds.push(plural(judgeDecisions.missing + otherDecisions.missing, "decision"));
   if (updateCount.missing) adds.push(plural(updateCount.missing, "update"));
+  if (rounds.missing) adds.push(plural(rounds.missing, "finals round"));
   if (ranking.missing) adds.push("a published ranking");
   if (adds.length) {
     const list = adds.length === 1 ? adds[0] : `${adds.slice(0, -1).join(", ")} and ${adds.at(-1)}`;
@@ -448,6 +476,7 @@ export function refuseHistoryForExistingEvent(
     comparisons: answers.present,
     judgeOverrides: judgeDecisions.present,
     normalizationRuns: ranking.present,
+    finals: rounds.present,
   };
 }
 
@@ -455,7 +484,20 @@ export function refuseHistoryForExistingEvent(
 // A new event: restore it all
 // ---------------------------------------------------------------------------
 
-export type HistoryTable = "prizes" | "judgeOverrides" | "comparisons" | "voters" | "votes" | "comments" | "normalizationRuns" | "normalizedScores";
+export type HistoryTable =
+  | "prizes"
+  | "judgeOverrides"
+  | "comparisons"
+  | "voters"
+  | "votes"
+  | "comments"
+  | "normalizationRuns"
+  | "normalizedScores"
+  | "finals"
+  | "finalists"
+  | "finalsPanel"
+  | "finalsScores"
+  | "finalsScoreItems";
 
 /** What the restore brought, by id, for the import's audit row (a ballot by its voter and how many picks, never the picks). */
 export type RestoredHistory = {
@@ -467,6 +509,8 @@ export type RestoredHistory = {
   comments: string[];
   /** the organizers' updates, by id; only when the file brings some */
   updates?: string[];
+  /** finals rounds, with how many finalists, panelists and finals scores each brought; present only when the file had finals */
+  finals?: { round: string; finalists: number; panel: number; scores: number }[];
   published?: { run: string; at: string };
   /** projects moved to another track on the portal the event came from; the event's track moves are read from here too */
   trackMoves?: TrackMove[];
@@ -491,7 +535,7 @@ export type RestoreContext = {
 };
 
 /** A file id for a row of one of these tables: the id itself when no other event holds it, else the id with this event's after it. */
-function freeId(tx: Tx, table: typeof prizes | typeof comments | typeof comparisons | typeof judgeOverrides | typeof voters | typeof normalizationRuns | typeof eventUpdates, fileId: string, eventId: string, kind: string, renamed: (from: string, to: string) => void): string {
+function freeId(tx: Tx, table: typeof prizes | typeof comments | typeof comparisons | typeof judgeOverrides | typeof voters | typeof normalizationRuns | typeof eventUpdates | typeof finals | typeof finalsScores, fileId: string, eventId: string, kind: string, renamed: (from: string, to: string) => void): string {
   const holder = (x: string) => tx.select({ e: table.eventId }).from(table).where(eq(table.id, x)).get()?.e;
   if (holder(fileId) === undefined) return fileId;
   const other = `${fileId}.${eventId}`;
@@ -828,6 +872,76 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
       const updateId = freeId(tx, eventUpdates, u.id, eventId, "update", rename("update"));
       tx.insert(eventUpdates).values({ id: updateId, eventId, title: u.title, body: u.body, createdBy: by, createdAt: u.at, editedAt: u.edited_at ?? null }).onConflictDoNothing().run();
       out.updates.push(updateId);
+    }
+  }
+
+  // The finals (JUDGING.md, "Finals"): each round with its finalists, panel and scores, before the publication that
+  // freezes them. The values come by criterion key; a score with a key this rubric lacks, or a value off its scale,
+  // stays out (named in the report) rather than stopping the import at the database's scale check.
+  if (file.finals?.length) {
+    out.finals = [];
+    const criteria = tx.select({ id: rubricCriteria.id, key: rubricCriteria.key, min: rubricCriteria.scaleMin, max: rubricCriteria.scaleMax }).from(rubricCriteria).where(eq(rubricCriteria.eventId, eventId)).all();
+    for (const f of file.finals) {
+      const trackId = f.track === null ? null : (ctx.trackOf.get(f.track) ?? null);
+      if (f.track !== null && !trackId) {
+        ctx.skip("finals", f.id, `unknown track ${f.track}`);
+        continue;
+      }
+      const finalsId = freeId(tx, finals, f.id, eventId, "finals round", rename("finals"));
+      ctx.bump(
+        "finals",
+        tx
+          .insert(finals)
+          .values({
+            id: finalsId,
+            eventId,
+            trackId,
+            suggested: f.suggested,
+            openedAt: f.opened_at,
+            openedBy: by,
+            closedAt: f.closed_at ?? null,
+            closedBy: f.closed_at ? by : null,
+            closeReason: f.closed_at ? (f.close_reason ?? null) : null,
+          })
+          .onConflictDoNothing()
+          .run().changes,
+      );
+      let nFinalists = 0;
+      for (const x of f.finalists) {
+        const project = projectHere(x.project);
+        if (!project) {
+          ctx.skip("finalist", `${f.id}:${x.project}`, `unknown project ${x.project}`);
+          continue;
+        }
+        ctx.bump("finalists", tx.insert(finalists).values({ finalsId, eventId, projectId: project, reason: x.reason ?? null, addedAt: x.added_at, addedBy: by }).onConflictDoNothing().run().changes);
+        nFinalists++;
+      }
+      let nPanel = 0;
+      for (const j of new Set(f.panel)) {
+        const judge = ctx.accountOf.get(j);
+        if (!judge) {
+          ctx.skip("panelist", `${f.id}:${j}`, `unknown judge ${j}`);
+          continue;
+        }
+        ctx.bump("finalsPanel", tx.insert(finalsPanel).values({ finalsId, eventId, judgeUserId: judge, addedAt: f.opened_at, addedBy: by }).onConflictDoNothing().run().changes);
+        nPanel++;
+      }
+      let nScores = 0;
+      for (const sc of f.scores) {
+        const judge = ctx.accountOf.get(sc.judge);
+        const project = projectHere(sc.project);
+        const items = Object.entries(sc.values).map(([key, value]) => ({ c: criteria.find((c) => c.key === key), key, value }));
+        const bad = items.find((i) => !i.c || i.value < i.c.min || i.value > i.c.max);
+        if (!judge || !project || bad) {
+          ctx.skip("finals score", sc.id, !judge ? `unknown judge ${sc.judge}` : !project ? `unknown project ${sc.project}` : `criterion ${bad!.key} is not on this rubric's scale`);
+          continue;
+        }
+        const scoreId = freeId(tx, finalsScores, sc.id, eventId, "finals score", rename("finals score"));
+        ctx.bump("finalsScores", tx.insert(finalsScores).values({ id: scoreId, finalsId, eventId, projectId: project, judgeUserId: judge, savedAt: sc.saved_at }).onConflictDoNothing().run().changes);
+        for (const i of items) ctx.bump("finalsScoreItems", tx.insert(finalsScoreItems).values({ finalsScoreId: scoreId, criterionId: i.c!.id, value: i.value }).onConflictDoNothing().run().changes);
+        nScores++;
+      }
+      out.finals.push({ round: finalsId, finalists: nFinalists, panel: nPanel, scores: nScores });
     }
   }
 

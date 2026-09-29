@@ -8,7 +8,7 @@ import { getDb, type DbOrTx } from "../db/client";
 import { assignments, auditLog, events, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, users, type WeightChange } from "../db/schema";
 import type { ChainAnchor } from "../audit";
 import { formatUtc } from "@/lib/format";
-import { competitionPlaceOf, competitionPlaces } from "@/lib/places";
+import { competitionPlaceOf, competitionPlaces, publishedPlaces } from "@/lib/places";
 import { ConflictError } from "../errors";
 import { averageRanks, type SignalCheck } from "../judging/normalize";
 import type { Bias } from "../judging/pairwise";
@@ -30,6 +30,7 @@ import { organizerChangesAfterCloseByProject } from "./teams";
 import { tieBreakOf, type TieBreakView } from "./tiebreak";
 import { breakTies } from "../judging/tiebreak";
 import type { TieBreakChange } from "../db/schema";
+import { finalsOpenCount, publishedFinals, type FinalsStanding, type PublishedFinals } from "./finals";
 
 // The organizer's results view (the normalization, its decisions, the judges' private notes
 // and the cross-check between methods), publishing, which stores the run it publishes, and
@@ -256,6 +257,11 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string, body:
         `Submissions are open until ${formatUtc(event.submissionsCloseAt)}. Results can be published once they close.`,
       );
     }
+    // the finals decide the top of their tracks' places: publishing waits until every round is closed
+    const openFinals = finalsOpenCount(tx, event.id);
+    if (openFinals) {
+      throw new ConflictError("finals_open", `${openFinals === 1 ? "A finals round is" : `${openFinals} finals rounds are`} still open. Close ${openFinals === 1 ? "it" : "them"} before publishing.`);
+    }
     const at = new Date().toISOString();
     if (judgingModeOf(event) === "pairwise") {
       // One fit: the decisions are checked on the run that is then stored.
@@ -386,6 +392,12 @@ export type PublishedResults =
       tieBreakChanges?: TieBreakChange[];
       /** how the ranking was reached, in aggregate numbers only: never a judge's id, name or own figure */
       evidence: RankingEvidence;
+      /**
+       * Present only when the event held finals (JUDGING.md, "Finals"): each closed round's track (null: every track),
+       * when it closed, the organizer's reason when it closed before every panelist scored every finalist, and the
+       * panel's and finalists' counts (never a panelist's name or own score).
+       */
+      finals?: PublishedFinals["rounds"];
       tracks: {
         id: string;
         name: string;
@@ -408,6 +420,14 @@ export type PublishedResults =
           tieBroken?: boolean;
           /** set only on a track's first row when the judges' decision named it the winner */
           decided?: true;
+          /**
+           * Only in a track that held finals: the finalist's finals score (the plain mean of the panelists' weighted
+           * totals, null when nobody on the panel scored it), its ± (one standard error of that mean, null with fewer
+           * than two counted panelists) and how many panelists it counts; null for a project
+           * that was not a finalist. The track's rows are then in the published order and `place` is the published
+           * place: the finalists first, in the finals order, then everyone else in first-round order.
+           */
+          finals?: { score: number | null; se: number | null; n: number } | null;
         }[];
         /** set only when the judges' decision named this track's winner on a close call: their reason, the score order and the close projects */
         decision?: PublishedDecision;
@@ -445,6 +465,8 @@ export type RankingEvidence = {
    * scores' own order with the plain figure, so the page says apart that the decision then moved the first place there.
    */
   decidedIn?: string[];
+  /** only for an event that held finals: the tracks whose top places a finals panel decided */
+  finalsTracks?: number;
 } & (
   | {
       kind: "scores";
@@ -580,6 +602,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     byTrack.set(r.trackId, t);
   }
   const tie = run.method === METHOD ? ((run.params as { tieBreak?: StoredTieBreak }).tieBreak ?? null) : null;
+  const fin = publishedFinals(db, event.id);
   const anchor =
     db
       .select({ entry: auditLog.id, hash: auditLog.hash })
@@ -601,9 +624,14 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     ...(tie ? { tieBreak: { criterion: tie.label } } : {}),
     // every change made after judging began, whatever the setting ended on: a switch back to joint places is a change too
     ...(event.settings.tieBreakChanges?.length ? { tieBreakChanges: event.settings.tieBreakChanges } : {}),
-    evidence: evidenceOf(run.method, run.params as Record<string, unknown>, [...byTrack.values()]),
+    // with finals, the evidence also says in how many tracks a finals panel decided the top places
+    evidence: { ...evidenceOf(run.method, run.params as Record<string, unknown>, [...byTrack.values()]), ...(fin ? { finalsTracks: fin.byTrack.size } : {}) },
+    ...(fin ? { finals: fin.rounds } : {}),
     tracks: [...byTrack.values()].map((t) => {
-      // the published order: the engine's scores, then the tie-break among exact ties, then the judges' decision last
+      // the published order: the engine's scores, then the tie-break among exact ties, then the finals, then the
+      // judges' decision, which applies only to a track without finals (JUDGING.md, "Finals")
+      const standings = fin?.byTrack.get(t.id);
+      if (standings) return { id: t.id, name: t.name, rows: withFinals(placedRows(t.rows, tie, teamChanges), standings, tie?.criterionId ?? null) };
       const decided = judgesDecisions.find((d) => d.trackId === t.id && t.rows.some((r) => r.projectId === d.winnerId));
       if (decided) return decidedTrack(t, decided, tie, teamChanges);
       return { id: t.id, name: t.name, rows: placedRows(t.rows, tie, teamChanges) };
@@ -669,4 +697,44 @@ function decidedTrack(t: { id: string; name: string; rows: StoredRow[] }, d: App
       close: d.close.map((id) => ({ id, title: byId.get(id)?.title ?? id, score: byId.get(id)?.score ?? null, se: byId.get(id)?.se ?? null })),
     },
   };
+}
+/**
+ * A track that held finals, in its published order: the finalists the panel scored by their finals score, then any
+ * finalist nobody scored, then everyone else in first-round order (JUDGING.md, "Finals"). With a tie-break criterion,
+ * an exact tie between finalists' finals scores is broken by the panel's own mean on that criterion, higher first; the
+ * groups below keep the first round's tie-break among themselves. `place` is then the published place, a joint
+ * place given as the mean of the places it spans, as `place` is in a track without finals (averageRanks).
+ */
+function withFinals<R extends { projectId: string; score: number | null; place: number | null; tie?: number | null; tieBroken?: boolean }>(
+  rows: R[],
+  standings: Map<string, FinalsStanding>,
+  tieCriterion: string | null,
+) {
+  const marked = rows.map((r) => {
+    const s = standings.get(r.projectId);
+    return { ...r, finals: s ? { score: s.score, se: s.se, n: s.n } : null };
+  });
+  type M = (typeof marked)[number];
+  // each group re-reads its own ties: a pair the finals split is no longer tied, so it no longer says "tie broken"
+  const regroup = (group: M[], figure: (r: M) => number | null | undefined, score: (r: M) => number | null): M[] => {
+    if (!tieCriterion) return group;
+    const means = new Map(group.flatMap((r) => (typeof figure(r) === "number" ? [[r.projectId, figure(r) as number] as const] : [])));
+    return breakTies(group.map((r) => ({ projectId: r.projectId, score: score(r), r })), means).map((b) => ({ ...b.r, tie: b.tie, tieBroken: b.tieBroken }));
+  };
+  // a stable sort: an exact finals tie keeps the first-round order between them, then the criterion decides it on
+  // the panel's own figures (a finalist's `tie` is then its finals figure)
+  const scored = regroup(
+    marked.filter((r) => r.finals && r.finals.score !== null).sort((a, b) => b.finals!.score! - a.finals!.score!),
+    (r) => standings.get(r.projectId)?.criteria[tieCriterion ?? ""],
+    (r) => r.finals!.score,
+  );
+  const unscored = regroup(marked.filter((r) => r.finals && r.finals.score === null), (r) => r.tie, (r) => r.score);
+  const rest = regroup(marked.filter((r) => !r.finals), (r) => r.tie, (r) => r.score);
+  const ordered = [...scored, ...unscored, ...rest];
+  const places = publishedPlaces(ordered);
+  const span = (place: number | null) => places.filter((p) => p.place === place).length;
+  return ordered.map((r, i) => {
+    const p = places[i]!.place;
+    return { ...r, place: p === null ? null : p + (span(p) - 1) / 2 };
+  });
 }

@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { Face } from "@/components/face";
-import { DecidedMark, decisionAnchor, movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
+import { DecidedMark, decisionAnchor, finalsScoreWords, movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { formatUtc, plural } from "@/lib/format";
 import { overallOrder } from "@/lib/overall";
@@ -102,6 +102,8 @@ export function OverallResults({
   // the judges' decisions on close calls, per track: their winner's row carries the mark and the reason
   const decisionOf = new Map(results.tracks.flatMap((t) => (t.decision ? [[t.id, t.decision] as const] : [])));
   const movedCount = entries.filter((e) => movesOf.has(e.row.projectId)).length;
+  // the tracks whose top places a finals panel decided: their finalists lead the track whatever their score here
+  const finalsTracks = results.tracks.filter((t) => t.rows.some((r) => r.finals)).length;
 
   return (
     <>
@@ -117,6 +119,12 @@ export function OverallResults({
         <WeightChangesNotice changes={results.weightChanges} className="mt-6" />
         <TieBreakChangesNotice changes={results.tieBreakChanges} className="mt-6" />
         <TrackMovesNotice count={movedCount} className="mt-6" />
+        {finalsTracks ? (
+          <p className="mt-6 max-w-[760px] text-15 text-ink-2">
+            In {plural(finalsTracks, "track")} the top places were decided by a finals panel: {finalsTracks === 1 ? "that track\u2019s" : "those tracks\u2019"} finalists lead it in the
+            order of their finals score, so a finalist can hold a better place in its track than a project listed above it here. Each finalist is marked.
+          </p>
+        ) : null}
       </div>
 
       <section aria-labelledby="overall-title" className="mt-12 pb-16">
@@ -153,7 +161,7 @@ export function OverallResults({
           {entries.map((e, i) => {
             const r = e.row;
             const first = e.trackPlace.place === 1;
-            const trackPlace = `${ordinal(e.trackPlace.place)}${e.trackPlace.joint ? ", joint" : ""} in ${e.track.name}`;
+            const trackPlace = `${ordinal(e.trackPlace.place)}${e.trackPlace.joint ? ", joint" : ""} in ${e.track.name}${e.trackPlace.finals ? ", by the finals" : ""}`;
             return (
               <li key={r.projectId} className={`reveal tile ${ROW} items-center gap-y-2 py-3 ${first ? "lit" : ""}`} style={{ "--i": i } as CSSProperties}>
                 <span className="font-display text-24 tnum">
@@ -179,6 +187,10 @@ export function OverallResults({
                   {/* a winner by the judges' decision can sit below a 2nd with a higher score: say whose place it is, and why */}
                   {r.decided && decisionOf.get(e.track.id) ? (
                     <DecidedMark reason={decisionOf.get(e.track.id)!.reason} href={`${perTrack}#${decisionAnchor(e.track.id)}`} />
+                  ) : r.finals ? (
+                    <span className="mt-1 block text-13 text-ink-2 wrap-anywhere">
+                      Finalist: place in its track decided by the finals panel, <span className="tnum">finals {finalsScoreWords(r.finals)}</span>
+                    </span>
                   ) : null}
                 </span>
                 <span className="min-w-0 max-lg:hidden lg:col-start-4 lg:row-start-1">
@@ -187,7 +199,7 @@ export function OverallResults({
                     {e.track.name}
                   </span>
                   <span className={`block text-14 tnum ${first ? "font-semibold text-accent-ink" : "text-ink-2"}`} aria-hidden="true">
-                    {ordinal(e.trackPlace.place)} in its track{e.trackPlace.joint ? ", joint" : ""}
+                    {ordinal(e.trackPlace.place)} in its track{e.trackPlace.joint ? ", joint" : ""}{e.trackPlace.finals ? ", by the finals" : ""}
                   </span>
                 </span>
                 <span className="col-span-2 col-start-2 row-start-2 max-md:pr-3 md:col-span-1 md:col-start-4 md:row-start-1 lg:col-start-5">

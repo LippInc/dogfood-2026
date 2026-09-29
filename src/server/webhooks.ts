@@ -49,6 +49,11 @@ const SEALED = new Map<string, readonly string[]>([
   ["review.amend", ["project"]],
   ["pairwise.pick", ["trackId"]],
   ["pairwise.undo", ["trackId"]],
+  // a panelist's finals score, and the finals order the close records, stay in the portal until publishing too
+  ["finals.score", ["finals", "project"]],
+  ["finals.close", ["missing", "reason"]],
+  // opening names the finalists with their first-round places, which stay unpublished until the results are out
+  ["finals.open", ["track", "n"]],
   // an import names the judges and reviews it added, scores included: the receiver gets the counts
   ["fixtures.import", ["source", "sha256", "inserted"]],
 ]);

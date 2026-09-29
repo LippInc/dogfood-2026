@@ -80,6 +80,8 @@ describe("the matcher finds the entry a question means", () => {
     ["how do i award a prize", "award-prizes"],
     ["split a prize between two projects", "award-prizes"],
     ["did we win a prize", "prizes"],
+    ["how is the finals order decided", "finals"],
+    ["open finals for a track", "finals-tab"],
   ];
 
   it(`answers ${cases.length} real questions with the expected entry first`, () => {
@@ -108,6 +110,8 @@ describe("the matcher finds the entry a question means", () => {
     // a judge asking where their scores are gets the console; a team member asking the same gets their project page
     expect(top("where are my scores", { signedIn: true, roles: ["judge"] })).toBe("judge-console");
     expect(top("where are my scores", { signedIn: true, roles: ["participant"] })).toBe("my-feedback");
+    expect(top("score the finalists", { signedIn: true, roles: ["judge"] })).toBe("panel-finals");
+    expect(top("how do finals work", { signedIn: false, roles: [] })).toBe("finals");
     // a visitor asking to publish still gets the answer, marked as someone else's to use
     const pub = ask("how do i publish the results", visitor).matches.find((m) => m.entry.id === "publish")!;
     expect(pub).toBeDefined();

@@ -38,6 +38,12 @@ export const KEPT: KeptFact[] = [
     removedBy: "nothing in the portal: a started review stays in the record (before publication the judge can change it; an organizer can withdraw only a review not yet started)",
   },
   {
+    what: "Finals: who sat on a finals panel and their finals scores per criterion, and which organizer opened a finals round, added or took off a finalist, named the panel or closed it (with the reasons)",
+    where: "`finals`, `finalists`, `finals_panel`, `finals_scores`, `finals_score_items`",
+    kept: "as long as the portal's data, and once the event's results are published the database refuses to change or delete them",
+    removedBy: "nothing in the portal: a panelist's saved score stays in the record (before publication the panelist can change it, and an organizer can take a finalist or a panelist off)",
+  },
+  {
     what: "Which organizer made an assignment run, a results run, a judge override (with its reason) or a webhook",
     where: "`assignment_runs`, `normalization_runs`, `judge_overrides`, `webhooks`",
     kept: "as long as the portal's data; results runs for good (append-only)",

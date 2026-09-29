@@ -37,7 +37,8 @@ event's id, so it adds to that same event.
    decision with its reason (a judge left out or reinstated, pairs ruled not duplicates, projects published as they
    are, projects moved to another track, weight and vote-rule changes), the pairwise answers (taken-back ones too), the ballots (a set-aside one still
    set aside, with its reason), the comments (a hidden one still hidden, with its reason), the organizers' updates (with their times, an edited
-   one marked edited) and the published results as they were published. The import's audit entry lists every row it restored by id, and its importer stands for
+   one marked edited), the finals (each round with
+   its finalists and their reasons, its panel, every finals score and an early close's reason) and the published results as they were published. The import's audit entry lists every row it restored by id, and its importer stands for
    whoever made each decision (their names are in the old `audit.csv`).
 4. It does not bring: drafts, open judge assignments and recusals, pending judge invitations, co-organizers, signed
    records (the new portal signs its own on request, with the same places), the duplicate-voter flags (they rest on

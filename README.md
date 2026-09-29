@@ -169,10 +169,12 @@ Each item in full, with its rules: [`docs/FEATURES.md`](docs/FEATURES.md).
 - **Close calls:** a track whose first place the scores cannot name at 95 % says so, naming the close projects with
   their scores and ±; the organizer keeps the ranking's winner or records the judges' decision with a reason, shown on
   the public results and certificates beside the score order.
+- **Finals (optional):** the top N of a track go to a panel of judges who score every finalist on the same rubric;
+  the finalists then lead the track's published places, in the finals order (`JUDGING.md`, "Finals").
 - **Results and exports:** publishing locked until every decision is made; public places per track, and every
   project in one order by score across tracks; exact score ties within a track joint, or broken by a rubric criterion
   the organizer chooses (said wherever it decides a place); CSV (scores, projects, assignments, ranking, pairwise
-  answers, ballots with their picks sealed until the vote closes, comments, prize awards, audit log) and `event.json`
+  answers, ballots with their picks sealed until the vote closes, comments, prize awards, finals, audit log) and `event.json`
   at every stage.
 - **Prizes:** the organizer gives each prize to a project, or jointly to several, on the Results tab before
   publishing; final with the results, and shown on the public results, the winners' pages and their certificates.
@@ -267,8 +269,8 @@ webhook deliveries and the voters' address hashes are yours to clear with `scrip
   on it first.
 - **Organizers are trusted with their own event:** nothing stops an organizer from also being on a team in it. The
   portal logs every organizer decision (a judge left out or reinstated, a merge, a project published as it is, an
-  assignment taken back, a recusal undone, a project moved to another track, a judge removed, publishing) with its
-  reason, where co-organizers can read it.
+  assignment taken back, a recusal undone, a project moved to another track, a judge removed, a finalist added or
+  taken off against the ranking, finals closed early, publishing) with its reason, where co-organizers can read it.
 - **Three or more copies.** A team that entered the same project three or more times: the overview merges two copies; merge the others over
   the API (`POST /api/events/<event>/duplicates/merge`).
 - **Moving an event.** An event's `fixtures.json` imported on another portal as a new event leaves behind its

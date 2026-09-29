@@ -151,6 +151,12 @@ export function RankingEvidence({ results }: { results: PublishedResults }) {
           {effect}
           {split ? ` ${split}` : null}
         </Row>
+        {e.finalsTracks ? (
+          <Row term="Finals">
+            In {plural(e.finalsTracks, "track")} the top places were decided by a finals panel: the finalists lead {e.finalsTracks === 1 ? "that track" : "those tracks"} in
+            the order of their finals score, and everyone else follows in first-round order.
+          </Row>
+        ) : null}
         {signal ? <Row term="Signal check">{signal}</Row> : null}
         {anchor ? (
           <Row term="Audit log">

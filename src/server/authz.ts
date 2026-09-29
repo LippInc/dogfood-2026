@@ -61,7 +61,9 @@ export type Action =
   | "comment.delete"
   | "record.issue_own"
   | "records.issue_all"
-  | "account.tokens";
+  | "account.tokens"
+  | "finals.score"
+  | "finals.read_own";
 
 export type Resource =
   | { kind: "platform" }
@@ -88,7 +90,11 @@ export type Resource =
   /** one comment: who wrote it, and whether the organizers hid it */
   | { kind: "comment"; event: EventFacts; commentId: string; authorId: string; hidden: boolean }
   /** the actor's own signed record: finishedReviews, answers (pairwise) and onSubmittedTeam are the actor's, in this event */
-  | { kind: "record_subject"; event: EventFacts; recordKind: "judge" | "participant"; finishedReviews: number; answers: number; onSubmittedTeam: boolean };
+  | { kind: "record_subject"; event: EventFacts; recordKind: "judge" | "participant"; finishedReviews: number; answers: number; onSubmittedTeam: boolean }
+  /** one finalist in one finals round, from a panelist's side: whether the actor is on its panel, the project a finalist, the round closed */
+  | { kind: "finals_entry"; event: EventFacts; onPanel: boolean; isFinalist: boolean; closed: boolean; conflict: "own_team" | "recused" | null }
+  /** a panelist's finals scores: judgeUserId is whose are asked for (the request's), onPanel whether the actor sits on a panel */
+  | { kind: "finals_scores"; event: EventFacts; judgeUserId: string; onPanel: boolean };
 
 export type Refusal = { ok: false; status: 401 | 403; code: string; message: string };
 export type Decision = { ok: true } | Refusal;
@@ -398,6 +404,31 @@ export function authorize(
     case "account.tokens":
       // a leaked token must not be able to mint more tokens or hide itself
       return actor.sessionKind === "api" ? refuse("token_cannot_manage_tokens", "Sign in to list, make or revoke API tokens; a token cannot manage tokens.") : allow;
+
+    // The finals (JUDGING.md, "Finals"): only a panelist scores, only a finalist, while the round is open.
+    case "finals.score": {
+      if (resource.kind !== "finals_entry") return refuse("bad_resource", "This action needs a finals round and a project.");
+      if (!resource.onPanel || !hasRole(actor, resource.event.id, "judge")) {
+        return refuse("not_on_the_panel", "Only the judges on this finals panel can score its finalists.");
+      }
+      if (!resource.isFinalist) return refuse("not_a_finalist", "This project is not a finalist in this round.");
+      // the first round's conflict rules hold in the finals too: never your own team, never a project you recused from
+      if (resource.conflict === "own_team") return refuse("own_team", "This finalist is your own team's project, so it is not yours to score.");
+      if (resource.conflict === "recused") return refuse("recused", "You declared a conflict on this project in the first round, so it is not yours to score in the finals either.");
+      if (resource.event.resultsPublishedAt) return refuse("results_published", "Results are published, so the finals scores are final.");
+      if (resource.closed) return refuse("finals_closed", "The organizers closed these finals, so the scores are final.");
+      return allow;
+    }
+
+    // As the first round's peer route: a panelist reads only their own finals scores, never another's, never a fallback.
+    case "finals.read_own": {
+      if (resource.kind !== "finals_scores") return refuse("bad_resource", "This action needs a judge id.");
+      if (resource.judgeUserId !== actor.userId) return refuse("not_your_scores", "A panelist can read only their own finals scores.");
+      if (!resource.onPanel || !hasRole(actor, resource.event.id, "judge")) {
+        return refuse("not_on_the_panel", "Only the judges on a finals panel of this event have finals scores to read.");
+      }
+      return allow;
+    }
 
     case "records.issue_all": {
       if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");

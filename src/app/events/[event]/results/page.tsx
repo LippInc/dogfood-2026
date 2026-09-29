@@ -10,11 +10,21 @@ import { VoteCountChanges, VoteRuleChanges } from "@/components/results/vote-rul
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { PublicShell } from "@/components/shell/public-shell";
 import { YardstickLine } from "@/components/yardstick-line";
-import { JudgesDecision, movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
+import {
+  FinalistChangesNotice,
+  finalsScoreWords,
+  JudgesDecision,
+  movesByProject,
+  RowChangeMarks,
+  TieBreakChangesNotice,
+  tieBrokenByOf,
+  TrackMovesNotice,
+  WeightChangesNotice,
+} from "@/components/results/after-the-fact";
 import { formatUtc, plural } from "@/lib/format";
 import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, publishedPrizes, type Gallery } from "@/server/dal";
 import { PrizeWinners } from "@/components/results/prize-winners";
-import { competitionPlaces, ordinal, tieBreakMethod, tieBrokenWords, tieDecided } from "@/lib/places";
+import { ordinal, publishedPlaces, tieBreakMethod, tieBrokenWords, tieDecided } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Results" };
@@ -54,7 +64,14 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
   const fmtSe = (v: number | null) => (v === null ? "" : pairwise ? `± ${Math.max(1, Math.round(v * 100))}` : `± ${v.toFixed(2)}`);
   const fmtN = (n: number) => `${n} ${pairwise ? (n === 1 ? "judge" : "judges") : n === 1 ? "review" : "reviews"}`;
 
-  const placed = results.published ? results.tracks.map((t) => ({ ...t, places: competitionPlaces(t.rows) })) : [];
+  const placed = results.published
+    ? results.tracks.map((t) => ({
+        ...t,
+        places: publishedPlaces(t.rows),
+        // only a track that held finals: its round's counts and reason
+        finals: t.rows.some((r) => r.finals) ? (results.finals?.find((f) => f.trackId === t.id) ?? results.finals?.find((f) => f.trackId === null) ?? null) : null,
+      }))
+    : [];
   const scale = scaleFor(
     placed.flatMap((t) =>
       t.rows.flatMap((r) => (r.score === null ? [] : [r.score - (r.se ?? 0), r.score + (r.se ?? 0), ...(!pairwise && r.raw !== null ? [r.raw] : [])])),
@@ -217,14 +234,25 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           <span className="min-w-0 wrap-anywhere">
                             <span className="block font-display text-17 leading-tight group-hover:underline lg:text-20">{w.first.title}</span>
                             <span className="mt-0.5 block text-13 text-ink-2">{w.first.teamName}</span>
-                            <span className="mt-1.5 block text-13 tnum">
-                              <span className="text-15 font-semibold">{fmtScore(w.first.score)}</span> <span className="text-ink-2">{fmtSe(w.first.se)}</span>
-                            </span>
+                            {w.first.finals && w.first.finals.score !== null ? (
+                              <span className="mt-1.5 block text-13 tnum">
+                                <span className="text-15 font-semibold">Finals {w.first.finals.score.toFixed(2)}</span>{" "}
+                                <span className="text-ink-2">{w.first.finals.se !== null ? `± ${w.first.finals.se.toFixed(2)} · ` : ""}{plural(w.first.finals.n, "panelist")}</span>
+                              </span>
+                            ) : (
+                              <span className="mt-1.5 block text-13 tnum">
+                                <span className="text-15 font-semibold">{fmtScore(w.first.score)}</span> <span className="text-ink-2">{fmtSe(w.first.se)}</span>
+                              </span>
+                            )}
                           </span>
                         </span>
                         {w.joint.length ? <span className="mt-2 block text-13 text-ink-2">Joint first with {w.joint.map((j) => j.title).join(", ")}</span> : null}
                         {tieDecided(w.first, { place: 1, joint: w.joint.length > 0 }) && results.published && results.tieBreak ? (
-                          <span className="mt-2 block text-13 text-ink-2">{tieBrokenWords(results.tieBreak.criterion)}</span>
+                          <span className="mt-2 block text-13 text-ink-2">
+                            {w.first.finals && w.first.finals.score !== null
+                              ? `Exactly tied in the finals; tie broken by ${results.tieBreak.criterion}`
+                              : tieBrokenWords(results.tieBreak.criterion)}
+                          </span>
                         ) : null}
                         {w.track.decision ? <span className="mt-2 block text-13 text-ink-2">Winner by the judges&rsquo; decision</span> : null}
                       </a>
@@ -276,9 +304,37 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   <h2 id={`track-title-${t.id}`} className="text-24 font-semibold wrap-anywhere">
                     {t.name}
                   </h2>
+                  {t.finals ? <span className="label-mono border border-ink px-1.5 py-0.5 text-ink">Finals</span> : null}
                   <span className="label-mono ml-auto text-ink-3">{plural(t.rows.length, "project")}</span>
                 </div>
                 {t.decision ? <JudgesDecision trackId={t.id} decision={t.decision} titles={new Map(t.rows.map((r) => [r.projectId, r.title]))} /> : null}
+                {t.finals ? (
+                  <div className="mt-3 flex max-w-[72ch] flex-col gap-2 text-14 text-ink-2">
+                    <p>
+                      This track held finals: a panel of {plural(t.finals.panel, "judge")} scored its{" "}
+                      {plural(t.rows.filter((r) => r.finals).length, "finalist")} again on the same rubric
+                      {t.finals.closeReason && t.finals.panel < 2
+                        ? `. Only ${t.finals.panel === 1 ? "one panelist\u2019s" : "no panelist\u2019s"} finals scores count, the others having been removed or left out by the organizers, who closed the finals anyway (\u201c${t.finals.closeReason}\u201d).`
+                        : t.finals.closeReason
+                          ? `. The organizers closed the finals before every score was in (\u201c${t.finals.closeReason}\u201d), so a finalist may count fewer panelists: the number under each finals score.`
+                          : ", every panelist every finalist they were free to score."}{" "}
+                      The finalists lead the track in the order of their finals score (the plain mean of the panel&apos;s scores); everyone else follows in
+                      first-round order, so here the places do not follow the bars.
+                    </p>
+                    {t.finals.leftOut || t.finals.conflicts ? (
+                      <p>
+                        {t.finals.leftOut ? `${plural(t.finals.leftOut, "panelist")} removed or left out by the organizers: their finals scores are on record and do not count. ` : ""}
+                        {t.finals.conflicts ? `${plural(t.finals.conflicts, "panelist-finalist pair")} in these finals not scored for a conflict of interest.` : ""}
+                      </p>
+                    ) : null}
+                    {t.finals.panelChanges.map((c) => (
+                      <p key={c.at} className="border-l-[3px] border-flag-bar pl-3 text-ink">
+                        The panel changed after scoring had begun ({c.removed} off, {c.added} on, {formatUtc(c.at)}): &ldquo;{c.reason}&rdquo;
+                      </p>
+                    ))}
+                    <FinalistChangesNotice changes={t.finals.finalistChanges} titleOf={(id) => t.rows.find((x) => x.projectId === id)?.title ?? "A project"} />
+                  </div>
+                ) : null}
                 <div className={`${ROW} pt-3`} aria-hidden="true">
                   <span className="col-start-2 col-span-2 max-md:pr-3 md:col-start-4 md:col-span-1">
                     <ScaleAxis scale={scale} />
@@ -328,6 +384,12 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                             {fmtN(r.n)}
                           </span>
                           {r.n < 2 ? <span className="block text-12 text-flag">{pairwise ? "under-compared" : "under-reviewed"}</span> : null}
+                          {r.finals ? (
+                            <span className="mt-1 block text-13 font-semibold text-accent-ink tnum">
+                              Finals {finalsScoreWords(r.finals)}
+                              <span className="block text-12 font-normal text-ink-2">{plural(r.finals.n, "panelist")}</span>
+                            </span>
+                          ) : null}
                         </span>
                       </li>
                     );

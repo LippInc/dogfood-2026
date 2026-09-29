@@ -389,6 +389,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["judge invitation", "invite link", "become a judge", "accept invitation", "judge link"],
   },
   {
+    id: "panel-finals",
+    kind: "page",
+    title: "Finals (for a panelist)",
+    href: "/judge/[event]/finals",
+    who: ["judge"],
+    answer:
+      "On a finals panel, your judge console shows a Finals link: there you score only the finalists on the same rubric (Tab between criteria, arrows between values, then Save). No panelist sees another's scores; your own team's finalist, or one you recused from, has no form. A set tie-break splits an exact finals tie.",
+    keywords: ["score the finalists", "score finalists", "panelist", "sit on the panel", "my panel scores", "second round scoring", "final judging"],
+    doc: { file: "JUDGING.md", heading: "Finals" },
+  },
+  {
     id: "judge-record",
     kind: "task",
     title: "Get your signed judging record",
@@ -462,6 +473,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
       "The ranking as it will be published (a preview until you publish), each project's receipt of reviews, leniency and ±, the judge ledger, the Prizes step, and \"Issue every record\" once published.",
     keywords: ["organizer results", "receipts", "working", "preview ranking", "judge ledger", "normalized ranking", "show the working", "how scores were worked out"],
     doc: { file: "JUDGING.md", heading: "Normalization" },
+  },
+  {
+    id: "finals-tab",
+    kind: "page",
+    title: "Finals (organizer)",
+    href: "/organize/[event]/finals",
+    who: ["organizer"],
+    answer:
+      "Open finals for a track or every track: the top N by first-round places become finalists, and adding or taking one off against the ranking needs a reason. Name a panel of two or more judges and close once each has scored every finalist (earlier with a reason); publishing waits for it.",
+    keywords: ["finals", "final round", "finalists", "open finals", "shortlist", "top n", "panel", "jury", "second round", "close finals", "grand final"],
+    doc: { file: "JUDGING.md", heading: "Finals" },
   },
   {
     id: "audit-tab",
@@ -601,7 +623,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/[event]",
     who: ["organizer"],
     answer:
-      "On the Overview, once every decision is made and submissions are closed, tick the box and press Publish results. It makes the results page public, shows each team its feedback, closes an open vote and freezes the judging.",
+      "On the Overview, once every decision is made, any finals are closed and submissions are closed, tick the box and press Publish results. It makes the results page public, shows each team its feedback, closes an open vote and freezes the judging.",
     keywords: ["publish", "publish results", "release results", "announce winners", "make results public", "go live", "finish judging"],
     doc: { file: "JUDGING.md", heading: "Normalization" },
   },
@@ -935,6 +957,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
       "Each audit row carries the hash of the row before it, and the database refuses edits and deletes. Keep the head hash (on the Audit log tab and in audit.csv): if any row is later rewritten, the head no longer matches.",
     keywords: ["audit chain", "hash chain", "head hash", "tamper evident", "tamper", "append only", "integrity", "sha-256", "genesis"],
     doc: { file: "JUDGING.md", heading: "The audit trail" },
+  },
+  {
+    id: "finals",
+    kind: "concept",
+    title: "How finals decide the places",
+    href: "/events/[event]/results",
+    who: ["everyone"],
+    answer:
+      "In a track marked Finals, the finalists come first, by finals score: the plain mean of the panel's weighted rubric totals, with its ±. An exact tie goes to the tie-break criterion on the panel's own scores when one is set, else a joint place. Everyone else follows in first-round order.",
+    keywords: ["how do finals work", "how finals work", "finals order", "finals score", "why is the first place not the highest score", "how finals decide places", "joint place in finals"],
+    doc: { file: "JUDGING.md", heading: "Finals" },
   },
   {
     id: "freeze",

@@ -92,3 +92,25 @@ export function prizeOf(award: string): { joint: boolean; prize: string } | null
   const m = /^(Joint winner|Winner), (.+)$/.exec(award);
   return m ? { joint: m[1] === "Joint winner", prize: m[2]! } : null;
 }
+
+/**
+ * A track's published places, for rows in their published order. Without finals (no row carries `finals`) this is
+ * exactly competitionPlaces. With finals (JUDGING.md, "Finals") the finalists come first: those the panel scored by
+ * their finals score (an equal finals score shares a place), then any finalist nobody on the panel scored, by their
+ * first-round score; everyone else follows in first-round order, their places counted on after the finalists'. Each
+ * group honours its rows' `tie` figures as competitionPlaces does (the event's tie-break).
+ */
+export function publishedPlaces(rows: { score: number | null; tie?: number | null; finals?: { score: number | null } | null }[]): { place: number | null; joint: boolean }[] {
+  if (!rows.some((r) => r.finals)) return competitionPlaces(rows);
+  const scored = rows.filter((r) => r.finals && r.finals.score !== null);
+  const unscored = rows.filter((r) => r.finals && r.finals.score === null);
+  const rest = rows.filter((r) => !r.finals);
+  const shift = (ps: { place: number | null; joint: boolean }[], by: number) => ps.map((p) => (p.place === null ? p : { ...p, place: p.place + by }));
+  const places = new Map<object, { place: number | null; joint: boolean }>();
+  const put = (group: typeof rows, ps: { place: number | null; joint: boolean }[]) => group.forEach((r, i) => places.set(r, ps[i]!));
+  // a finalist's `tie` is its figure on the tie-break criterion in the finals (results.ts, withFinals)
+  put(scored, competitionPlaces(scored.map((r) => ({ score: r.finals!.score, tie: r.tie }))));
+  put(unscored, shift(competitionPlaces(unscored), scored.length));
+  put(rest, shift(competitionPlaces(rest), scored.length + unscored.length));
+  return rows.map((r) => places.get(r)!);
+}

@@ -252,6 +252,18 @@ def run_checks(cfg):
     expect(c, s == 403, participant, "GET", peer_url, s, "403")
     s, _, _ = visitor.request("GET", peer_url)
     expect(c, s == 401, visitor, "GET", peer_url, s, "401")
+    # the finals' own peer route: another panelist's id is refused as not_your_scores, never answered with the
+    # caller's rows; the owner's own id passes that gate (200 on a panel, else 403 not_on_the_panel, never
+    # not_your_scores), so the refusal is the id rule and not a blanket no
+    finals_url = u(f"/api/judge/{EVENT_SLUG}/finals/scores?judge={judge_a_id}")
+    s, body, _ = judge_b.request("GET", finals_url)
+    if expect(c, s == 403, judge_b, "GET", finals_url, s, "403"):
+        expect(c, error_code(body) == "not_your_scores", judge_b, "GET", finals_url, f"error {error_code(body)!r}", "error 'not_your_scores'")
+    s, body, _ = judge_a.request("GET", finals_url)
+    own_ok = s == 200 or (s == 403 and error_code(body) == "not_on_the_panel")
+    expect(c, own_ok, judge_a, "GET", finals_url, f"{s} ({error_code(body)})", "200, or 403 not_on_the_panel (asking for own id)")
+    s, _, _ = visitor.request("GET", finals_url)
+    expect(c, s == 401, visitor, "GET", finals_url, s, "401")
     checks.append(c)
 
     # A3 -- saving a review of one of judge_a's assignments

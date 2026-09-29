@@ -32,6 +32,14 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 **What is not, in pairwise mode:** collusion detection, again. The coin-flip flag rewards agreeing with the panel, so two judges who trade identical answers read as two judges who agree well; only their receipts side by side show it.
 
+## A panelist reading another panelist
+
+In a finals round (`JUDGING.md`, "Finals"), a panelist who could see another panelist's scores could anchor on them or learn how a colleague voted.
+
+- **Stopped:** the panelist's finals page and `GET /api/judge/{event}/finals` and `/finals/scores` read the judge id from the session only. A `?judge=` naming anyone else is refused with 403 `not_your_scores` and audited; it never falls back to the caller's own rows. A judge on no panel gets 403 `not_on_the_panel`. Saving a score checks, in the same transaction as the write, that the caller sits on that round's panel, that the project is one of its finalists, and that it is not their own team's project nor one they recused from in the first round (403 otherwise, audited).
+- **Stopped:** the public results give only the finals score per finalist and the panel's size, never a panelist's name or own score.
+- **Not stopped:** the organizers see every finals score (they run the event), and panelists who talk to each other outside the portal.
+
 ## One event's organizer reaching into another
 
 **What is built:** accounts are shared by all the portal's events, and the two ways an organizer can act on someone's account without asking them follow one rule: an organizer reaches only people with no place (a role or a team seat) in an event that organizer does not run. Making someone a co-organizer by email is otherwise refused (403, audited), and the personal set-password links for imported people are made only for such people and checked again when a link is used, so a link dies if its person has joined another event since. An administrator reaches everyone, as they can send anyone a reset link anyway. Without the rule, one event's organizer could make another event's not-yet-claimed judge a co-organizer and then set that judge's password (`tests/organizers.test.ts`, `tests/import-claims.test.ts`).

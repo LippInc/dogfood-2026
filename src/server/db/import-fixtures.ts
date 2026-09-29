@@ -217,6 +217,11 @@ function emptyCounts(): Record<TableKey, number> {
     comments: 0,
     normalizationRuns: 0,
     normalizedScores: 0,
+    finals: 0,
+    finalists: 0,
+    finalsPanel: 0,
+    finalsScores: 0,
+    finalsScoreItems: 0,
   };
 }
 
@@ -230,7 +235,11 @@ export type ImportReport = {
   /** score ids whose judge is a member of the scored project's team */
   conflicts: string[];
   /** file ids another event already used, and the ids this event's rows got instead */
-  renamed: { kind: "track" | "team" | "project" | "judge" | "question" | "prize" | "decision" | "comparison" | "ballot" | "comment" | "update" | "run"; from: string; to: string }[];
+  renamed: {
+    kind: "track" | "team" | "project" | "judge" | "question" | "prize" | "decision" | "comparison" | "ballot" | "comment" | "update" | "run" | "finals" | "finals score";
+    from: string;
+    to: string;
+  }[];
   /** set when the event is new and the web address its name gives was taken by another event */
   slug?: { wanted: string; used: string };
   /**

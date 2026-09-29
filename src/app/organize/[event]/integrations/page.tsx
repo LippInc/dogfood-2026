@@ -33,6 +33,7 @@ const EXPORT_HOLDS: Record<string, string> = {
   "comparisons.csv": "every pairwise answer",
   "votes.csv": "every ballot; the picks once voting closes",
   "comments.csv": "every comment; a hidden one by its reason only",
+  "finals.csv": "every finals score, each finalist's finals score with its ± and its place; only the header without finals",
   "event.json": "the whole event as a record, with settings and decisions",
   "fixtures.json": "moves the event to another portal",
 };

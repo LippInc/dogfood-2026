@@ -390,6 +390,34 @@ function sentence(r: Row, n: Names): Part[] {
     }
     case "judge.override":
       return [actor, t(after.mode === "include" ? " reinstated " : " left out "), person(target), t(`: ${quote(after.reason)}`)];
+    // the finals (JUDGING.md, "Finals")
+    case "finals.open": {
+      const list = Array.isArray(after.finalists) ? after.finalists.length : 0;
+      const where = after.track ? `the track ${quote(n.track.get(String(after.track)) ?? after.track)}` : "every track";
+      return [actor, t(` opened finals for ${where}, with the top ${after.n ?? "N"} of each track as ${list} ${list === 1 ? "finalist" : "finalists"}`)];
+    }
+    case "finals.finalist_add":
+      return [actor, t(" made "), project(after.project), t(after.reason ? ` a finalist against the ranking: ${quote(after.reason)}` : " a finalist")];
+    case "finals.finalist_remove":
+      return [actor, t(" took "), project(before.project), t(after.reason ? ` off the finals against the ranking: ${quote(after.reason)}` : " off the finals")];
+    case "finals.panel": {
+      const ids = (v: Record<string, unknown>) => (Array.isArray(v.panel) ? (v.panel as unknown[]).map(String) : []);
+      const panel = ids(after);
+      return [actor, t(" set the finals panel to "), ...panel.flatMap((id, i) => [...(i ? [t(i === panel.length - 1 ? " and " : ", ")] : []), person(id)])];
+    }
+    case "finals.score":
+      return [actor, t(before.values ? " changed their finals score for " : " scored the finalist "), project(after.project), t(typeof after.total === "number" ? `: ${after.total.toFixed(2)}` : "")];
+    case "finals.close":
+      return [
+        actor,
+        t(
+          after.reason
+            ? after.missing === 0
+              ? ` closed the finals with fewer than two panelists' scores counting: ${quote(after.reason)}`
+              : ` closed the finals with ${after.missing ?? "some"} ${after.missing === 1 ? "score" : "scores"} missing: ${quote(after.reason)}`
+            : " closed the finals, every counted panelist having scored every finalist they were free to score",
+        ),
+      ];
     case "pairwise.pick": {
       const said = after.outcome === "tie" ? "called " : "compared ";
       const pick = after.outcome === "left" ? after.left : after.outcome === "right" ? after.right : null;

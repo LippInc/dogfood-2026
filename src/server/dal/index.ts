@@ -129,6 +129,23 @@ export {
 } from "./results";
 export { getCloseCalls, settleCloseCall, undoCloseCall, type TrackCloseCall } from "./close-calls";
 export { closeCall } from "../judging/decision";
+export {
+  addFinalist,
+  closeFinals,
+  getFinals,
+  getFinalsScores,
+  getPanelFinals,
+  onFinalsPanel,
+  openFinals,
+  removeFinalist,
+  saveFinalsScore,
+  setFinalsPanel,
+  type FinalsOverview,
+  type FinalsScoresView,
+  type FinalsView,
+  type PanelFinalist,
+  type PanelView,
+} from "./finals";
 export { getEventCards, getOverview, type EventCard, type Overview, type Stage } from "./overview";
 export { addOrganizer, listOrganizers, removeOrganizer, type Organizer } from "./organizers";
 export { checkSavedHead, getAuditEntries, getAuditLog, getPortalEntries, getPortalLog, type AuditEntryView, type AuditLine, type Part, type SavedHeadCheck } from "./audit-log";

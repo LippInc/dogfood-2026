@@ -5,7 +5,7 @@ import { Face } from "@/components/face";
 import { ProjectImage } from "@/components/project-cover";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
-import { competitionPlaces, ordinal, tieBrokenWords, tieDecided } from "@/lib/places";
+import { ordinal, publishedPlaces, tieBrokenWords, tieDecided } from "@/lib/places";
 import Link from "next/link";
 import { actorNav, currentActor, getGallery, getMyWork, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD, prizesWonBy } from "@/server/dal";
 import { CommentForm, DeleteOwnComment, ModerateComment } from "./comments";
@@ -82,7 +82,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
     if (!results?.published) return null;
     for (const t of results.tracks) {
       const i = t.rows.findIndex((r) => r.projectId === p.id);
-      if (i >= 0) return { track: t, row: t.rows[i]!, place: competitionPlaces(t.rows)[i]!, pairwise: results.method === PAIRWISE_METHOD };
+      if (i >= 0) return { track: t, row: t.rows[i]!, place: publishedPlaces(t.rows)[i]!, pairwise: results.method === PAIRWISE_METHOD };
     }
     return null;
   })();
@@ -94,7 +94,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
   // Once published, in the published order with each place; before that, by id (an order that ranks nothing).
   const trackmates: { id: string; title: string; team: string; place: number | null; joint: boolean }[] = (() => {
     if (standing) {
-      const places = competitionPlaces(standing.track.rows);
+      const places = publishedPlaces(standing.track.rows);
       return standing.track.rows.map((r, i) => ({ id: r.projectId, title: r.title, team: r.teamName, place: places[i]!.place, joint: places[i]!.joint }));
     }
     try {

@@ -52,7 +52,7 @@ export function refusalAudit(actor: Who, action: Action, resource: Resource, ref
     eventId,
     targetType: resource.kind,
     targetId:
-      resource.kind === "judge_scores"
+      resource.kind === "judge_scores" || resource.kind === "finals_scores"
         ? resource.judgeUserId
         : resource.kind === "assignment"
           ? resource.id

@@ -76,6 +76,17 @@ const votingClosed = (op: "INSERT" | "DELETE", voterId: string) => `
   BEGIN
     SELECT RAISE(ABORT, 'votes: voting has closed, so the ballots are final');
   END`;
+const eventOfFinalsScore = (scoreId: string) => `(SELECT f.event_id FROM finals_scores f WHERE f.id = ${scoreId})`;
+// a finals score stays on its criterion's scale, as score_items does
+const finalsRange = (event: "INSERT" | "UPDATE OF value, criterion_id") => `
+  BEFORE ${event} ON finals_score_items
+  WHEN NOT EXISTS (
+    SELECT 1 FROM rubric_criteria c
+    WHERE c.id = NEW.criterion_id AND NEW.value BETWEEN c.scale_min AND c.scale_max
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'finals_score_items.value is outside its criterion''s scale');
+  END`;
 
 export const TRIGGERS: Record<string, string> = {
   normalization_runs_no_update: appendOnly("normalization_runs", "UPDATE"),
@@ -230,6 +241,32 @@ export const TRIGGERS: Record<string, string> = {
   BEGIN
     SELECT RAISE(ABORT, 'projects: the results are published, so the track and merges are final');
   END`,
+  // the finals (drizzle/0024_finals.sql): the published places read them, so publishing freezes them too
+  finals_final_insert: frozenInsert("finals", "NEW.event_id", "x.id = NEW.id"),
+  finals_final_update: final("finals", "UPDATE", "OLD.event_id"),
+  finals_final_delete: final("finals", "DELETE", "OLD.event_id"),
+  finalists_final_insert: frozenInsert("finalists", "NEW.event_id", "x.finals_id = NEW.finals_id AND x.project_id = NEW.project_id"),
+  finalists_final_update: final("finalists", "UPDATE", "OLD.event_id"),
+  finalists_final_delete: final("finalists", "DELETE", "OLD.event_id"),
+  finals_panel_final_insert: frozenInsert("finals_panel", "NEW.event_id", "x.finals_id = NEW.finals_id AND x.judge_user_id = NEW.judge_user_id"),
+  finals_panel_final_update: final("finals_panel", "UPDATE", "OLD.event_id"),
+  finals_panel_final_delete: final("finals_panel", "DELETE", "OLD.event_id"),
+  finals_scores_final_insert: frozenInsert(
+    "finals_scores",
+    "NEW.event_id",
+    "x.id = NEW.id OR (x.finals_id = NEW.finals_id AND x.project_id = NEW.project_id AND x.judge_user_id = NEW.judge_user_id)",
+  ),
+  finals_scores_final_update: final("finals_scores", "UPDATE", "OLD.event_id"),
+  finals_scores_final_delete: final("finals_scores", "DELETE", "OLD.event_id"),
+  finals_score_items_final_insert: frozenInsert(
+    "finals_score_items",
+    eventOfFinalsScore("NEW.finals_score_id"),
+    "x.finals_score_id = NEW.finals_score_id AND x.criterion_id = NEW.criterion_id",
+  ),
+  finals_score_items_final_update: final("finals_score_items", "UPDATE", eventOfFinalsScore("OLD.finals_score_id")),
+  finals_score_items_final_delete: final("finals_score_items", "DELETE", eventOfFinalsScore("OLD.finals_score_id")),
+  finals_score_items_range_insert: finalsRange("INSERT"),
+  finals_score_items_range_update: finalsRange("UPDATE OF value, criterion_id"),
 };
 
 /**
@@ -262,8 +299,13 @@ export function assertTriggers(sqlite: Database.Database): TriggerReport {
       sql: string;
     }[]).map((r) => [r.name, r.sql]),
   );
+  const tables = new Set((sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map((r) => r.name));
   sqlite.transaction(() => {
     for (const [name, body] of Object.entries(TRIGGERS)) {
+      // A table a later migration makes (a database built from an older drizzle folder, as the migration tests do)
+      // has no rows to guard yet; that migration makes its triggers. A real boot runs every migration first.
+      const on = /BEFORE (?:INSERT|UPDATE|DELETE)[^]*? ON (\w+)/.exec(body)?.[1];
+      if (on && !tables.has(on)) continue;
       const wanted = `CREATE TRIGGER ${name}${body}`;
       const found = existing.get(name);
       if (found === undefined) {

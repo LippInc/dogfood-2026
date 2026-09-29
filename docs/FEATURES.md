@@ -142,6 +142,34 @@ each person sees.
 - **API:** `GET /api/events/{event}/close-calls`, `PUT` and `DELETE /api/events/{event}/close-calls/{track}`
   (organizers). A choice travels in the event's `fixtures.json` (`decisions.close_calls`) and a published decision
   with its run.
+## Finals (optional)
+
+A second round before publishing, for a track or for every track at once (organizer's **Finals** tab):
+
+- **Opening:** the organizer picks the track (or every track, one panel) and N (3 unless changed); the top N of each
+  track by first-round places become the finalists, ties at the cut all in.
+- **Finalists:** the organizer can add a project or take one off; going against the ranking (adding one outside the
+  top N, taking off one inside it) needs a written reason, kept in the audit log and `finals.csv`. At least two stay.
+- **The panel:** at least two of the event's judges. A panelist's judge console gets a **Finals** link to their own
+  page: only the finalists, each scored on the event's rubric with every criterion's scale as keys (Tab between
+  criteria, arrows between values), saved with one button and replaceable until the round closes. A panelist never
+  sees another panelist's finals scores; the API refuses another panelist's id with 403. A finalist from the
+  panelist's own team, or one they recused from, shows no score form and says why; a panelist the organizers removed
+  or left out is told their scores do not count. A judge left out of the ranking cannot join a panel.
+- **Closing:** once every counted panelist has scored every finalist they are free to score, or earlier with a
+  reason (the public results show it); fewer than two counted panelists also needs a reason. Publishing waits until
+  every round is closed (409 `finals_open`).
+- **Published:** the track is marked "Finals"; its finalists come first in the order of their finals score (the
+  plain mean of the panel's weighted totals, with a ± of one standard error), with that score and the panel count
+  next to their first-round score; everyone else follows in first-round order. Each finalist added or taken off
+  against the ranking is listed with its reason. The first-place tile, the overall order and "How this ranking was
+  reached" say where the finals decided the places. Certificates name the published place. Publishing freezes every finals
+  table, in the app and in the database. The rule in full: `JUDGING.md`, "Finals".
+- **API:** `GET`/`POST /api/events/{event}/finals`, `POST .../finals/{finals}/finalists`,
+  `POST .../finalists/{project}/remove`, `PUT .../finals/{finals}/panel`, `POST .../finals/{finals}/close`;
+  for panelists `GET /api/judge/{event}/finals`, `GET`/`PUT /api/judge/{event}/finals/scores`.
+
+An event that holds no finals publishes, exports and shows exactly what it did before the feature existed.
 
 ## Results and exports
 
@@ -156,7 +184,7 @@ and teams changed by the organizers after the close, each with its date and reas
 ("tie broken by <criterion>") with how ties are broken if it was chosen after judging began. In pairwise mode it says instead why there is no overall order: a win % is
 measured only against the projects of its own track. Teams then see
 their place, their score with its ±, and each review's feedback, judges unnamed. CSV exports (scores, projects,
-assignments, normalized ranking, pairwise answers, ballots, comments, prize awards, audit log) and a full
+assignments, normalized ranking, pairwise answers, ballots, comments, prize awards, finals, audit log) and a full
 `event.json` are available at every stage (each file's columns: "Import and export").
 
 ## Prizes
@@ -295,11 +323,16 @@ organizers only, each with a header row even while there is nothing to list:
   hid it, when and why, and an empty body: its words are not exported.
 - `awards.csv`: every prize, one row per winner (a joint award one row for each of its projects), and an unawarded
   prize as one row with the project columns empty; its status is draft before publishing and final after.
+- `finals.csv`: one row per finals score (round, finalist, panelist, whether still on the panel, each criterion, the
+  weighted total), then one row per finalist with its finals score, its ± (`finals_se`) and its place (`score_id`
+  empty; once published, the published place in its track, tie-break included), with the
+  reason a finalist was added against the ranking and a round's early-close reason; only the header for an event
+  with no finals. `event.json` then carries a `finals` key with the rows as stored.
 
 A whole event also exports as `event.json` or as `fixtures.json`, the organizers' own
 fixture format with the rest of the event added (rubric, questions and answers, dates, settings, prizes, the
 reviews' times and private notes, merges and every organizer decision with its reason, the prizes given, pairwise answers, ballots
-once voting has closed, comments, the organizers' updates, and the published results as stored): the file that
+once voting has closed, comments, the organizers' updates, the finals with their finalists, panel and scores, and the published results as stored): the file that
 moves an event. An administrator imports such a file on Your events (or `POST /api/imports`), through the same idempotent importer the
 portal boots with, and gets the same event back as a new event (`tests/event-round-trip.test.ts`: exported again,
 the file is the same, and so are its ranking, count and exports); what stays behind is listed in

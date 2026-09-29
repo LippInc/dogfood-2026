@@ -77,8 +77,8 @@ export function RowChangeMarks({
 }: {
   projectHref: string;
   teamChangedAt: string | null;
-  /** only when the event's tie-break decided this row's place: the criterion's name and the row's figure on it */
-  tieBrokenBy: { criterion: string; figure: number | null } | null;
+  /** only when the event's tie-break decided this row's place: the criterion's name, the row's figure on it, and whether the tie was in the finals */
+  tieBrokenBy: { criterion: string; figure: number | null; inFinals?: boolean } | null;
   moves: Move[] | undefined;
 }) {
   return (
@@ -93,11 +93,11 @@ export function RowChangeMarks({
       ) : null}
       {tieBrokenBy ? (
         <span className="mt-1 block text-13 text-ink-2 wrap-anywhere">
-          {tieBrokenWords(tieBrokenBy.criterion)}
+          {tieBrokenBy.inFinals ? `Exactly tied in the finals; tie broken by ${tieBrokenBy.criterion}` : tieBrokenWords(tieBrokenBy.criterion)}
           {/* the criterion's own figure, named as what it is: a plain average, not a scored number with a ± */}
           {tieBrokenBy.figure !== null ? (
             <>
-              , plain average on {tieBrokenBy.criterion} <span className="tnum">{tieBrokenBy.figure.toFixed(2)}</span>
+              , {tieBrokenBy.inFinals ? "the panel’s plain average" : "plain average"} on {tieBrokenBy.criterion} <span className="tnum">{tieBrokenBy.figure.toFixed(2)}</span>
             </>
           ) : null}
         </span>
@@ -115,13 +115,16 @@ export function RowChangeMarks({
  * The tie-break mark's words for a row, only when the event's tie-break decided its place in its track (tieDecided: the
  * criterion split the row's exact score tie and left it alone at that place); null otherwise, also for a place the
  * criterion left joint.
+ * A finalist the panel scored had its tie in the finals (its figure is the panel's own), not on the first-round score beside it.
  */
 export function tieBrokenByOf(
-  row: { tieBroken?: boolean; tie?: number | null },
+  row: { tieBroken?: boolean; tie?: number | null; finals?: { score: number | null } | null },
   tieBreak: { criterion: string } | undefined,
   place: { place: number | null; joint: boolean },
-): { criterion: string; figure: number | null } | null {
-  return tieBreak && tieDecided(row, place) ? { criterion: tieBreak.criterion, figure: typeof row.tie === "number" ? row.tie : null } : null;
+): { criterion: string; figure: number | null; inFinals: boolean } | null {
+  return tieBreak && tieDecided(row, place)
+    ? { criterion: tieBreak.criterion, figure: typeof row.tie === "number" ? row.tie : null, inFinals: Boolean(row.finals && row.finals.score !== null) }
+    : null;
 }
 
 /** A judges' decision as the published results carry it (dal/results.ts PublishedDecision). */
@@ -168,5 +171,39 @@ export function DecidedMark({ reason, href }: { reason: string; href: string }) 
         see the close call
       </Link>
     </span>
+  );
+}
+
+/** A finals score with its ±, as every public page shows it: "3.87 ± 0.12", or "–" when nobody on the panel scored it. */
+export function finalsScoreWords(f: { score: number | null; se: number | null }): string {
+  return f.score === null ? "–" : `${f.score.toFixed(2)}${f.se !== null ? ` ± ${f.se.toFixed(2)}` : ""}`;
+}
+
+/**
+ * The finalists the organizers added or took off against the first-round ranking, each with its reason: the finals
+ * block of a track on the public results lists them as the weight changes and track moves are listed.
+ */
+export function FinalistChangesNotice({
+  changes,
+  titleOf,
+  className = "",
+}: {
+  changes: { projectId: string; change: "added" | "removed"; reason: string; at: string }[] | undefined;
+  titleOf: (projectId: string) => string;
+  className?: string;
+}) {
+  if (!changes?.length) return null;
+  return (
+    <div className={`max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag ${className}`}>
+      <p className="font-semibold">The organizers changed the finalists the first-round ranking gave.</p>
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {changes.map((c, i) => (
+          <li key={i} className="wrap-anywhere">
+            <span className="tnum">{formatUtc(c.at)}</span>: {titleOf(c.projectId)}{" "}
+            {c.change === "added" ? "added to the finals from outside the top places" : "taken off the finals from the top places"}. Their reason: &ldquo;{c.reason}&rdquo;
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
