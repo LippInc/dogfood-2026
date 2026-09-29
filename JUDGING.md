@@ -467,7 +467,7 @@ This section says what the audit log records, what protects it, and where that p
 **Limits, stated plainly:** the triggers stop the application, not someone holding the database file; the chain is tamper-evident only against a head hash kept outside the portal.
 
 - The portal spreads such heads as it goes: each signed certificate and judging record carries the newest entry's number and hash inside its signature (the record's page says whether the log still holds that entry as signed), and the public results page shows the entry that published the results.
-- The signing key itself is sealed under the portal's secret, so a copy of the database cannot sign new records to match a rewritten log.
+- The signing key itself is sealed under the portal's secret, so with your own `DOGFOOD_SEED_SECRET` a copy of the database cannot sign new records to match a rewritten log (under the documented default anyone can derive the sealing key, which is why the portal runs on it only as the local demo; `DATA-MODEL.md`, `signing_keys`).
 
 ## Threat model
 
