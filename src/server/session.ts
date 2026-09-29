@@ -45,6 +45,9 @@ export function actorForToken(db: DbOrTx, token: string, now = new Date()): Acto
 
 export const API_TOKEN_PREFIX = "dfk_";
 
+/** Set after the first failed "last used" write, so a broken volume logs it once, not on every request. */
+let lastUsedWriteFailed = false;
+
 function actorForApiToken(db: DbOrTx, token: string, now: Date): Actor | null {
   const row = db
     .select({ id: apiTokens.id, userId: users.id, name: users.name, email: users.email, isAdmin: users.isAdmin, expiresAt: apiTokens.expiresAt, revokedAt: apiTokens.revokedAt, lastUsedAt: apiTokens.lastUsedAt })
@@ -53,9 +56,18 @@ function actorForApiToken(db: DbOrTx, token: string, now: Date): Actor | null {
     .where(eq(apiTokens.tokenHash, sha256(token)))
     .get();
   if (!row || row.revokedAt || (row.expiresAt && Date.parse(row.expiresAt) <= now.getTime())) return null;
-  // "last used" to the minute: one small write a minute per token at most
+  // "last used" to the minute: one small write a minute per token at most. On a read-only or full volume
+  // the write fails; a missed minute is fine, so the request goes on (reads keep working, as
+  // docs/OPERATIONS.md says) and the failure is logged once per process.
   if (!row.lastUsedAt || now.getTime() - Date.parse(row.lastUsedAt) > 60_000) {
-    db.update(apiTokens).set({ lastUsedAt: now.toISOString() }).where(eq(apiTokens.id, row.id)).run();
+    try {
+      db.update(apiTokens).set({ lastUsedAt: now.toISOString() }).where(eq(apiTokens.id, row.id)).run();
+    } catch (err) {
+      if (!lastUsedWriteFailed) {
+        lastUsedWriteFailed = true;
+        console.warn(`[session] could not record an API token's last used time, going on without it: ${(err as Error).message}`);
+      }
+    }
   }
   const roles = db.select({ eventId: userRoles.eventId, role: userRoles.role }).from(userRoles).where(eq(userRoles.userId, row.userId)).all();
   return { userId: row.userId, name: row.name, email: row.email, isAdmin: row.isAdmin, roles, sessionKind: "api" };

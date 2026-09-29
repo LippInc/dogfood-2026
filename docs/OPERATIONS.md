@@ -72,7 +72,7 @@ HTTPS, and set `TRUST_PROXY_HOPS`. `GET /api/health` answers 200 `{"ok":true,"ev
 open and holds an event (at once with `FIXTURES_PATH: "none"`) and the start-up warm-up is done (the same moment
 as the `portal ready` line), and 503 before. It also answers 503, with a `problem` naming the folder, when the
 volume takes no writes (full or read-only; it writes a 4 KB file there at most every 30 s): reads would still work
-while every change failed. The compose healthcheck uses it, and a proxy or a monitor can too.
+(an API token's "last used" time just stops moving) while every change failed. The compose healthcheck uses it, and a proxy or a monitor can too.
 
 ## Backup and restore
 
