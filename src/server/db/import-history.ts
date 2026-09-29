@@ -137,7 +137,23 @@ export const HistoryFields = {
         .optional()
         .default([]),
       close_calls: z
-        .array(z.object({ track: id, mode: z.enum(["keep", "judges"]), top: z.array(id).max(2_000), winner: id.optional(), reason: reason.optional(), at: dateTime }))
+        .array(
+          z
+            .object({ track: id, mode: z.enum(["keep", "judges"]), top: z.array(id).max(2_000), winner: id.optional(), reason: reason.optional(), at: dateTime })
+            // the app route's rules (dal/close-calls.ts): the judges name a winner other than the ranking's sole first place,
+            // with a reason of at least 3 characters; keeping the ranking's winner names none. Whether the winner is among the
+            // close projects is checked on the scores wherever the choice is read: one that is not is stale and never applied.
+            .superRefine((c, ctx) => {
+              if (c.mode === "judges") {
+                if (!c.winner) ctx.addIssue({ code: "custom", path: ["winner"], message: "a judges' decision names its winner" });
+                if (c.reason === undefined) ctx.addIssue({ code: "custom", path: ["reason"], message: "a judges' decision must say why, in at least 3 characters" });
+                if (c.winner && c.top.length === 1 && c.top[0] === c.winner)
+                  ctx.addIssue({ code: "custom", path: ["winner"], message: "that is the ranking's winner already: a judges' decision names another project" });
+              } else if (c.winner !== undefined) {
+                ctx.addIssue({ code: "custom", path: ["winner"], message: "keeping the ranking's winner names no other winner" });
+              }
+            }),
+        )
         .max(HISTORY_LIMITS.decisions, atMost(HISTORY_LIMITS.decisions, "close calls"))
         .optional()
         .default([]),
