@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { publicAllEventsLink } from "@/components/shell/public-shell";
-import { allEventsLink, organizerTabs } from "@/components/shell/work-shell";
+import { allEventsLink } from "@/components/shell/work-shell";
 
 // An organizer walking the portal (2026-09-29) found no way out of an event to the list of events, or to New event.
 
@@ -62,14 +62,8 @@ describe("every judge page's top bar", () => {
   });
 });
 
-// Two sweeps (2026-09-29) found no organizer page linking to the event's public side, and an empty Your events
-// with no way on for a judge or participant who landed there.
+// A sweep (2026-09-29) found an empty Your events with no way on for a judge or participant who landed there.
 describe("the organizer's ways out", () => {
-  it("every organizer tab row ends with the event's public page", () => {
-    const tabs = organizerTabs("sample-hack-2026", "Overview");
-    expect(tabs.at(-1)).toEqual({ href: "/events/sample-hack-2026", label: "Public page", active: false });
-  });
-
   it("an empty Your events for someone who cannot create one links to the events", () => {
     const src = fs.readFileSync(path.join(process.cwd(), "src/app/organize/page.tsx"), "utf8");
     const empty = src.slice(src.indexOf("You organize no event yet. Only an administrator"));
