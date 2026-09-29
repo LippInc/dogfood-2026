@@ -59,16 +59,46 @@ describe("rate limits in the database", () => {
   });
 
   it("refills with time, and deletes the rows of buckets that are full again", async () => {
-    const { take, LIMITS } = await start();
+    const { take, LIMITS, storedKey } = await start();
     const t0 = Date.now();
     take("a", LIMIT, t0);
     take("a", LIMIT, t0);
     expect(take("a", LIMIT, t0).ok).toBe(false);
     expect(take("a", LIMIT, t0 + 30_000).ok).toBe(true); // one token back after half the refill time
-    expect(h!.sqlite.prepare("SELECT key FROM rate_buckets").all()).toEqual([{ key: "a" }]);
+    expect(h!.sqlite.prepare("SELECT key FROM rate_buckets").all()).toEqual([{ key: storedKey("a") }]);
 
     const slowest = Math.max(...Object.values(LIMITS).map((l) => l.perSeconds)) * 1000;
     take("b", LIMIT, t0 + 30_000 + slowest + 1);
-    expect(h!.sqlite.prepare("SELECT key FROM rate_buckets").all()).toEqual([{ key: "b" }]);
+    expect(h!.sqlite.prepare("SELECT key FROM rate_buckets").all()).toEqual([{ key: storedKey("b") }]);
+  });
+
+  it("stores each key as the limit's name and a keyed hash: same key, same row; another secret, another hash", async () => {
+    const { take, storedKey } = await start();
+    const key = "signin:someone@example.org:192.0.2.1";
+    const now = Date.now();
+    expect(take(key, LIMIT, now).ok).toBe(true);
+    expect(take(key, LIMIT, now).ok).toBe(true);
+    expect(take(key, LIMIT, now).ok).toBe(false); // one row counts both takes
+    const rows = h!.sqlite.prepare("SELECT key FROM rate_buckets").all() as { key: string }[];
+    expect(rows).toEqual([{ key: storedKey(key) }]);
+    expect(rows[0]!.key).toMatch(/^signin:[0-9a-f]{64}$/);
+    expect(storedKey("no colon here")).toMatch(/^limit:[0-9a-f]{64}$/);
+    const before = storedKey(key);
+    vi.stubEnv("DOGFOOD_SEED_SECRET", "another-secret-for-this-test");
+    try {
+      expect(storedKey(key)).not.toBe(before);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("sweepRateBuckets, at every start: removes idle buckets and rows an older portal keyed in the clear; keeps live hashed ones", async () => {
+    const { take, storedKey, sweepRateBuckets } = await start();
+    const now = Date.now();
+    take("comment:usr_live", LIMIT, now);
+    h!.sqlite.prepare("INSERT INTO rate_buckets (key, tokens, at, refused) VALUES (?, 1, ?, 0)").run("signin:old@example.org:192.0.2.9", now);
+    h!.sqlite.prepare("INSERT INTO rate_buckets (key, tokens, at, refused) VALUES (?, 1, ?, 0)").run(storedKey("comment:usr_idle"), now - 2 * 3600 * 1000);
+    expect(sweepRateBuckets(h!.db, now)).toBe(2);
+    expect(h!.sqlite.prepare("SELECT key FROM rate_buckets").all()).toEqual([{ key: storedKey("comment:usr_live") }]);
   });
 });

@@ -83,3 +83,22 @@ describe("password sign-in is rate limited per email address and network address
     if (!other.ok) expect(other.message).toMatch(/do not match/);
   }, 60_000); // 101 real argon2 checks
 });
+
+describe("the sign-in limits store no email or network address", () => {
+  it("after refused and counted tries, rate_buckets holds neither the email nor the address, and the limit still bites (known-bad: signin:<email>:<ip> as it was)", async () => {
+    const client = { ip: "198.51.100.23", agent: "test" };
+    for (let i = 0; i < 11; i++) await signInWithPassword("Private.Person@Example.org", `wrong-${i}`, client);
+    const eleventh = await signInWithPassword("private.person@example.org", "wrong-11", client);
+    expect(eleventh.ok).toBe(false);
+    if (!eleventh.ok) expect(eleventh.message).toMatch(/Too many attempts/);
+
+    const keys = (h.sqlite.prepare("SELECT key FROM rate_buckets").all() as { key: string }[]).map((r) => r.key);
+    expect(keys.length).toBeGreaterThanOrEqual(3); // per email and address, per email, per address
+    const dump = JSON.stringify(h.sqlite.prepare("SELECT * FROM rate_buckets").all()).toLowerCase();
+    for (const secret of ["private.person", "example.org", "198.51.100.23", "198.51.100"]) expect(dump).not.toContain(secret);
+    for (const key of keys) expect(key).toMatch(/^[a-z][a-z-]*:[0-9a-f]{64}$/);
+    const audit = JSON.stringify(h.sqlite.prepare("SELECT * FROM audit_log").all()).toLowerCase();
+    expect(audit).not.toContain("private.person");
+    expect(audit).not.toContain("198.51.100.23");
+  }, 30_000);
+});

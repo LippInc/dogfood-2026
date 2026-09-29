@@ -1,7 +1,9 @@
 import "server-only";
+import crypto from "node:crypto";
 import { eq, lt } from "drizzle-orm";
 import { appendAudit } from "./audit";
-import { currentHandle, getDb } from "./db/client";
+import { DEFAULT_SEED_SECRET } from "./checker";
+import { currentHandle, getDb, type Db } from "./db/client";
 import { rateBuckets } from "./db/schema";
 import { operatorCount } from "./settings";
 
@@ -9,6 +11,11 @@ import { operatorCount } from "./settings";
 // process on the same file shares them. Each key holds up to `capacity` tokens and
 // regains them evenly over `perSeconds`. A key with no row has a full bucket, so rows
 // idle for longer than the slowest refill are deleted as limits are taken.
+//
+// A key names whom it counts (an email address, a network address, an account id), so the
+// table never stores it: each row's key is the limit's name, then an HMAC-SHA256 of the
+// whole key under DOGFOOD_SEED_SECRET (storedKey). The same key always lands on the same
+// row, so the limits work as before, and a copy of the database shows no email or address.
 
 export type Limit = { capacity: number; perSeconds: number };
 
@@ -60,10 +67,24 @@ export const LIMITS = {
 /** after this long without a take, every bucket is full again */
 const SLOWEST_REFILL_MS = Math.max(...Object.values(LIMITS).map((l) => l.perSeconds)) * 1000;
 
+/**
+ * What rate_buckets.key holds for a key: the limit's name (the part before the first colon, e.g. "signin") and an
+ * HMAC-SHA256 of the whole key, keyed with DOGFOOD_SEED_SECRET like the voters' address hashes. The name keeps a row
+ * readable to an operator ("a sign-in limit"); the hash keeps whom it counts out of the file.
+ */
+export function storedKey(key: string): string {
+  const name = /^[a-z][a-z-]*(?=:)/.exec(key)?.[0] ?? "limit";
+  const mac = crypto.createHmac("sha256", process.env.DOGFOOD_SEED_SECRET || DEFAULT_SEED_SECRET).update(`rate-limit:${key}`).digest("hex");
+  return `${name}:${mac}`;
+}
+
+const STORED_KEY = /^[a-z][a-z-]*:[0-9a-f]{64}$/;
+
 export type Take = { ok: true } | { ok: false; retryAfter: number; firstRefusal: boolean };
 
-export function take(key: string, limit: Limit, now = Date.now()): Take {
+export function take(rawKey: string, limit: Limit, now = Date.now()): Take {
   const rate = limit.capacity / (limit.perSeconds * 1000);
+  const key = storedKey(rawKey);
   return getDb().transaction((tx) => {
     tx.delete(rateBuckets).where(lt(rateBuckets.at, now - SLOWEST_REFILL_MS)).run();
     const row = tx.select().from(rateBuckets).where(eq(rateBuckets.key, key)).get();
@@ -104,6 +125,20 @@ export function takeAudited(key: string, limit: Limit, who: { userId: string | n
     );
   }
   return t;
+}
+
+/**
+ * Run at every start: delete the rows of buckets that are full again, and every row whose key is not a stored key
+ * (a portal older than storedKey wrote keys such as signin:<email>:<address> as they were). Returns how many went.
+ */
+export function sweepRateBuckets(db: Db, now = Date.now()): number {
+  return db.transaction((tx) => {
+    let gone = tx.delete(rateBuckets).where(lt(rateBuckets.at, now - SLOWEST_REFILL_MS)).run().changes;
+    for (const { key } of tx.select({ key: rateBuckets.key }).from(rateBuckets).all()) {
+      if (!STORED_KEY.test(key)) gone += tx.delete(rateBuckets).where(eq(rateBuckets.key, key)).run().changes;
+    }
+    return gone;
+  });
 }
 
 /** For tests: empty the buckets of the database in use, if one is open. */

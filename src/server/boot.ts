@@ -13,6 +13,7 @@ import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
 import { mailProblem } from "./mail";
 import { HttpError } from "./errors";
+import { sweepRateBuckets } from "./rate-limit";
 import { settingsProblem } from "./settings";
 import { ensureSigningKey } from "./signing";
 import { sweepOrphanUploads } from "./uploads";
@@ -201,6 +202,8 @@ export async function boot(): Promise<void> {
   const swept = sweepOrphanUploads(h.db);
   if (swept.skipped) console.warn(`[boot] uploads: ${swept.kept} stored pictures, and ${swept.skipped}`);
   else if (swept.removed) console.log(`[boot] uploads: removed ${swept.removed} stored ${swept.removed === 1 ? "picture" : "pictures"} no project names (${swept.kept} kept)`);
+  const buckets = sweepRateBuckets(h.db);
+  if (buckets) console.log(`[boot] rate limits: removed ${buckets} idle or old-format ${buckets === 1 ? "bucket" : "buckets"}`);
   const key = ensureSigningKey(h.db, now);
   console.log(`[boot] records are signed with Ed25519 key ${key.id}; public key at /.well-known/dogfood-keys.json`);
 
