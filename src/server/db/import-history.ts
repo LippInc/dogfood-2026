@@ -125,6 +125,11 @@ export const HistoryFields = {
         .max(HISTORY_LIMITS.changes)
         .optional()
         .default([]),
+      prize_awards: z
+        .array(z.object({ prize: id, projects: z.array(id).min(1).max(20), note: z.string().trim().max(300).optional().default(""), at: dateTime }))
+        .max(HISTORY_LIMITS.prizes, atMost(HISTORY_LIMITS.prizes, "prize awards"))
+        .optional()
+        .default([]),
       track_moves: z
         .array(z.object({ project: id, from: id, to: id, reason: z.string().max(2_000), at: dateTime }))
         .max(HISTORY_LIMITS.decisions, atMost(HISTORY_LIMITS.decisions, "track moves"))
@@ -336,6 +341,10 @@ export function refuseHistoryForExistingEvent(
     inList(d?.vote_rule_changes, s.voteRuleChanges),
     inList(remapIds(d?.vote_count_changes, projectOf) as unknown[] | undefined, s.voteCountChanges),
     inList(
+      d?.prize_awards.map((a) => ({ prize: a.prize, projects: a.projects.map(own), note: a.note, at: a.at })),
+      s.prizeAwards?.map((a) => ({ prize: a.prizeId, projects: a.projectIds, note: a.note, at: a.at })),
+    ),
+    inList(
       d?.track_moves.map((m) => ({ project: own(m.project), from: trackOf.get(m.from) ?? m.from, to: trackOf.get(m.to) ?? m.to, reason: m.reason, at: m.at })),
       (d?.track_moves.length ? readTrackMoves(tx, eventId) : []).map((m) => ({ project: m.projectId, from: m.fromTrackId, to: m.toTrackId, reason: m.reason, at: m.at })),
     ),
@@ -460,6 +469,7 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
     ctx.bump("prizes", tx.insert(prizes).values({ id: prizeId, eventId, name: p.name, description: p.description, position }).onConflictDoNothing().run().changes);
     out.prizes.push(prizeId);
   });
+  const prizeHere = new Map((file.prizes ?? []).map((p, i) => [p.id, out.prizes[i]!]));
 
   // The criterion that breaks exact ties, found by its key in the rubric this import made (scores mode only), before
   // the published ranking goes in: from then on a trigger freezes it
@@ -546,7 +556,18 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
       return [{ projectId: project, fromTrackId: from, toTrackId: to, reason: m.reason, at: m.at }];
     });
     if (moves.length) out.trackMoves = moves;
-    const added = pairs.length + accepted.length + d.weight_changes.length + d.tie_break_changes.length + d.vote_rule_changes.length + d.vote_count_changes.length;
+    // the prizes given, before the published ranking below makes them final (events_prize_awards_final)
+    const awards = d.prize_awards.flatMap((a) => {
+      const prize = prizeHere.get(a.prize);
+      const winners = a.projects.map(projectHere);
+      if (!prize || winners.some((w) => !w)) {
+        ctx.skip("decision", `prize:${a.prize}`, !prize ? `unknown prize ${a.prize}` : "a winner is not a project of this file");
+        return [];
+      }
+      return [{ prizeId: prize, projectIds: winners as string[], note: a.note, at: a.at }];
+    });
+    if (awards.length) next.prizeAwards = awards;
+    const added = pairs.length + accepted.length + d.weight_changes.length + d.tie_break_changes.length + d.vote_rule_changes.length + d.vote_count_changes.length + awards.length;
     if (added) {
       tx.update(events).set({ settings: next }).where(eq(events.id, eventId)).run();
       out.decisions.push(...pairs.map((p) => `not_duplicate:${p}`), ...accepted.map((p) => `accepted_under_reviewed:${p}`));
@@ -554,6 +575,7 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
       if (d.tie_break_changes.length) out.decisions.push(`tie_break_changes:${d.tie_break_changes.length}`);
       if (d.vote_rule_changes.length) out.decisions.push(`vote_rule_changes:${d.vote_rule_changes.length}`);
       if (d.vote_count_changes.length) out.decisions.push(`vote_count_changes:${d.vote_count_changes.length}`);
+      if (awards.length) out.decisions.push(`prize_awards:${awards.length}`);
     }
   }
 

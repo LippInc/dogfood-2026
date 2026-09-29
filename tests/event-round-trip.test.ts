@@ -29,6 +29,7 @@ const { getPairwiseState, pickPairwise, setJudgingMode, undoPairwise } = await i
 const { moveProjectTrack, projectTrackMoves } = await import("@/server/dal/corrections");
 const { issueOwnRecord } = await import("@/server/dal/records");
 const { setTieBreak } = await import("@/server/dal/tiebreak");
+const { awardPrize, publishedPrizes } = await import("@/server/dal/prize-awards");
 
 // Leaving without loss: an event exported from one portal after its whole life (ballots, comments, pairwise answers, a
 // merge, the organizers' decisions, published) and imported into another portal as a new event is the same event
@@ -152,6 +153,9 @@ function liveTheEvent() {
   mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
   acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
   moveProjectTrack(org, "evt_01", "prj_05", { trackId: "trk_04", reason: "The team entered the wrong track" });
+  // a joint prize with a note; the second prize stays unawarded
+  const best = (ha.sqlite.prepare("SELECT id FROM prizes WHERE event_id = 'evt_01' ORDER BY position LIMIT 1").get() as { id: string }).id;
+  awardPrize(org, "evt_01", best, { projectIds: ["prj_02", "prj_03"], note: "Two ways to one good idea" });
   publishResults(org, "evt_01");
 }
 
@@ -182,6 +186,7 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     expect(file.decisions.judges).toEqual([expect.objectContaining({ judge: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" })]);
     expect(file.decisions.accepted_under_reviewed).toEqual(["prj_19"]);
     expect(file.decisions.track_moves).toEqual([{ project: "prj_05", from: "trk_02", to: "trk_04", reason: "The team entered the wrong track", at: expect.any(String) }]);
+    expect(file.decisions.prize_awards).toEqual([{ prize: file.prizes[0].id, projects: ["prj_02", "prj_03"], note: "Two ways to one good idea", at: expect.any(String) }]);
     expect(file.scores.some((s: { private_note?: string }) => s.private_note === "Ask them about the licence")).toBe(true);
     expect(file.published).toMatchObject({ at: expect.any(String), run: { method: "leniency-shrunk-v1" } });
     expect(file.published.scores.length).toBeGreaterThan(30);
@@ -235,6 +240,19 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     const onB = certificate(hb!);
     expect(onB.project).toEqual(onA.project);
     expect(onB.person).toEqual(onA.person);
+    // the prizes given moved too, final there as here: the same winners on the results, the same line on a certificate
+    expect(inB(() => publishedPrizes("evt_01"))).toEqual(publishedPrizes("evt_01"));
+    expect(publishedPrizes("evt_01")[0]!.winners.map((w) => w.projectId)).toEqual(["prj_02", "prj_03"]);
+    const prizeWinner = (h: Handle) =>
+      inPortal(h, () => {
+        const email = (h.sqlite.prepare("SELECT u.email FROM team_members m JOIN users u ON u.id = m.user_id JOIN projects p ON p.team_id = m.team_id WHERE p.id = 'prj_02' ORDER BY u.email LIMIT 1").get() as { email: string }).email;
+        const { id } = issueOwnRecord(actorIn(h, idOf(h, email)), "evt_01", "participant");
+        const row = h.sqlite.prepare("SELECT envelope FROM signed_records WHERE id = ?").get(id) as { envelope: string };
+        return (JSON.parse(row.envelope) as { record: { project: { awards: string[] } } }).record.project.awards;
+      });
+    expect(prizeWinner(hb!)).toEqual(prizeWinner(ha));
+    expect(prizeWinner(hb!)).toContain("Joint winner, Best in show");
+    expect(() => b.prepare("UPDATE events SET settings = json_remove(settings, '$.prizeAwards') WHERE id = 'evt_01'").run()).toThrow(/prize awards are final/);
     expect(JSON.stringify(onB.project)).toContain("place");
     // a hidden comment is still hidden, with its reason; the set-aside ballot is still set aside
     expect(b.prepare("SELECT hidden_reason AS r FROM comments WHERE hidden_at IS NOT NULL").all()).toEqual([{ r: "Advertising, not about the project" }]);

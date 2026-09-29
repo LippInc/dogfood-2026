@@ -229,10 +229,12 @@ organizers only, each with a header row even while there is nothing to list:
   voting closes", for every ballot, exactly as `audit.csv` seals a ballot.
 - `comments.csv`: every comment with its project and author; a comment an organizer hid keeps its row with who
   hid it, when and why, and an empty body: its words are not exported.
+- `awards.csv`: every prize, one row per winner (a joint award one row for each of its projects), and an unawarded
+  prize as one row with the project columns empty; its status is draft before publishing and final after.
 
 A whole event also exports as `event.json` or as `fixtures.json`, the organizers' own
 fixture format with the rest of the event added (rubric, questions and answers, dates, settings, prizes, the
-reviews' times and private notes, merges and every organizer decision with its reason, pairwise answers, ballots
+reviews' times and private notes, merges and every organizer decision with its reason, the prizes given, pairwise answers, ballots
 once voting has closed, comments, and the published results as stored): the file that moves an event. An
 administrator imports such a file on Your events (or `POST /api/imports`), through the same idempotent importer the
 portal boots with, and gets the same event back as a new event (`tests/event-round-trip.test.ts`: exported again,

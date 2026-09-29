@@ -785,6 +785,15 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
     ...(s.voteCountChanges?.length ? { vote_count_changes: s.voteCountChanges } : {}),
     // projects moved to another track after judges were assigned, each with its reason (the audit log keeps them)
     ...(moves.length ? { track_moves: moves.map((m) => ({ project: m.projectId, from: m.fromTrackId, to: m.toTrackId, reason: m.reason, at: m.at })) } : {}),
+    // the prizes given, by the file's prize and project ids; a winner the file does not carry stays out with its project
+    ...(() => {
+      const listed = new Set(prizeRows.map((p) => p.id));
+      const awards = (s.prizeAwards ?? [])
+        .filter((a) => listed.has(a.prizeId))
+        .map((a) => ({ prize: a.prizeId, projects: a.projectIds.filter((id) => submitted.has(id)), ...(a.note ? { note: a.note } : {}), at: a.at }))
+        .filter((a) => a.projects.length);
+      return awards.length ? { prize_awards: awards } : {};
+    })(),
   };
 
   const answers = db
