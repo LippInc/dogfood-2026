@@ -144,19 +144,14 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
         <section aria-labelledby="feedback-title" className="mb-10 border-b border-rule py-10">
           <p className="label-mono text-accent-ink">Results are published</p>
           <div className="mt-4 grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,420px)] md:items-end lg:grid-cols-[minmax(0,1fr)_400px]">
-            <h2 id="feedback-title" className="flex flex-wrap items-end gap-x-4 gap-y-1">
-              {work.feedback.place !== null ? (
-                <>
-                  <span className="flex flex-col">
-                    <span className="label-mono text-ink-3">Place</span>{" "}
-                    <span className="font-display text-[88px] leading-[80px] tnum">{work.feedback.place}</span>
-                  </span>{" "}
-                  <span className="pb-1.5 text-24 font-semibold">in {work.feedback.trackName}</span>
-                </>
-              ) : (
-                <span className="text-24 font-semibold">Not ranked</span>
-              )}
-            </h2>
+            {work.feedback.tieBrokenBy ? (
+              <div>
+                <PlaceHeading feedback={work.feedback} />
+                <p className="mt-3 text-14 text-ink-2">Tied on score; tie broken by {work.feedback.tieBrokenBy}</p>
+              </div>
+            ) : (
+              <PlaceHeading feedback={work.feedback} />
+            )}
             {work.feedback.score !== null ? <ScoreFigure feedback={work.feedback} pairwise={pairwise} /> : null}
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -284,6 +279,24 @@ function Stages({ work, solo }: { work: MyWork; solo: boolean }) {
 }
 
 /** The axis every review and the score share: the rubric's range as the reviews show it, 1 to 5 at the least. */
+function PlaceHeading({ feedback }: { feedback: TeamFeedback }) {
+  return (
+    <h2 id="feedback-title" className="flex flex-wrap items-end gap-x-4 gap-y-1">
+      {feedback.place !== null ? (
+        <>
+          <span className="flex flex-col">
+            <span className="label-mono text-ink-3">Place</span>{" "}
+            <span className="font-display text-[88px] leading-[80px] tnum">{feedback.place}</span>
+          </span>{" "}
+          <span className="pb-1.5 text-24 font-semibold">in {feedback.trackName}</span>
+        </>
+      ) : (
+        <span className="text-24 font-semibold">Not ranked</span>
+      )}
+    </h2>
+  );
+}
+
 function axisOf(feedback: TeamFeedback): [number, number] {
   const values = feedback.reviews.flatMap((r) => r.values.map((v) => v.value));
   return [Math.min(1, ...values), Math.max(5, ...values)];

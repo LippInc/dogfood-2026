@@ -421,6 +421,8 @@ export type TeamFeedback = {
   /** how the published run was made: the score engine's method or PAIRWISE_METHOD */
   method: string;
   place: number | null;
+  /** only when the event's tie-break decided this place: the criterion that split the project's exact score tie */
+  tieBrokenBy?: string;
   score: number | null;
   /** one standard error of the score */
   se: number | null;
@@ -455,6 +457,7 @@ function teamFeedback(db: DbOrTx, event: EventRow, projectId: string): TeamFeedb
   return {
     method: published.method,
     place: row?.place ?? null,
+    ...(row?.tieBroken && published.tieBreak ? { tieBrokenBy: published.tieBreak.criterion } : {}),
     score: row?.score ?? null,
     se: row?.se ?? null,
     trackName: track?.name ?? "",

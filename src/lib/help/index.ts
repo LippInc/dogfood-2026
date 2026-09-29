@@ -753,7 +753,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/events/[event]/results",
     who: ["everyone"],
     answer:
-      "Projects in one track with exactly the same score share a place (\"Joint 2nd\"), unless the organizers chose a criterion to break such ties before publishing: then the results, the project's page and its certificate say \"tie broken by\" that criterion.",
+      "Projects in one track with exactly the same score share a place (\"Joint 2nd\"), unless the organizers chose a criterion to break such ties before publishing: then the results, the project's page, the team's own My project page and its certificate say \"tie broken by\" that criterion.",
     keywords: ["joint", "joint 2nd", "shared place", "tie broken by", "why joint", "same place", "equal score", "tied"],
     doc: { file: "JUDGING.md", heading: "Breaking exact ties" },
   },

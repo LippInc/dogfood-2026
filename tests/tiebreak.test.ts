@@ -8,6 +8,7 @@ import { exportFile } from "@/server/dal/exports";
 import { createEvent, saveRubric } from "@/server/dal/organize";
 import { setJudgingMode } from "@/server/dal/pairwise";
 import { getRecord, issueOwnRecord } from "@/server/dal/records";
+import { getMyWork } from "@/server/dal/projects";
 import { getNormalization, getPublishedResults, publishResults } from "@/server/dal/results";
 import { setTieBreak } from "@/server/dal/tiebreak";
 import { scoreCandidates } from "@/server/dal/prize-candidates";
@@ -200,6 +201,16 @@ describe("setTieBreak", () => {
     const { id } = issueOwnRecord(actorById(member.id), "evt_01", "participant");
     const awards = (getRecord(id).envelope.record as { project: { awards: string[] } }).project.awards;
     expect(awards).toContain(`${["1st", "2nd", "3rd"][second.place! - 1] ?? `${second.place}th`} place, ${results.tracks.find((t) => t.rows.some((r) => r.projectId === "prj_21"))!.name}, tie broken by ${results.tieBreak!.criterion}`);
+
+    // the team's own My project page names the criterion beside its place; a place the tie-break did not decide has no note
+    const mine = getMyWork(actorById(member.id), "evt_01").feedback!;
+    expect(mine).toMatchObject({ place: second.place, tieBrokenBy: results.tieBreak!.criterion });
+    const other = sqlGet<{ id: string }>(
+      "SELECT tm.user_id AS id FROM team_members tm JOIN projects p ON p.team_id = tm.team_id WHERE p.event_id = 'evt_01' AND p.id NOT IN ('prj_05', 'prj_21') AND p.status = 'submitted' AND p.duplicate_of IS NULL LIMIT 1",
+    )!;
+    const theirs = getMyWork(actorById(other.id), "evt_01").feedback!;
+    expect(theirs.place).not.toBeNull();
+    expect(theirs).not.toHaveProperty("tieBrokenBy");
   });
 
   it("orders the other way by the other criterion, and keeps the tie joint when the criterion ties too", () => {
