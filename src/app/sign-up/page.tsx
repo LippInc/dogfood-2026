@@ -61,6 +61,13 @@ export default async function SignUpPage({ searchParams }: PageProps<"/sign-up">
               </li>
             ))}
           </ol>
+          {setup ? null : (
+            <p className="mt-6 border-t border-rule pt-3 text-14 text-ink-2">
+              <span className="font-semibold text-ink">Organizing an event?</span> An organizer of the event adds you by this
+              account&rsquo;s address on its Settings tab. Only an administrator creates events; a new portal&rsquo;s first administrator signs
+              up through the one-time link the portal prints in its log (README, &ldquo;Running it for a real event&rdquo;).
+            </p>
+          )}
         </aside>
       </div>
     </PlainShell>

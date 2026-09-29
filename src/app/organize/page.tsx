@@ -67,10 +67,23 @@ export default async function OrganizeHome() {
           ) : null}
         </div>
         {events.length === 0 ? (
-          <p className="mt-6 text-15 text-ink-2">
-            You organize no event yet.{" "}
-            {canCreate ? "Create one to start." : "An administrator of this portal creates events and adds organizers."}
-          </p>
+          canCreate ? (
+            <p className="mt-6 text-15 text-ink-2">You organize no event yet. Create one to start.</p>
+          ) : (
+            // A newcomer lands here looking for a way in: say who can give it, and how a portal gets its first administrator.
+            <div className="mt-6 flex max-w-[680px] flex-col gap-3 text-15 text-ink-2">
+              <p>
+                You organize no event yet. Only an administrator of this portal creates events. To help run one that exists, ask one of its
+                organizers to add you on the event&rsquo;s Settings tab by this account&rsquo;s address,{" "}
+                <span className="font-mono text-13 text-ink wrap-anywhere">{actor.email}</span>.
+              </p>
+              <p>
+                Setting up this portal yourself? The first administrator is named by <code className="font-mono text-13">ADMIN_EMAILS</code> in
+                the portal&rsquo;s settings; at start the portal prints a one-time sign-up link in its own log, and only an account made through
+                that link becomes an administrator. The README&rsquo;s &ldquo;Running it for a real event&rdquo; has the steps.
+              </p>
+            </div>
+          )
         ) : (
           // One card per event, full width: its generated face as a strip across the top (from the
           // event's id, like a project's), then who it is on the left and where it stands on the right.
