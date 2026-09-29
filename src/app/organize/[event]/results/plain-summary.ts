@@ -18,7 +18,8 @@ function names(list: string[]): string {
   return list.length < 2 ? (list[0] ?? "") : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
 }
 
-type Leader = { track: string; titles: string[]; close: boolean };
+/** `unchecked`: a lone leader the rule cannot check yet, because a ranked project of its track has no ± */
+type Leader = { track: string; titles: string[]; close: boolean; unchecked: boolean };
 
 /**
  * A track's first place, and whether it is too close to call: the close-call rule the Results page's
@@ -28,9 +29,10 @@ function leaderOf(track: string, rows: ProjectRow[]): Leader | null {
   const ranked = rows.filter((p) => p.trackRank !== null && p.score !== null && !p.duplicateOf).sort((a, b) => a.trackRank! - b.trackRank!);
   if (!ranked.length) return null;
   const top = ranked.filter((p) => p.trackRank === ranked[0]!.trackRank);
-  if (top.length > 1) return { track, titles: top.map((p) => p.title), close: false };
+  if (top.length > 1) return { track, titles: top.map((p) => p.title), close: false, unchecked: false };
   const cc = closeCall(ranked.map((p) => ({ id: p.id, score: p.score!, se: p.se })));
-  return { track, titles: [ranked[0]!.title], close: Boolean(cc && !cc.callable) };
+  // a track of one ranked project has nothing to call; two or more with no call means a missing ±, which is no verdict
+  return { track, titles: [ranked[0]!.title], close: Boolean(cc && !cc.callable), unchecked: !cc && ranked.length > 1 };
 }
 
 /**
@@ -59,7 +61,12 @@ export function plainSummary(n: Normalized, opts: { open: number; published: boo
   const leads = leaders.filter((l) => l.titles.length === 1).length;
   // a tied track has no lead to measure, so a count says which tracks it is out of
   const tracksLed = leads < leaders.length ? "tracks with one leader" : "tracks";
-  if (!close.length) lines.push("Every first place is clear from the scores: each leader comes out first in at least 95 % of the draws around the scores' ±.");
+  const unchecked = leaders.filter((l) => l.unchecked).map((l) => l.track);
+  if (!close.length && unchecked.length) {
+    // without a ± the rule has not looked, so nothing is said to be clear
+    if (unchecked.length === leads) lines.push("Not enough reviews yet to say whether any first place is clear from the scores: a leader is checked once every project of its track has a ±.");
+    else lines.push(`Not enough reviews yet to say whether first place is clear in ${names(unchecked)}; every other first place is clear from the scores.`);
+  } else if (!close.length) lines.push("Every first place is clear from the scores: each leader comes out first in at least 95 % of the draws around the scores' ±.");
   else if (close.length === 1) lines.push(`In ${close[0]}, first place is too close to call from the scores: see Close calls below.`);
   else if (close.length === leads)
     lines.push(`In every ${tracksLed === "tracks" ? "track" : "track with one leader,"} first place is too close to call from the scores: see Close calls below.`);

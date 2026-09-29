@@ -97,6 +97,19 @@ describe("plainSummary", () => {
     expect(say(between)).toContain("In Climate, first place is too close to call from the scores: see Close calls below.");
   });
 
+  it("never calls a first place clear when the rule could not check it: no ± is not enough reviews yet", () => {
+    // every project without a ± (fewer than two counted reviews each): no track can be checked
+    const none = run();
+    none.projects = none.projects.map((p) => ({ ...p, se: null }));
+    expect(say(none).join(" ")).not.toContain("Every first place is clear");
+    expect(say(none).join(" ")).toContain("Not enough reviews yet to say whether any first place is clear from the scores");
+    // one track unchecked, the other clear
+    const one = run();
+    one.projects[3] = { ...one.projects[3]!, score: 3.2, se: null };
+    expect(say(one).join(" ")).toContain("Not enough reviews yet to say whether first place is clear in Climate; every other first place is clear from the scores.");
+    expect(say(one).join(" ")).not.toContain("Every first place is clear");
+  });
+
   it("names the close tracks when some but not all are close", () => {
     const n = run();
     n.projects.push(
