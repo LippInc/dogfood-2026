@@ -134,6 +134,13 @@
       "when": 1790648402177,
       "tag": "0018_audit_chain",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1790648502177,
+      "tag": "0019_votes_comments",
+      "breakpoints": true
     }
   ]
 }

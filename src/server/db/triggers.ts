@@ -60,6 +60,19 @@ const frozenInsert = (table: string, eventId: string, already: string) => `
 const eventOfRun = (runId: string) => `(SELECT r.event_id FROM normalization_runs r WHERE r.id = ${runId})`;
 // the first row's prev_hash: GENESIS_HASH in src/server/audit.ts (tests/audit-chain-db.test.ts holds the two equal)
 const GENESIS = "0".repeat(64);
+// A vote has closed once its window's close time has passed (authz.ts decideVote: closed at and after it, by the
+// clock) or the results are published; a vote with no window takes no ballot at all (the app refuses it).
+const votingClosed = (op: "INSERT" | "DELETE", voterId: string) => `
+  BEFORE ${op} ON votes
+  WHEN EXISTS (
+    SELECT 1 FROM voters v JOIN events e ON e.id = v.event_id
+    WHERE v.id = ${voterId}
+      AND (e.results_published_at IS NOT NULL
+        OR (e.voting_close_at IS NOT NULL AND julianday(e.voting_close_at) <= julianday('now')))
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'votes: voting has closed, so the ballots are final');
+  END`;
 
 export const TRIGGERS: Record<string, string> = {
   normalization_runs_no_update: appendOnly("normalization_runs", "UPDATE"),
@@ -135,6 +148,32 @@ export const TRIGGERS: Record<string, string> = {
   comparisons_final_insert: frozenInsert("comparisons", "NEW.event_id", "x.id = NEW.id"),
   normalization_runs_final_insert: frozenInsert("normalization_runs", "NEW.event_id", "x.id = NEW.id"),
   normalized_scores_final_insert: frozenInsert("normalized_scores", eventOfRun("NEW.run_id"), "x.run_id = NEW.run_id AND x.project_id = NEW.project_id"),
+  // The community vote and the comments (drizzle/0019_votes_comments.sql): what the app never does to them, the
+  // database refuses too. A ballot changes only while voting is open, by taking its picks off and putting the new
+  // ones on (dal/voting.ts castBallot), so a pick is never changed in place, and once the window has closed (or the
+  // results are published, which ends a vote) no pick goes on or comes off: the count is public and final. A comment
+  // is hidden and unhidden by the organizers and deleted by its author, never rewritten, and a hidden one stays until
+  // unhidden (authz.ts, comment.delete). Voiding a ballot changes its voter row, not its picks.
+  votes_no_update: `
+  BEFORE UPDATE ON votes
+  BEGIN
+    SELECT RAISE(ABORT, 'votes: a pick is never changed in place');
+  END`,
+  votes_closed_insert: votingClosed("INSERT", "NEW.voter_id"),
+  votes_closed_delete: votingClosed("DELETE", "OLD.voter_id"),
+  comments_words_final: `
+  BEFORE UPDATE OF body, event_id, project_id, user_id, created_at ON comments
+  WHEN NEW.body IS NOT OLD.body OR NEW.event_id IS NOT OLD.event_id OR NEW.project_id IS NOT OLD.project_id
+    OR NEW.user_id IS NOT OLD.user_id OR NEW.created_at IS NOT OLD.created_at
+  BEGIN
+    SELECT RAISE(ABORT, 'comments: a comment''s words, author, project and time never change');
+  END`,
+  comments_hidden_stays: `
+  BEFORE DELETE ON comments
+  WHEN OLD.hidden_at IS NOT NULL
+  BEGIN
+    SELECT RAISE(ABORT, 'comments: a hidden comment stays until the organizers unhide it');
+  END`,
   // the two decisions that move a project in the ranking: its track and a duplicate merge
   projects_final_ranking: `
   BEFORE UPDATE OF track_id, duplicate_of ON projects
