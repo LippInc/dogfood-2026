@@ -82,15 +82,19 @@ describe("plainSummary", () => {
     expect(say(n)).toContain("First in each track: Slow Trail and Open Beacon, tied (Developer tools); Green Lantern (Climate).");
   });
 
-  it("says once which first places lead by less than the margin of error", () => {
+  it("says once which first places are too close to call, by the close-call rule the Results page and the Overview use", () => {
     // Climate: 4.00 ahead of 3.90, inside ± 0.25; Developer tools: 4.30 ahead of 3.60, well clear
-    expect(say(run())).toContain("In Climate, first place leads by less than the margin of error (±), so read that lead as a tie.");
+    expect(say(run())).toContain("In Climate, first place is too close to call from the scores: see Close calls below.");
     const all = run();
     all.projects[1] = { ...all.projects[1]!, score: 4.25 };
-    expect(say(all)).toContain("In every track first place leads by less than the margin of error (±), so read those leads as ties.");
+    expect(say(all)).toContain("In every track first place is too close to call from the scores: see Close calls below.");
     const clear = run();
     clear.projects[3] = { ...clear.projects[3]!, score: 3.2 };
-    expect(say(clear)).toContain("Every first place leads by more than the margin of error (±).");
+    expect(say(clear)).toContain("Every first place is clear from the scores: each leader comes out first in at least 95 % of the draws around the scores' ±.");
+    // a lead of 1.3 standard errors of the difference is more than one ± (the old rule called it clear) but first in only about 90 % of the draws
+    const between = run();
+    between.projects[3] = { ...between.projects[3]!, score: 4.0 - 1.3 * Math.sqrt(0.25 ** 2 + 0.2 ** 2) };
+    expect(say(between)).toContain("In Climate, first place is too close to call from the scores: see Close calls below.");
   });
 
   it("names the close tracks when some but not all are close", () => {
@@ -99,14 +103,14 @@ describe("plainSummary", () => {
       row({ id: "Iron Switch", trackId: "t3", trackName: "Security", score: 4.1, se: 0.3, trackRank: 1, rankKept: 5, rankNormalized: 5 }),
       row({ id: "North Drift", trackId: "t3", trackName: "Security", score: 4.0, se: 0.3, trackRank: 2, rankKept: 6, rankNormalized: 6 }),
     );
-    expect(say(n)).toContain("In 2 of the 3 tracks first place leads by less than the margin of error (±), so read those leads as ties: Climate and Security.");
+    expect(say(n)).toContain("In 2 of the 3 tracks first place is too close to call from the scores: Climate and Security; see Close calls below.");
     // a tied track has no lead to measure: the count says which tracks it is out of
     n.projects.push(
       row({ id: "Salt Kiln", trackId: "t4", trackName: "Health", score: 3.5, se: 0.3, trackRank: 1.5, rankKept: 7, rankNormalized: 7 }),
       row({ id: "Warm Beacon", trackId: "t4", trackName: "Health", score: 3.5, se: 0.3, trackRank: 1.5, rankKept: 8, rankNormalized: 8 }),
     );
     expect(say(n)).toContain(
-      "In 2 of the 3 tracks with one leader first place leads by less than the margin of error (±), so read those leads as ties: Climate and Security.",
+      "In 2 of the 3 tracks with one leader first place is too close to call from the scores: Climate and Security; see Close calls below.",
     );
   });
 

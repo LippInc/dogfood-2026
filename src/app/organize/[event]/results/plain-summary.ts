@@ -1,5 +1,6 @@
 import { plural } from "@/lib/format";
 import type { Normalized, ProjectRow } from "@/server/dal";
+import { closeCall } from "@/server/judging/decision";
 
 /** 1st, 2nd, 3rd, 4th, 11th, 12th, 13th, 21st */
 function ordinal(n: number): string {
@@ -20,15 +21,17 @@ function names(list: string[]): string {
 
 type Leader = { track: string; titles: string[]; close: boolean };
 
-/** A track's first place, and whether it leads by less than the margin of error (read as a tie, as the published page says). */
+/**
+ * A track's first place, and whether it is too close to call: the close-call rule the Results page's
+ * "Close calls" and the Overview's decisions use (JUDGING.md, "Close calls"), so the three never disagree.
+ */
 function leaderOf(track: string, rows: ProjectRow[]): Leader | null {
-  const ranked = rows.filter((p) => p.trackRank !== null && p.score !== null).sort((a, b) => a.trackRank! - b.trackRank!);
+  const ranked = rows.filter((p) => p.trackRank !== null && p.score !== null && !p.duplicateOf).sort((a, b) => a.trackRank! - b.trackRank!);
   if (!ranked.length) return null;
   const top = ranked.filter((p) => p.trackRank === ranked[0]!.trackRank);
   if (top.length > 1) return { track, titles: top.map((p) => p.title), close: false };
-  const [lead, next] = [ranked[0]!, ranked[1]];
-  const close = Boolean(next && Math.max(lead.se ?? 0, next.se ?? 0) > lead.score! - next.score!);
-  return { track, titles: [lead.title], close };
+  const cc = closeCall(ranked.map((p) => ({ id: p.id, score: p.score!, se: p.se })));
+  return { track, titles: [ranked[0]!.title], close: Boolean(cc && !cc.callable) };
 }
 
 /**
@@ -57,11 +60,11 @@ export function plainSummary(n: Normalized, opts: { open: number; published: boo
   const leads = leaders.filter((l) => l.titles.length === 1).length;
   // a tied track has no lead to measure, so a count says which tracks it is out of
   const tracksLed = leads < leaders.length ? "tracks with one leader" : "tracks";
-  if (!close.length) lines.push("Every first place leads by more than the margin of error (±).");
-  else if (close.length === 1) lines.push(`In ${close[0]}, first place leads by less than the margin of error (±), so read that lead as a tie.`);
+  if (!close.length) lines.push("Every first place is clear from the scores: each leader comes out first in at least 95 % of the draws around the scores' ±.");
+  else if (close.length === 1) lines.push(`In ${close[0]}, first place is too close to call from the scores: see Close calls below.`);
   else if (close.length === leads)
-    lines.push(`In every ${tracksLed === "tracks" ? "track" : "track with one leader,"} first place leads by less than the margin of error (±), so read those leads as ties.`);
-  else lines.push(`In ${close.length} of the ${leads} ${tracksLed} first place leads by less than the margin of error (±), so read those leads as ties: ${names(close)}.`);
+    lines.push(`In every ${tracksLed === "tracks" ? "track" : "track with one leader,"} first place is too close to call from the scores: see Close calls below.`);
+  else lines.push(`In ${close.length} of the ${leads} ${tracksLed} first place is too close to call from the scores: ${names(close)}; see Close calls below.`);
 
   if (!n.variance.measured) lines.push("No project has two counted reviews yet, so nothing is evened out: places come from the plain averages.");
   else if (!n.variance.leniencyMeasured) lines.push("Too few reviews to estimate how lenient each judge is, so scores are used as given: places come from the plain averages.");
