@@ -568,7 +568,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/[event]",
     who: ["organizer"],
     answer:
-      "The Overview lists what stands between the scores and the results (a flat judge, a duplicate entry, an under-reviewed project), each with its evidence and what it would move. Each choice is one audited action, with a written reason wherever it overrides a rule.",
+      "The Overview lists what stands between the scores and the results (a flat judge, a duplicate entry, an under-reviewed project, a first place too close to call), each with its evidence and what it would move. Each choice is one audited action, with a written reason wherever it overrides a rule.",
     keywords: ["decisions", "settle", "open decisions", "blocked", "why can't i publish", "3 decisions", "needs you", "resolve"],
     doc: { file: "README.md", heading: "A guided tour" },
   },
@@ -822,6 +822,29 @@ export const HELP_ENTRIES: HelpEntry[] = [
       "A project with fewer than two counted reviews is flagged. The organizer tops up its reviews or publishes it as it is, with a reason, and the public results mark it under-reviewed.",
     keywords: ["under-reviewed", "one review", "only one review", "project with one review", "too few reviews", "not enough reviews", "small relay", "minimum reviews"],
     doc: { file: "JUDGING.md", heading: "Normalization" },
+  },
+
+  {
+    id: "close-calls",
+    kind: "concept",
+    title: "Close calls and the judges' decision",
+    href: "/organize/[event]/results",
+    who: ["organizer"],
+    answer:
+      "When the scores cannot name a track's winner at 95 %, the Results page says so, with each close project's chance of being first. Keep the ranking's winner, or record the judges' decision naming another close project with their reason. On scores with a signal it must be settled before publishing; otherwise it advises.",
+    keywords: ["close call", "too close to call", "tie for first", "judges decide", "judges' decision", "deliberation", "pick the winner", "override the winner", "chance of being first", "p first", "keep the ranking"],
+    doc: { file: "JUDGING.md", heading: "Close calls and the judges' decision" },
+  },
+  {
+    id: "winner-by-decision",
+    kind: "concept",
+    title: "Winner by the judges' decision",
+    href: "/events/[event]/results",
+    who: ["everyone"],
+    answer:
+      "Where the scores were too close to call, the judges may name the winner after deliberating. The results then put that project first, marked \"Winner by the judges' decision\" with their reason, the close projects' chances and the order by score alone; every score stays as it was.",
+    keywords: ["winner by decision", "why is it first", "lower score first", "first with a lower score", "deliberation", "decided winner", "not the top score"],
+    doc: { file: "JUDGING.md", heading: "Close calls and the judges' decision" },
   },
 
   // ---- ideas a judge of the portal asks about -------------------------------------------------------------------
