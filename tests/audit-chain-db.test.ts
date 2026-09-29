@@ -120,10 +120,11 @@ describe("the database keeps the audit chain linked", () => {
       /a new row goes after the last one/,
     );
     const late = toolRow(head(), "tool.late");
-    insertWith(h.sqlite, "INSERT", "id, at, actor_label, action, prev_hash, hash", [100, AT, "tool", late.action, late.prev, late.hash]); // after the last: fine
+    insertWith(h.sqlite, "INSERT", "id, at, actor_label, action, prev_hash, hash", [100, AT, "tool", late.action, late.prev, late.hash]); // after the last: it goes in
     appendAudit(h.db, entry(4), AT);
     expect(rows().map((r) => r.id)).toEqual([1, 2, 3, 100, 101]);
-    expect(verifyAuditChain(h.db)).toMatchObject({ ok: true, rows: 5 });
+    // linked end to end, but the ids skip 4 to 99: the check says so (tests/audit-chain-cut.test.ts)
+    expect(verifyAuditChain(h.db)).toEqual({ ok: false, rows: 5, brokenAtId: 4, missing: 96 });
 
     // without the rule the row lands before the others and the chain breaks at it
     h.sqlite.exec("DROP TRIGGER audit_log_at_end");

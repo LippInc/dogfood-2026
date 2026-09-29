@@ -679,7 +679,7 @@ export function auditCsv(db: DbOrTx, eventId: string): string {
       r.prevHash,
       r.hash,
       head.ok ? "yes" : "no",
-      head.ok ? (head.head ?? "") : head.cut ? `${head.cut} cut from the end, after entry ${head.brokenAtId - 1}` : `broken at ${head.brokenAtId}`,
+      head.ok ? (head.head ?? "") : head.missing ? `${head.missing} missing from entry ${head.brokenAtId}` : `broken at ${head.brokenAtId}`,
       entry,
     ]),
   );

@@ -8,23 +8,20 @@ import type { AuditLine } from "@/server/dal";
 // rows that belong elsewhere. The drawing matches the event's Audit log tab; the portal
 // log (/organize/log) uses these pieces.
 
-export type Chain = { ok: true; rows: number; head: string } | { ok: false; brokenAtId: number; cut?: number };
+export type Chain = { ok: true; rows: number; head: string } | { ok: false; brokenAtId: number; missing?: number };
 
-/** The seal's heading: verified, broken at a row, or rows cut from the end (src/server/audit.ts verifyAuditChain). */
+/** The seal's heading: verified, broken at a row, or rows missing (src/server/audit.ts verifyAuditChain). */
 export function chainHeading(chain: Chain): string {
   if (chain.ok) return "Chain verified";
-  return chain.cut ? `${plural(chain.cut, "row")} cut from the end` : `Chain broken at row #${chain.brokenAtId}`;
+  return chain.missing ? `${plural(chain.missing, "row")} missing from the chain` : `Chain broken at row #${chain.brokenAtId}`;
 }
 
 /** What a broken chain means, in words. */
 export function chainBrokenText(chain: Extract<Chain, { ok: false }>): string {
-  if (!chain.cut) return `A row was changed outside the app. Treat everything from row #${chain.brokenAtId} on as unverified.`;
-  const last = chain.brokenAtId - 1;
-  const written = last + chain.cut;
-  return (
-    `${last > 0 ? `The log ends at row #${last}` : "The log is empty"}, but SQLite's own count says ${plural(written, "row")} ${written === 1 ? "was" : "were"} written: ` +
-    `${chain.cut === 1 ? "the last one was" : `the last ${chain.cut} were`} removed outside the app. Treat the log as unverified.`
-  );
+  if (!chain.missing) return `A row was changed outside the app. Treat everything from row #${chain.brokenAtId} on as unverified.`;
+  const first = chain.brokenAtId;
+  const which = chain.missing === 1 ? `Row #${first} is` : `Rows #${first} to #${first + chain.missing - 1} are`;
+  return `${which} not in the log, though SQLite gave out ${chain.missing === 1 ? "its id" : "their ids"}: removed outside the app, or written past by a tool. Treat everything from row #${first} on as unverified.`;
 }
 
 export const isRefusal = (l: AuditLine) => l.action.endsWith(".refused");

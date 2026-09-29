@@ -461,7 +461,7 @@ This section says what the audit log records, what protects it, and where that p
 **What protects it.**
 
 - Triggers refuse UPDATE and DELETE on the log, and a new row that does not link to the last one or would take an existing row's place, and they are re-created at every start.
-- Each row carries the hash of the row before it. The organizer's audit page and `audit.csv` show the head hash (the CSV with its entry number, the pair a signed record pins), and the check reports rows cut from the end when SQLite's own count of audit rows is past the last one.
+- Each row carries the hash of the row before it. The organizer's audit page and `audit.csv` show the head hash (the CSV with its entry number, the pair a signed record pins), and the check reports rows missing when the ids SQLite gave audit rows skip or run past the last row.
 - A hash never gives away what its row keeps from a reader: the row of a ballot, a score or a pairwise answer is hashed with its own random salt, shown in `audit.csv` only together with the values (a ballot's once voting closes) and never sent in a webhook, so nobody can hash guessed picks or scores to find the one that matches. Once shown, the row can be recomputed from its own line (`DATA-MODEL.md`, the chain).
 
 **Limits, stated plainly:** the triggers stop the application, not someone holding the database file; the chain is tamper-evident only against a head hash kept outside the portal.

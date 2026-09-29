@@ -7,11 +7,12 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { auditCsv } from "@/server/dal/audit-log";
 import { chainBrokenText, chainHeading } from "@/components/audit-chain";
 
-// Rows cut off the end of the audit log leave what remains a whole chain. The check reads SQLite's own count of the
-// rows it gave ids (sqlite_sequence) and reports a cut when that count is past the last row (src/server/audit.ts).
-// A tripwire for a careless cut only: whoever also lowers that count is caught by a head kept outside, such as
-// audit.csv's chain_head and chain_head_entry, the pair a signed record pins. Rows are cut here as someone holding the
-// file would: the delete trigger dropped first.
+// Rows cut off the end of the audit log leave what remains a whole chain, and the next row the app writes links to
+// the last one left. The check counts ids (src/server/audit.ts): AUTOINCREMENT gives the next one each time and keeps
+// the highest in sqlite_sequence, so ids that skip, or a count past the last row, are rows removed outside the app.
+// A tripwire for a careless cut only: whoever also renumbers and lowers that count is caught by a head kept outside,
+// such as audit.csv's chain_head and chain_head_entry, the pair a signed record pins. Rows are cut here as someone
+// holding the file would: the delete trigger dropped first.
 
 const AT = "2026-09-29T08:00:00.000Z";
 let h: Handle;
@@ -82,14 +83,23 @@ describe("rows cut off the end of the audit log", () => {
   it("known-bad: three rows cut from the end are reported, with the first missing row", () => {
     const last = lastId();
     cutLast(3);
-    expect(verifyAuditChain(h.db)).toEqual({ ok: false, rows: last - 3, brokenAtId: last - 2, cut: 3 });
+    expect(verifyAuditChain(h.db)).toEqual({ ok: false, rows: last - 3, brokenAtId: last - 2, missing: 3 });
+  });
+
+  it("known-bad: the cut still shows after the app has written on (the new row links to the last one left)", () => {
+    const last = lastId();
+    cutLast(3);
+    h.sqlite.exec("CREATE TRIGGER IF NOT EXISTS audit_log_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'x'); END");
+    appendAudit(h.db, { actorUserId: null, actorLabel: "system", action: "test.after_cut" }, AT);
+    expect(lastId()).toBe(last + 1);
+    expect(verifyAuditChain(h.db)).toEqual({ ok: false, rows: last - 2, brokenAtId: last - 2, missing: 3 });
   });
 
   it("known-bad: a log emptied whole is reported, not verified as an empty chain", () => {
     const last = lastId();
     h.sqlite.exec("DROP TRIGGER audit_log_no_delete");
     h.sqlite.exec("DELETE FROM audit_log");
-    expect(verifyAuditChain(h.db)).toEqual({ ok: false, rows: 0, brokenAtId: 1, cut: last });
+    expect(verifyAuditChain(h.db)).toEqual({ ok: false, rows: 0, brokenAtId: 1, missing: last });
   });
 
   it("the limit: a cut that also lowers SQLite's count passes the check, and only a head kept outside shows it", () => {
@@ -109,16 +119,16 @@ describe("rows cut off the end of the audit log", () => {
 
     cutLast(2);
     const [, ...after] = csvLines();
-    expect(after.at(-1)!.slice(-3)).toEqual(["no", `2 cut from the end, after entry ${head.entry - 2}`, ""]);
+    expect(after.at(-1)!.slice(-3)).toEqual(["no", `2 missing from entry ${head.entry - 1}`, ""]);
   });
 
   it("the seal says what happened, in words", () => {
-    expect(chainHeading({ ok: false, brokenAtId: 41, cut: 3 })).toBe("3 rows cut from the end");
-    expect(chainBrokenText({ ok: false, brokenAtId: 41, cut: 3 })).toBe(
-      "The log ends at row #40, but SQLite's own count says 43 rows were written: the last 3 were removed outside the app. Treat the log as unverified.",
+    expect(chainHeading({ ok: false, brokenAtId: 41, missing: 3 })).toBe("3 rows missing from the chain");
+    expect(chainBrokenText({ ok: false, brokenAtId: 41, missing: 3 })).toBe(
+      "Rows #41 to #43 are not in the log, though SQLite gave out their ids: removed outside the app, or written past by a tool. Treat everything from row #41 on as unverified.",
     );
-    expect(chainBrokenText({ ok: false, brokenAtId: 1, cut: 1 })).toBe(
-      "The log is empty, but SQLite's own count says 1 row was written: the last one was removed outside the app. Treat the log as unverified.",
+    expect(chainBrokenText({ ok: false, brokenAtId: 1, missing: 1 })).toBe(
+      "Row #1 is not in the log, though SQLite gave out its id: removed outside the app, or written past by a tool. Treat everything from row #1 on as unverified.",
     );
     expect(chainHeading({ ok: false, brokenAtId: 7 })).toBe("Chain broken at row #7");
     expect(chainBrokenText({ ok: false, brokenAtId: 7 })).toBe("A row was changed outside the app. Treat everything from row #7 on as unverified.");

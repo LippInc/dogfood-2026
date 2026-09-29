@@ -112,21 +112,24 @@ export function appendAudit(tx: DbOrTx, entry: AuditEntry, at: string = nowIso()
   return hash;
 }
 
-/** `cut`: how many rows are missing from the end (brokenAtId is then the first of them). */
-export type ChainCheck = { ok: true; rows: number; head: string } | { ok: false; rows: number; brokenAtId: number; cut?: number };
+/** `missing`: how many rows SQLite gave ids to that are not in the log, from brokenAtId on. */
+export type ChainCheck = { ok: true; rows: number; head: string } | { ok: false; rows: number; brokenAtId: number; missing?: number };
 
 /**
  * Recompute the chain from the first row; any edited, dropped or reordered row breaks it. Rows cut off the end leave
- * what remains a whole chain, so the check also reads SQLite's own count for the table: `sqlite_sequence` holds the
- * highest id AUTOINCREMENT ever gave an audit row (a rolled-back write puts it back; nothing in the app lowers it, and
- * the triggers keep every new row at the end). When it is past the last row, the rows between were removed. A
- * tripwire for a careless cut, not proof: whoever edits the file can lower that count too, and what catches them is a
+ * what remains a whole chain, and the next row the app writes links to the last one left, so the check also counts
+ * ids. AUTOINCREMENT gives each audit row the next id (a rolled-back write gives its ids back) and SQLite keeps the
+ * highest it gave in `sqlite_sequence`; nothing in the app lowers that or skips an id. So ids that skip, or a count
+ * past the last row, are rows that were removed (or written past by a tool) outside the app. A tripwire for a careless
+ * cut, not proof: whoever edits the file can renumber the rows and lower that count too, and what catches them is a
  * head kept outside the portal (DATA-MODEL.md, "The chain").
  */
 export function verifyAuditChain(db: DbOrTx): ChainCheck {
   const rows = db.select().from(auditLog).orderBy(auditLog.id).all();
   let prev = GENESIS_HASH;
+  let prevId = 0;
   for (const r of rows) {
+    if (r.id > prevId + 1) return { ok: false, rows: rows.length, brokenAtId: prevId + 1, missing: r.id - prevId - 1 };
     const expected = chainHash(prev, {
       at: r.at,
       actorUserId: r.actorUserId,
@@ -141,9 +144,9 @@ export function verifyAuditChain(db: DbOrTx): ChainCheck {
     });
     if (r.prevHash !== prev || r.hash !== expected) return { ok: false, rows: rows.length, brokenAtId: r.id };
     prev = r.hash;
+    prevId = r.id;
   }
-  const last = rows.at(-1)?.id ?? 0;
   const written = db.get<{ seq: number } | undefined>(sql`SELECT seq FROM sqlite_sequence WHERE name = 'audit_log'`)?.seq ?? 0;
-  if (written > last) return { ok: false, rows: rows.length, brokenAtId: last + 1, cut: written - last };
+  if (written > prevId) return { ok: false, rows: rows.length, brokenAtId: prevId + 1, missing: written - prevId };
   return { ok: true, rows: rows.length, head: prev };
 }
