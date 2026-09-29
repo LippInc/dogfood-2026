@@ -97,6 +97,7 @@ describe("backup and restore", { timeout: 30_000 }, () => {
     expect(backup.out).toContain("1 uploaded picture");
     const folder = backup.out.trim().split(/\s+/)[0]!;
     expect(fs.readdirSync(path.join(folder, "uploads"))).toEqual([pic("a")]);
+    expect(fs.readdirSync(folder).sort()).toEqual(["portal.db", "uploads"]); // one self-contained database file, no -wal or -shm
 
     // after the backup: picture a is replaced by b
     fs.unlinkSync(path.join(uploads, pic("a")));

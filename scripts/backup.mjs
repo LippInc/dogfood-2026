@@ -48,7 +48,10 @@ if (fs.existsSync(uploads)) {
   fs.cpSync(uploads, path.join(folder, "uploads"), { recursive: true });
   pictures = fs.readdirSync(path.join(folder, "uploads")).length;
 }
-const copy = new Database(target, { readonly: true });
+// One self-contained file: the copy keeps the live database's WAL mode, so opening it would leave -wal and -shm
+// files beside it; a rollback journal leaves none.
+const copy = new Database(target);
+copy.pragma("journal_mode = DELETE");
 const ok = copy.pragma("integrity_check", { simple: true });
 const rows = copy.prepare("SELECT count(*) AS n FROM audit_log").get().n;
 copy.close();
