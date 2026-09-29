@@ -194,7 +194,10 @@ describe("How this ranking was reached (public results page)", () => {
     expect(html).not.toContain("their own projects");
     // no pull measured: the sentence must not claim the fit measured and took them out
     expect(html).not.toContain("measured and took out");
-    expect(html).toContain("too few answers to measure");
+    // an unmeasured pull is still corrected for: the fit always applies its current (shrunk) estimate,
+    // the 6-point gate only hides it, so the block never says the fit assumes almost none
+    expect(html).toContain("neither is measured yet: the fit corrects for its current estimate of each, still mostly the prior’s");
+    expect(html).not.toContain("the fit assumes almost none");
     expect(html).not.toContain("Signal check");
     expect(judgeLeaks(html, judgesOfEvent())).toEqual([]);
   });
@@ -224,6 +227,19 @@ describe("How this ranking was reached (public results page)", () => {
     const one = withPulls({ share: 0.57, pm: 3 }, null);
     expect(one).toContain("The fit measured one pull and corrected for it, the side a project was shown on (57 % ± 3");
     for (const html of [both, one]) expect(html).not.toMatch(/took (them |it )?out|taken out/);
+    expect(one).toContain("the other, the project a judge had just opened, is not measured yet: the fit corrects for its current estimate of it");
+    expect(one).not.toContain("assumes almost none");
+  });
+});
+
+describe("an unmeasured pull, on the organizer's screens", () => {
+  it("says the fit corrects for its current estimate, never that it assumes almost none", () => {
+    for (const file of ["src/app/organize/[event]/results/pairwise-results.tsx", "src/app/organize/[event]/page.tsx"]) {
+      const text = fs.readFileSync(path.join(process.cwd(), file), "utf8");
+      expect(text, file).toContain("the fit corrects for its current estimate");
+      expect(text, file).toContain("still mostly the prior’s");
+      expect(text, file).not.toContain("assumes almost none");
+    }
   });
 });
 

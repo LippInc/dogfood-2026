@@ -241,7 +241,7 @@ In simulation the rule flags an honest judge in 7.7 % (no bias), 8.0 % (moderate
 
 **"How this ranking was reached."** The public results page ends with this section (linked from the top of the page), for anyone who wonders how far to trust the places. It is read from the published run, never worked out again, and gives totals only:
 
-- the method: with k, or the judges' answers and the pairs implied by scores, each kind counted apart, how many judges gave them, and, when the pairs implied by scores outnumber the answers, that more of the comparisons come from scores than from answers (the page's reading points and its "How these win % were made" say it in the same words, so no one takes the scores' pairs for answers); the two pulls the fit measured and corrected for, or that there were too few answers to measure them;
+- the method: with k, or the judges' answers and the pairs implied by scores, each kind counted apart, how many judges gave them, and, when the pairs implied by scores outnumber the answers, that more of the comparisons come from scores than from answers (the page's reading points and its "How these win % were made" say it in the same words, so no one takes the scores' pairs for answers); the two pulls the fit measured and corrected for, or that one is not measured yet and the fit corrects for its current estimate, still mostly the prior's (the gate of 6 points only decides what is shown; the correction is always on);
 - how many counted judges the correction moved by at least 0.005 points of a review's total (the page states that number), with the largest and the median correction in size;
 - how many judges were left out as a whole;
 - how many projects stand at a different place in their track than the plain average of every review (or, pairwise, the plain share of wins) would put them, places counted as the page prints them (tied projects share the first place of their group, so joint 2nd to 3rd is a move); after the README tour that is 4 of the 40;
@@ -366,7 +366,7 @@ The ranking is global in the sense the bonus asks: one fit over every comparison
 - **groups**: projects joined through comparisons share a group, and a track split into groups says so, because nothing was measured across the gap; projects never compared come last;
 - a **receipt** per project listing every comparison that entered the fit, judge by judge, with its result and weight.
 
-The two pulls are shown in plain words ("the project shown on the left wins 56 % between two equal projects"), but only once each is known within 6 points. Before that the card says it is not measured yet, with the answer count and the current ±, because a pull read off a handful of answers is the prior's, not a finding.
+The two pulls are shown in plain words ("the project shown on the left wins 56 % between two equal projects"), but only once each is known within 6 points. Before that the card says it is not measured yet, with the answer count and the current ±, because a pull read off a handful of answers is the prior's, not a finding. The fit corrects for its current estimate all the same; the 6-point gate only decides what is shown.
 
 **Finished rubric reviews count too, as orders.** A judge's k reviews in one track say "this is my order of these k projects", and every two of them become a comparison, the higher total winning (equal totals: too close to call), each weighted 2/k.
 

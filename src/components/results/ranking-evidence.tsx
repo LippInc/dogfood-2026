@@ -85,8 +85,8 @@ export function RankingEvidence({ results }: { results: PublishedResults }) {
       (side && fresh
         ? `The fit measured two pulls and corrected every strength for them: ${side} and ${fresh}.`
         : side || fresh
-          ? `The fit measured one pull and corrected for it, ${side ?? fresh}; the other, ${side ? FRESH : SIDE}, had too few answers to measure, and the fit assumes almost none.`
-          : `The fit watches for two pulls, ${SIDE} and ${FRESH}; there were too few answers to measure either, and the fit assumes almost none.`) + leftOut;
+          ? `The fit measured one pull and corrected for it, ${side ?? fresh}; the other, ${side ? FRESH : SIDE}, is not measured yet: the fit corrects for its current estimate of it, still mostly the prior’s assumption of almost none.`
+          : `The fit watches for two pulls, ${SIDE} and ${FRESH}; neither is measured yet: the fit corrects for its current estimate of each, still mostly the prior’s assumption of almost none.`) + leftOut;
   } else if (e.k === null) {
     method = "Rubric scores as plain averages: the judges showed no steady leniency, so nothing was taken off anyone’s reviews.";
     correction = leftOut ? leftOut.trim() : null;

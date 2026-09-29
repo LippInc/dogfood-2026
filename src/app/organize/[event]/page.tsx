@@ -355,7 +355,7 @@ export default async function OverviewPage({
                 {plural(o.pairwise.answers, "answer")} so far, plus the order of every judge&rsquo;s earlier scores.{" "}
                 {o.pairwise.left?.measured && o.pairwise.fresh?.measured
                   ? `Between two equal projects the one on the left wins ${Math.round(o.pairwise.left.share * 100)} % and the one a judge has just opened ${Math.round(o.pairwise.fresh.share * 100)} %; the ranking is corrected for both as measured.`
-                  : `Too few answers yet to measure the pull of the left side and of the project just opened (each is shown once it is known within ${PULL_SHOWN_WITHIN} points); until then the fit assumes almost none.`}
+                  : `Too few answers yet to measure the pull of the left side and of the project just opened (each is shown once it is known within ${PULL_SHOWN_WITHIN} points); until then the fit corrects for its current estimate of each, still mostly the prior’s assumption of almost none.`}
               </p>
               <Link href={`/organize/${event.slug}/results`} className={`${linkCls} self-start`}>
                 Show the working
