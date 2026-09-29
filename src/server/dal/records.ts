@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { compareNames } from "@/lib/names";
 import { z } from "zod";
-import { competitionPlaces, ordinal } from "@/lib/places";
+import { competitionPlaces, ordinal, tieDecided } from "@/lib/places";
 import { appendAudit, anchorHolds, chainHead, type ChainAnchor } from "../audit";
 import type { Actor, Resource } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
@@ -81,7 +81,7 @@ function awards(event: EventRow, projectId: string): string[] {
       if (i < 0) continue;
       const p = competitionPlaces(t.rows)[i]!;
       // a place the event's tie-break decided says so (JUDGING.md, "Breaking exact ties")
-      const broke = t.rows[i]!.tieBroken && results.tieBreak ? `, tie broken by ${results.tieBreak.criterion}` : "";
+      const broke = tieDecided(t.rows[i]!, p) && results.tieBreak ? `, tie broken by ${results.tieBreak.criterion}` : "";
       if (p.place !== null && p.place <= (event.settings.certificatePlaces ?? DEFAULT_CERTIFICATE_PLACES)) out.push(`${p.joint ? "Joint " : ""}${ordinal(p.place)} place, ${t.name}${broke}`);
     }
   }

@@ -5,7 +5,7 @@ import { Face } from "@/components/face";
 import { ProjectImage } from "@/components/project-cover";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
-import { competitionPlaces, ordinal } from "@/lib/places";
+import { competitionPlaces, ordinal, tieDecided } from "@/lib/places";
 import Link from "next/link";
 import { actorNav, currentActor, getGallery, getMyWork, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD, prizesWonBy } from "@/server/dal";
 import { CommentForm, DeleteOwnComment, ModerateComment } from "./comments";
@@ -171,7 +171,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                       {standing.place.joint ? "Joint " : ""}
                       {ordinal(standing.place.place)} in {standing.track.name}
                     </p>
-                    {standing.row.tieBroken && results?.published && results.tieBreak ? (
+                    {tieDecided(standing.row, standing.place) && results?.published && results.tieBreak ? (
                       <p className="text-14 text-ink-2">Tied on score; tie broken by {results.tieBreak.criterion}</p>
                     ) : null}
                     <p className="text-14 text-ink-2 tnum">

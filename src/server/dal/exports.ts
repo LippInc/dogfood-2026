@@ -39,7 +39,7 @@ import { computeNormalization } from "./normalization";
 import { PAIRWISE_METHOD } from "./pairwise";
 import { answeredPairs } from "./judges";
 import { averageRanks } from "../judging/normalize";
-import { competitionPlaces } from "@/lib/places";
+import { competitionPlaces, tieDecided } from "@/lib/places";
 import { getPublishedResults } from "./results";
 import { tieBreakOf } from "./tiebreak";
 import { issuer } from "./records";
@@ -303,7 +303,7 @@ function tieColumnsFromPublished(eventId: string): ((id: string) => (string | nu
   const cols = new Map<string, (string | number)[]>();
   for (const t of r.tracks) {
     const places = competitionPlaces(t.rows);
-    t.rows.forEach((row, i) => cols.set(row.projectId, [fixed(row.tie, 4), places[i]!.place ?? "", row.tieBroken ? label : ""]));
+    t.rows.forEach((row, i) => cols.set(row.projectId, [fixed(row.tie, 4), places[i]!.place ?? "", tieDecided(row, places[i]!) ? label : ""]));
   }
   return (id) => cols.get(id) ?? ["", "", ""];
 }

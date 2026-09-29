@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { PageMark } from "@/components/page-mark";
-import { competitionPlaces, ordinal } from "@/lib/places";
+import { competitionPlaces, ordinal, tieDecided } from "@/lib/places";
 import { getGallery, getPublishedResults, NotFoundError, type Gallery } from "@/server/dal";
 import { ReportHeight } from "./height";
 
@@ -40,7 +40,7 @@ export default async function EmbedPage({
     const upTo = shownTrack ? 3 : 1;
     for (const t of results.tracks) {
       competitionPlaces(t.rows).forEach(({ place, joint }, i) => {
-        const broke = t.rows[i]!.tieBroken && results.tieBreak ? `, tie broken by ${results.tieBreak.criterion}` : "";
+        const broke = tieDecided(t.rows[i]!, { place, joint }) && results.tieBreak ? `, tie broken by ${results.tieBreak.criterion}` : "";
         if (place !== null && place <= upTo) places.set(t.rows[i]!.projectId, `${joint ? "Joint " : ""}${ordinal(place)} in ${t.name}${broke}`);
       });
     }

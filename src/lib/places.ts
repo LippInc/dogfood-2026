@@ -35,6 +35,16 @@ function tieBrokenPlaces(rows: { score: number | null; tie?: number | null }[]):
   });
 }
 
+/**
+ * Whether the event's tie-break decided this row's place (JUDGING.md, "Breaking exact ties"): the criterion split the
+ * row's exact score tie and left the row alone at its place. A row the criterion left joint with another (two tied on
+ * it too, both ahead of or behind a third) says nothing: its place is still a joint one. The one condition every page,
+ * the embed, the certificates and normalized.csv use before saying "tie broken by".
+ */
+export function tieDecided(row: { tieBroken?: boolean }, place: { place: number | null; joint: boolean }): boolean {
+  return row.tieBroken === true && place.place !== null && !place.joint;
+}
+
 /** Each id's competition place by its value, highest first, with the same tie rule as competitionPlaces: values within 1e-9 share a place. */
 export function competitionPlaceOf(values: Map<string, number>): Map<string, number> {
   const out = new Map<string, number>();

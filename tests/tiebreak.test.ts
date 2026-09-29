@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { awardPlace, competitionPlaces } from "@/lib/places";
+import { awardPlace, competitionPlaces, tieDecided } from "@/lib/places";
 import { breakTies, criterionMeans } from "@/server/judging/tiebreak";
 import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
 import { exportFile } from "@/server/dal/exports";
@@ -86,6 +86,42 @@ describe("the pure stage", () => {
       { place: 3, joint: true },
       { place: 5, joint: false },
     ]);
+  });
+
+  it("says a tie was broken only where the criterion decided a place, never beside a place it left joint", () => {
+    const rows = [
+      { projectId: "a", score: 4 },
+      { projectId: "b", score: 3 },
+      { projectId: "c", score: 3 },
+      { projectId: "d", score: 3 },
+      { projectId: "e", score: 2 },
+    ];
+    const out = breakTies(rows, new Map([["b", 2], ["c", 4], ["d", 2]]));
+    const places = competitionPlaces(out);
+    // b and d: the criterion put c ahead of them, so tieBroken is true, yet they still share 3rd on it
+    expect(out.map((r) => r.tieBroken)).toEqual([false, true, true, true, false]);
+    expect(places.map((x) => [x.place, x.joint])).toEqual([[1, false], [2, false], [3, true], [3, true], [5, false]]);
+    expect(out.map((r, k) => tieDecided(r, places[k]!))).toEqual([false, true, false, false, false]);
+    // two still joint at the top of a three-way tie (the brief's 1.5 and 1.5): neither says "tie broken by"
+    const top = breakTies([{ projectId: "x", score: 3 }, { projectId: "y", score: 3 }, { projectId: "z", score: 3 }], new Map([["x", 4], ["y", 4], ["z", 1]]));
+    const topPlaces = competitionPlaces(top);
+    expect(top.map((r, k) => [r.projectId, tieDecided(r, topPlaces[k]!)])).toEqual([["x", false], ["y", false], ["z", true]]);
+  });
+
+  it("uses that one condition on every surface that says \"tie broken by\": results, project page, embed, certificates, My project, normalized.csv", () => {
+    const files = [
+      "src/app/events/[event]/results/page.tsx",
+      "src/app/events/[event]/projects/[project]/page.tsx",
+      "src/app/embed/[event]/page.tsx",
+      "src/server/dal/records.ts",
+      "src/server/dal/projects.ts",
+      "src/server/dal/exports.ts",
+    ];
+    for (const f of files) {
+      const src = fs.readFileSync(path.join(process.cwd(), f), "utf8");
+      expect(src, f).toContain("tieDecided(");
+      expect(/\.tieBroken\s*(&&|\?)/.test(src), f).toBe(false);
+    }
   });
 
   it("keeps a tie joint when the criterion ties too, and places without figures exactly as before", () => {
