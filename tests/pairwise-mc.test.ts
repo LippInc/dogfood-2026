@@ -177,7 +177,7 @@ const sd = (xs: number[]) => {
 const f3 = (x: number) => x.toFixed(3);
 const heterogeneous = (r: () => number) => 1.5 * Math.exp(0.3 * normal(r));
 
-function compare(runs: number, seed0: number, sc: Scenario) {
+function compare(runs: number, seed0: number, sc: Scenario, fitOpts: Parameters<typeof fitPairwise>[2] = {}) {
   const engine: number[] = [];
   const naive: number[] = [];
   const shuffled: number[] = [];
@@ -185,7 +185,7 @@ function compare(runs: number, seed0: number, sc: Scenario) {
   const nus: number[] = [];
   for (let k = 0; k < runs; k++) {
     const { q, comps } = simulate(seed0 + k, sc);
-    const fit = fitPairwise(TRACKS, comps);
+    const fit = fitPairwise(TRACKS, comps, fitOpts);
     const est = new Map(fit.projects.filter((p) => p.comparisons > 0).map((p) => [p.id, p.s]));
     engine.push(tau(est, q));
     naive.push(tau(winRate(comps), q));
@@ -197,6 +197,15 @@ function compare(runs: number, seed0: number, sc: Scenario) {
   }
   const diff = engine.map((e, i) => e - naive[i]!);
   return { engine, naive, shuffled, hs, nus, diff };
+}
+
+// (b) and (b2)'s scenario: no pulls, the same 200 runs every time.
+const NO_PULLS = { runs: 200, seed0: 5000, sc: { h: 0, nu: 0, tau: heterogeneous } } as const;
+/** (b2): the 95 % lower bound of the engine's mean tau minus the win rate's, and whether it clears the margin. */
+const B2_MARGIN = -0.02;
+function b2(res: ReturnType<typeof compare>) {
+  const low = mean(res.diff) - (1.96 * sd(res.diff)) / Math.sqrt(res.diff.length);
+  return { low, holds: low > B2_MARGIN };
 }
 
 describe("pairwise Monte Carlo on the fixture's judges and assignments", () => {
@@ -258,15 +267,34 @@ describe("pairwise Monte Carlo on the fixture's judges and assignments", () => {
   }, 180_000);
 
   it("(b): with no pulls, the engine trails the win rate by no more than the run-to-run sd", () => {
-    const res = compare(200, 5000, { h: 0, nu: 0, tau: heterogeneous });
+    const res = compare(NO_PULLS.runs, NO_PULLS.seed0, NO_PULLS.sc);
     console.log(`no pulls, 200 runs: engine tau ${f3(mean(res.engine))}, win rate ${f3(mean(res.naive))}, difference ${f3(mean(res.diff))} (sd ${f3(sd(res.diff))})`);
     expect(mean(res.diff)).toBeGreaterThan(-sd(res.diff));
     // (b2), added after the third outside reading called (b) loose (its margin is the run-to-run sd,
     // not the error of the mean): at 95 % confidence the engine trails by at most 0.020 tau. The
     // margin was set after this run was seen, so it states the measurement tighter; it was not declared.
-    const low = mean(res.diff) - (1.96 * sd(res.diff)) / Math.sqrt(res.diff.length);
+    const { low, holds } = b2(res);
     console.log(`(b2) no pulls: mean difference ${f3(mean(res.diff))}, 95 % lower bound ${f3(low)}, over ${res.diff.length} runs`);
-    expect(low).toBeGreaterThan(-0.02);
+    expect(holds).toBe(true);
+  }, 180_000);
+
+  // (b2)'s known-bad: the same runs and seeds, fitted with a strength prior far too tight. The prior's sd is
+  // SIGMA_STRENGTH = 2; at 0.25 (8 times too tight) it squeezes every strength toward its track's mean and
+  // (b2) must fail. At 0.5 (4 times too tight) it is reported, not asserted: (b2) does not catch it, so
+  // (b2) guards against a gross regression only (JUDGING.md "The proof" takes its figures from this output).
+  it("(b2) known-bad: a strength prior 8 times too tight fails (b2) on the same runs; 4 times too tight is reported", () => {
+    for (const [label, sigmaStrength] of [
+      ["4 times too tight (sd 0.5)", 0.5],
+      ["8 times too tight (sd 0.25)", 0.25],
+    ] as const) {
+      const res = compare(NO_PULLS.runs, NO_PULLS.seed0, NO_PULLS.sc, { sigmaStrength });
+      const { low, holds } = b2(res);
+      console.log(
+        `(b2) planted, strength prior ${label}: engine tau ${f3(mean(res.engine))}, win rate ${f3(mean(res.naive))}, ` +
+          `difference ${f3(mean(res.diff))}, 95 % lower bound ${f3(low)}: (b2) ${holds ? "holds, not caught" : "fails, caught"}`,
+      );
+      if (sigmaStrength === 0.25) expect(holds).toBe(false);
+    }
   }, 180_000);
 
   it("(d): the 95 % intervals of each project's strength against its track's mean cover the truth 90 to 99 % of the time", () => {
