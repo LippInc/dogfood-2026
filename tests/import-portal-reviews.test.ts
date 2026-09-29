@@ -64,23 +64,30 @@ function freeProject(): string {
   return p.id;
 }
 
-/** A review given out on the portal: its own assignment id, in a portal run, and (when finished) its own score id. */
-function portalReview(project: string, finished: boolean) {
+/**
+ * A review given out on the portal: its own assignment id, in a portal run, and its own score id. "pending" has no
+ * score yet, "draft" has 2 of the 3 criteria and no feedback (the judge's console saved it half way), "finished" has
+ * all three and feedback.
+ */
+function portalReview(project: string, state: "pending" | "draft" | "finished") {
   h.sqlite.prepare("INSERT INTO assignment_runs (id, event_id, mode, seed, params, created_at) VALUES ('run_portal', ?, 'topup', 7, '{}', ?)").run(EVENT, NOW);
   h.sqlite
     .prepare("INSERT INTO assignments (id, event_id, judge_user_id, project_id, run_id, batch_no, position, status, created_at) VALUES ('asg_k3j9x2', ?, 'jdg_01', ?, 'run_portal', 1, 0, ?, ?)")
-    .run(EVENT, project, finished ? "done" : "pending", NOW);
-  if (!finished) return;
-  h.sqlite.prepare("INSERT INTO scores (id, assignment_id, submitted_at, updated_at, conflicted) VALUES ('scr_q8w1e5', 'asg_k3j9x2', ?, ?, 0)").run(NOW, NOW);
-  for (const [key, v] of [["functionality", 4], ["quality", 3], ["innovation", 5]] as const) {
+    .run(EVENT, project, state === "finished" ? "done" : "pending", NOW);
+  if (state === "pending") return;
+  h.sqlite.prepare("INSERT INTO scores (id, assignment_id, submitted_at, updated_at, conflicted) VALUES ('scr_q8w1e5', 'asg_k3j9x2', ?, ?, 0)").run(state === "finished" ? NOW : null, NOW);
+  const values = state === "finished" ? ([["functionality", 4], ["quality", 3], ["innovation", 5]] as const) : ([["functionality", 4], ["quality", 3]] as const);
+  for (const [key, v] of values) {
     h.sqlite.prepare("INSERT INTO score_items (score_id, criterion_id, value) VALUES ('scr_q8w1e5', ?, ?)").run(`crit_${EVENT}_${key}`, v);
   }
-  h.sqlite.prepare("INSERT INTO score_comments (score_id, feedback, private_note) VALUES ('scr_q8w1e5', 'Given on the portal.', '')").run();
+  if (state === "finished") h.sqlite.prepare("INSERT INTO score_comments (score_id, feedback, private_note) VALUES ('scr_q8w1e5', 'Given on the portal.', '')").run();
 }
+
+type FileScore = { judge: string; project: string; criteria: Record<string, number>; comment?: string };
 
 describe("an event whose reviews were given out on the portal imports back", () => {
   it("the export of an event with a finished portal review imports back and changes nothing", () => {
-    portalReview(freeProject(), true);
+    portalReview(freeProject(), "finished");
     const file = JSON.parse(exportFile(actor(), EVENT, "fixtures.json").body) as { scores: { judge: string }[] };
     expect(file.scores.some((s) => s.judge === "jdg_01")).toBe(true); // the portal's review is in the file
     const before = judging();
@@ -89,15 +96,49 @@ describe("an event whose reviews were given out on the portal imports back", () 
     expect(Object.values(report.inserted).reduce((a, b) => a + b, 0)).toBe(0);
   });
 
-  it("a file's review for a pair the portal gave out attaches to the portal's assignment, not a second one", () => {
+  // An import never writes into a review the portal handed out: a score there would count in the results under the
+  // judge's name though the judge never finished it, and their console would show values they never entered.
+  it("a file's review for a pending review the portal handed out adds nothing to it and is named in skipped", () => {
     const project = freeProject();
-    portalReview(project, false);
-    const file = JSON.parse(exportFile(actor(), EVENT, "fixtures.json").body) as { scores: { judge: string; project: string; criteria: Record<string, number> }[] };
-    file.scores.push({ judge: "jdg_01", project, criteria: { functionality: 2, quality: 2, innovation: 2 } });
-    importEventFile(actor(), file);
-    const scored = h.sqlite.prepare("SELECT s.assignment_id AS a FROM scores s JOIN assignments a ON a.id = s.assignment_id WHERE a.judge_user_id = 'jdg_01' AND a.project_id = ?").all(project) as { a: string }[];
-    expect(scored).toEqual([{ a: "asg_k3j9x2" }]);
-    expect((h.sqlite.prepare("SELECT count(*) AS n FROM score_items si JOIN scores s ON s.id = si.score_id WHERE s.assignment_id = 'asg_k3j9x2'").get() as { n: number }).n).toBe(3);
+    portalReview(project, "pending");
+    const file = JSON.parse(exportFile(actor(), EVENT, "fixtures.json").body) as { scores: FileScore[] };
+    file.scores.push({ judge: "jdg_01", project, criteria: { functionality: 2, quality: 2, innovation: 2 }, comment: "From the file." });
+    const before = judging();
+    const report = importEventFile(actor(), file);
+    expect(judging()).toBe(before);
+    expect(h.sqlite.prepare("SELECT count(*) AS n FROM scores WHERE assignment_id = 'asg_k3j9x2'").get()).toEqual({ n: 0 });
+    expect(report.skipped).toContainEqual(expect.objectContaining({ kind: "score", id: `jdg_01|${project}`, reason: expect.stringMatching(/handed out on the portal/) }));
+    expect(report.added.reviews.find((r) => r.project === project)).toBeUndefined();
+  });
+
+  it("a file's review for a judge's draft on the portal adds no value and no feedback to it", () => {
+    const project = freeProject();
+    portalReview(project, "draft");
+    const file = JSON.parse(exportFile(actor(), EVENT, "fixtures.json").body) as { scores: FileScore[] };
+    const mine = file.scores.find((s) => s.judge === "jdg_01" && s.project === project);
+    if (mine) Object.assign(mine, { criteria: { ...mine.criteria, innovation: 1 }, comment: "From the file." });
+    else file.scores.push({ judge: "jdg_01", project, criteria: { functionality: 4, quality: 3, innovation: 1 }, comment: "From the file." });
+    const before = judging();
+    const report = importEventFile(actor(), file);
+    expect(judging()).toBe(before);
+    expect(h.sqlite.prepare("SELECT submitted_at AS s FROM scores WHERE id = 'scr_q8w1e5'").get()).toEqual({ s: null });
+    expect(report.skipped).toContainEqual(expect.objectContaining({ kind: "score", id: `jdg_01|${project}`, reason: expect.stringMatching(/handed out on the portal/) }));
+  });
+
+  it("positive control: a changed file still adds to an unfinished review an earlier import brought in", () => {
+    const file = (criteria: Record<string, number | null>) => ({
+      event: { id: "evt_y", name: "Y", submissions_close: "2026-03-01T18:00:00Z" },
+      tracks: [{ id: "trk_y", name: "Y" }],
+      judges: [{ id: "jdg_y", name: "Judge", email: "y@example.org", tracks: ["trk_y"] }],
+      teams: [{ id: "tm_y", name: "Team", members: ["my@example.org"] }],
+      projects: [{ id: "prj_y", team: "tm_y", track: "trk_y", title: "P", submitted_at: "2026-03-01T12:00:00Z" }],
+      scores: [{ judge: "jdg_y", project: "prj_y", criteria }],
+    });
+    importEventFile(actor(), file({ functionality: 4, quality: 3, innovation: null }));
+    const report = importEventFile(actor(), file({ functionality: 4, quality: 3, innovation: 2 }));
+    expect(h.sqlite.prepare("SELECT value FROM score_items WHERE score_id = 'scr_jdg_y_prj_y' AND criterion_id = 'crit_evt_y_innovation'").get()).toEqual({ value: 2 });
+    expect(report.skipped.filter((s) => s.kind === "score")).toEqual([]);
+    expect(report.added.reviews).toEqual([expect.objectContaining({ project: "prj_y", values: { innovation: 2 } })]);
   });
 
   it("a file judge id that an earlier file gave another person: their review is skipped and named, never put on the other's", () => {

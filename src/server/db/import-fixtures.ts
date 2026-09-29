@@ -807,16 +807,25 @@ export function importFixtures(
           .onConflictDoNothing(),
       );
       bump("assignments", newAssignment);
-      const assignmentId = tx
-        .select({ id: assignments.id })
+      const found = tx
+        .select({ id: assignments.id, runId: assignments.runId })
         .from(assignments)
         .where(and(eq(assignments.judgeUserId, accountOf.get(s.judge)!), eq(assignments.projectId, projectId)))
-        .get()?.id;
-      if (!assignmentId) {
+        .get();
+      if (!found) {
         // the importer's id is another judge's assignment (a file judge id an earlier file gave another account)
         report.skipped.push({ kind: "score", id: pair, reason: `the review id asg_${s.judge}_${projectId} belongs to another judge's review` });
         continue;
       }
+      if (found.runId !== runId) {
+        // A review the portal handed out is the judge's own: an import never writes a score, a value or feedback into
+        // it (a score there would count in the results under the judge's name while their assignment stays pending,
+        // and their console would show values they never entered). An event's own export brings these reviews back
+        // with the values they already hold, so skipping them changes nothing on a round trip.
+        report.skipped.push({ kind: "score", id: pair, reason: `a review handed out on the portal (${found.id}) is the judge's own: an import never writes into it` });
+        continue;
+      }
+      const assignmentId = found.id;
       if (newAssignment) {
         broughtAny = true;
         added.assignments.push({ file: `${s.judge} of ${s.project}`, judge: accountOf.get(s.judge)!, project: projectId });
