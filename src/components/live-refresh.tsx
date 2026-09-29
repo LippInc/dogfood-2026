@@ -9,6 +9,9 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 // decision, a half-typed reason) survives the refresh. The indicator is also the
 // pause switch (WCAG 2.2.2): a paused tab stays paused on every organizer page of
 // this tab until it is resumed, and resuming fetches fresh numbers at once.
+// The choice lives in sessionStorage, which the server cannot read: the server draws
+// a neutral switch of the same size (no word, grey dot) and the client fills in Live
+// or Paused, so a paused tab never shows "Live" for a moment on each page load.
 
 const PAUSE_KEY = "live-refresh-paused";
 const pauseListeners = new Set<() => void>();
@@ -48,9 +51,11 @@ const clock = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute:
 export function LiveRefresh({ seconds = 15 }: { seconds?: number }) {
   const router = useRouter();
   const visible = useSyncExternalStore(subscribeVisibility, () => document.visibilityState === "visible", () => true);
-  const paused = useSyncExternalStore(subscribePaused, () => readPaused() || pausedFallback, () => false);
+  // null: not known yet (the server's render and hydration)
+  const paused = useSyncExternalStore<boolean | null>(subscribePaused, () => readPaused() || pausedFallback, () => null);
+  const known = paused !== null;
   const [at, setAt] = useState<string | null>(null);
-  const running = visible && !paused;
+  const running = visible && paused === false;
   useEffect(() => {
     if (!running) return;
     const t = setInterval(() => {
@@ -60,6 +65,7 @@ export function LiveRefresh({ seconds = 15 }: { seconds?: number }) {
     return () => clearInterval(t);
   }, [router, seconds, running]);
   const toggle = () => {
+    if (!known) return;
     if (paused) {
       router.refresh();
       setAt(clock());
@@ -70,16 +76,22 @@ export function LiveRefresh({ seconds = 15 }: { seconds?: number }) {
     <button
       type="button"
       onClick={toggle}
-      aria-label={paused ? "Resume live updates" : "Pause live updates"}
-      title={paused ? "Live updates paused. Resume to refresh this page again" : `Refreshes every ${seconds} s while this tab is open. Pause to keep the page still`}
+      aria-label={!known ? "Live updates" : paused ? "Resume live updates" : "Pause live updates"}
+      title={!known ? undefined : paused ? "Live updates paused. Resume to refresh this page again" : `Refreshes every ${seconds} s while this tab is open. Pause to keep the page still`}
       className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-transparent px-1.5 text-12 whitespace-nowrap text-ink-2 hover:border-rule hover:text-ink"
     >
-      {paused ? <Play className="size-3.5" aria-hidden /> : <Pause className="size-3.5" aria-hidden />}
-      <span className={`size-1.5 rounded-full ${running ? "bg-ok" : "bg-ink-3"}`} aria-hidden />
-      {/* both words share one cell, so switching between them never changes the width */}
+      {!known ? (
+        <span className="size-3.5" aria-hidden />
+      ) : paused ? (
+        <Play className="size-3.5" aria-hidden />
+      ) : (
+        <Pause className="size-3.5" aria-hidden />
+      )}
+      <span className={`size-1.5 rounded-full ${running ? "bg-ok" : known ? "bg-ink-3" : "bg-rule"}`} aria-hidden />
+      {/* both words share one cell, so switching between them (or filling in the first) never changes the width */}
       <span className="hidden md:inline-grid" aria-hidden>
-        <span className={`col-start-1 row-start-1 ${paused ? "invisible" : ""}`}>Live</span>
-        <span className={`col-start-1 row-start-1 ${paused ? "" : "invisible"}`}>Paused</span>
+        <span className={`col-start-1 row-start-1 ${paused === false ? "" : "invisible"}`}>Live</span>
+        <span className={`col-start-1 row-start-1 ${paused === true ? "" : "invisible"}`}>Paused</span>
       </span>
       {/* the clock's room is kept from the start, so the header does not shift when the first refresh writes the time */}
       <span className="hidden min-w-[10ch] tnum md:inline-block" aria-hidden>
