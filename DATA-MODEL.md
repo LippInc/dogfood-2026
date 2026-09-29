@@ -162,6 +162,7 @@ The portal's own `/privacy` page ("What we keep") shows this same list; the sign
 | Which organizer made an assignment run, a results run, a judge override (with its reason) or a webhook | `assignment_runs`, `normalization_runs`, `judge_overrides`, `webhooks` | as long as the portal's data; results runs for good (append-only) | removing the data volume |
 | Email addresses on an organizer's voter list | `voters.email` | as long as the portal's data | removing the data volume |
 | Comments, with the author's name beside them | `comments` | until the author deletes it (not while the organizers have it hidden) | the author |
+| The organizers' updates to an event, with who posted each | `event_updates` | until an organizer removes it (the audit log keeps its words) | the event's organizers |
 | Community-vote picks | `votes`, `voters` | as long as the portal's data | the voter, while voting is open |
 | Keyed hashes of a voter's network address and browser | `voters.ip_hash`, `voters.agent_hash` | until the operator purges them, once the vote has closed | `scripts/purge.mjs` |
 | Sign-in sessions (stored as a hash of the cookie) | `sessions` | until sign-out or their end (`SESSION_DAYS`, default 14); an ended one is deleted within the hour | the portal, by itself |

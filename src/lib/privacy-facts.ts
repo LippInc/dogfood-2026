@@ -56,6 +56,12 @@ export const KEPT: KeptFact[] = [
     removedBy: "the author",
   },
   {
+    what: "The organizers' updates to an event, with who posted each",
+    where: "`event_updates`",
+    kept: "until an organizer removes it (the audit log keeps its words)",
+    removedBy: "the event's organizers",
+  },
+  {
     what: "Community-vote picks",
     where: "`votes`, `voters`",
     kept: "as long as the portal's data",
@@ -92,7 +98,7 @@ export const KEPT: KeptFact[] = [
     removedBy: "the portal, by itself",
   },
   {
-    what: "Mail the portal sent: address, subject, body with its link blanked (nothing while email is off)",
+    what: "Mail the portal sent: address, subject, body with its private link blanked (an update's public link is kept; nothing while email is off)",
     where: "`outbox`",
     kept: "until the operator purges it (older than 90 days by default)",
     removedBy: "`scripts/purge.mjs`",
