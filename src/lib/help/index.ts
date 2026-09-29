@@ -374,8 +374,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/judge/[event]",
     who: ["judge"],
     answer:
-      "When the organizer chooses pairwise judging, the judge console asks \"which is better?\" about two of your projects at a time: ← or → for the better one, T for too close to call, U to take back your last answer.",
-    keywords: ["compare", "which is better", "left right", "too close to call", "tie", "undo answer", "pairwise console", "arrow keys"],
+      "Pairwise judging only: when the organizer chooses it, the judge console asks \"which is better?\" about two of your projects at a time: ← or → for the better one, T for too close to call (your answer that this pair is even), U to take back your last answer.",
+    keywords: ["compare", "which is better", "left right", "too close to call", "too close to call pairwise", "tie", "undo answer", "pairwise console", "arrow keys"],
     doc: { file: "JUDGING.md", heading: "Pairwise mode" },
   },
   {
@@ -827,12 +827,12 @@ export const HELP_ENTRIES: HelpEntry[] = [
   {
     id: "close-calls",
     kind: "concept",
-    title: "Close calls and the judges' decision",
+    title: "Close calls and the judges' decision (scores mode)",
     href: "/organize/[event]/results",
     who: ["organizer"],
     answer:
-      "When the scores cannot name a track's winner at 95 %, the Results page says so, with each close project's chance of being first. Keep the ranking's winner, or record the judges' decision naming another close project with their reason. On scores with a signal it must be settled before publishing; otherwise it advises.",
-    keywords: ["close call", "too close to call", "tie for first", "judges decide", "judges' decision", "deliberation", "pick the winner", "override the winner", "chance of being first", "p first", "keep the ranking"],
+      "Scores mode only: when the scores cannot name a track's winner at 95 %, the Results page says so, with each close project's chance of being first. Keep the ranking's winner, or record the judges' decision naming another close project with a reason. With a signal in the scores it must be settled before publishing.",
+    keywords: ["close call", "too close to call", "too close to call scores", "tie for first", "judges decide", "judges' decision", "deliberation", "pick the winner", "override the winner", "chance of being first", "p first", "keep the ranking"],
     doc: { file: "JUDGING.md", heading: "Close calls and the judges' decision" },
   },
   {

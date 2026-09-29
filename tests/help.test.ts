@@ -134,6 +134,23 @@ describe("the matcher finds the entry a question means", () => {
   });
 });
 
+describe("\"too close to call\" means two things, and the guide says which mode each belongs to", () => {
+  it("a search finds both, each naming its judging mode where the answer starts", () => {
+    const m = ask("too close to call", everyRole).matches.map((x) => x.entry);
+    const pairwise = m.find((e) => e.id === "pairwise-compare");
+    const close = m.find((e) => e.id === "close-calls");
+    expect(pairwise && close).toBeTruthy();
+    expect(pairwise!.answer).toMatch(/^Pairwise judging only: /);
+    expect(close!.title).toMatch(/\(scores mode\)$/);
+    expect(close!.answer).toMatch(/^Scores mode only: /);
+  });
+
+  it("the mode in the question picks the matching entry first", () => {
+    expect(top("too close to call pairwise")).toBe("pairwise-compare");
+    expect(top("too close to call scores")).toBe("close-calls");
+  });
+});
+
 describe("the suggestions", () => {
   it("each suggested question finds the entry it stands for", () => {
     for (const list of Object.values(HELP_SUGGESTIONS)) for (const s of list) expect(top(s.q), s.q).toBe(s.expect);
