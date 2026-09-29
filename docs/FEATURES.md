@@ -69,7 +69,8 @@ organizer's questions); the server refuses changes after it.
 - **Who has not started.** The Judges page lists the judges who have reviews assigned and have saved nothing (no
   score, no word of feedback, no pairwise answer, no conflict declared) right after the flagged ones, and its
   "Not started" view (`?show=not-started`, a link to share) shows only them, with every reminder and their
-  addresses to copy at once; `GET /api/events/{event}/judges` marks each judge `notStarted`.
+  addresses to copy at once; `GET /api/events/{event}/judges` marks each judge `notStarted`, and its `started`
+  counts the reviews a judge has saved something on or, in pairwise mode, answered about.
 - **Decisions before publishing.** The organizer's overview shows progress live and lists the decisions that
   must be made before results can go out: a flat judge, a duplicate entry, an under-reviewed project.
 - **Live pages.** The overview and the Judges, Voting and Integrations pages refresh every 15 s while the tab is
@@ -183,8 +184,11 @@ organizers only, each with a header row even while there is nothing to list:
 - `scores.csv`: every review, criterion by criterion; `projects.csv`: every project; `normalized.csv`: the
   ranking; `comparisons.csv`: every pairwise answer; `audit.csv`: the log with its hashes.
 - `assignments.csv`: every assignment, one row each: judge, project, track, status (pending, done, recused), how
-  far the review got (none, draft, submitted), when it was assigned, last saved and submitted, a recusal's time
-  and reason, and the run that made it (import, fresh run, top-up, by hand).
+  far the review got, when it was assigned, last saved and submitted, a recusal's time and reason, and the run that
+  made it (import, fresh run, top-up, by hand). How far the review got: in scores mode none, draft or submitted,
+  last saved at the review's latest save; in pairwise mode, which saves answers rather than reviews, answered once
+  the judge has an answer about the project that was not taken back, last saved at the latest such answer (the same
+  rule that keeps an organizer from taking the assignment back).
 - `votes.csv`: every ballot, one row per voter: how they voted in, whether the ballot counts (set aside, or an
   open-link ballot counted apart), and the picks. Until the voting window closes the picks read "hidden until
   voting closes", for every ballot, exactly as `audit.csv` seals a ballot.

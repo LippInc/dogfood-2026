@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addUser, auditRows, count, NOW, organizer, actorById, sqlAll, sqlRun, withFixtureEvent } from "./support/fixture-harness";
+import { parseCsv } from "./support/csv";
 
 // "CSV at every stage" had holes (judge's-eye reading 10, criterion 1): no export of the votes, the comments or the
 // assignments. Now votes.csv (per ballot, the picks sealed until voting closes exactly as audit.csv seals them),
@@ -27,34 +28,7 @@ beforeEach(() => resetRateLimits());
 
 const NEW = ["votes.csv", "comments.csv", "assignments.csv"] as const;
 const csv = (file: string) => exportFile(organizer(), "evt_01", file).body;
-/** A CSV as rows of fields (RFC 4180: quoted fields may hold commas, quotes doubled, CRLF lines). */
-function parse(text: string): Record<string, string>[] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let f = "";
-  let q = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]!;
-    if (q) {
-      if (c === '"' && text[i + 1] === '"') {
-        f += '"';
-        i++;
-      } else if (c === '"') q = false;
-      else f += c;
-    } else if (c === '"') q = true;
-    else if (c === ",") {
-      row.push(f);
-      f = "";
-    } else if (c === "\n") {
-      row.push(f);
-      rows.push(row);
-      row = [];
-      f = "";
-    } else if (c !== "\r") f += c;
-  }
-  const [head, ...body] = rows;
-  return body.map((r) => Object.fromEntries(head!.map((k, i) => [k, r[i] ?? ""])));
-}
+const parse = parseCsv;
 const ballotProjects = () => (sqlAll<{ id: string }>("SELECT id FROM projects WHERE event_id = 'evt_01' AND status = 'submitted' AND duplicate_of IS NULL ORDER BY id")).map((r) => r.id);
 let ipSeq = 0;
 const openVoting = () =>

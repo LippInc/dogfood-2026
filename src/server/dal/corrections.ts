@@ -8,7 +8,7 @@ import { assignmentRuns, assignments, auditLog, comparisons, judgeOverrides, jud
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { guardRead, mutate, type MutationSpec } from "../mutate";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { isJudgeIn } from "./judges";
+import { answeredPairs, isJudgeIn } from "./judges";
 import { parse } from "./parse";
 import { newId } from "../util";
 
@@ -64,20 +64,6 @@ function organizerCorrection<T>(
       return run(tx, event, eventAssignment(tx, event, assignmentId));
     },
   });
-}
-
-/**
- * The judge|project pairs a judge has answered about in pairwise mode (an answer not taken
- * back). In pairwise mode the answers are the judge's work, not a scores row: a review whose
- * project the judge has compared is started, everywhere "started" is decided. DAL-internal.
- */
-function answeredPairs(tx: DbOrTx, eventId: string, judgeUserId?: string): Set<string> {
-  const rows = tx
-    .select({ judge: comparisons.judgeUserId, left: comparisons.leftProjectId, right: comparisons.rightProjectId })
-    .from(comparisons)
-    .where(and(eq(comparisons.eventId, eventId), isNull(comparisons.voidedAt), judgeUserId ? eq(comparisons.judgeUserId, judgeUserId) : undefined))
-    .all();
-  return new Set(rows.flatMap((r) => [`${r.judge}|${r.left}`, `${r.judge}|${r.right}`]));
 }
 
 /**

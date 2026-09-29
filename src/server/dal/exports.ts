@@ -35,7 +35,8 @@ import { eventFacts, requireEvent, type EventRow } from "./events";
 import { auditCsv, ballotsSealed, SEALED, voterLabel } from "./audit-log";
 import { votingSettings } from "./voting";
 import { computeNormalization } from "./normalization";
-import { PAIRWISE_METHOD } from "./pairwise";
+import { judgingModeOf, PAIRWISE_METHOD } from "./pairwise";
+import { answeredPairs } from "./judges";
 import { averageRanks } from "../judging/normalize";
 import { issuer } from "./records";
 import { eventReviews } from "./scores";
@@ -470,8 +471,10 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
 
 /**
  * Every assignment: who reviews what, how far each review got, and when. review is none (nothing saved), draft
- * (something saved, not every criterion) or submitted; a recused one carries the judge's reason and when, from the
- * log. run says how the pair was made: an import, a fresh run, a top-up, or by hand.
+ * (something saved, not every criterion) or submitted; in pairwise mode, which saves answers and no review rows, a
+ * review whose project the judge has a standing answer about is answered, last saved at the latest such answer. A
+ * recused one carries the judge's reason and when, from the log. run says how the pair was made: an import, a fresh
+ * run, a top-up, or by hand.
  */
 function assignmentsCsv(db: DbOrTx, event: EventRow): string {
   const rows = db
@@ -511,12 +514,16 @@ function assignmentsCsv(db: DbOrTx, event: EventRow): string {
     const reason = (r.after as { reason?: unknown } | null)?.reason;
     if (r.targetId && !recusals.has(r.targetId)) recusals.set(r.targetId, { at: r.at, reason: typeof reason === "string" ? reason : "" });
   }
+  // Pairwise mode writes no review rows: a review whose project the judge has a standing answer about reads
+  // "answered", last saved at the latest such answer (the rule removeAssignment and the judges API count as started).
+  const answered = judgingModeOf(event) === "pairwise" ? answeredPairs(db, event.id) : new Map<string, string>();
   const runName = (mode: string, params: Record<string, unknown> | null) =>
     params?.byHand ? "by hand" : mode === "fixture" ? "import" : mode === "fresh" ? "fresh run" : "top-up";
   return toCsv(
     ["assignment_id", "judge_id", "judge", "project_id", "project_title", "track", "status", "review", "assigned_at", "last_saved_at", "submitted_at", "recused_at", "recuse_reason", "run_id", "run"],
     rows.map((r) => {
       const recused = r.status === "recused" ? recusals.get(r.id) : undefined;
+      const answeredAt = r.scoreId ? undefined : answered.get(`${r.judgeId}|${r.projectId}`);
       return [
         r.id,
         r.judgeId,
@@ -525,9 +532,9 @@ function assignmentsCsv(db: DbOrTx, event: EventRow): string {
         r.title,
         r.track,
         r.status,
-        r.submittedAt ? "submitted" : r.scoreId ? "draft" : "none",
+        r.submittedAt ? "submitted" : r.scoreId ? "draft" : answeredAt ? "answered" : "none",
         r.createdAt,
-        r.savedAt,
+        r.savedAt ?? answeredAt ?? null,
         r.submittedAt,
         recused?.at ?? null,
         recused?.reason ?? null,

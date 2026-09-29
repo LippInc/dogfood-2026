@@ -497,7 +497,10 @@ export type JudgeRow = {
   done: number;
   pending: number;
   recused: number;
-  /** reviews the judge has saved something on (a score, a word of feedback: a review row), finished or not */
+  /**
+   * reviews the judge has saved something on (a score, a word of feedback: a review row), finished or not; in pairwise
+   * mode also those whose project is in one of the judge's standing answers (answeredPairs)
+   */
   started: number;
   /**
    * Has reviews assigned and has saved nothing at all: no review row, no pairwise answer, no recusal. The Judges page
@@ -521,6 +524,28 @@ export type InviteRow = {
   replaced: boolean;
   acceptedBy: string | null;
 };
+
+/**
+ * The judge|project pairs a judge has answered about in pairwise mode (an answer not taken back), each with the time
+ * of the latest such answer. In pairwise mode the answers are the judge's work, not a scores row: a review whose
+ * project the judge has compared is started, everywhere "started" is decided (taking an assignment back, a track move,
+ * removing a judge, the project page, the judges API and assignments.csv). DAL-internal.
+ */
+export function answeredPairs(db: DbOrTx, eventId: string, judgeUserId?: string): Map<string, string> {
+  const rows = db
+    .select({ judge: comparisons.judgeUserId, left: comparisons.leftProjectId, right: comparisons.rightProjectId, at: comparisons.createdAt })
+    .from(comparisons)
+    .where(and(eq(comparisons.eventId, eventId), isNull(comparisons.voidedAt), judgeUserId ? eq(comparisons.judgeUserId, judgeUserId) : undefined))
+    .all();
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    for (const key of [`${r.judge}|${r.left}`, `${r.judge}|${r.right}`]) {
+      const had = out.get(key);
+      if (!had || r.at > had) out.set(key, r.at);
+    }
+  }
+  return out;
+}
 
 /** Every judge of an event with their tracks, progress and flags. DAL-internal. */
 export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
@@ -548,8 +573,6 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
       judgeId: assignments.judgeUserId,
       status: assignments.status,
       n: sql<number>`sum(case when ${assignments.status} != 'pending' or ${inJudgeTracks} then 1 else 0 end)`,
-      // a review row exists from the first thing the judge saves on it (corrections.ts's "started")
-      started: sql<number>`sum(case when ${scores.id} is not null then 1 else 0 end)`,
       last: sql<string | null>`max(${scores.submittedAt})`,
     })
     .from(assignments)
@@ -579,6 +602,18 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
       for (const t of after.trackIds ?? []) if (!had.has(t)) granted.set(`${r.targetId}|${t}`, null);
     }
   }
+  // Started: a review row exists from the first thing the judge saves on it, and in pairwise mode (no review rows)
+  // an answer about the project that stands (answeredPairs), the rule removeAssignment refuses on.
+  const answered = answeredPairs(db, eventId);
+  const startedBy = new Map<string, number>();
+  for (const r of db
+    .select({ judgeId: assignments.judgeUserId, projectId: assignments.projectId, scoreId: scores.id })
+    .from(assignments)
+    .leftJoin(scores, eq(scores.assignmentId, assignments.id))
+    .where(eq(assignments.eventId, eventId))
+    .all()) {
+    if (r.scoreId || answered.has(`${r.judgeId}|${r.projectId}`)) startedBy.set(r.judgeId, (startedBy.get(r.judgeId) ?? 0) + 1);
+  }
   const set = judgeSet(db, eventId);
   // pairwise mode saves answers, not review rows: a judge with one standing answer has started
   const compared = new Set(
@@ -593,7 +628,7 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
     const mine = counts.filter((c) => c.judgeId === p.id);
     const of = (s: string) => mine.find((c) => c.status === s)?.n ?? 0;
     const last = mine.map((c) => c.last).filter((x): x is string => Boolean(x)).sort().at(-1) ?? null;
-    const started = mine.reduce((sum, c) => sum + (c.started ?? 0), 0);
+    const started = startedBy.get(p.id) ?? 0;
     const assigned = of("pending") + of("done");
     return {
       ...p,
