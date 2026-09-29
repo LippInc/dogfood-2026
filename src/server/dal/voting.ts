@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, isNotNull, isNull, or } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { appendAudit } from "../audit";
 import type { Actor, Resource, VoterKind } from "../authz";
@@ -363,11 +363,7 @@ export function enterVoting(
   }
   const event = lookedUp(
     client,
-    db
-      .select()
-      .from(events)
-      .all()
-      .find((e) => e.settings.voting?.linkHash === hash && votingSettings(e).modes.includes("link")),
+    eventOfLink(db, hash),
   );
   // The entry limit comes first, so refused entries after the close cannot grow the log
   // without bound either (the link is public).
@@ -430,6 +426,17 @@ export function enterVoting(
   return { eventSlug: event.slug, eventId: event.id, token };
 }
 
+/** The event whose open voting link has this hash, while it takes votes by link. The hash is read in SQL, not by loading every event. */
+function eventOfLink(db: DbOrTx, hash: string): EventRow | undefined {
+  return db
+    .select()
+    .from(events)
+    .where(sql`json_extract(${events.settings}, '$.voting.linkHash') = ${hash}`)
+    .orderBy(sql`rowid`)
+    .all()
+    .find((e) => votingSettings(e).modes.includes("link"));
+}
+
 /**
  * A voting code looked up from one network address. An unknown code spends one of the
  * address's tries (LIMITS.voteCodeMiss) and answers 404, or 429 once they are spent. A real
@@ -454,11 +461,7 @@ export function describeVotingCode(code: string, client: Client): { event: { id:
     client,
     listed
       ? requireEvent(db, listed.eventId)
-      : db
-          .select()
-          .from(events)
-          .all()
-          .find((e) => e.settings.voting?.linkHash === hash && votingSettings(e).modes.includes("link")),
+      : eventOfLink(db, hash),
   );
   return { event: { id: event.id, slug: event.slug, name: event.name }, kind: listed ? "listed" : "link", state: votingState(event), closesAt: event.votingCloseAt };
 }
