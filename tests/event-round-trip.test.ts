@@ -327,6 +327,7 @@ describe("an event that is here already: its history is its own", () => {
       ["pairwise answer", addTo(file, "comparisons", { id: "cmp_forged", judge: "jdg_01", track: "trk_03", left: "prj_03", right: "prj_24", new: "prj_24", answer: "right", at: NOW }), "1 pairwise answer"],
       ["decision", { ...file, decisions: { ...file.decisions, judges: [...file.decisions.judges, { id: "ovr_forged", judge: "jdg_02", mode: "exclude", reason: "Planted by a file", at: NOW }] } }, "1 decision"],
       ["accepted project", { ...file, decisions: { ...file.decisions, accepted_under_reviewed: ["prj_19", "prj_05"] } }, "1 decision"],
+      ["track move", { ...file, decisions: { ...file.decisions, track_moves: [...file.decisions.track_moves, { project: "prj_06", from: "trk_01", to: "trk_02", reason: "Planted by a file", at: NOW }] } }, "1 decision"],
       ["merge", { ...file, projects: file.projects.map((p: { id: string }) => (p.id === "prj_24" ? { ...p, duplicate_of: "prj_02" } : p)) }, "1 duplicate merge"],
       ["another ranking", { ...file, published: { ...file.published, run: { ...file.published.run, id: "nrm_forged" } } }, "a published ranking"],
     ];

@@ -321,7 +321,7 @@ export function refuseHistoryForExistingEvent(
     inList(remapIds(d?.vote_count_changes, projectOf) as unknown[] | undefined, s.voteCountChanges),
     inList(
       d?.track_moves.map((m) => ({ project: own(m.project), from: trackOf.get(m.from) ?? m.from, to: trackOf.get(m.to) ?? m.to, reason: m.reason, at: m.at })),
-      readTrackMoves(tx, eventId).map((m) => ({ project: m.projectId, from: m.fromTrackId, to: m.toTrackId, reason: m.reason, at: m.at })),
+      (d?.track_moves.length ? readTrackMoves(tx, eventId) : []).map((m) => ({ project: m.projectId, from: m.fromTrackId, to: m.toTrackId, reason: m.reason, at: m.at })),
     ),
   ];
   const otherDecisions = settingsDecisions.reduce((a, c) => ({ present: a.present + c.present, missing: a.missing + c.missing }), { present: 0, missing: 0 });
