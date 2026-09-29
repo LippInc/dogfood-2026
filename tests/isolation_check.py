@@ -741,16 +741,28 @@ def run_checks(cfg):
             refused += 1
         expect(c, saw_429 and refused >= 60, capper, "GET", probe_url,
                f"{refused} refusals, then {'a 429' if saw_429 else 'no 429 within 120'}", "at least 60 refusals, then 429")
+        # The bucket earns a token back every 10 s (60 per 600 s), so on a slow portal one of these may come back 403
+        # again, audited like any refusal; the rule is that a 429 writes no row, so count such 403s in, and still
+        # want most of the five to be 429 (three or more 403s would need 20 s or more between requests).
+        late_403 = late_429 = 0
         for _ in range(5):
             s, _, _ = capper.request("GET", probe_url)
-            expect(c, s == 429, capper, "GET", probe_url, s, "429 while the cap holds")
+            if s == 403:
+                late_403 += 1
+            elif s == 429:
+                late_429 += 1
+            else:
+                expect(c, False, capper, "GET", probe_url, s, "429 while the cap holds (403 once a token is earned back)")
+        expect(c, late_429 >= 3, capper, "GET", probe_url, f"{late_429} of 5 follow-ups answered 429, {late_403} answered 403",
+               "429 while the cap holds, for at least 3 of 5")
+        refused += late_403
         s, body, _ = organizer.request("GET", audit_url)
         if expect(c, s == 200, organizer, "GET", audit_url, s, "200"):
             rows = [r for r in csv.DictReader(io.StringIO(body))
                     if r.get("action") == "authz.refused" and r.get("actor") == cap_name]
             expect(c, len(rows) == refused and refused > 0, organizer, "GET", audit_url,
-                   f"{len(rows)} authz.refused rows for {cap_name!r} after {refused} 403s and 6 429s",
-                   f"exactly {refused}: one per 403, none past the cap")
+                   f"{len(rows)} authz.refused rows for {cap_name!r} after {refused} 403s and {1 + late_429} 429s",
+                   f"exactly {refused}: one per 403, none for a 429")
     checks.append(c)
 
     # B10 -- close the window: the tally appears, the voided pick does not count, and the
