@@ -14,7 +14,7 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       PUBLIC_URL: "http://localhost:8080"
       # Demo and judging only: seeds the four public checker sessions and the demo
-      # sign-in buttons. Set to "false" in production (README, "Running it for real").
+      # sign-in buttons. Set to "false" in production (README, "Running it for a real event").
       SEED_CHECKER_SESSIONS: "true"
       DOGFOOD_SEED_SECRET: "${DOGFOOD_SEED_SECRET:-dogfood-2026-public-demo-secret}"
     volumes:
