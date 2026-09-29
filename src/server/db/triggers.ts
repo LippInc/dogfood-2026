@@ -193,6 +193,15 @@ export function isPublishedRefusal(err: unknown): boolean {
   return err instanceof Error && /: the results are published, so /.test(err.message);
 }
 
+/**
+ * Whether an error is the votes triggers' refusal. The app decides a ballot by the request's start time and the
+ * trigger by the database's clock, so a ballot sent at the exact close can pass the one and meet the other;
+ * dal/voting.ts castBallot answers it as the app's own 403 voting_closed, audited the same way.
+ */
+export function isVotingClosedRefusal(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("votes: voting has closed, so the ballots are final");
+}
+
 const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 
 export type TriggerReport = { created: string[]; restored: string[] };

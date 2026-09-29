@@ -30,6 +30,12 @@ export type MutationSpec<T> = {
    */
   run: (tx: Tx) => { result: T; audit: MutationAudit };
   now?: Date;
+  /**
+   * A refusal only the database can make: a trigger that reads its own clock refuses a write authorize() let through
+   * by the request's (a ballot at the exact close). Map its error to the refusal the app would have given; it is then
+   * answered and audited like one, in a transaction of its own since the write's rolled back.
+   */
+  refusedByDatabase?: (err: unknown) => Refusal | null;
 };
 
 type Who = { userId: string | null; name: string };
@@ -63,15 +69,37 @@ export function refusalAudit(actor: Who, action: Action, resource: Resource, ref
 
 export function mutate<T>(spec: MutationSpec<T>): T {
   const now = spec.now ?? new Date();
-  const outcome = getDb().transaction((tx): { refused: Refusal } | { throttled: number } | { result: T } => {
+  // A session actor, or (for a ballot) the voter the link proves.
+  const who: Who | null = spec.actor
+    ? { userId: spec.actor.userId, name: spec.actor.name }
+    : spec.as
+      ? { userId: null, name: spec.as.label }
+      : null;
+  let outcome: { refused: Refusal } | { throttled: number } | { result: T };
+  try {
+    outcome = transact(spec, who, now);
+  } catch (err) {
+    const refusal = spec.refusedByDatabase?.(err);
+    if (!refusal) throw err;
+    outcome = getDb().transaction((tx): { refused: Refusal } | { throttled: number } => {
+      if (refusal.status === 403 && who) {
+        const allowed = take(refusalKey(who), LIMITS.refusal, now.getTime());
+        if (!allowed.ok) return { throttled: allowed.retryAfter };
+        appendAudit(tx, refusalAudit(who, spec.action, spec.load(tx), refusal), now.toISOString());
+      }
+      return { refused: refusal };
+    });
+  }
+  if ("throttled" in outcome) throw new RateLimitedError(outcome.throttled);
+  if ("refused" in outcome) throw new AuthzError(outcome.refused);
+  return outcome.result;
+}
+
+/** The permission check, the change and its audit rows, or the audited refusal: one synchronous transaction. */
+function transact<T>(spec: MutationSpec<T>, who: Who | null, now: Date): { refused: Refusal } | { throttled: number } | { result: T } {
+  return getDb().transaction((tx): { refused: Refusal } | { throttled: number } | { result: T } => {
     const resource = spec.load(tx);
     const decision = authorize(spec.actor, spec.action, resource, now);
-    // A session actor, or (for a ballot) the voter the link proves.
-    const who: Who | null = spec.actor
-      ? { userId: spec.actor.userId, name: spec.actor.name }
-      : spec.as
-        ? { userId: null, name: spec.as.label }
-        : null;
     if (!decision.ok) {
       if (decision.status === 403 && who) {
         // One row per 403, up to LIMITS.refusal per person; past that the answer is 429 and no row.
@@ -88,9 +116,6 @@ export function mutate<T>(spec: MutationSpec<T>): T {
     }
     return { result };
   });
-  if ("throttled" in outcome) throw new RateLimitedError(outcome.throttled);
-  if ("refused" in outcome) throw new AuthzError(outcome.refused);
-  return outcome.result;
 }
 
 /**

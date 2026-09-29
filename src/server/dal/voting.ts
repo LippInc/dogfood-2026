@@ -12,6 +12,7 @@ import { fieldModes, shownTitle } from "./project-fields";
 import { AuthzError, ConflictError, NotFoundError, RateLimitedError, ValidationError } from "../errors";
 import { seededRng, shuffle } from "../judging/random";
 import { mutate } from "../mutate";
+import { isVotingClosedRefusal } from "../db/triggers";
 import { LIMITS, takeAudited, type Limit } from "../rate-limit";
 import { newId, newSecret, sha256 } from "../util";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -275,6 +276,14 @@ export function castBallot(actor: Actor | null, eventIdOrSlug: string, token: st
     actor: who?.viaAccount ? actor : null,
     as: voterLabel ? { label: voterLabel } : null,
     action: "vote.cast",
+    // The request passed the close by its own clock and the database's had already read past it: the same 403 as
+    // authz.ts decideVote. The trigger also refuses once the results are published, which the app's check does not ask.
+    refusedByDatabase: (err) =>
+      !isVotingClosedRefusal(err)
+        ? null
+        : db.select({ at: events.resultsPublishedAt }).from(events).where(eq(events.id, event.id)).get()?.at
+          ? { ok: false, status: 403, code: "results_published", message: "The results are published, so the ballots are final." }
+          : { ok: false, status: 403, code: "voting_closed", message: `Voting closed at ${formatUtc(event.votingCloseAt ?? "")}.` },
     load: (): Resource => ({
       kind: "ballot",
       event: eventFacts(event),
