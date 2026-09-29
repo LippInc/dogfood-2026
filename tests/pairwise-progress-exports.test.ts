@@ -105,6 +105,14 @@ describe("pairwise progress in assignments.csv", () => {
     }
   });
 
+  it("switched back to scores, an answered review still reads answered, as removeAssignment still refuses it", () => {
+    const a = oneAnswer();
+    setJudgingMode(organizer(), "evt_01", { mode: "scores", reason: "back to scores after all" });
+    const r = [a.left, a.right].map((p) => rowOf(a.judge, p)).find((x) => x !== undefined && !hasScores(x.assignment_id))!;
+    expect({ review: r.review, last_saved_at: r.last_saved_at }).toEqual({ review: "answered", last_saved_at: a.at });
+    expectHttpError(() => removeAssignment(organizer(), "evt_01", r.assignment_id, { reason: "picked by mistake" }), 409, "review_started");
+  });
+
   it("a scores event keeps its values: submitted, draft or none from the review row", () => {
     const values = new Set(rows().map((r) => r.review));
     expect(values.has("submitted")).toBe(true);

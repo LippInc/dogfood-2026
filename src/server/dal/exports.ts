@@ -35,7 +35,7 @@ import { eventFacts, requireEvent, type EventRow } from "./events";
 import { auditCsv, ballotsSealed, SEALED, voterLabel } from "./audit-log";
 import { votingSettings } from "./voting";
 import { computeNormalization } from "./normalization";
-import { judgingModeOf, PAIRWISE_METHOD } from "./pairwise";
+import { PAIRWISE_METHOD } from "./pairwise";
 import { answeredPairs } from "./judges";
 import { averageRanks } from "../judging/normalize";
 import { issuer } from "./records";
@@ -471,8 +471,9 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
 
 /**
  * Every assignment: who reviews what, how far each review got, and when. review is none (nothing saved), draft
- * (something saved, not every criterion) or submitted; in pairwise mode, which saves answers and no review rows, a
- * review whose project the judge has a standing answer about is answered, last saved at the latest such answer. A
+ * (something saved, not every criterion) or submitted; pairwise mode saves answers and no review rows, so a review
+ * with no review row whose project the judge has a standing answer about is answered, last saved at the latest such
+ * answer. A
  * recused one carries the judge's reason and when, from the log. run says how the pair was made: an import, a fresh
  * run, a top-up, or by hand.
  */
@@ -516,7 +517,8 @@ function assignmentsCsv(db: DbOrTx, event: EventRow): string {
   }
   // Pairwise mode writes no review rows: a review whose project the judge has a standing answer about reads
   // "answered", last saved at the latest such answer (the rule removeAssignment and the judges API count as started).
-  const answered = judgingModeOf(event) === "pairwise" ? answeredPairs(db, event.id) : new Map<string, string>();
+  // Not keyed on the mode: an event switched back to scores keeps its answers, and removeAssignment still refuses them.
+  const answered = answeredPairs(db, event.id);
   const runName = (mode: string, params: Record<string, unknown> | null) =>
     params?.byHand ? "by hand" : mode === "fixture" ? "import" : mode === "fresh" ? "fresh run" : "top-up";
   return toCsv(

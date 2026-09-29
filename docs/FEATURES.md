@@ -188,7 +188,7 @@ organizers only, each with a header row even while there is nothing to list:
   made it (import, fresh run, top-up, by hand). How far the review got: in scores mode none, draft or submitted,
   last saved at the review's latest save; in pairwise mode, which saves answers rather than reviews, answered once
   the judge has an answer about the project that was not taken back, last saved at the latest such answer (the same
-  rule that keeps an organizer from taking the assignment back).
+  rule that keeps an organizer from taking the assignment back; an event switched back to scores keeps it).
 - `votes.csv`: every ballot, one row per voter: how they voted in, whether the ballot counts (set aside, or an
   open-link ballot counted apart), and the picks. Until the voting window closes the picks read "hidden until
   voting closes", for every ballot, exactly as `audit.csv` seals a ballot.
