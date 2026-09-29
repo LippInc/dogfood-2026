@@ -156,6 +156,14 @@ def expect(c, ok, person, method, url, got, wanted):
     return False
 
 
+def csv_rows(text):
+    """A CSV export as a list of dicts, its byte-order mark (if any) dropped."""
+    return list(csv.DictReader(io.StringIO(text.lstrip("\ufeff"))))
+
+
+SEALED = "hidden until voting closes"
+
+
 def utc_minute(dt):
     """A datetime as the "YYYY-MM-DDTHH:MM" the settings PUT takes (UTC)."""
     return dt.strftime("%Y-%m-%dT%H:%M")
@@ -269,8 +277,8 @@ def run_checks(cfg):
     checks.append(c)
 
     # A4 -- the aggregate exports
-    c = Check("A4", "score exports are organizer-only")
-    for name in ("scores.csv", "normalized.csv"):
+    c = Check("A4", "score and assignment exports are organizer-only")
+    for name in ("scores.csv", "normalized.csv", "assignments.csv"):
         url = u(f"/api/events/{EVENT_ID}/export/{name}")
         s, body, _ = organizer.request("GET", url)
         first = body.splitlines()[0] if body.splitlines() else ""
@@ -620,6 +628,18 @@ def run_checks(cfg):
             expect(c, (row.get("hidden") or {}).get("reason") == "isolation check", participant,
                    "GET", comments_url, f"hidden {row.get('hidden')!r}",
                    "hidden.reason 'isolation check'")
+        # comments.csv keeps the hidden comment's row and reason, never its words; organizers only
+        export_url = u(f"/api/events/{EVENT_ID}/export/comments.csv")
+        s, body, _ = organizer.request("GET", export_url)
+        if expect(c, s == 200, organizer, "GET", export_url, s, "200"):
+            row = next((r for r in csv_rows(body) if r.get("comment_id") == comment_id), None)
+            expect(c, row is not None and row.get("status") == "hidden" and row.get("hidden_reason") == "isolation check",
+                   organizer, "GET", export_url, f"row {row!r}", "the hidden comment's row with its reason")
+            expect(c, "isolation check: first comment" not in body, organizer, "GET", export_url,
+                   "the hidden comment's words in the file", "no words of a hidden comment")
+        for who, code in ((participant, 403), (judge_a, 403), (visitor, 401)):
+            s, _, _ = who.request("GET", export_url)
+            expect(c, s == code, who, "GET", export_url, s, str(code))
         # everyone else sees one comment fewer: no placeholder with the author's name and the reason
         for who in (visitor, judge_a):
             s, body, _ = who.request("GET", comments_url)
@@ -792,6 +812,17 @@ def run_checks(cfg):
     # B10 -- close the window: the tally appears, the voided pick does not count, and the
     # open link's ballot shows apart without adding to the count
     c = Check("B10", "closed tally counts every ballot but the voided one, the open link's apart")
+    # votes.csv, organizers only: one row per ballot, the picks sealed while the window is open
+    votes_url = u(f"/api/events/{EVENT_ID}/export/votes.csv")
+    for who, code in ((participant, 403), (judge_a, 403), (visitor, 401)):
+        s, _, _ = who.request("GET", votes_url)
+        expect(c, s == code, who, "GET", votes_url, s, str(code))
+    s, body, _ = organizer.request("GET", votes_url)
+    if expect(c, s == 200, organizer, "GET", votes_url, s, "200"):
+        rows = csv_rows(body)
+        expect(c, len(rows) >= 3 and all(r.get("picks") == SEALED and r.get("pick_titles") == SEALED for r in rows),
+               organizer, "GET", votes_url, f"{len(rows)} rows, picks {[r.get('picks') for r in rows][:4]!r}",
+               "every ballot's picks sealed while voting is open")
     closing = {"votingOpenAt": open_past, "votingCloseAt": close_past,
                "modes": ["account", "listed", "link"], "votesPerVoter": 3}
     s, _, _ = organizer.request("PUT", settings_url, closing)
@@ -817,6 +848,14 @@ def run_checks(cfg):
                    "prj_04: 0 votes and 1 from the open link; prj_03: 0 from the open link (voided)")
             expect(c, data.get("countLink") is False, visitor, "GET", community_url,
                    f"countLink {data.get('countLink')!r}", "countLink false, as the event left it")
+    s, body, _ = organizer.request("GET", votes_url)
+    if expect(c, s == 200, organizer, "GET", votes_url, s, "200"):
+        rows = csv_rows(body)
+        picked = {p for r in rows for p in (r.get("picks") or "").split("; ") if p}
+        expect(c, "prj_02" in picked and SEALED not in body, organizer, "GET", votes_url,
+               f"picks {sorted(picked)!r}", "the picks shown once voting closed, prj_02 among them")
+        expect(c, any(r.get("counts") == "set aside" for r in rows), organizer, "GET", votes_url,
+               f"counts {[r.get('counts') for r in rows]!r}", "the voided ballot marked set aside")
     checks.append(c)
 
     # B11 -- results stay hidden until the organizers publish them

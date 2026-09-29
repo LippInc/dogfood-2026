@@ -165,7 +165,9 @@ Each item in full, with its rules: [`docs/FEATURES.md`](docs/FEATURES.md).
   the judges who have not started in a view of their own with their reminders, the decisions that must be made
   before results go out, leniency correction with receipts and a judge ledger.
 - **Pairwise judging (optional):** "which is better?" instead of scores, ranked by a Bradley-Terry fit.
-- **Results and exports:** publishing locked until every decision is made; CSV and `event.json` at every stage.
+- **Results and exports:** publishing locked until every decision is made; CSV (scores, projects, assignments,
+  ranking, ballots with their picks sealed until the vote closes, comments, audit log) and `event.json` at every
+  stage.
 - **Community vote and comments:** signed-in, voter-list or open-link voting; comments organizers can hide with a
   reason.
 - **Signed certificates and judging records,** checkable in the browser, on `/verify` or offline.

@@ -109,7 +109,8 @@ Publishing is locked until every decision is made; it stores the exact normaliza
 database refuses to withdraw it or swap it for another run. The public results page shows every project in each
 track with its score and ±, and the audit entry the results were published as, with its hash. Teams then see
 their place, their score with its ±, and each review's feedback, judges unnamed. CSV exports (scores, projects,
-normalized ranking, audit log) and a full `event.json` are available at every stage.
+assignments, normalized ranking, pairwise answers, ballots, comments, audit log) and a full `event.json` are
+available at every stage (each file's columns: "Import and export").
 
 ## Community vote
 
@@ -176,7 +177,21 @@ both send it.
 ## Import and export
 
 Every stage exports as CSV (the download buttons add a UTF-8 byte-order mark so Excel reads accented names; the
-API adds it only with `?bom=1`), and a whole event as `event.json` or as `fixtures.json`, the organizers' own
+API adds it only with `?bom=1`), from the organizer's Integrations tab or `GET /api/events/{event}/export/{file}`,
+organizers only, each with a header row even while there is nothing to list:
+
+- `scores.csv`: every review, criterion by criterion; `projects.csv`: every project; `normalized.csv`: the
+  ranking; `comparisons.csv`: every pairwise answer; `audit.csv`: the log with its hashes.
+- `assignments.csv`: every assignment, one row each: judge, project, track, status (pending, done, recused), how
+  far the review got (none, draft, submitted), when it was assigned, last saved and submitted, a recusal's time
+  and reason, and the run that made it (import, fresh run, top-up, by hand).
+- `votes.csv`: every ballot, one row per voter: how they voted in, whether the ballot counts (set aside, or an
+  open-link ballot counted apart), and the picks. Until the voting window closes the picks read "hidden until
+  voting closes", for every ballot, exactly as `audit.csv` seals a ballot.
+- `comments.csv`: every comment with its project and author; a comment an organizer hid keeps its row with who
+  hid it, when and why, and an empty body: its words are not exported.
+
+A whole event also exports as `event.json` or as `fixtures.json`, the organizers' own
 fixture format with the rubric (labels, prompts, weights), the questions to teams and their answers, and each
 project's description and links added: the file that moves an event. An administrator imports such a file on Your
 events (or `POST /api/imports`), through the same idempotent importer the portal boots with, and gets the same

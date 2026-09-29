@@ -51,7 +51,12 @@ type Names = {
   sealed: boolean;
 };
 
-const SEALED = "hidden until voting closes";
+/** What a ballot's picks read while they are sealed, here and in votes.csv. */
+export const SEALED = "hidden until voting closes";
+
+/** A voter as the log and votes.csv name them: an account by its name, anyone else by kind and the end of the id. */
+export const voterLabel = (v: { id: string; kind: string; name: string | null }) =>
+  v.kind === "account" && v.name ? v.name : `${v.kind === "listed" ? "Listed" : "Link"} voter ${v.id.slice(-6)}`;
 
 /**
  * The names of the people the rows mention, each read by its id the first time a sentence asks, and kept: a page
@@ -92,13 +97,14 @@ function loadNames(db: DbOrTx, eventId: string): Names {
         .leftJoin(users, eq(users.id, voters.userId))
         .where(eq(voters.eventId, eventId))
         .all()
-        .map((v) => [v.id, v.kind === "account" && v.name ? v.name : `${v.kind === "listed" ? "Listed" : "Link"} voter ${v.id.slice(-6)}`]),
+        .map((v) => [v.id, voterLabel(v)]),
     ),
     sealed: ballotsSealed(db, eventId),
   };
 }
 
-function ballotsSealed(db: DbOrTx, eventId: string): boolean {
+/** Whether a ballot's picks are sealed: until the event's voting window has closed (audit.csv, the log, votes.csv). */
+export function ballotsSealed(db: DbOrTx, eventId: string): boolean {
   const e = db.select({ votingOpenAt: events.votingOpenAt, votingCloseAt: events.votingCloseAt }).from(events).where(eq(events.id, eventId)).get();
   return !e || votingState(e) !== "closed";
 }

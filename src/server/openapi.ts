@@ -88,10 +88,10 @@ export const OPERATIONS: Operation[] = [
     method: "GET",
     path: "/api/events/{event}/export/{file}",
     tag: "Events",
-    summary: "Export: scores.csv, projects.csv, normalized.csv, audit.csv, event.json, or fixtures.json (the import format)",
+    summary: "Export: scores.csv, projects.csv, assignments.csv, normalized.csv, audit.csv, comparisons.csv, votes.csv, comments.csv, event.json, or fixtures.json (the import format)",
     access: "organizer",
     okTypes: ["text/csv", "application/json"],
-    note: "Add ?bom=1 to a CSV for a UTF-8 byte-order mark, which Excel needs to read names outside ASCII; the portal's own download buttons do. scores.csv's source column says whether each review arrived by an import (import) or was given out on this portal (portal); its last column, shown_title (also last in projects.csv), is the name shown while the organizer hides project titles. After publishing, normalized.csv is the published run as stored, not worked out again; a pairwise run has its own columns.",
+    note: "Add ?bom=1 to a CSV for a UTF-8 byte-order mark, which Excel needs to read names outside ASCII; the portal's own download buttons do. scores.csv's source column says whether each review arrived by an import (import) or was given out on this portal (portal); its last column, shown_title (also last in projects.csv), is the name shown while the organizer hides project titles. After publishing, normalized.csv is the published run as stored, not worked out again; a pairwise run has its own columns. assignments.csv has one row per assignment: judge, project, status, how far the review got (none, draft, submitted), when it was assigned, last saved and submitted, a recusal's time and reason, and the run that made it. votes.csv has one row per ballot (voter); until the voting window closes its picks and pick_titles read \"hidden until voting closes\", as audit.csv seals a ballot. comments.csv lists every comment; a hidden one has status hidden, who hid it, when and why, and an empty body.",
   },
 
   {

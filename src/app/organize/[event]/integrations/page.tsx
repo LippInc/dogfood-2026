@@ -27,9 +27,12 @@ const ATTEMPTS_CAP = 20;
 const EXPORT_HOLDS: Record<string, string> = {
   "scores.csv": "every raw score",
   "projects.csv": "the projects",
+  "assignments.csv": "who reviews what, and how far each got",
   "normalized.csv": "the normalized ranking",
   "audit.csv": "the audit log",
   "comparisons.csv": "every pairwise answer",
+  "votes.csv": "every ballot; the picks once voting closes",
+  "comments.csv": "every comment; a hidden one by its reason only",
   "event.json": "the whole event as a record, with settings and decisions",
   "fixtures.json": "moves the event to another portal",
 };

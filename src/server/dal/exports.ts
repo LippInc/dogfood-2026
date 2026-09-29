@@ -1,9 +1,11 @@
 import "server-only";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { toCsv, type Cell } from "../csv";
 import { getDb, type DbOrTx } from "../db/client";
 import {
+  auditLog,
+  comments,
   comparisons,
   assignmentRuns,
   assignments,
@@ -24,11 +26,14 @@ import {
   tracks,
   userRoles,
   users,
+  voters,
+  votes,
 } from "../db/schema";
 import { NotFoundError } from "../errors";
 import { guardRead } from "../mutate";
 import { eventFacts, requireEvent, type EventRow } from "./events";
-import { auditCsv } from "./audit-log";
+import { auditCsv, ballotsSealed, SEALED, voterLabel } from "./audit-log";
+import { votingSettings } from "./voting";
 import { computeNormalization } from "./normalization";
 import { PAIRWISE_METHOD } from "./pairwise";
 import { averageRanks } from "../judging/normalize";
@@ -463,12 +468,191 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
   );
 }
 
+/**
+ * Every assignment: who reviews what, how far each review got, and when. review is none (nothing saved), draft
+ * (something saved, not every criterion) or submitted; a recused one carries the judge's reason and when, from the
+ * log. run says how the pair was made: an import, a fresh run, a top-up, or by hand.
+ */
+function assignmentsCsv(db: DbOrTx, event: EventRow): string {
+  const rows = db
+    .select({
+      id: assignments.id,
+      judgeId: assignments.judgeUserId,
+      judge: users.name,
+      projectId: assignments.projectId,
+      title: projects.title,
+      track: tracks.name,
+      status: assignments.status,
+      createdAt: assignments.createdAt,
+      runId: assignments.runId,
+      mode: assignmentRuns.mode,
+      params: assignmentRuns.params,
+      scoreId: scores.id,
+      savedAt: scores.updatedAt,
+      submittedAt: scores.submittedAt,
+    })
+    .from(assignments)
+    .innerJoin(users, eq(users.id, assignments.judgeUserId))
+    .innerJoin(projects, eq(projects.id, assignments.projectId))
+    .innerJoin(tracks, eq(tracks.id, projects.trackId))
+    .innerJoin(assignmentRuns, eq(assignmentRuns.id, assignments.runId))
+    .leftJoin(scores, eq(scores.assignmentId, assignments.id))
+    .where(eq(assignments.eventId, event.id))
+    .orderBy(asc(assignments.judgeUserId), asc(assignments.projectId))
+    .all();
+  // a recusal's reason and time: the latest review.recuse row of each assignment
+  const recusals = new Map<string, { at: string; reason: string }>();
+  for (const r of db
+    .select({ targetId: auditLog.targetId, at: auditLog.at, after: auditLog.after })
+    .from(auditLog)
+    .where(and(eq(auditLog.eventId, event.id), eq(auditLog.action, "review.recuse")))
+    .orderBy(desc(auditLog.id))
+    .all()) {
+    const reason = (r.after as { reason?: unknown } | null)?.reason;
+    if (r.targetId && !recusals.has(r.targetId)) recusals.set(r.targetId, { at: r.at, reason: typeof reason === "string" ? reason : "" });
+  }
+  const runName = (mode: string, params: Record<string, unknown> | null) =>
+    params?.byHand ? "by hand" : mode === "fixture" ? "import" : mode === "fresh" ? "fresh run" : "top-up";
+  return toCsv(
+    ["assignment_id", "judge_id", "judge", "project_id", "project_title", "track", "status", "review", "assigned_at", "last_saved_at", "submitted_at", "recused_at", "recuse_reason", "run_id", "run"],
+    rows.map((r) => {
+      const recused = r.status === "recused" ? recusals.get(r.id) : undefined;
+      return [
+        r.id,
+        r.judgeId,
+        r.judge,
+        r.projectId,
+        r.title,
+        r.track,
+        r.status,
+        r.submittedAt ? "submitted" : r.scoreId ? "draft" : "none",
+        r.createdAt,
+        r.savedAt,
+        r.submittedAt,
+        recused?.at ?? null,
+        recused?.reason ?? null,
+        r.runId,
+        runName(r.mode, r.params),
+      ];
+    }),
+  );
+}
+
+/**
+ * Every ballot, one row per voter, in the order they came in: how they voted in (kind), whether the ballot counts
+ * (a ballot set aside does not; an open-link ballot counts apart unless the organizer counts it), and the picks.
+ * The picks stay sealed until the voting window closes, exactly as audit.csv seals a ballot (ballotsSealed): until
+ * then both pick columns read "hidden until voting closes", for every ballot, cast or not.
+ */
+function votesCsv(db: DbOrTx, event: EventRow): string {
+  const sealed = ballotsSealed(db, event.id);
+  const { countLink } = votingSettings(event);
+  const people = db
+    .select({
+      id: voters.id,
+      kind: voters.kind,
+      userId: voters.userId,
+      name: users.name,
+      email: voters.email,
+      createdAt: voters.createdAt,
+      lastVotedAt: voters.lastVotedAt,
+      voidedAt: voters.voidedAt,
+      voidReason: voters.voidReason,
+    })
+    .from(voters)
+    .leftJoin(users, eq(users.id, voters.userId))
+    .where(eq(voters.eventId, event.id))
+    .orderBy(asc(voters.createdAt), asc(voters.id))
+    .all();
+  const picks = new Map<string, { id: string; title: string }[]>();
+  if (!sealed) {
+    for (const v of db
+      .select({ voterId: votes.voterId, projectId: votes.projectId, title: projects.title })
+      .from(votes)
+      .innerJoin(voters, eq(voters.id, votes.voterId))
+      .innerJoin(projects, eq(projects.id, votes.projectId))
+      .where(eq(voters.eventId, event.id))
+      .orderBy(asc(votes.voterId), asc(votes.projectId))
+      .all()) {
+      picks.set(v.voterId, [...(picks.get(v.voterId) ?? []), { id: v.projectId, title: v.title }]);
+    }
+  }
+  const counts = (v: (typeof people)[number]) => (v.voidedAt ? "set aside" : v.kind === "link" && !countLink ? "apart" : "yes");
+  return toCsv(
+    ["voter_id", "kind", "voter", "user_id", "email", "joined_at", "last_voted_at", "counts", "set_aside_at", "set_aside_reason", "picks", "pick_titles"],
+    people.map((v) => [
+      v.id,
+      v.kind,
+      voterLabel(v),
+      v.userId,
+      v.email,
+      v.createdAt,
+      v.lastVotedAt,
+      counts(v),
+      v.voidedAt,
+      v.voidReason,
+      sealed ? SEALED : (picks.get(v.id) ?? []).map((p) => p.id).join("; "),
+      sealed ? SEALED : (picks.get(v.id) ?? []).map((p) => p.title).join("; "),
+    ]),
+  );
+}
+
+/**
+ * Every comment, in the order posted. A comment an organizer hid keeps its row with who hid it, when and why, and
+ * an empty body: its words never leave the portal again.
+ */
+function commentsCsv(db: DbOrTx, event: EventRow): string {
+  const rows = db
+    .select({
+      id: comments.id,
+      at: comments.createdAt,
+      projectId: comments.projectId,
+      title: projects.title,
+      userId: comments.userId,
+      author: users.name,
+      body: comments.body,
+      hiddenAt: comments.hiddenAt,
+      hiddenBy: comments.hiddenBy,
+      hiddenReason: comments.hiddenReason,
+    })
+    .from(comments)
+    .innerJoin(users, eq(users.id, comments.userId))
+    .innerJoin(projects, eq(projects.id, comments.projectId))
+    .where(eq(comments.eventId, event.id))
+    .orderBy(asc(comments.createdAt), asc(comments.id))
+    .all();
+  // who hid each hidden one, by name (an organizer, or an administrator)
+  const hiderIds = [...new Set(rows.flatMap((r) => (r.hiddenBy ? [r.hiddenBy] : [])))];
+  const hiders = new Map(
+    hiderIds.length ? db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, hiderIds)).all().map((u) => [u.id, u.name]) : [],
+  );
+  return toCsv(
+    ["comment_id", "posted_at", "project_id", "project_title", "author_id", "author", "status", "body", "hidden_at", "hidden_by", "hidden_reason"],
+    rows.map((r) => [
+      r.id,
+      r.at,
+      r.projectId,
+      r.title,
+      r.userId,
+      r.author,
+      r.hiddenAt ? "hidden" : "shown",
+      r.hiddenAt ? null : r.body,
+      r.hiddenAt,
+      r.hiddenBy ? (hiders.get(r.hiddenBy) ?? r.hiddenBy) : null,
+      r.hiddenReason,
+    ]),
+  );
+}
+
 const EXPORTS: Record<string, Exporter> = {
   "scores.csv": scoresCsv,
   "projects.csv": projectsCsv,
+  "assignments.csv": assignmentsCsv,
   "normalized.csv": normalizedCsv,
   "audit.csv": (db, event) => auditCsv(db, event.id),
   "comparisons.csv": comparisonsCsv,
+  "votes.csv": votesCsv,
+  "comments.csv": commentsCsv,
   "event.json": eventJson,
   "fixtures.json": fixturesJson,
 };

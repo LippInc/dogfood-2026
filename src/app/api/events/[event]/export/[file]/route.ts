@@ -2,7 +2,11 @@ import { currentActor, exportFile, route } from "@/server/dal";
 
 export const dynamic = "force-dynamic";
 
-/** Organizer exports: scores.csv, projects.csv, normalized.csv, audit.csv (always a header row) and event.json. */
+/**
+ * Organizer exports (src/server/dal/exports.ts): scores.csv, projects.csv, assignments.csv, normalized.csv, audit.csv,
+ * comparisons.csv, votes.csv (the picks sealed until voting closes), comments.csv (a hidden one without its words),
+ * each always with a header row, and event.json and fixtures.json.
+ */
 export async function GET(req: Request, { params }: RouteContext<"/api/events/[event]/export/[file]">) {
   return route(async () => {
     const { event, file } = await params;
