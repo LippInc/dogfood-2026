@@ -96,7 +96,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["everyone"],
     answer:
       "The organizers' news to the event, newest first: a deadline moved, judging has started, when the winners are announced. The newest three also show on the event's Projects and About pages.",
-    keywords: ["updates", "news", "announcements", "announcement", "what's new", "latest news", "deadline extended", "organizer news"],
+    keywords: ["updates", "news", "announcements", "announcement", "what's new", "latest news", "organizer news"],
     doc: { file: "docs/FEATURES.md", heading: "Updates" },
   },
   {
