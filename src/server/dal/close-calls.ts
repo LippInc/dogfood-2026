@@ -8,6 +8,7 @@ import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { closeCall, CALL_LINE, DRAWS, type CloseCall } from "../judging/decision";
 import { guardRead } from "../mutate";
 import { eventFacts, organizerMutation, requireEvent, type EventRow } from "./events";
+import { finalsTrackIds } from "./finals";
 import { computeNormalization, type Normalized } from "./normalization";
 import { judgingModeOf } from "./pairwise";
 import { parse } from "./parse";
@@ -19,6 +20,8 @@ import { tieBreakOf, type TieBreakView } from "./tiebreak";
 // winner, or record the judges' decision naming another of the close projects, with a reason.
 // A choice is stored in the event's settings, so publishing freezes it; publishing also stores
 // the decisions it applies with the run, and the published results read them from there.
+// A track that holds finals has no close call: its finals panel decides the top places (the published order is the
+// tie-break, the finals, then the judges' decision, which applies only to a track without finals).
 
 /** The signal check's line, as the Results page and the public evidence read it: above it the scores cannot tell the projects apart. */
 export const SIGNAL_LINE = 0.05;
@@ -72,12 +75,16 @@ export function closeCallsOf(db: DbOrTx, event: EventRow, now?: Normalized): Tra
   if (judgingModeOf(event) === "pairwise") return [];
   const n = now ?? computeNormalization(db, event);
   const choices = event.settings.closeCalls ?? [];
+  // a finals track is left out: no "too close to call" there, no decision for publishing to wait on, and a choice
+  // stored before its finals opened is not applied
+  const inFinals = finalsTrackIds(db, event.id);
   const order = db
     .select({ id: tracks.id, name: tracks.name })
     .from(tracks)
     .where(eq(tracks.eventId, event.id))
     .orderBy(tracks.position, tracks.id)
-    .all();
+    .all()
+    .filter((t) => !inFinals.has(t.id));
   const checked = order.flatMap((t) => {
     const rows = n.projects.filter((p) => p.trackId === t.id && !p.duplicateOf && p.score !== null);
     const cc = closeCall(rows.map((p) => ({ id: p.id, score: p.score!, se: p.se })));
@@ -209,6 +216,9 @@ export function settleCloseCall(actor: Actor | null, eventIdOrSlug: string, trac
     openForChoices(event);
     const t = trackOf(tx, event, trackId);
     const input = parse(CloseCallInput, body);
+    if (finalsTrackIds(tx, event.id).has(t.id)) {
+      throw new ConflictError("finals_track", `${t.name} holds finals: its finals panel decides the top places, so there is no close call for a judges' decision there.`);
+    }
     const call = closeCallsOf(tx, event).find((c) => c.trackId === t.id);
     if (!call || call.callable || !call.projects.length) {
       throw new ConflictError("not_a_close_call", `The scores name ${t.name}'s winner clearly (first in at least 95 % of the draws), so there is no close call to settle.`);

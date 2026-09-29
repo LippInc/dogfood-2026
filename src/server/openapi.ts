@@ -353,7 +353,7 @@ export const OPERATIONS: Operation[] = [
     tag: "Results",
     summary: "Per track: whether the top is too close to call, the close projects, and the choice made",
     access: "organizer",
-    note: "Scores mode only (a pairwise event answers tracks: []). projects lists every ranked project in score order with its score and se (no chance of being first: the portal shows no prize odds, JUDGING.md). The check draws 4,000 normal draws around every project's score and its ±, from one fixed seed, so the same scores always give the same answer. callable: the ranking's top is first in at least 95 % of the draws. close: the fewest projects that are first in 95 % of the draws together, in score order. top: the ranking's first place (two or more ids on an exact tie); tieBroken: on such a tie, the project the event's tie-break puts 1st alone and the criterion (what keeping the ranking's winner publishes), else null. required: too close to call on scores that carry a signal (the signal check's share at or below 0.05): a decision to settle before publishing. On scores without a signal the close call only advises. stale says why a stored choice no longer fits the scores (it is then open again).",
+    note: "Scores mode only (a pairwise event answers tracks: []). A track that holds finals is not listed: its finals panel decides the top places. projects lists every ranked project in score order with its score and se (no chance of being first: the portal shows no prize odds, JUDGING.md). The check draws 4,000 normal draws around every project's score and its ±, from one fixed seed, so the same scores always give the same answer. callable: the ranking's top is first in at least 95 % of the draws. close: the fewest projects that are first in 95 % of the draws together, in score order. top: the ranking's first place (two or more ids on an exact tie); tieBroken: on such a tie, the project the event's tie-break puts 1st alone and the criterion (what keeping the ranking's winner publishes), else null. required: too close to call on scores that carry a signal (the signal check's share at or below 0.05): a decision to settle before publishing. On scores without a signal the close call only advises. stale says why a stored choice no longer fits the scores (it is then open again).",
   },
   {
     method: "PUT",
@@ -363,7 +363,7 @@ export const OPERATIONS: Operation[] = [
     access: "organizer",
     body: In.CloseCallInput,
     also: [409],
-    note: "409 not_a_close_call when the scores name the track's winner clearly; 409 results_published once results are out (the choice is frozen with them); 409 pairwise_mode on a pairwise event. 422 when the named winner is not one of the track's close projects, or is the ranking's winner already (keep the ranking instead), or the reason is missing. A new choice replaces the track's earlier one. Audited as results.close_call.",
+    note: "409 not_a_close_call when the scores name the track's winner clearly; 409 results_published once results are out (the choice is frozen with them); 409 pairwise_mode on a pairwise event; 409 finals_track for a track that holds finals (its finals panel decides the top places, and the judges' decision applies only to a track without finals). 422 when the named winner is not one of the track's close projects, or is the ranking's winner already (keep the ranking instead), or the reason is missing. A new choice replaces the track's earlier one. Audited as results.close_call.",
   },
   {
     method: "DELETE",
