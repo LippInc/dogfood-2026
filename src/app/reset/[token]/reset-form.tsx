@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormAction } from "@/components/use-form-action";
-import { Field } from "@/components/field";
+import { Field, FormFailure } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionResult } from "@/server/dal";
@@ -17,11 +17,7 @@ export function ResetForm({ token }: { token: string }) {
       <Field id="reset-password" label="New password" help="At least 10 characters." error={e.password}>
         {(a) => <Input {...a} name="password" type="password" required minLength={10} autoComplete="new-password" className="max-sm:h-11" />}
       </Field>
-      {state.message && !state.ok ? (
-        <p role="alert" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-flag">
-          {state.message}
-        </p>
-      ) : null}
+      <FormFailure message={state.ok ? null : state.message} />
       <Button size="xl" disabled={pending}>
         {pending ? "Saving…" : "Set the new password and sign in"}
       </Button>

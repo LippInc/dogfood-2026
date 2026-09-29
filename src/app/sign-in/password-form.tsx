@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormAction } from "@/components/use-form-action";
-import { Field } from "@/components/field";
+import { Field, FormFailure } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { passwordSignIn, type SignInState } from "./actions";
@@ -18,11 +18,7 @@ export function PasswordForm({ next }: { next: string | null }) {
       <Field id="password" label="Password">
         {(a) => <Input {...a} name="password" type="password" autoComplete="current-password" required className="max-sm:h-11" />}
       </Field>
-      {state.message ? (
-        <p role="alert" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-flag">
-          {state.message}
-        </p>
-      ) : null}
+      <FormFailure message={state.message} />
       <Button size="xl" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>

@@ -15,6 +15,16 @@ export function FieldError({ id, message }: { id: string; message?: string[] | s
 }
 
 /**
+ * The note under a form whose action failed, with the action's message: flag colours and bar, and role="alert"
+ * so a screen reader reads it out the moment it appears. Renders nothing without a message; a form that also shows
+ * a success message passes null when the result is ok.
+ */
+export function FormFailure({ message }: { message: string | null | undefined }) {
+  if (!message) return null;
+  return <p role="alert" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-flag">{message}</p>;
+}
+
+/**
  * A labelled form field with its help text and error, wired for screen readers:
  * the control gets aria-describedby and aria-invalid through the render prop.
  */

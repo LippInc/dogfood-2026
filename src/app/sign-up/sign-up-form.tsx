@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormAction } from "@/components/use-form-action";
-import { Field } from "@/components/field";
+import { Field, FormFailure } from "@/components/field";
 import { KeptNotice } from "@/components/kept-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,11 +29,7 @@ export function SignUpForm({ next, setup }: { next: string | null; setup: string
       <Field id="password" label="Password" help="At least 10 characters." error={e.password}>
         {(a) => <Input {...a} name="password" type="password" autoComplete="new-password" required className="max-sm:h-11" />}
       </Field>
-      {state.message && !state.ok ? (
-        <p role="alert" className="border-l-[3px] border-flag-bar bg-flag-bg px-3 py-2 text-14 text-flag">
-          {state.message}
-        </p>
-      ) : null}
+      <FormFailure message={state.ok ? null : state.message} />
       <Button size="xl" disabled={pending}>
         {pending ? "Creating the account…" : "Create account"}
       </Button>
