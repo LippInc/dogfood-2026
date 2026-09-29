@@ -207,7 +207,8 @@ kept, a tag shows as its own characters and a web address shows as text, not a l
 - **Email.** With `SMTP_URL` set, the form has a box, off by default, that says how many people the update goes
   to: every member of a team in the event, once each. Ticked, the update is mailed to them after it is posted,
   each message recorded in the outbox (kind `event_update`, the updates page's link kept) with its result, and
-  the page says how many went and which could not. Without `SMTP_URL` the box is not there and one line says email
+  the page says how many went and which could not. The audit log says an update is to be mailed only when mail
+  is tried for at least one person, never on the box alone. Without `SMTP_URL` the box is not there and one line says email
   is off. An edit is never mailed again.
 - **API.** `GET /api/events/{event}/updates` (anyone), `POST` to post (`email: true` to mail it), `PUT` and
   `DELETE` on `/api/events/{event}/updates/{update}` (organizers).

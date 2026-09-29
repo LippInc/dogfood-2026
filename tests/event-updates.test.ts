@@ -237,6 +237,23 @@ describe("mailing an update", () => {
     expect(count("SELECT count(*) AS n FROM outbox")).toBe(0);
   });
 
+  // The audit row says "to be mailed to the participants" only when mail is tried for at least one person: the
+  // box alone, with email off or nobody on a team, leaves the row as a plain post.
+  const postRow = () => auditRows().find((r) => r.action === "update.post")!;
+  it("the box ticked without SMTP_URL: the audit row does not say it is mailed", async () => {
+    await post("t", "b", true);
+    expect(postRow().after).not.toHaveProperty("email");
+  });
+
+  it("the box ticked with SMTP_URL but nobody on a team: nothing is mailed and the audit row does not say it is", async () => {
+    mailOn();
+    sqlRun("DELETE FROM team_members WHERE event_id = 'evt_01'");
+    const { mail } = await post("t", "b", true);
+    expect(mail).toEqual({ on: true, mailed: [] });
+    expect(sent).toHaveLength(0);
+    expect(postRow().after).not.toHaveProperty("email");
+  });
+
   const draw = async () => {
     cookie = createLoginSession(h().db, "usr_organizer").token;
     const page = await UpdatesAdminPage({ params: Promise.resolve({ event: "sample-hack-2026" }) } as never);

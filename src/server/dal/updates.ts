@@ -82,13 +82,13 @@ const loadEvent = (eventIdOrSlug: string) => (tx: Tx) => ({ kind: "event" as con
 /**
  * Post an update: one audited write. With email asked for and SMTP_URL set, it is then mailed to the event's
  * participants (mailing.ts records each message and its outcome with audited writes of its own); asked for with
- * email off, it is posted and the answer says nothing was mailed.
+ * email off, it is posted and the answer says nothing was mailed, and its audit row reads as a plain post.
  */
 export async function postUpdate(actor: Actor | null, eventIdOrSlug: string, input: unknown): Promise<{ update: UpdateView; mail: MailReport | null }> {
   guardWrite(actor, eventIdOrSlug);
   const u = parse(UpdateInput, input);
   const at = new Date();
-  const update = mutate({
+  const { update, eventId, to } = mutate({
     actor,
     action: "event.manage",
     load: loadEvent(eventIdOrSlug),
@@ -97,16 +97,17 @@ export async function postUpdate(actor: Actor | null, eventIdOrSlug: string, inp
       const event = requireEvent(tx, eventIdOrSlug);
       const row = { id: newId("upd"), eventId: event.id, title: u.title, body: u.body, createdBy: actor!.userId, createdAt: at.toISOString(), editedAt: null };
       tx.insert(eventUpdates).values(row).run();
+      // the people it will be mailed to, read in the same write: the audit row says "to be mailed" only when mail
+      // will be tried for at least one person (email on and someone on a team), never on the box alone
+      const to = u.email && emailIsOn() ? participantAddresses(tx, event.id) : [];
       return {
-        result: view(row),
-        audit: { action: "update.post", eventId: event.id, targetType: "update", targetId: row.id, after: { title: u.title, body: u.body, ...(u.email ? { email: true } : {}) } },
+        result: { update: view(row), eventId: event.id, to },
+        audit: { action: "update.post", eventId: event.id, targetType: "update", targetId: row.id, after: { title: u.title, body: u.body, ...(to.length ? { email: true } : {}) } },
       };
     },
   });
   if (!u.email) return { update, mail: null };
-  const event = requireEvent(getDb(), eventIdOrSlug);
-  const to = participantAddresses(getDb(), event.id);
-  return { update, mail: await mailEventUpdate(actor, event.id, { title: update.title, body: update.body }, to) };
+  return { update, mail: await mailEventUpdate(actor, eventId, { title: update.title, body: update.body }, to) };
 }
 
 function requireUpdate(tx: Tx, eventId: string, id: string) {
