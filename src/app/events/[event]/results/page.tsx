@@ -108,6 +108,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   How this ranking was reached
                 </a>
               </p>
+              {pairwise ? null : <p className="mt-2 text-15 text-ink-2"><Link href={`/events/${event.slug}/results/overall`} className="underline underline-offset-4 hover:text-accent-ink">Every project in one order, across tracks</Link></p>}
               {/* Plain words on top, one point to a line; the method, word for word, one click away (decided 2026-09-27 21:09 NL). */}
               <ol aria-label="How to read these results" className="mt-6 max-w-[760px] border-b border-rule text-17">
                 {readingPoints.map((point, i) => (

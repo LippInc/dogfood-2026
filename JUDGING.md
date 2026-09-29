@@ -490,6 +490,6 @@ In its own file, `THREAT-MODEL.md`: Sybil votes, ballot stuffing, submission scr
 ## What it does not do
 
 - **No calibrated prize probabilities or rank intervals:** each score carries a ± of one standard error, and the portal does not turn it into rank intervals or prize odds. A method that produced them was tried in planning and cut: on simulated events with no real differences it named a 50 %+ favourite in 46 of 80 tracks (planning simulation of 2026-09-24, not re-run in this repository).
-- **Places are decided within a track;** the overall ranking (the organizer's table, and the table above) is a convenience view, since tracks compare only through judges who score in both, so read the order across tracks loosely.
+- **Places are decided within a track;** the overall ranking (the public page `/events/{event}/results/overall` in scores mode, the organizer's table, and the table above) is a convenience view, since tracks compare only through judges who score in both, so read the order across tracks loosely.
 - **With few reviews per judge the engine corrects little,** by design.
 - **No automatic cross-track assignment.**
