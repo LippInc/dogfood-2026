@@ -3,21 +3,7 @@ import { and, asc, desc, eq, gte, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { runsEvent, submissionsOpen, type Actor } from "../authz";
 import { getDb, type DbOrTx, type Tx } from "../db/client";
-import {
-  assignments,
-  auditLog,
-  comments,
-  comparisons,
-  customAnswers,
-  events,
-  normalizedScores,
-  projects,
-  teamMembers,
-  teams,
-  userRoles,
-  users,
-  votes,
-} from "../db/schema";
+import { assignments, auditLog, comments, comparisons, customAnswers, events, finalists, finalsPanel, normalizedScores, projects, teamMembers, teams, userRoles, users, votes } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
 import { DEFAULT_MAX_TEAM_SIZE } from "../project-limits";
@@ -57,12 +43,22 @@ function onTeamIn(tx: DbOrTx, userId: string, eventId: string): boolean {
 
 /** The judge holds a live (not recused) assignment on this team's project. */
 function assignedToTeam(tx: DbOrTx, userId: string, teamId: string): boolean {
+  const firstRound = tx
+    .select({ a: assignments.id })
+    .from(assignments)
+    .innerJoin(projects, eq(projects.id, assignments.projectId))
+    .where(and(eq(projects.teamId, teamId), eq(assignments.judgeUserId, userId), ne(assignments.status, "recused")))
+    .get();
+  if (firstRound) return true;
+  // a finals panelist judges every finalist of the round: the same conflict, so joining or being added to a finalist's
+  // team is refused too (a team change would otherwise drop a finals score already given, even after the close)
   return Boolean(
     tx
-      .select({ a: assignments.id })
-      .from(assignments)
-      .innerJoin(projects, eq(projects.id, assignments.projectId))
-      .where(and(eq(projects.teamId, teamId), eq(assignments.judgeUserId, userId), ne(assignments.status, "recused")))
+      .select({ f: finalsPanel.finalsId })
+      .from(finalsPanel)
+      .innerJoin(finalists, eq(finalists.finalsId, finalsPanel.finalsId))
+      .innerJoin(projects, eq(projects.id, finalists.projectId))
+      .where(and(eq(projects.teamId, teamId), eq(finalsPanel.judgeUserId, userId)))
       .get(),
   );
 }
