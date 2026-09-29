@@ -30,6 +30,7 @@ import { allowedModes, PROJECT_FIELDS, type FieldModes } from "@/lib/project-fie
 import { eventFacts, findEvent, requireEvent, type EventRow } from "./events";
 import { parse, utcTime, utcTimeOrEmpty } from "./parse";
 import { fieldModes, ProjectFieldsInput, trackCount } from "./project-fields";
+import { withAwards } from "./prize-awards";
 
 // The organizer's side of an event: create it, then change its details, tracks,
 // prizes, questions for teams and the rubric. Every change is one audited mutate().
@@ -475,6 +476,10 @@ export function savePrizes(actor: Actor | null, idOrSlug: string, body: unknown)
     load: (tx) => organizerResource(tx, idOrSlug, ref),
     run: (tx) => {
       const e = ref.event!;
+      // an award names its prize: once published with a prize given, the prizes are final (the database refuses it too)
+      if (e.resultsPublishedAt && e.settings.prizeAwards?.length) {
+        throw new ConflictError("results_published", "Results are published with prizes awarded, so the prizes are final.");
+      }
       const rows = parse(PrizeRows, body);
       const stored = tx.select({ id: prizes.id, name: prizes.name }).from(prizes).where(eq(prizes.eventId, e.id)).orderBy(asc(prizes.position)).all();
       // a row's id is its own stored prize's, once: another event's id or a repeated one would hit the primary key (a 500).
@@ -495,9 +500,26 @@ export function savePrizes(actor: Actor | null, idOrSlug: string, body: unknown)
       rows.forEach((p, position) =>
         tx.insert(prizes).values({ id: p.id || newId("prz"), eventId: e.id, name: p.name, description: p.description, position }).run(),
       );
+      // a removed prize takes its award with it, in this same audited change
+      const awards = e.settings.prizeAwards ?? [];
+      const kept = awards.filter((a) => seen.has(a.prizeId));
+      if (kept.length !== awards.length) tx.update(events).set({ settings: withAwards(e.settings, kept) }).where(eq(events.id, e.id)).run();
+      const dropped = awards.filter((a) => !seen.has(a.prizeId));
+      const nameOf = (id: string) => stored.find((p) => p.id === id)?.name ?? id;
       return {
         result: { count: rows.length },
-        audit: { action: "event.prizes", eventId: e.id, targetType: "event", targetId: e.id, before, after: rows.map((p) => p.name) },
+        audit: [
+          { action: "event.prizes", eventId: e.id, targetType: "event", targetId: e.id, before, after: rows.map((p) => p.name) },
+          // each award that went with its prize, as its own "took back" line
+          ...dropped.map((a) => ({
+            action: "prize.award",
+            eventId: e.id,
+            targetType: "prize",
+            targetId: a.prizeId,
+            before: { prize: nameOf(a.prizeId), projects: a.projectIds.map((id) => ({ id, title: id })), ...(a.note ? { note: a.note } : {}) },
+            after: { prize: nameOf(a.prizeId), projects: [], removed: true },
+          })),
+        ],
       };
     },
   });

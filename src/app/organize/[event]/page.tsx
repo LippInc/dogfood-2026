@@ -12,6 +12,7 @@ import { guardPage } from "@/lib/page-guard";
 import {
   currentActor,
   getOverview,
+  getPrizeAwards,
   publicUrl,
   type AuditLine,
   type Stage,
@@ -159,6 +160,9 @@ export default async function OverviewPage({
   if (!actor) unauthorized();
   const o = guardPage(() => getOverview(actor, key));
   const { event, judges, normalization: nz } = o;
+  // the event's prizes and how many are given: the Publish panel says while any is not (an event with none says nothing)
+  const prizeList = guardPage(() => getPrizeAwards(actor, key)).prizes;
+  const prizes = prizeList.length ? { total: prizeList.length, awarded: prizeList.filter((p) => p.winners.length).length } : null;
   const origin = publicUrl();
   const faceIds = new Set(
     o.decisions.flatMap((d) =>
@@ -216,6 +220,9 @@ export default async function OverviewPage({
         ...(o.vote?.state === "closed"
           ? [{ label: "Community vote", value: `closed, ${votersCount(o.vote.ballots)}` }]
           : []),
+        ...(prizes
+          ? [{ label: "Prizes", value: `${prizes.awarded} of ${prizes.total} awarded`, href: `/organize/${event.slug}/results#prizes-title` }]
+          : []),
         ...o.pipeline
           .filter((s) => s.no === "09")
           // Two testers could not find where certificates are issued: "ready to issue" leads to the button.
@@ -267,6 +274,7 @@ export default async function OverviewPage({
               pairwise={o.pairwise !== null}
               unsettled={o.pairwise?.unsettled ?? null}
               vote={o.vote}
+              prizes={prizes}
               receipt={receipt}
             />
           </div>

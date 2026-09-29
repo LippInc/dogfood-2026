@@ -7,7 +7,7 @@ import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
 import { competitionPlaces, ordinal } from "@/lib/places";
 import Link from "next/link";
-import { actorNav, currentActor, getGallery, getMyWork, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD } from "@/server/dal";
+import { actorNav, currentActor, getGallery, getMyWork, getPublicProject, getPublishedResults, listComments, NotFoundError, PAIRWISE_METHOD, prizesWonBy } from "@/server/dal";
 import { CommentForm, DeleteOwnComment, ModerateComment } from "./comments";
 import { TakeDownPicture } from "./take-down";
 import { trackMoveWords } from "@/lib/track-move";
@@ -88,6 +88,8 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
   })();
   // A move to another track the published run recorded, shown with the result it may have changed.
   const moves = results?.published ? results.trackMoves.filter((m) => m.projectId === p.id) : [];
+  // the prizes it won, once published (none: the page is as before prizes could be given)
+  const won = event.resultsPublishedAt ? prizesWonBy(event.id, p.id) : [];
   // FIG. 02: the other projects in its track, so a visitor can walk the track without going back to the gallery.
   // Once published, in the published order with each place; before that, by id (an order that ranks nothing).
   const trackmates: { id: string; title: string; team: string; place: number | null; joint: boolean }[] = (() => {
@@ -185,6 +187,15 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                         : ""}
                       {` · ${standing.row.n} ${standing.pairwise ? (standing.row.n === 1 ? "judge" : "judges") : standing.row.n === 1 ? "review" : "reviews"}`}
                     </p>
+                    {won.length ? (
+                      <ul aria-label="Prizes won" className="mt-1.5 flex flex-col gap-0.5">
+                        {won.map((w) => (
+                          <li key={w.name} className="text-15 font-semibold text-accent-ink wrap-anywhere">
+                            {w.joint ? "Joint winner" : "Winner"}, {w.name}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                     {moves.map((m, i) => (
                       <p key={i} className="mt-1.5 text-13 text-flag wrap-anywhere">
                         <span className="tnum">{trackMoveWords(m)}</span>. Their reason: &ldquo;{m.reason}&rdquo;

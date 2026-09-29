@@ -9,12 +9,15 @@ import { RankLine, SlopeChart } from "@/components/figures/slope-chart";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
 import { formatUtc, plural } from "@/lib/format";
-import { currentActor, getNormalization, getPairwiseRanking, getTeamChangesAfterClose, judgingModeOf, listRecords, type ProjectRow } from "@/server/dal";
+import { currentActor, getNormalization, getPairwiseRanking, getPrizeAwards, getTeamChangesAfterClose, judgingModeOf, listRecords, type ProjectRow } from "@/server/dal";
+import { competitionPlaceOf } from "@/lib/places";
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
 import { PairwiseResults } from "./pairwise-results";
 import { plainSummary } from "./plain-summary";
 import { ScoreOpening } from "./score-opening";
+import { PrizesSection } from "./prizes-section";
+import type { PrizeCandidate } from "./prizes-step";
 import { exportHref } from "@/lib/export-href";
 import { ordinal } from "@/lib/places";
 
@@ -34,6 +37,17 @@ function Move({ p }: { p: ProjectRow }) {
 }
 
 const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+/** The projects that can win a prize, per track in the ranking's order, each with its competition place (ties share it). */
+function candidatesOf(tracks: { trackName: string; rows: { projectId: string; title: string; teamName: string; score: number | null }[] }[]): PrizeCandidate[] {
+  return tracks.flatMap((t) => {
+    const places = competitionPlaceOf(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
+    const shared = (place: number | undefined) => place !== undefined && [...places.values()].filter((x) => x === place).length > 1;
+    return t.rows
+      .map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, trackName: t.trackName, place: places.get(r.projectId) ?? null, joint: shared(places.get(r.projectId)) }))
+      .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity));
+  });
+}
 
 /** The change from raw, split into what leaving judges out did and what the leniency correction did. */
 function Change({ p }: { p: ProjectRow }) {
@@ -77,16 +91,21 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const maxLeniency = kept.reduce((m, j) => Math.max(m, Math.abs(j.leniency)), 0);
   const copies = dup?.kind === "duplicate" ? dup.copies.filter((c) => c.rankRaw !== null).sort((a, b) => a.rankRaw! - b.rankRaw!) : [];
   const records = event.resultsPublishedAt ? listRecords(actor, key) : [];
+  const prizes = guardPage(() => getPrizeAwards(actor, key)).prizes;
   // what the run shows in words, before its statistics (a results-day tester met k and β̂² first)
   const summary = plainSummary(n, { open, published: Boolean(event.resultsPublishedAt), differs: published?.differs.length ?? 0 });
 
   if (judgingModeOf(event) === "pairwise") {
     const ranking = guardPage(() => getPairwiseRanking(actor, key));
     const known = ranking.tracks.some((t) => t.trackId === track) ? (track as string) : null;
+    const candidates = prizes.length
+      ? candidatesOf(ranking.tracks.map((t) => ({ trackName: t.name, rows: t.rows.map((r) => ({ projectId: r.projectId, title: r.title, teamName: r.teamName, score: r.winPct })) })))
+      : [];
     return (
       <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Results")} person={actor.name} role="Organizer">
         <div className="flex flex-col gap-8">
           <PairwiseResults ranking={ranking} eventId={event.id} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} chosen={known} />
+          <PrizesSection eventId={event.id} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} prizes={prizes} candidates={candidates} />
           <RecordsSection eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} records={records} />
         </div>
       </WorkShell>
@@ -456,6 +475,23 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
         ) : null}
 
         <JudgeLedger n={n} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} />
+
+        <PrizesSection
+          eventId={event.id}
+          eventSlug={event.slug}
+          published={Boolean(event.resultsPublishedAt)}
+          prizes={prizes}
+          candidates={
+            prizes.length
+              ? candidatesOf(
+                  tracks.map(([id, name]) => ({
+                    trackName: name ?? "No track",
+                    rows: n.projects.filter((p) => p.trackId === id && !p.duplicateOf).map((p) => ({ projectId: p.id, title: p.title, teamName: p.teamName, score: p.score })),
+                  })),
+                )
+              : []
+          }
+        />
 
         <RecordsSection eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} records={records} />
       </div>

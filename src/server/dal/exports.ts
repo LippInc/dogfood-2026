@@ -49,6 +49,7 @@ import { readTrackMoves } from "../db/track-moves";
 import { BUILTIN_CRITERIA } from "../rubric-defaults";
 import { canonicalJson } from "../util";
 import { fieldModes, shownTitle } from "./project-fields";
+import { prizeStandings } from "./prize-awards";
 
 // Organizer exports: CSV at every stage, and always a header row, even before
 // anything is scored or published (a platform you cannot leave is a trap).
@@ -904,6 +905,21 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
   };
 }
 
+/**
+ * Every prize and who won it: one row per winner, a joint award one row for each of its projects, and an unawarded
+ * prize one row with the project columns empty. Before publishing it is the organizers' draft; after, it is final.
+ */
+function awardsCsv(db: DbOrTx, event: EventRow): string {
+  return toCsv(
+    ["prize_id", "prize", "description", "status", "project_id", "title", "team", "track", "joint", "note", "awarded_at"],
+    prizeStandings(db, event).flatMap((p): Cell[][] =>
+      p.winners.length
+        ? p.winners.map((w) => [p.prizeId, p.name, p.description, event.resultsPublishedAt ? "final" : "draft", w.projectId, w.title, w.teamName, w.trackName, p.winners.length > 1 ? "yes" : "no", p.note, p.at])
+        : [[p.prizeId, p.name, p.description, "unawarded", null, null, null, null, null, null, null]],
+    ),
+  );
+}
+
 const EXPORTS: Record<string, Exporter> = {
   "scores.csv": scoresCsv,
   "projects.csv": projectsCsv,
@@ -913,6 +929,7 @@ const EXPORTS: Record<string, Exporter> = {
   "comparisons.csv": comparisonsCsv,
   "votes.csv": votesCsv,
   "comments.csv": commentsCsv,
+  "awards.csv": awardsCsv,
   "event.json": eventJson,
   "fixtures.json": fixturesJson,
 };

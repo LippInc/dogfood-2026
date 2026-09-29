@@ -118,8 +118,24 @@ and teams changed by the organizers after the close, each with its date and reas
 ("tie broken by <criterion>") with how ties are broken if it was chosen after judging began. In pairwise mode it says instead why there is no overall order: a win % is
 measured only against the projects of its own track. Teams then see
 their place, their score with its ±, and each review's feedback, judges unnamed. CSV exports (scores, projects,
-assignments, normalized ranking, pairwise answers, ballots, comments, audit log) and a full `event.json` are
-available at every stage (each file's columns: "Import and export").
+assignments, normalized ranking, pairwise answers, ballots, comments, prize awards, audit log) and a full
+`event.json` are available at every stage (each file's columns: "Import and export").
+
+## Prizes
+
+An event's prizes (a name and a description each, on Settings) are given on the organizer's Results tab, in its
+Prizes step, before publishing. Each prize goes to one project, or to several as a joint award, with an optional
+note shown beside it; the ranking's places in each track stand beside the projects to choose from. A prize can
+also stay unawarded, which is where every prize starts: the Overview's Publish panel says how many are not awarded
+yet, and publishing is allowed anyway (they stay unawarded). Every award, change or taking back is one entry in the
+audit log ("awarded the prize ... to ..."), and removing an awarded prize on Settings takes its award with it, logged
+as taken back. Only the event's submitted projects can win; a winner later withdrawn or merged into its other copy
+no longer counts. Publishing makes the awards final: the app answers 409 `results_published`, and the database
+refuses a changed award, and any edit to the prize list of an event that awarded one. Once published, the public
+results show each prize with its winners and note, a winner's project page says "Winner, <prize>", and so does its
+team's certificate ("Joint winner, <prize>" for a joint award). `GET /api/events/{event}/awards` lists them
+(organizers before publishing, anyone after), `PUT /api/events/{event}/awards/{prize}` sets one, and `awards.csv`
+exports them. An event that awards no prize shows, exports and signs exactly what it did before.
 
 ## Breaking exact ties
 
@@ -169,7 +185,7 @@ edited: delete and post again.
 ## Signed certificates and judging records
 
 Once results are published, each member of a submitting team can get a certificate (places 1 to 3 in the track,
-or as many as the organizer sets on Settings before publishing, and a community-vote win on it) and each judge a
+or as many as the organizer sets on Settings before publishing, a community-vote win and each prize won on it) and each judge a
 record of their judging, at `/records/<id>`, printable, signed with the portal's Ed25519 key over the record's
 canonical JSON. Organizers issue them all on the Results tab; people can fetch their own from their project page
 or the judge console. Anyone holding one can check it: on its page (the browser verifies the signature itself

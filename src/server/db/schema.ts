@@ -135,10 +135,19 @@ export type EventSettings = {
   tieBreak?: { criterionId: string };
   /** Tie-break changes made after the first score, each with its reason; the published results show them. */
   tieBreakChanges?: TieBreakChange[];
+  /**
+   * The prizes given to projects, one entry per awarded prize (a prize with no entry is unawarded; absent = none
+   * awarded, so an event that awards nothing keeps its settings as before). Decided before publishing and final
+   * with it: the events_prize_awards_final trigger refuses a change once the results are published.
+   */
+  prizeAwards?: PrizeAward[];
 };
 
 /** One change of the tie-break after judging began: when, why, and the criterion before and after (null: joint places). */
 export type TieBreakChange = { at: string; reason: string; before: { id: string; label: string } | null; after: { id: string; label: string } | null };
+
+/** One prize given to one or more projects (more than one: a joint award), with the organizer's optional note. */
+export type PrizeAward = { prizeId: string; projectIds: string[]; note: string; at: string };
 
 /** Who may vote and how many favourites each: the community vote's counting rules. */
 export type VoteRules = { modes: ("account" | "listed" | "link")[]; votesPerVoter: number };

@@ -169,7 +169,10 @@ Each item in full, with its rules: [`docs/FEATURES.md`](docs/FEATURES.md).
 - **Results and exports:** publishing locked until every decision is made; public places per track, and every
   project in one order by score across tracks; exact score ties within a track joint, or broken by a rubric criterion
   the organizer chooses (said wherever it decides a place); CSV (scores, projects, assignments, ranking, pairwise
-  answers, ballots with their picks sealed until the vote closes, comments, audit log) and `event.json` at every stage.
+  answers, ballots with their picks sealed until the vote closes, comments, prize awards, audit log) and `event.json`
+  at every stage.
+- **Prizes:** the organizer gives each prize to a project, or jointly to several, on the Results tab before
+  publishing; final with the results, and shown on the public results, the winners' pages and their certificates.
 - **Community vote and comments:** signed-in, voter-list or open-link voting; comments organizers can hide with a
   reason.
 - **Signed certificates and judging records,** checkable in the browser, on `/verify` or offline.

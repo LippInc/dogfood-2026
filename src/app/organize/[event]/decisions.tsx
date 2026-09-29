@@ -556,6 +556,7 @@ export function PublishPanel({
   pairwise = false,
   unsettled = null,
   vote = null,
+  prizes = null,
   receipt = [],
 }: {
   eventSlug: string;
@@ -570,6 +571,8 @@ export function PublishPanel({
   submissionsCloseAt: string | null;
   /** the community vote: publishing closes an open one and calls off one not yet open */
   vote?: { state: "not_set" | "upcoming" | "open" | "closed"; opensAt: string | null; closesAt: string | null; ballots: number } | null;
+  /** the event's prizes and how many are awarded; null when it has none. Not a blocker: an unawarded prize stays unawarded */
+  prizes?: { total: number; awarded: number } | null;
   /** once published: what went out, one line each, every value from the data layer */
   receipt?: { label: string; value: string; href?: string }[];
 }) {
@@ -668,6 +671,17 @@ export function PublishPanel({
                 {vote.state === "open"
                   ? `The community vote is open until ${formatUtc(vote.closesAt)}; ${votersIn(vote.ballots)}. Publishing closes it: its count becomes final and public with the results, so nobody votes with the ranking in view.`
                   : `A community vote is set to open ${formatUtc(vote.opensAt)}. Publishing calls it off, so nobody votes with the ranking in view.`}
+              </p>
+            ) : null}
+            {prizes && prizes.awarded < prizes.total ? (
+              <p className="rounded-sm border border-rule border-l-[3px] border-l-flag-bar p-3 text-14">
+                {prizes.total - prizes.awarded === prizes.total
+                  ? `No prize is awarded yet (${prizes.total === 1 ? "the event has one" : `the event has ${prizes.total}`}). `
+                  : `${prizes.total - prizes.awarded} of ${prizes.total} prizes ${prizes.total - prizes.awarded === 1 ? "is" : "are"} not awarded yet. `}
+                You can publish anyway: {prizes.total - prizes.awarded === 1 ? "it stays" : "they stay"} unawarded, and publishing makes the prizes final.{" "}
+                <Link href={`/organize/${eventSlug}/results#prizes-title`} className="underline underline-offset-4">
+                  Award prizes
+                </Link>
               </p>
             ) : null}
             {unsettled && !open && !submissionsCloseAt ? (

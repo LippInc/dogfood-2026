@@ -57,6 +57,9 @@ const frozenInsert = (table: string, eventId: string, already: string) => `
   BEGIN
     SELECT RAISE(ABORT, '${table}: the results are published, so nothing can be added');
   END`;
+/** The event's results are published and it gave at least one prize (an event that gave none keeps its prizes editable). */
+const awarded = (eventId: string) =>
+  `EXISTS (SELECT 1 FROM events e WHERE e.id = ${eventId} AND e.results_published_at IS NOT NULL AND json_array_length(e.settings, '$.prizeAwards') > 0)`;
 const eventOfRun = (runId: string) => `(SELECT r.event_id FROM normalization_runs r WHERE r.id = ${runId})`;
 // the first row's prev_hash: GENESIS_HASH in src/server/audit.ts (tests/audit-chain-db.test.ts holds the two equal)
 const GENESIS = "0".repeat(64);
@@ -182,6 +185,34 @@ export const TRIGGERS: Record<string, string> = {
   WHEN OLD.hidden_at IS NOT NULL
   BEGIN
     SELECT RAISE(ABORT, 'comments: a hidden comment stays until the organizers unhide it');
+  END`,
+  // the prizes given to projects (settings.prizeAwards), and once any is given, the prizes themselves
+  // (drizzle/0021_prize_awards.sql): an award names its prize by id, so the prize cannot go or change under it
+  events_prize_awards_final: `
+  BEFORE UPDATE OF settings ON events
+  WHEN OLD.results_published_at IS NOT NULL
+    AND json_extract(NEW.settings, '$.prizeAwards') IS NOT json_extract(OLD.settings, '$.prizeAwards')
+  BEGIN
+    SELECT RAISE(ABORT, 'events: the results are published, so the prize awards are final');
+  END`,
+  prizes_final_insert: `
+  BEFORE INSERT ON prizes
+  WHEN ${awarded("NEW.event_id")}
+    AND NOT EXISTS (SELECT 1 FROM prizes x WHERE x.id = NEW.id)
+  BEGIN
+    SELECT RAISE(ABORT, 'prizes: the results are published, so the awarded prizes are final');
+  END`,
+  prizes_final_update: `
+  BEFORE UPDATE ON prizes
+  WHEN ${awarded("OLD.event_id")}
+  BEGIN
+    SELECT RAISE(ABORT, 'prizes: the results are published, so the awarded prizes are final');
+  END`,
+  prizes_final_delete: `
+  BEFORE DELETE ON prizes
+  WHEN ${awarded("OLD.event_id")}
+  BEGIN
+    SELECT RAISE(ABORT, 'prizes: the results are published, so the awarded prizes are final');
   END`,
   // the two decisions that move a project in the ranking: its track and a duplicate merge
   projects_final_ranking: `

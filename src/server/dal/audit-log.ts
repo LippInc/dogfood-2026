@@ -436,6 +436,23 @@ function sentence(r: Row, n: Names): Part[] {
               : " published the results",
         ),
       ];
+    case "prize.award": {
+      // the winners by the names the row stored (titles when it was written), falling back to the project now
+      const winners = (v: Record<string, unknown>): Part[] => {
+        const list = Array.isArray(v.projects) ? (v.projects as { id?: unknown; title?: unknown }[]) : [];
+        return list.flatMap((p, i) => [
+          ...(i ? [t(i === list.length - 1 ? " and " : ", ")] : []),
+          typeof p.title === "string" && p.title !== p.id ? { text: p.title, strong: true } : project(p.id),
+        ]);
+      };
+      const prize = quote(String(after.prize ?? before.prize ?? target));
+      const now = winners(after);
+      const was = winners(before);
+      const note = typeof after.note === "string" && after.note ? [t(`, noting ${quote(after.note)}`)] : [];
+      if (!now.length) return after.removed ? [actor, t(` removed the prize ${prize}, and with it its award to `), ...was] : [actor, t(` took back the prize ${prize} from `), ...was];
+      if (!was.length) return [actor, t(` awarded the prize ${prize} to `), ...now, ...note];
+      return [actor, t(` changed the prize ${prize} from `), ...was, t(" to "), ...now, ...note];
+    }
     case "authz.refused":
       return [actor, t(` was refused: ${after.attempted ?? "an action"} (${after.code ?? after.status})`)];
     case "voting.settings":

@@ -56,6 +56,7 @@ export {
 } from "./organize";
 export { getJudgeScores, type JudgeReview, type JudgeScores } from "./scores";
 export { exportFile, EXPORT_FILES } from "./exports";
+export { awardPrize, getPrizeAwards, prizesWonBy, publishedPrizes, type PrizeAwards, type PrizeStanding, type PrizeWinner } from "./prize-awards";
 export {
   acceptJudgeInvite,
   getJudges,

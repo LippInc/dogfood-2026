@@ -148,6 +148,13 @@
       "when": 1790648602177,
       "tag": "0020_tie_break_final",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1790648603177,
+      "tag": "0021_prize_awards",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,7 @@ import { parse } from "./parse";
 import { getCommunityResults } from "./voting-organizer";
 import { shownTitle } from "./project-fields";
 import { DEFAULT_CERTIFICATE_PLACES } from "./organize";
+import { prizesWonBy } from "./prize-awards";
 
 // Signed records: a judge's participation record and a team member's certificate.
 // Each is issued once per person, event and kind, after the results are published,
@@ -68,7 +69,8 @@ function memberFacts(db: DbOrTx, eventId: string, userId: string) {
 
 /**
  * Places that earn a certificate of achievement (1st to the organizer's certificatePlaces in the project's
- * track, 3 unless set) and a community-vote win; nothing below them.
+ * track, 3 unless set), a community-vote win and each prize the project won; nothing below them. A project
+ * that won no prize gets the same list as before prizes could be awarded.
  */
 function awards(event: EventRow, projectId: string): string[] {
   const out: string[] = [];
@@ -89,6 +91,7 @@ function awards(event: EventRow, projectId: string): string[] {
     const shared = community.tally!.filter((r) => r.place === 1).length > 1;
     out.push(shared ? "Joint winner of the community vote" : "Winner of the community vote");
   }
+  for (const prize of prizesWonBy(event.id, projectId)) out.push(`${prize.joint ? "Joint winner" : "Winner"}, ${prize.name}`);
   return out;
 }
 

@@ -12,7 +12,8 @@ import { PublicShell } from "@/components/shell/public-shell";
 import { YardstickLine } from "@/components/yardstick-line";
 import { movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
 import { formatUtc, plural } from "@/lib/format";
-import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, type Gallery } from "@/server/dal";
+import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, publishedPrizes, type Gallery } from "@/server/dal";
+import { PrizeWinners } from "@/components/results/prize-winners";
 import { competitionPlaces, ordinal } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
   const actor = await currentActor();
   const results = getPublishedResults(event.id);
   const community = getCommunityResults(event.id);
+  // [] until published, and when no prize was awarded: the page is then as it was before prizes could be given
+  const prizes = publishedPrizes(event.id);
   // the open link's column shows only when some of its ballots are in the count's rows
   const linkVotes = Boolean(community.tally?.some((t) => t.openLink > 0));
   const pairwise = results.published && results.method === PAIRWISE_METHOD;
@@ -228,6 +231,8 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
               </section>
             ) : null}
           </div>
+
+          <PrizeWinners eventSlug={event.slug} prizes={prizes} />
 
           <section aria-labelledby="scale-title" className="mt-16 border-t border-rule pt-6">
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
