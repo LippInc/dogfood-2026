@@ -125,6 +125,31 @@ describe("backup and restore", { timeout: 30_000 }, () => {
     expect(fs.readdirSync(backups).sort()).toEqual(["notes.txt", "portal-20260103T000000Z.db", folder].sort());
   });
 
+  it("known-bad: a backup that fails part-way leaves no portal-<time> folder, so it never counts toward BACKUP_KEEP", () => {
+    const backups = path.join(dir, "backups");
+    fs.mkdirSync(backups);
+    fs.mkdirSync(path.join(backups, "portal-20260101T000000Z"));
+    // the pictures' folder is a file here: the copy fails after the database is written
+    const notAFolder = path.join(dir, "uploads-file");
+    fs.writeFileSync(notAFolder, "");
+    const failed = run("backup.mjs", [backups], { BACKUP_KEEP: "1", UPLOADS_DIR: notAFolder });
+    expect(failed.code, failed.out).not.toBe(0);
+    // the good backup stays, and nothing a later run would count (or keep in its place) is left behind
+    expect(fs.readdirSync(backups)).toEqual(["portal-20260101T000000Z"]);
+  });
+
+  it("a leftover temporary folder (a backup killed part-way) is never counted as a backup, nor deleted as one", () => {
+    const backups = path.join(dir, "backups");
+    fs.mkdirSync(backups);
+    for (const n of ["portal-20260101T000000Z", "portal-20260102T000000Z", "portal-20260103T000000Z.partial"]) fs.mkdirSync(path.join(backups, n));
+    const backup = run("backup.mjs", [backups], { BACKUP_KEEP: "2" });
+    expect(backup.code, backup.out).toBe(0);
+    expect(backup.out).toContain("1 older backup deleted, 2 kept");
+    const folder = path.basename(backup.out.trim().split(/\s+/)[0]!);
+    expect(fs.readdirSync(backups).sort()).toEqual(["portal-20260102T000000Z", "portal-20260103T000000Z.partial", folder].sort());
+    expect(fs.existsSync(path.join(backups, folder, "portal.db"))).toBe(true);
+  });
+
   it("known-bad: BACKUP_KEEP that is not a whole number of 1 or more is refused before anything is written", () => {
     const backup = run("backup.mjs", [path.join(dir, "backups")], { BACKUP_KEEP: "0" });
     expect(backup.code).toBe(2);

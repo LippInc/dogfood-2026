@@ -6,7 +6,9 @@
 // writes the folder /data/backups/portal-<UTC time>/ (portal.db and uploads/) and prints
 // its path; copy it off the volume with `docker compose cp portal:<path> .`, since a backup
 // that stays on the volume goes with the volume. Only the newest BACKUP_KEEP backups (default
-// 7) are kept there: older ones are deleted after each new one checks out. Uses DATABASE_PATH,
+// 7) are kept there: older ones are deleted after each new one checks out. A backup is written
+// under portal-<time>.partial and renamed only once its integrity check passes, so one that fails
+// or is killed part-way never counts as a backup, nor pushes a good one out. Uses DATABASE_PATH,
 // with the portal's own default (./data/portal.db; the image sets /data/portal.db), and
 // UPLOADS_DIR, by default uploads/ beside the database.
 import Database from "better-sqlite3";
@@ -27,36 +29,49 @@ const uploads = process.env.UPLOADS_DIR ?? path.join(path.dirname(source), "uplo
 const dir = process.argv[2] ?? path.join(path.dirname(source), "backups");
 const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
 const folder = path.join(dir, `portal-${stamp}`);
+// Written here first; the name does not match a backup's, so a leftover is never counted or deleted as one.
+const partial = `${folder}.partial`;
 fs.mkdirSync(dir, { recursive: true });
 try {
-  fs.mkdirSync(folder);
+  if (fs.existsSync(folder)) throw new Error("exists");
+  fs.mkdirSync(partial);
 } catch {
   console.error(`${folder} already exists (a backup made this second): run it again in a moment.`);
   process.exit(1);
 }
-const target = path.join(folder, "portal.db");
+const target = path.join(partial, "portal.db");
 
-const db = new Database(source, { readonly: true, fileMustExist: true });
-try {
-  await db.backup(target);
-} finally {
-  db.close();
-}
-// After the database, so every picture the copied rows name is there (a picture added since is one file more).
 let pictures = 0;
-if (fs.existsSync(uploads)) {
-  fs.cpSync(uploads, path.join(folder, "uploads"), { recursive: true });
-  pictures = fs.readdirSync(path.join(folder, "uploads")).length;
-}
-// One self-contained file: the copy keeps the live database's WAL mode, so opening it would leave -wal and -shm
-// files beside it; a rollback journal leaves none.
-const copy = new Database(target);
-copy.pragma("journal_mode = DELETE");
-const ok = copy.pragma("integrity_check", { simple: true });
-const rows = copy.prepare("SELECT count(*) AS n FROM audit_log").get().n;
-copy.close();
-if (ok !== "ok") {
-  console.error(`Backup written to ${folder}, but its integrity check says: ${ok}`);
+let rows = 0;
+try {
+  const db = new Database(source, { readonly: true, fileMustExist: true });
+  try {
+    await db.backup(target);
+  } finally {
+    db.close();
+  }
+  // After the database, so every picture the copied rows name is there (a picture added since is one file more).
+  if (fs.existsSync(uploads)) {
+    fs.cpSync(uploads, path.join(partial, "uploads"), { recursive: true });
+    pictures = fs.readdirSync(path.join(partial, "uploads")).length;
+  }
+  // One self-contained file: the copy keeps the live database's WAL mode, so opening it would leave -wal and -shm
+  // files beside it; a rollback journal leaves none.
+  const copy = new Database(target);
+  let ok;
+  try {
+    copy.pragma("journal_mode = DELETE");
+    ok = copy.pragma("integrity_check", { simple: true });
+    rows = copy.prepare("SELECT count(*) AS n FROM audit_log").get().n;
+  } finally {
+    copy.close();
+  }
+  if (ok !== "ok") throw new Error(`its integrity check says: ${ok}`);
+  fs.renameSync(partial, folder);
+} catch (err) {
+  // a failed backup is no backup: remove what was written, so nothing half-made is kept or counted
+  fs.rmSync(partial, { recursive: true, force: true });
+  console.error(`Backup failed, nothing kept: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
 }
 
