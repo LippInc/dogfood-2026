@@ -343,7 +343,7 @@ def run_checks(cfg):
 
     # A7 -- fixing the judging set-up is the organizers' alone. Refusals only, plus
     # organizer requests that change nothing, so the later sections see the same event.
-    c = Check("A7", "judging set-up fixes are organizer-only")
+    c = Check("A7", "judging set-up fixes, event updates and judge reminders are organizer-only")
     ranking_url = u(f"/api/events/{EVENT_ID}/judge-ranking")
     for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403), (judge_b, 403)):
         s, _, _ = person.request("PUT", ranking_url, {"show": False})
@@ -390,6 +390,27 @@ def run_checks(cfg):
         expect(c, s == wanted, person, "POST", move_url, s, str(wanted))
     s, _, _ = organizer.request("POST", move_url, {"trackId": "trk_02", "reason": ""})
     expect(c, s == 422, organizer, "POST", move_url, s, "422 (past the gate, no reason given)")
+    # the organizers' updates and emailed judge reminders: organizers only; past the gate an empty update is a 422,
+    # an unknown one a 404, and a reminder on a portal without SMTP_URL (the checker's) a 409 email_off: nothing is
+    # posted or mailed
+    updates_url = u(f"/api/events/{EVENT_ID}/updates")
+    one_update_url = u(f"/api/events/{EVENT_ID}/updates/upd_isolation_probe")
+    reminders_url = u(f"/api/events/{EVENT_ID}/judges/reminders")
+    for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403)):
+        s, _, _ = person.request("POST", updates_url, {"title": "Isolation probe", "body": "probe"})
+        expect(c, s == wanted, person, "POST", updates_url, s, str(wanted))
+        s, _, _ = person.request("DELETE", one_update_url)
+        expect(c, s == wanted, person, "DELETE", one_update_url, s, str(wanted))
+        s, _, _ = person.request("POST", reminders_url, {"notStarted": True})
+        expect(c, s == wanted, person, "POST", reminders_url, s, str(wanted))
+    s, _, _ = organizer.request("POST", updates_url, {"title": "", "body": ""})
+    expect(c, s == 422, organizer, "POST", updates_url, s, "422 (past the gate, an empty update)")
+    s, _, _ = organizer.request("DELETE", one_update_url)
+    expect(c, s == 404, organizer, "DELETE", one_update_url, s, "404 (past the gate, no such update)")
+    s, _, _ = organizer.request("POST", reminders_url, {"notStarted": True})
+    expect(c, s == 409, organizer, "POST", reminders_url, s, "409 (past the gate, email is off on the checker's portal)")
+    s, _, _ = visitor.request("GET", updates_url)
+    expect(c, s == 200, visitor, "GET", updates_url, s, "200 (updates are public)")
     judging_url = u(f"/api/events/{EVENT_ID}/projects/prj_01/judging")
     s, _, _ = organizer.request("GET", judging_url)
     expect(c, s == 200, organizer, "GET", judging_url, s, "200")
