@@ -59,9 +59,10 @@ About twenty minutes, in this order; nothing needs a restart.
    community vote, so nobody votes with the judged ranking in view. `/events/sample-hack-2026/results` now shows
    every place with its score ± error. On **Results**, "Issue every record"; signed in as priya1, **My project**
    shows the team its reviews and a signed certificate, which `/verify` checks.
-7. **The record.** **Audit log** lists every change and every refusal of a signed-in user, with the hash chain's
-   head; **Integrations** has webhooks, the `fixtures.json` export and a link to your API tokens; `/api-docs` is the
-   API reference.
+7. **The record.** **Audit log** lists every change and every refusal of a signed-in user (up to 60 refusals of
+   one person in 10 minutes; past that they get 429 and no row: [`docs/FEATURES.md`, "Audit log"](docs/FEATURES.md#audit-log)),
+   with the hash chain's head; **Integrations** has webhooks, the `fixtures.json` export and a link to your API
+   tokens; `/api-docs` is the API reference.
 8. **Hand in a project.** The sample event is closed on purpose, so try the participant side on an event of your
    own (about two minutes, and the sample event is untouched): as the organizer, **Your events**, **New event**,
    with a name, a close date in the future and one track. Sign out, open `/events/<its web address>`, **Take part**,
@@ -139,9 +140,9 @@ platforms we checked describes it in its public documentation.
    as, with its hash. Certificates and judging records are signed with Ed25519 (the results page itself is not).
 5. **Open-link votes are counted apart,** in their own column, added to the result only if the organizer said so
    before the first ballot.
-6. **An audit chain.** Every change and every refusal of someone the portal knows, in the same transaction; the
-   database refuses edits and deletes; each row carries the hash of the one before. No mainstream platform
-   documents an audit trail.
+6. **An audit chain.** Every change and every refusal of someone the portal knows (up to 60 refusals of one
+   person in 10 minutes, then 429 and no row), in the same transaction; the database refuses edits and deletes;
+   each row carries the hash of the one before. No mainstream platform documents an audit trail.
 7. **An API and webhooks for everything.** Every action in the interface is a JSON route, and every audited
    change can send a signed webhook, queued in the change's own transaction (the values of ballots, scores and
    pairwise answers stay in the portal). No mainstream platform documents a public API with webhooks.
