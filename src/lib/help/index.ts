@@ -437,7 +437,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/[event]/settings",
     who: ["organizer"],
     answer:
-      "The event's name, dates, team size and certificate places, its organizers, tracks, prizes, what teams fill in, questions for teams, how judges judge (scores or pairwise) and the scoring rubric with its weights. Every save is audited.",
+      "The event's name, dates, team size and certificate places, its organizers, tracks, prizes, what teams fill in, questions for teams, how judges judge (scores or pairwise), the scoring rubric with its weights and how exact ties are broken. Every save is audited.",
     keywords: ["settings", "configure", "dates", "deadline", "team size", "tracks", "prizes", "rubric", "weights", "criteria", "questions", "fields", "co-organizer"],
   },
   {
@@ -636,6 +636,28 @@ export const HELP_ENTRIES: HelpEntry[] = [
       "Settings, \"Scoring rubric\". Once judges have scored, the criteria are fixed; a weight can still change with a written reason, and the published results show the weights before and after.",
     keywords: ["weights", "rubric", "criteria", "change weights", "scoring rubric", "weighted", "criterion weight"],
     doc: { file: "JUDGING.md", heading: "Scoring" },
+  },
+  {
+    id: "tie-break",
+    kind: "task",
+    title: "Break exact ties by a criterion",
+    href: "/organize/[event]/settings",
+    who: ["organizer"],
+    answer:
+      "Settings, \"Exact ties\": choose one rubric criterion, and projects in a track with exactly the same score are ordered by their average on it; tied on it too, they stay joint. The default keeps joint places. It needs a reason once judges have scored, is final once results are published, and does not apply to pairwise judging.",
+    keywords: ["tie break", "tie-break", "tiebreak", "break ties", "exact tie", "same score", "joint place", "joint places", "tied projects", "tiebreaker"],
+    doc: { file: "JUDGING.md", heading: "Breaking exact ties" },
+  },
+  {
+    id: "joint-places",
+    kind: "concept",
+    title: "Joint places and \"tie broken by\"",
+    href: "/events/[event]/results",
+    who: ["everyone"],
+    answer:
+      "Projects in one track with exactly the same score share a place (\"Joint 2nd\"), unless the organizers chose a criterion to break such ties before publishing: then the results, the project's page and its certificate say \"tie broken by\" that criterion.",
+    keywords: ["joint", "joint 2nd", "shared place", "tie broken by", "why joint", "same place", "equal score", "tied"],
+    doc: { file: "JUDGING.md", heading: "Breaking exact ties" },
   },
   {
     id: "become-organizer",
