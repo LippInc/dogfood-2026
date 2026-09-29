@@ -22,6 +22,9 @@ export function openDatabase(file: string): Handle {
   const sqlite = new Database(file);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
+  // a REPLACE deletes the row it replaces; with this on, that delete fires the DELETE triggers too, so an
+  // INSERT OR REPLACE cannot rewrite a published score, weight or assignment past the freeze (no trigger writes rows)
+  sqlite.pragma("recursive_triggers = ON");
   sqlite.pragma("busy_timeout = 5000");
   sqlite.pragma("synchronous = NORMAL");
   return { sqlite, db: drizzle(sqlite, { schema }), file };

@@ -134,6 +134,16 @@ describe("after publishing, the database refuses additions to what the ranking r
     run("UPDATE projects SET title = 'Renamed after publishing' WHERE id = ?", a!.id);
   });
 
+  it("an INSERT OR REPLACE cannot rewrite a published row: the replace's delete is refused like any other", () => {
+    // the fixture holds one event, evt_01, so every score item is its own
+    const item = h.sqlite.prepare("SELECT score_id AS s, criterion_id AS c, value AS v FROM score_items WHERE value IS NOT NULL LIMIT 1").get() as { s: string; c: string; v: number };
+    const other = item.v === 5 ? 4 : 5;
+    publish();
+    refused("INSERT OR REPLACE INTO score_items (score_id, criterion_id, value) VALUES (?, ?, ?)", FINAL, item.s, item.c, other);
+    const now = h.sqlite.prepare("SELECT value AS v FROM score_items WHERE score_id = ? AND criterion_id = ?").get(item.s, item.c) as { v: number };
+    expect(now.v).toBe(item.v);
+  });
+
   it("another event stays open: the freeze is per event", () => {
     const before = count("rubric_criteria");
     run("INSERT INTO events (id, slug, name, submissions_close_at, created_at) VALUES ('evt_t', 'evt-t', 'Other', ?, ?)", NOW, NOW);
