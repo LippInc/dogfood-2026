@@ -164,7 +164,9 @@ questions with labels of 3 to 200 characters and help of at most 300; past one, 
 id another event holds rather than share it (409 `id_taken` when the new name is taken too), never writes into a
 review the portal handed out (pending, a draft or finished, it stays the judge's own; the report's `skipped`
 names the file's row), and imports an event's own export back unchanged; the import's audit row names each judge,
-review and judge's track it added, and `scores.csv` marks each imported review in its `source` column. Files up
+review and judge's track it added, and `scores.csv` marks each imported review in its `source` column. While the organizer hides the project title, `projects.csv`'s `title` and `scores.csv`'s
+`project_title` keep what the team typed, and a last column, `shown_title`, gives the name shown meanwhile (the
+team's). Files up
 to 64 MB, which holds the portal's own export of 1,000 projects and 8,000 reviews with every field at its
 longest; people who come in that way get one-time personal links to set a password (Integrations tab).
 
