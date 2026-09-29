@@ -179,6 +179,28 @@ describe("P(first): each project's chance of really being first", () => {
     expect(cc.callable).toBe(cc.chances[0]!.p >= 0.95);
   });
 
+  it("composes with the tie-break: the decided row is 1st alone, and an exact tie below it is split by the criterion or stays joint", () => {
+    // A and B exactly tied on score, split by the tie-break (A's figure higher); C is decided first
+    const split = competitionPlaces([
+      { score: 3.9, decided: true },
+      { score: 4.2, tie: 3.5 },
+      { score: 4.2, tie: 3.0 },
+      { score: 3.1 },
+    ]);
+    expect(split).toEqual([
+      { place: 1, joint: false },
+      { place: 2, joint: false },
+      { place: 3, joint: false },
+      { place: 4, joint: false },
+    ]);
+    // the same tie with equal figures stays joint, from 2nd on
+    const joint = competitionPlaces([{ score: 3.9, decided: true }, { score: 4.2, tie: 3.5 }, { score: 4.2, tie: 3.5 }, { score: 3.1 }]);
+    expect(joint.map((p) => p.place)).toEqual([1, 2, 2, 4]);
+    expect(joint.map((p) => p.joint)).toEqual([false, true, true, false]);
+    // known-bad: without the decided mark the tie-break alone decides, and C is last
+    expect(competitionPlaces([{ score: 3.9 }, { score: 4.2, tie: 3.5 }, { score: 4.2, tie: 3.0 }, { score: 3.1 }]).map((p) => p.place)).toEqual([3, 1, 2, 4]);
+  });
+
   it("puts the decided winner first and keeps every other row in the order it came in", () => {
     const r = [{ projectId: "a" }, { projectId: "b" }, { projectId: "c" }, { projectId: "d" }];
     expect(withDecidedWinner(r, "c").map((x) => x.projectId)).toEqual(["c", "a", "b", "d"]);
