@@ -32,7 +32,7 @@ COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/drizzle ./drizzle
 COPY --from=builder --chown=node:node /app/fixtures.json ./fixtures.json
-# backup.mjs, restore.mjs and verify-record.mjs, for operators (README)
+# backup.mjs, restore.mjs, purge.mjs and verify-record.mjs, for operators (README)
 COPY --from=builder --chown=node:node /app/scripts ./scripts
 USER node
 EXPOSE 8080
