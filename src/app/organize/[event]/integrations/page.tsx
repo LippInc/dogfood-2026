@@ -89,7 +89,7 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
                 id: "mail-title",
                 title: "Email",
                 holds: mail.counts.total
-                  ? [`${mail.counts.total - mailFailed} sent`, mailFailed ? `${mailFailed} failed` : null].filter(Boolean).join(" · ")
+                  ? [`${mail.counts.sent} sent`, mailFailed ? `${mailFailed} failed` : null, mail.counts.unknown ? `${mail.counts.unknown} may have arrived` : null].filter(Boolean).join(" · ")
                   : mailOn
                     ? "on, nothing mailed yet"
                     : "off",
