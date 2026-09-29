@@ -71,13 +71,16 @@ function scoresCsv(db: DbOrTx, event: EventRow): string {
       .map((a) => a.id),
   );
   const reviews = eventReviews(db, event.id);
+  // the organizer's export is complete: what the team typed in project_title, even while the title is hidden, and
+  // the name the reviews show (the team's, then) in shown_title, as projects.csv does
+  const typed = new Map(db.select({ id: projects.id, title: projects.title }).from(projects).where(eq(projects.eventId, event.id)).all().map((p) => [p.id, p.title]));
   const rows: Cell[][] = [];
   for (const j of judges) {
     for (const r of reviews.get(j.id) ?? []) {
       const value = new Map(r.items.map((i) => [i.key, i.value]));
       rows.push([
         r.projectId,
-        r.projectTitle,
+        typed.get(r.projectId) ?? r.projectTitle,
         r.teamName,
         r.trackName,
         j.id,
@@ -88,6 +91,7 @@ function scoresCsv(db: DbOrTx, event: EventRow): string {
         r.submittedAt,
         r.feedback,
         imported.has(r.assignmentId) ? "import" : "portal",
+        r.projectTitle,
       ]);
     }
   }
@@ -106,6 +110,7 @@ function scoresCsv(db: DbOrTx, event: EventRow): string {
       "submitted_at",
       "feedback",
       "source",
+      "shown_title",
     ],
     rows,
   );

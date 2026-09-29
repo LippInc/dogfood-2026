@@ -195,6 +195,13 @@ describe("a title the team does not give", () => {
     expect(names()).toEqual(everywhere(teamName));
     expect(row("prj_01").title).toBe(typed);
     expect(csvRow()?.[1]).toBe(typed);
+    // scores.csv the same: the stored title in `project_title`, the shown one in `shown_title` at the end
+    const scoreLines = exportFile(organizer(), "evt_01", "scores.csv").body.split(/\r?\n/);
+    const scoreHead = scoreLines[0]!.split(",");
+    expect(scoreHead.at(-1)).toBe("shown_title");
+    const scoreRow = scoreLines.find((l) => l.startsWith("prj_01,"))?.split(",");
+    expect(scoreRow?.[scoreHead.indexOf("project_title")]).toBe(typed);
+    expect(scoreRow?.at(-1)).toBe(teamName);
     // copies of one entry are still found by what the team typed, not by the shared team name
     expect(duplicates()).toEqual(found);
     // the event's own export keeps what the team typed, so an import loses nothing
