@@ -24,7 +24,12 @@ import { ensureDemoOrganizer, seedCheckerSessions } from "@/server/checker";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { runMigrations } from "@/server/db/migrate";
-import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
+import { acceptUnderReviewed, eventDecisions, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
+import { runAssignment } from "@/server/dal/assignments";
+import { moveProjectTrack } from "@/server/dal/corrections";
+import { requireEvent } from "@/server/dal/events";
+import { saveRubric } from "@/server/dal/organize";
+import { renameTeam } from "@/server/dal/teams";
 import { getPublishedResults, publishResults } from "@/server/dal/results";
 import { getPairwiseState, pickPairwise, setJudgingMode } from "@/server/dal/pairwise";
 import { actorForToken } from "@/server/session";
@@ -198,5 +203,90 @@ describe("the public overall order", () => {
     expect(html).toContain("A win % compares only within its own track");
     expect(overallRows(html)).toEqual([]);
     expect(await perTrackHtml()).not.toContain("/results/overall");
+  });
+
+  describe("what the organizers changed after the fact, disclosed as on the per-track page", () => {
+    const WEIGHT_REASON = "The first criterion was meant to count double";
+    const MOVE_REASON = "The team entered the wrong track";
+    const TEAM_REASON = "The team asked by mail; a typo";
+
+    /** Every open decision settled, whatever the changes opened, then the results published. */
+    function settleAndPublish() {
+      const org = actor("organizer");
+      for (const d of eventDecisions(h.db, requireEvent(h.db, "evt_01"))) {
+        if (d.resolved) continue;
+        if (d.kind === "flat_judge" || d.kind === "coin_flip_judge") setJudgeOverride(org, "evt_01", { judgeUserId: d.judgeId, mode: "exclude", reason: "Checked, left out" });
+        else if (d.kind === "duplicate") mergeDuplicate(org, "evt_01", { keepId: d.copies[0]!.id, duplicateId: d.copies[1]!.id });
+        else if (d.kind === "under_reviewed") acceptUnderReviewed(org, "evt_01", { projectId: d.projectId, reason: "Publish with what it has" });
+      }
+      publishResults(org, "evt_01");
+    }
+
+    /** The list item of one project, as the page sends it. */
+    const itemOf = (html: string, projectId: string) =>
+      [...html.matchAll(/<li[^>]*>(.*?)<\/li>/g)].map((m) => m[1]!).find((li) => li.includes(`/projects/${projectId}"`));
+
+    it("the rubric weights changed after scoring, a project moved and a team changed: each shows on the overall page, as on the per-track page", async () => {
+      const org = actor("organizer");
+      // a weight changed once judges had scored, with the reason
+      const criteria = (
+        h.sqlite.prepare("SELECT id, label, prompt, weight FROM rubric_criteria WHERE event_id = 'evt_01' ORDER BY position").all() as {
+          id: string;
+          label: string;
+          prompt: string;
+          weight: number;
+        }[]
+      ).map((c, i) => ({ ...c, weight: i === 0 ? 2 : c.weight }));
+      expect(saveRubric(org, "evt_01", { criteria, reason: WEIGHT_REASON }).reweighted).toBe(true);
+      // a reviewed project moved to another track after judges were assigned
+      runAssignment(org, "evt_01", { mode: "topup", seed: 42 });
+      const moved = h.sqlite
+        .prepare(
+          `SELECT p.id, p.track_id AS track FROM projects p
+            WHERE p.event_id = 'evt_01' AND p.status = 'submitted' AND p.duplicate_of IS NULL
+              AND EXISTS (SELECT 1 FROM assignments a WHERE a.project_id = p.id AND a.status = 'done')
+            ORDER BY p.id LIMIT 1`,
+        )
+        .get() as { id: string; track: string };
+      const to = h.sqlite.prepare("SELECT id, name FROM tracks WHERE event_id = 'evt_01' AND id <> ? ORDER BY position LIMIT 1").get(moved.track) as {
+        id: string;
+        name: string;
+      };
+      moveProjectTrack(org, "evt_01", moved.id, { trackId: to.id, reason: MOVE_REASON });
+      // another project's team renamed by the organizers after the close
+      const renamed = moved.id === "prj_02" ? "prj_03" : "prj_02";
+      const team = (h.sqlite.prepare("SELECT team_id AS t FROM projects WHERE id = ?").get(renamed) as { t: string }).t;
+      renameTeam(org, team, { name: "Glass Signal Crew", reason: TEAM_REASON });
+      settleAndPublish();
+
+      const results = getPublishedResults("evt_01");
+      if (!results.published) throw new Error("not published");
+      const ranked = new Set(results.tracks.flatMap((t) => t.rows).filter((r) => r.rankOverall !== null).map((r) => r.projectId));
+      expect(ranked.has(moved.id) && ranked.has(renamed), "both changed projects are in the overall list").toBe(true);
+
+      for (const [page, html] of [["overall", await overallHtml()], ["per-track", await perTrackHtml()]] as const) {
+        // the weights, with the reason
+        expect(html, page).toContain("The organizers changed the rubric’s weights after judging began.");
+        expect(html, page).toContain(WEIGHT_REASON);
+        // the move: one project counted in the notice, the mark on its own row with the reason
+        expect(html, page).toMatch(/The organizers moved (<!-- -->)?1 project(<!-- -->)? to another track after judges were assigned\./);
+        const movedItem = itemOf(html, moved.id);
+        expect(movedItem, page).toContain(`to ${to.name} on`);
+        expect(movedItem, page).toContain(MOVE_REASON);
+        expect(movedItem, page).not.toContain("Team changed by the organizers");
+        // the team change, on its own row only
+        expect(itemOf(html, renamed), page).toContain("Team changed by the organizers after submissions closed");
+        expect(html.match(/Team changed by the organizers after submissions closed/g), page).toHaveLength(1);
+      }
+    });
+
+    it("control: with no change after the fact, the overall page shows none of these", async () => {
+      publish();
+      const html = await overallHtml();
+      expect(overallRows(html).length).toBeGreaterThan(10);
+      expect(html).not.toContain("weights after judging began");
+      expect(html).not.toContain("to another track after judges were assigned");
+      expect(html).not.toContain("Team changed by the organizers");
+    });
   });
 });

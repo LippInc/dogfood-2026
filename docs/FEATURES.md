@@ -112,7 +112,9 @@ database refuses to withdraw it or swap it for another run. The public results p
 track with its score and ±, and the audit entry the results were published as, with its hash. A second public page,
 `/events/{event}/results/overall`, linked from the first and hidden exactly as long, puts every ranked project in one
 order by score across tracks, each beside its track and its place there; places and prizes stay decided within each
-track, so the page says to read it loosely. In pairwise mode it says instead why there is no overall order: a win % is
+track, so the page says to read it loosely. It discloses what the per-track page discloses, with the same notices
+and row marks: rubric weights changed after judging began, projects moved to another track after judges were assigned,
+and teams changed by the organizers after the close, each with its date and reason. In pairwise mode it says instead why there is no overall order: a win % is
 measured only against the projects of its own track. Teams then see
 their place, their score with its ±, and each review's feedback, judges unnamed. CSV exports (scores, projects,
 assignments, normalized ranking, pairwise answers, ballots, comments, audit log) and a full `event.json` are

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { Face } from "@/components/face";
+import { movesByProject, RowChangeMarks, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { formatUtc, plural } from "@/lib/format";
 import { overallOrder } from "@/lib/overall";
@@ -96,6 +97,9 @@ export function OverallResults({
     false,
   );
   const trackCount = new Set(entries.map((e) => e.track.id)).size;
+  // what the organizers changed after the fact, disclosed as on the per-track page: the moves the published run recorded, per project
+  const movesOf = movesByProject(results.trackMoves);
+  const movedCount = entries.filter((e) => movesOf.has(e.row.projectId)).length;
 
   return (
     <>
@@ -108,6 +112,8 @@ export function OverallResults({
           Places and prizes are decided within each track. This list puts every project in one order by score, for reading across tracks; tracks meet
           only through judges who scored in both, so read it loosely.
         </p>
+        <WeightChangesNotice changes={results.weightChanges} className="mt-6" />
+        <TrackMovesNotice count={movedCount} className="mt-6" />
       </div>
 
       <section aria-labelledby="overall-title" className="mt-12 pb-16">
@@ -161,6 +167,12 @@ export function OverallResults({
                   <span className="block truncate text-14 text-ink-2">{r.teamName}</span>
                   {/* narrower than a wide screen, the track and its place under the team */}
                   <span className={`block truncate text-14 lg:hidden ${first ? "font-semibold text-accent-ink" : "text-ink-2"}`}>{trackPlace}</span>
+                  <RowChangeMarks
+                    projectHref={`/events/${eventSlug}/projects/${r.projectId}`}
+                    teamChangedAt={r.teamChangedAt}
+                    tieBrokenBy={null}
+                    moves={movesOf.get(r.projectId)}
+                  />
                 </span>
                 <span className="min-w-0 max-lg:hidden lg:col-start-4 lg:row-start-1">
                   <span className="sr-only">{trackPlace}</span>

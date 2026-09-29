@@ -10,8 +10,7 @@ import { VoteCountChanges, VoteRuleChanges } from "@/components/results/vote-rul
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { PublicShell } from "@/components/shell/public-shell";
 import { YardstickLine } from "@/components/yardstick-line";
-import { weightMoves } from "@/lib/weight-change";
-import { trackMoveWords } from "@/lib/track-move";
+import { movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
 import { formatUtc, plural } from "@/lib/format";
 import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, type Gallery } from "@/server/dal";
 import { competitionPlaces, ordinal } from "@/lib/places";
@@ -65,9 +64,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
   });
   const placedCount = placed.reduce((n, t) => n + t.rows.length, 0);
   // Moves the published run recorded, per project: a move can change a track's winner, so each shows next to its project.
-  const trackMoves = results.published ? results.trackMoves : [];
-  const movesOf = new Map<string, typeof trackMoves>();
-  for (const m of trackMoves) movesOf.set(m.projectId, [...(movesOf.get(m.projectId) ?? []), m]);
+  const movesOf = movesByProject(results.published ? results.trackMoves : []);
   const movedCount = placed.reduce((n, t) => n + t.rows.filter((r) => movesOf.has(r.projectId)).length, 0);
   const underReviewed = placed.some((t) => t.rows.some((r) => r.n < 2));
   // The plain words, one point each; the same sentences the page said as one paragraph.
@@ -127,39 +124,9 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </p>
                 </div>
               ) : null}
-              {results.weightChanges.length ? (
-                <div className="mt-6 max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
-                  <p className="font-semibold">The organizers changed the rubric&rsquo;s weights after judging began.</p>
-                  <ul className="mt-1.5 flex flex-col gap-1">
-                    {results.weightChanges.map((c, i) => (
-                      <li key={i}>
-                        <span className="tnum">{formatUtc(c.at)}</span>: {weightMoves(c)}. Their reason: &ldquo;{c.reason}&rdquo;
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {results.tieBreakChanges?.length ? (
-                <div className="mt-6 max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
-                  <p className="font-semibold">The organizers chose how exact ties are broken after judging began.</p>
-                  <ul className="mt-1.5 flex flex-col gap-1">
-                    {results.tieBreakChanges.map((c, i) => (
-                      <li key={i}>
-                        <span className="tnum">{formatUtc(c.at)}</span>: {c.before ? `by ${c.before.label}` : "joint places"} → {c.after ? `by ${c.after.label}` : "joint places"}. Their
-                        reason: &ldquo;{c.reason}&rdquo;
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {movedCount ? (
-                <div className="mt-6 max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
-                  <p className="font-semibold">
-                    The organizers moved {plural(movedCount, "project")} to another track after judges were assigned.
-                  </p>
-                  <p className="mt-1.5">Places compare within a track, so each move is marked on its project below, with the date and their reason.</p>
-                </div>
-              ) : null}
+              <WeightChangesNotice changes={results.weightChanges} className="mt-6" />
+              <TieBreakChangesNotice changes={results.tieBreakChanges} className="mt-6" />
+              <TrackMovesNotice count={movedCount} className="mt-6" />
             </div>
             <details className="group max-w-[760px] self-start rounded-sm border border-rule text-ink-2 lg:col-start-2 lg:row-start-2 lg:mt-6">
               <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
@@ -330,25 +297,12 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                             {/* the track's heading already says where; the place in words stays for screen readers */}
                             {p.place !== null ? <span className="sr-only">{` · ${ordinal(p.place)} in ${t.name}`}</span> : null}
                           </span>
-                          {r.teamChangedAt ? (
-                            <span className="mt-1 block text-13 text-ink-2 wrap-anywhere">
-                              Team changed by the organizers after submissions closed, <span className="tnum">{formatUtc(r.teamChangedAt)}</span>:{" "}
-                              <Link href={`/events/${event.slug}/projects/${r.projectId}`} className="underline underline-offset-4 hover:text-accent-ink">
-                                see the project page
-                              </Link>
-                            </span>
-                          ) : null}
-                          {r.tieBroken && results.published && results.tieBreak ? (
-                            <span className="mt-1 block text-13 text-ink-2 wrap-anywhere">
-                              Tied on score; tie broken by {results.tieBreak.criterion}
-                              {r.tie !== null && r.tie !== undefined ? <span className="tnum">, {r.tie.toFixed(2)}</span> : null}
-                            </span>
-                          ) : null}
-                          {movesOf.get(r.projectId)?.map((m, mi) => (
-                            <span key={mi} className="mt-1 block text-13 text-flag wrap-anywhere">
-                              <span className="tnum">{trackMoveWords(m)}</span>. Their reason: &ldquo;{m.reason}&rdquo;
-                            </span>
-                          ))}
+                          <RowChangeMarks
+                            projectHref={`/events/${event.slug}/projects/${r.projectId}`}
+                            teamChangedAt={r.teamChangedAt}
+                            tieBrokenBy={results.published ? tieBrokenByOf(r, results.tieBreak) : null}
+                            moves={movesOf.get(r.projectId)}
+                          />
                         </span>
                         <span className="col-start-2 col-span-2 row-start-2 max-md:pr-3 md:col-start-4 md:col-span-1 md:row-start-1">
                           <ScoreLine scale={scale} score={r.score} se={r.se} raw={pairwise ? null : r.raw} first={first} index={ti + i} />
