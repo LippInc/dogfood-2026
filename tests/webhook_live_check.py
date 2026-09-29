@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """DOGFOOD 2026 hand check: webhooks, live, against a receiver this script runs.
 
-Usage:  python tests/webhook_live_check.py [.dogfood.toml] [--target-host host.docker.internal] [--port 0]
+Usage:  python tests/webhook_live_check.py [.dogfood.toml] [--target-host host.docker.internal] [--host 127.0.0.1]
+                                           [--port 0]
 
 Any Python 3.11+, standard library only. The portal refuses private and local webhook targets, so start it for
 this check with WEBHOOKS_ALLOW_PRIVATE=true (docker-compose.yml, environment), on a fresh volume:
@@ -10,11 +11,13 @@ this check with WEBHOOKS_ALLOW_PRIVATE=true (docker-compose.yml, environment), o
     docker compose down -v && docker compose up -d
 
 Leave the setting off everywhere else: isolation_check.py (C3) checks that private targets are refused, so it
-belongs to a portal started without it. This script listens on 127.0.0.1 (a free port unless --port names one) and
-gives the portal the URL http://<target-host>:<port>/. Docker Desktop (macOS, Windows) forwards
-host.docker.internal to this machine, the default here; on Linux add
-`extra_hosts: ["host.docker.internal:host-gateway"]` to the portal service. For a portal run with `npm run dev` on
-this machine, pass --target-host 127.0.0.1.
+belongs to a portal started without it. This script listens on --host (default 127.0.0.1; a free port unless
+--port names one) and gives the portal the URL http://<target-host>:<port>/. Docker Desktop (macOS, Windows)
+forwards host.docker.internal to this machine's 127.0.0.1, so the defaults work there. On Linux, add
+`extra_hosts: ["host.docker.internal:host-gateway"]` to the portal service and pass --host 0.0.0.0: there
+host.docker.internal is the Docker bridge address (typically 172.17.0.1), which a receiver on 127.0.0.1 never
+hears (the same as scripts/webhook-receiver.mjs). 0.0.0.0 listens on every interface for the minute the check runs.
+For a portal run with `npm run dev` on this machine, pass --target-host 127.0.0.1.
 
 What it checks, on what actually arrives: the Dogfood-Signature header is HMAC-SHA256 over `${t}.${body}` with the
 webhook's secret and a fresh timestamp (and a wrong secret or a changed body does not verify); a delivery the
@@ -44,7 +47,7 @@ EVENT_ID = "evt_01"
 class Receiver:
     """Records every request; answers 500 to the first attempt of each delivery id listed in `refuse_first`."""
 
-    def __init__(self, port):
+    def __init__(self, host, port):
         self.arrived = []
         self.lock = threading.Lock()
         self.refuse_first = set()
@@ -69,7 +72,7 @@ class Receiver:
             def log_message(self, *args):
                 pass
 
-        self.server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+        self.server = ThreadingHTTPServer((host, port), Handler)
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
@@ -100,7 +103,7 @@ def signed(secret, body, header, tolerance=300):
     return hmac.compare_digest(want, parts["v1"])
 
 
-def run_checks(cfg, target_host, port):
+def run_checks(cfg, target_host, port, host="127.0.0.1"):
     base = cfg["portal"]["base_url"].rstrip("/")
     auth = cfg.get("auth", {})
 
@@ -109,7 +112,7 @@ def run_checks(cfg, target_host, port):
 
     organizer = Person("the organizer", auth.get("organizer"))
     judge_a = Person("judge_a", auth.get("judge_a"))
-    receiver = Receiver(port)
+    receiver = Receiver(host, port)
     target = f"http://{target_host}:{receiver.port}/dogfood"
     checks = []
     hooks_url = u(f"/api/events/{EVENT_ID}/webhooks")
@@ -231,7 +234,9 @@ def main():
     ap.add_argument("config", nargs="?", default=".dogfood.toml")
     ap.add_argument("--target-host", default="host.docker.internal",
                     help="the name the portal uses to reach this machine (default host.docker.internal)")
-    ap.add_argument("--port", type=int, default=0, help="the port to listen on, on 127.0.0.1 (default: any free port)")
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="the address to listen on (default 127.0.0.1; on Linux 0.0.0.0, see the header)")
+    ap.add_argument("--port", type=int, default=0, help="the port to listen on (default: any free port)")
     args = ap.parse_args()
     with open(args.config, "rb") as f:
         cfg = tomllib.load(f)
@@ -239,7 +244,8 @@ def main():
     print(f"portal: {cfg['portal']['base_url']}")
     print("needs a portal started with WEBHOOKS_ALLOW_PRIVATE=true; writes a webhook and a comment")
     print()
-    checks = run_checks(cfg, args.target_host, args.port)
+    print(f"receiver: listening on {args.host}, reached by the portal as {args.target_host}")
+    checks = run_checks(cfg, args.target_host, args.port, args.host)
     width = max(len(c.label) for c in checks) + 2
     for c in checks:
         print(f"{c.number:<4} {c.label} {'.' * (width - len(c.label))} {'PASS' if c.ok else 'FAIL'}")
