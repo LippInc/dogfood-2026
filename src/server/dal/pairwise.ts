@@ -150,8 +150,8 @@ export type PairwiseTrackState = {
   answered: number;
 };
 
-function trackStates(db: DbOrTx, event: EventRow, judgeUserId: string): PairwiseTrackState[] {
-  const all = activePicks(db, event.id);
+/** One judge's lists and next question per track, replayed from the event's live answers (read here unless given). */
+function trackStates(db: DbOrTx, event: EventRow, judgeUserId: string, all = activePicks(db, event.id)): PairwiseTrackState[] {
   // Open the projects compared least so far first, so a judge who stops early still spreads their answers.
   const seen = new Map<string, number>();
   for (const c of all) for (const id of [c.leftProjectId, c.rightProjectId]) seen.set(id, (seen.get(id) ?? 0) + 1);
@@ -189,9 +189,10 @@ function trackStates(db: DbOrTx, event: EventRow, judgeUserId: string): Pairwise
 /** Every judge's progress in pairwise mode: projects placed into their own lists, of all their projects, and answers given. */
 export function pairwiseProgress(db: DbOrTx, event: EventRow): { placed: number; total: number; answers: number } {
   const judges = db.selectDistinct({ id: assignments.judgeUserId }).from(assignments).where(eq(assignments.eventId, event.id)).all();
+  const picks = activePicks(db, event.id);
   const sum = { placed: 0, total: 0, answers: 0 };
   for (const j of judges) {
-    for (const t of trackStates(db, event, j.id)) {
+    for (const t of trackStates(db, event, j.id, picks)) {
       sum.placed += t.placed;
       sum.total += t.total;
       sum.answers += t.answered;
