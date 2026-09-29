@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { Deadline } from "@/components/deadline";
 import { Face } from "@/components/face";
+import { KeptNotice } from "@/components/kept-notice";
 import { PublicShell } from "@/components/shell/public-shell";
 import { buttonVariants } from "@/components/ui/button";
 import { formatUtc, plural } from "@/lib/format";
@@ -169,6 +170,9 @@ export default async function VotePage({ params }: PageProps<"/events/[event]/vo
             faces={faces}
             slotFaces={slotFaces}
           />
+          {canVote ? (
+            <KeptNotice className="mt-6 max-w-[680px]">Saving your picks keeps them and a keyed hash of your network address and browser, only to spot duplicate ballots.</KeptNotice>
+          ) : null}
         </div>
       ) : null}
     </PublicShell>

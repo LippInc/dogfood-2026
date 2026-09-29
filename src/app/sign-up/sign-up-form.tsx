@@ -2,6 +2,7 @@
 
 import { useFormAction } from "@/components/use-form-action";
 import { Field } from "@/components/field";
+import { KeptNotice } from "@/components/kept-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionResult } from "@/server/dal";
@@ -36,6 +37,7 @@ export function SignUpForm({ next, setup }: { next: string | null; setup: string
       <Button size="xl" disabled={pending}>
         {pending ? "Creating the account…" : "Create account"}
       </Button>
+      <KeptNotice>We keep your name, your email address and a one-way hash of your password; your name shows beside what you write here.</KeptNotice>
     </form>
   );
 }

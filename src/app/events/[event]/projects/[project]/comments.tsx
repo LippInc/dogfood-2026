@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FieldError } from "@/components/field";
+import { KeptNotice } from "@/components/kept-notice";
 import { useFormAction } from "@/components/use-form-action";
 import { useRescueFocus } from "@/components/use-rescue-focus";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export function CommentForm({ projectId, path, mine }: { projectId: string; path
           </span>
         ) : null}
       </div>
+      <KeptNotice>Everyone who opens this page sees your name beside your comment.</KeptNotice>
     </form>
   );
 }

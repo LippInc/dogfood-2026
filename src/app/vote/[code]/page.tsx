@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Refusal } from "@/components/refusal";
+import { KeptNotice } from "@/components/kept-notice";
 import { PlainShell } from "@/components/shell/plain-shell";
 import { Ticket } from "@/components/ticket";
 import { buttonVariants } from "@/components/ui/button";
@@ -78,7 +79,10 @@ export default async function VoteLinkPage({ params }: PageProps<"/vote/[code]">
               See the community vote
             </Link>
           ) : (
-            <EnterButton code={code} />
+            <>
+              <EnterButton code={code} />
+              <KeptNotice>Opening your ballot keeps a keyed hash of your network address and browser, only to spot duplicate ballots.</KeptNotice>
+            </>
           )}
         </div>
       </Ticket>

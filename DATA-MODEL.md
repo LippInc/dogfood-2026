@@ -140,6 +140,8 @@ Personal data stored: names and lowercased emails in `users` (and `judge_invites
 
 ### What is kept, and for how long
 
+The portal's own `/privacy` page ("What we keep") shows this same list; the sign-up form, the comment box, the voting-link page and the ballot each say in one line what they keep and link to it. Both come from `src/lib/privacy-facts.ts`, and `tests/privacy-facts.test.ts` fails when this table and that list differ.
+
 | What | Where | Kept | Removed by |
 |---|---|---|---|
 | A person's name, email address and password hash | `users` | as long as the portal's data | nothing in the portal yet: removing the data volume |
