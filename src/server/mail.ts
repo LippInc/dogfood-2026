@@ -39,7 +39,13 @@ export function mailSettings(env: MailEnv = process.env): MailSettings {
   return url ? { on: true, url, from: (env.MAIL_FROM ?? "").trim() } : { on: false };
 }
 
-export type SendResult = { status: "off" } | { status: "sent"; sentAt: string } | { status: "failed"; error: string; code?: string };
+/** failed: the message did not go out (never reached the server, or the server refused it); unknown: the connection
+ *  broke after the message may have been handed over, so it may have arrived, and a new link would replace it. */
+export type SendResult =
+  | { status: "off" }
+  | { status: "sent"; sentAt: string }
+  | { status: "failed"; error: string; code?: string }
+  | { status: "unknown"; error: string; code?: string };
 
 type Message = { from: string; to: string; subject: string; text: string };
 type Transport = { sendMail(message: Message): Promise<unknown> };
@@ -80,8 +86,23 @@ export async function sendMail(message: { to: string; subject: string; text: str
     return { status: "sent", sentAt: nowIso() };
   } catch (err) {
     const code = (err as { code?: unknown }).code;
-    return { status: "failed", error: err instanceof Error ? err.message : String(err), ...(typeof code === "string" ? { code } : {}) };
+    const error = err instanceof Error ? err.message : String(err);
+    return { status: outcomeOf(err), error, ...(typeof code === "string" ? { code } : {}) };
   }
+}
+
+/** Whether a send that threw certainly did not deliver: nodemailer does not say how far the conversation got,
+ *  so a timeout or a dropped connection after the greeting counts as unknown (the server may have taken the
+ *  message before the line went quiet), and everything that happens before any message can be handed over
+ *  (no connection, no greeting, TLS or login refused) or that the server answered with a refusal counts as failed. */
+export function outcomeOf(err: unknown): "failed" | "unknown" {
+  const { code, responseCode, message } = err as { code?: unknown; responseCode?: unknown; message?: unknown };
+  const text = typeof message === "string" ? message : "";
+  if (typeof responseCode === "number") return "failed"; // the server answered, and the answer was no
+  if (code === "ETIMEDOUT") return /connection timeout|greeting never received/i.test(text) ? "failed" : "unknown";
+  if (code === "ECONNECTION") return /closed unexpectedly/i.test(text) ? "unknown" : "failed";
+  if (code === "ESOCKET") return /ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|EAI_AGAIN|connect /i.test(text) ? "failed" : "unknown";
+  return "failed";
 }
 
 /** nodemailer's codes for a server that cannot be used at all (unreachable, silent, refusing the login): the rest would fail too. */
@@ -119,7 +140,7 @@ export async function sendMany(
       }
       const result = await sendMail(messages[i]!, env);
       results[i] = result;
-      if (result.status === "failed" && result.code && SERVER_DOWN.has(result.code)) down = result.error;
+      if ((result.status === "failed" || result.status === "unknown") && result.code && SERVER_DOWN.has(result.code)) down = result.error;
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, messages.length) }, worker));

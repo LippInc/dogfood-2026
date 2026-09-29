@@ -238,28 +238,74 @@ describe("a judge invitation, sent and recorded", () => {
     expect(row.body).not.toContain(invite.code);
     expect(row.body).not.toContain(invite.path);
 
+    // two audited writes: the record before the send, then its outcome
     const mailed = auditRows().filter((r) => r.action === "mail.sent");
-    expect(mailed).toHaveLength(1);
-    expect(mailed[0]!.after).toEqual({ kind: "judge_invite", sent: 1, failed: 0 });
+    expect(mailed.map((r) => r.after)).toEqual([{ kind: "judge_invite", sending: 1 }, { kind: "judge_invite", sent: 1, failed: 0 }]);
   });
 
-  it("a record that cannot be written is logged, never thrown: the page still gets its answer (the link's only copy)", async () => {
+  it("records the message as sending before it is handed to the mail server, so no message goes out unrecorded", async () => {
+    const invite = judgeInvite("mira@example.org");
+    const atSend: { status: string; body: string }[] = [];
+    setMailTransportForTests({
+      sendMail: async () => {
+        atSend.push(...(h.sqlite.prepare("SELECT status, body FROM outbox").all() as { status: string; body: string }[]));
+      },
+    });
+    const out = await mailJudgeInvite(organizer(), EVENT, { email: "mira@example.org", path: invite.path });
+    expect(out.mailed).toEqual([{ to: "mira@example.org", status: "sent" }]);
+    expect(atSend).toHaveLength(1); // the row existed while the message was being sent
+    expect(atSend[0]!.status).toBe("sending");
+    expect(atSend[0]!.body).toContain(BLANKED);
+    expect(outboxAll()[0]!.status).toBe("sent");
+  });
+
+  it("an outbox that cannot record the message means it is not sent; the page still gets its answer (the link's only copy)", async () => {
+    const invite = judgeInvite("mira@example.org");
+    h.sqlite.exec("CREATE TRIGGER outbox_test_no_insert BEFORE INSERT ON outbox BEGIN SELECT RAISE(ABORT, 'disk full'); END;");
+    setMailTransportForTests(recordingTransport);
+    sentByTransport.length = 0;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const out = await mailJudgeInvite(organizer(), EVENT, { email: "mira@example.org", path: invite.path });
+      expect(out).toEqual({ on: true, mailed: [{ to: "mira@example.org", status: "failed", error: "not sent: the portal could not record it first" }] });
+      expect(sentByTransport).toHaveLength(0); // nothing went out unrecorded
+      expect(auditRows().filter((r) => r.action === "mail.sent")).toHaveLength(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("an outcome that cannot be written leaves the row at sending, never lost; the page still gets its answer", async () => {
+    const invite = judgeInvite("mira@example.org");
+    h.sqlite.exec("CREATE TRIGGER outbox_test_no_update BEFORE UPDATE ON outbox BEGIN SELECT RAISE(ABORT, 'disk full'); END;");
+    setMailTransportForTests(recordingTransport);
+    const logged: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void logged.push(args.map(String).join(" ")));
+    try {
+      const out = await mailJudgeInvite(organizer(), EVENT, { email: "mira@example.org", path: invite.path });
+      expect(out.mailed).toEqual([{ to: "mira@example.org", status: "sent" }]);
+      expect(outboxAll().map((r) => r.status)).toEqual(["sending"]);
+      expect(logged.some((l) => l.includes("still say sending"))).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("a subject past the outbox's 200 characters (a long imported event name) is cut to fit, in the mail and its record alike", async () => {
     const invite = judgeInvite("long@example.org");
     // an imported event's name is not held to the form's 80 characters; this one pushes the subject past the outbox's 200
     h.sqlite.prepare("UPDATE events SET name = ? WHERE id = ?").run("N".repeat(250), EVENT);
     setMailTransportForTests(recordingTransport);
     sentByTransport.length = 0;
-    const logged: string[] = [];
-    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void logged.push(args.map(String).join(" ")));
-    try {
-      const out = await mailJudgeInvite(organizer(), EVENT, { email: "long@example.org", path: invite.path });
-      expect(out).toEqual({ on: true, mailed: [{ to: "long@example.org", status: "sent" }] });
-      expect(sentByTransport).toHaveLength(1);
-      expect(outboxAll()).toHaveLength(0);
-      expect(logged.some((l) => l.startsWith("[mail] 1 judge_invite message(s) went out unrecorded"))).toBe(true);
-    } finally {
-      spy.mockRestore();
-    }
+    const out = await mailJudgeInvite(organizer(), EVENT, { email: "long@example.org", path: invite.path });
+    expect(out).toEqual({ on: true, mailed: [{ to: "long@example.org", status: "sent" }] });
+    expect(sentByTransport).toHaveLength(1);
+    const rows = outboxAll();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.status).toBe("sent");
+    expect(rows[0]!.subject).toHaveLength(200);
+    expect(rows[0]!.subject.endsWith("…")).toBe(true);
+    expect(sentByTransport[0]!.subject).toBe(rows[0]!.subject);
   });
 
   it("an invitation made without an address mails nothing", async () => {
@@ -344,8 +390,7 @@ describe("a bulk send against a dead server", () => {
       expect(row.error).toBeTruthy();
     }
     const mailed = auditRows().filter((r) => r.action === "mail.sent");
-    expect(mailed).toHaveLength(1);
-    expect(mailed[0]!.after).toEqual({ kind: "voter_link", sent: 0, failed: 10 });
+    expect(mailed.map((r) => r.after)).toEqual([{ kind: "voter_link", sending: 10 }, { kind: "voter_link", sent: 0, failed: 10 }]);
   });
 });
 

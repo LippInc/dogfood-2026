@@ -845,11 +845,15 @@ export const webhookDeliveries = sqliteTable(
 
 export const MAIL_KINDS = ["judge_invite", "voter_link", "password_reset", "claim_link", "judge_reminder", "admin_setup"] as const;
 export type MailKind = (typeof MAIL_KINDS)[number];
-export const OUTBOX_STATUSES = ["sent", "failed", "off"] as const;
+// sending: recorded, then handed to the mail server (a row left so means the portal stopped before the answer came);
+// unknown: the connection broke after the message was handed over, so it may have arrived; off: kept for rows
+// allowed since the first table, never written.
+export const OUTBOX_STATUSES = ["sending", "sent", "failed", "unknown", "off"] as const;
 export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
 
 // One row per message the portal mailed or tried to mail, its link blanked so no working
-// key is kept; nothing is recorded while email is off (SMTP_URL unset). event_id is null
+// key is kept, written before the message is sent and updated with the outcome (0015);
+// nothing is recorded while email is off (SMTP_URL unset). event_id is null
 // for portal mail (password resets); created_by is null when the system made the message.
 export const outbox = sqliteTable(
   "outbox",
@@ -869,7 +873,7 @@ export const outbox = sqliteTable(
   (t) => [
     index("outbox_event_idx").on(t.eventId, t.createdAt),
     check("outbox_kind", sql`${t.kind} in ('judge_invite', 'voter_link', 'password_reset', 'claim_link', 'judge_reminder', 'admin_setup')`),
-    check("outbox_status", sql`${t.status} in ('sent', 'failed', 'off')`),
+    check("outbox_status", sql`${t.status} in ('sending', 'sent', 'failed', 'unknown', 'off')`),
     check("outbox_to_email", sql`${t.toEmail} like '%_@_%'`),
     check("outbox_subject_length", sql`length(${t.subject}) between 1 and 200`),
     check("outbox_body_length", sql`length(${t.body}) between 1 and 20000`),

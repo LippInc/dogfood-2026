@@ -13,7 +13,7 @@ import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
-import { MAIL_TIMEOUTS, mailBase, mailProblem, mailSettings, sendMail, sendMany, setMailTransportForTests } from "@/server/mail";
+import { MAIL_TIMEOUTS, mailBase, mailProblem, mailSettings, outcomeOf, sendMail, sendMany, setMailTransportForTests } from "@/server/mail";
 import { listOutbox, listPortalOutbox, type OutboxView } from "@/server/dal/outbox";
 import type { Actor } from "@/server/authz";
 
@@ -244,7 +244,8 @@ describe("the mail module", () => {
 type Received = { from: string; to: string[]; data: string };
 
 /** Speaks just enough SMTP for one plain message: greeting, EHLO, MAIL, RCPT, DATA, QUIT. */
-async function smtpServer(): Promise<{ url: string; received: Received[]; close: () => Promise<void> }> {
+/** mode: "drop" takes the whole message and then closes without answering; "refuse" answers RCPT with 550. */
+async function smtpServer(mode: "ok" | "drop" | "refuse" = "ok"): Promise<{ url: string; received: Received[]; close: () => Promise<void> }> {
   const received: Received[] = [];
   const server = net.createServer((socket) => {
     socket.setEncoding("utf8");
@@ -261,7 +262,8 @@ async function smtpServer(): Promise<{ url: string; received: Received[]; close:
           if (line === ".") {
             inData = false;
             received.push(mail);
-            socket.write("250 queued\r\n");
+            if (mode === "drop") socket.destroy();
+            else socket.write("250 queued\r\n");
           } else mail.data += (line.startsWith("..") ? line.slice(1) : line) + "\n";
           continue;
         }
@@ -272,7 +274,7 @@ async function smtpServer(): Promise<{ url: string; received: Received[]; close:
           socket.write("250 ok\r\n");
         } else if (verb === "RCPT") {
           mail.to.push(line);
-          socket.write("250 ok\r\n");
+          socket.write(mode === "refuse" ? "550 no such mailbox\r\n" : "250 ok\r\n");
         } else if (verb === "DATA") {
           inData = true;
           socket.write("354 end with a dot\r\n");
@@ -314,6 +316,45 @@ describe("sending through SMTP", () => {
     const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, { SMTP_URL: url, MAIL_FROM: "portal@mail.test", PUBLIC_URL: "https://portal.example.org" });
     if (out.status !== "failed") throw new Error(`expected failed, got ${out.status}`);
     expect(out.error).toMatch(/ECONNREFUSED|connect/i);
+  });
+});
+
+describe("not sent, or outcome unknown", () => {
+  const env = (url: string) => ({ SMTP_URL: url, MAIL_FROM: "portal@mail.test", PUBLIC_URL: "https://portal.example.org" });
+
+  it("a server that took the whole message and then dropped the line gives unknown: it may have arrived", async () => {
+    const smtp = await smtpServer("drop");
+    try {
+      const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, env(smtp.url));
+      expect(smtp.received).toHaveLength(1); // the server has the message
+      expect(out.status).toBe("unknown");
+    } finally {
+      await smtp.close();
+    }
+  });
+
+  it("a server that refuses the recipient gives failed: the server said no, nothing went out", async () => {
+    const smtp = await smtpServer("refuse");
+    try {
+      const out = await sendMail({ to: "judge@example.org", subject: "Hello", text: "Body" }, env(smtp.url));
+      expect(out.status).toBe("failed");
+      expect(smtp.received).toHaveLength(0);
+    } finally {
+      await smtp.close();
+    }
+  });
+
+  it("outcomeOf: before any message can be handed over is failed; a broken line after the greeting is unknown", () => {
+    const e = (code: string, message: string, responseCode?: number) => Object.assign(new Error(message), { code, ...(responseCode ? { responseCode } : {}) });
+    expect(outcomeOf(e("ESOCKET", "connect ECONNREFUSED 127.0.0.1:25"))).toBe("failed");
+    expect(outcomeOf(e("ETIMEDOUT", "Connection timeout"))).toBe("failed");
+    expect(outcomeOf(e("ETIMEDOUT", "Greeting never received"))).toBe("failed");
+    expect(outcomeOf(e("EAUTH", "Invalid login", 535))).toBe("failed");
+    expect(outcomeOf(e("EENVELOPE", "Recipient refused", 550))).toBe("failed");
+    expect(outcomeOf(e("ETIMEDOUT", "Timeout"))).toBe("unknown");
+    expect(outcomeOf(e("ECONNECTION", "Connection closed unexpectedly"))).toBe("unknown");
+    expect(outcomeOf(e("ESOCKET", "read ECONNRESET"))).toBe("unknown");
+    expect(outcomeOf(new Error("plain"))).toBe("failed");
   });
 });
 
