@@ -86,7 +86,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/events/[event]/about",
     who: ["everyone"],
     answer: "The event's dates (submissions, judging, voting), its tracks, prizes and the rubric judges score against, with each criterion's weight. Times are shown in UTC. Organizers set the dates in Settings and the vote's window on the Community vote tab.",
-    keywords: ["dates", "deadline", "when", "schedule", "timeline", "rules", "prizes", "tracks", "criteria", "rubric", "how are projects judged", "submissions close", "submit until", "voting opens", "voting closes", "vote until", "when is the event", "time zone"],
+    keywords: ["dates", "deadline", "when", "schedule", "timeline", "rules", "prizes", "what are the prizes", "which prizes", "prizes to win", "tracks", "criteria", "rubric", "how are projects judged", "submissions close", "submit until", "voting opens", "voting closes", "vote until", "when is the event", "time zone"],
   },
   {
     id: "results-public",
@@ -558,7 +558,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["organizer"],
     answer:
       "In the Prizes step at the foot of the Results tab, give each prize to a project, or to several jointly, with the places beside them and an optional note. Each save is logged; a prize can stay unawarded, and publishing makes the awards final.",
-    keywords: ["award prize", "give a prize", "give the prize", "split a prize", "joint prize", "share a prize", "prize winner", "prizes", "joint winner", "special award", "who gets the prize", "unawarded prize", "best in show"],
+    keywords: ["award prize", "give a prize", "give the prize", "split a prize", "split a prize between projects", "split a prize between two projects", "joint prize", "share a prize", "prize winner", "prizes", "joint winner", "special award", "who gets the prize", "unawarded prize", "best in show"],
     doc: { file: "docs/FEATURES.md", heading: "Prizes" },
   },
   {
@@ -568,7 +568,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/events/[event]/results",
     who: ["everyone"],
     answer:
-      "The organizers give each prize on top of the places, before they publish. Once published, the results show each prize with its winners, and a winner's page and certificate say \"Winner, <prize>\".",
+      "The event's About page lists its prizes. The organizers give each prize on top of the places, before they publish. Once published, the results show each prize with its winners, and a winner's page and certificate say \"Winner, <prize>\".",
     keywords: ["prize", "prizes", "did we win a prize", "prize list", "award", "certificate prize", "winner of the prize"],
     doc: { file: "JUDGING.md", heading: "Prizes" },
   },

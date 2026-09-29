@@ -242,7 +242,7 @@ export const CORPUS: CorpusRow[] = [
   ["what is a track", "tracks"],
   ["what tracks are there", "tracks"],
   ["what is a category", "tracks"],
-  ["what are the prizes", { all: "about", organizer: ["about", "settings"], admin: ["about", "settings"] }],
+  ["what are the prizes", { all: ["about", "prizes"], organizer: ["about", "settings", "prizes"], admin: ["about", "settings", "prizes"] }],
   ["about the event", ["about", "events"]],
   ["what is demo mode", "demo-mode"],
   ["demo mode checker sessions", "demo-mode"],
