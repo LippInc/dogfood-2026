@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Fragment } from "react";
 import { unauthorized } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
@@ -49,27 +50,45 @@ function Leniency({ s, k, span }: { s: JudgeStanding | undefined; k: number | nu
 }
 export const metadata: Metadata = { title: "Judges" };
 
-/** Where a judge sits in the table: what needs the organizer first, then open work, then done. */
-const groupOf = (j: JudgeRow) => (j.excluded || (j.flat && !j.override) ? 0 : j.pending > 0 ? 1 : j.assigned > 0 ? 2 : 3);
-// The second group is open work while judging runs, and only unfinished once results are published.
-const groupNames = (published: boolean) => ["Flagged", openWork(0, published).group, "All finished", "Nothing assigned"];
+/**
+ * Where a judge sits in the table: what needs the organizer first, then the judges who have not started (reviews
+ * assigned, nothing saved), then open work, then done.
+ */
+const groupOf = (j: JudgeRow) => (j.excluded || (j.flat && !j.override) ? 0 : j.notStarted ? 1 : j.pending > 0 ? 2 : j.assigned > 0 ? 3 : 4);
+const FINISHED = 3;
+// Open work while judging runs, and only unfinished once results are published; likewise not started, and never started.
+const groupNames = (published: boolean) => ["Flagged", published ? "Never started" : "Not started", openWork(0, published).group, "All finished", "Nothing assigned"];
 
-export default async function JudgesPage({ params }: PageProps<"/organize/[event]/judges">) {
+/** The table's two views, each with its own address: every judge, or only those who have not started. */
+const NOT_STARTED = "not-started";
+
+export default async function JudgesPage({ params, searchParams }: PageProps<"/organize/[event]/judges">) {
   const { event: key } = await params;
+  const { show } = await searchParams;
   const actor = await currentActor();
   if (!actor) unauthorized();
   const { event, tracks, judges: byName, invites, removed } = guardPage(() => getJudges(actor, key));
-  // Flagged first, then the most open reviews, then finished; by name inside each group (the sort is stable).
-  const judges = [...byName].sort((x, y) => groupOf(x) - groupOf(y) || (groupOf(x) === 1 ? y.pending - x.pending : 0));
+  // Flagged first, then not started, then the most open reviews, then finished; by name inside each group (the sort is stable).
+  const everyone = [...byName].sort((x, y) => groupOf(x) - groupOf(y) || (groupOf(x) === 2 ? y.pending - x.pending : 0));
+  const idle = everyone.filter((j) => j.notStarted);
+  const onlyIdle = show === NOT_STARTED;
+  const judges = onlyIdle ? idle : everyone;
   const grouped = new Set(judges.map(groupOf)).size > 1;
   const a = getAssignments(actor, event.id);
   const published = Boolean(event.resultsPublishedAt);
   const groups = groupNames(published);
   const origin = publicUrl();
-  const assigned = judges.reduce((s, j) => s + j.assigned, 0);
-  const finished = judges.reduce((s, j) => s + j.done, 0);
+  const console_ = `${origin}/judge/${event.slug}`;
+  const nudge = (j: JudgeRow) =>
+    `Hi ${j.name}, your ${plural(j.assigned, "review")} for ${event.name} ${j.assigned === 1 ? "is" : "are"} waiting for you, and none is started yet. Your console: ${console_}`;
+  const viewHref = (v: string | null) => `/organize/${event.slug}/judges${v ? `?show=${v}` : ""}`;
+  const chip =
+    "group inline-flex items-baseline gap-1.5 rounded-sm border border-edge px-3 py-1 text-13 hover:border-ink aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-surface";
+  const chipCount = "tnum text-ink-3 group-aria-[current=page]:text-surface";
+  const assigned = everyone.reduce((s, j) => s + j.assigned, 0);
+  const finished = everyone.reduce((s, j) => s + j.done, 0);
   const openInvites = invites.filter((i) => i.state === "open");
-  const leftOut = judges.filter((j) => j.excluded).length;
+  const leftOut = everyone.filter((j) => j.excluded).length;
   // Leniency is a scores-mode idea: the engine's own standing per judge, keyed by id.
   const norm = judgingModeOf(event) === "scores" ? guardPage(() => getNormalization(actor, key)).normalization : null;
   const standing = new Map((norm?.judges ?? []).map((s) => [s.id, s]));
@@ -91,7 +110,8 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
           <div>
             <h1 className="text-24 font-semibold">Judges</h1>
             <p className="mt-2 text-15 text-ink-2 tnum">
-              {plural(judges.length, "judge")} · {finished} of {plural(assigned, "assigned review")} finished
+              {plural(everyone.length, "judge")} · {finished} of {plural(assigned, "assigned review")} finished
+              {idle.length ? ` · ${idle.length} not started` : ""}
               {leftOut ? ` · ${leftOut} left out of the ranking` : ""}
               {a.underReviewed.length ? ` · ${a.underReviewed.length} under-reviewed ${a.underReviewed.length === 1 ? "project" : "projects"}` : ""}
             </p>
@@ -101,7 +121,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
             // the height is the judge's load, the filled cells the reviews they have finished.
             <figure className="flex min-w-0 flex-col gap-2">
               <div className="flex max-w-full items-end gap-[3px] overflow-x-auto" aria-hidden>
-                {judges.map((j) => (
+                {everyone.map((j) => (
                   <div key={j.id} title={`${j.name}: ${j.done} of ${j.assigned}`} className="flex w-3 shrink-0 flex-col-reverse gap-[2px]">
                     {Array.from({ length: j.assigned }, (_, i) => (
                       <span key={i} className={`h-[5px] ${j.excluded ? (i < j.done ? "bg-flag-bar" : "border border-flag-bar") : i < j.done ? "bg-ink" : "border border-edge"}`} />
@@ -112,7 +132,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
               </div>
               <figcaption className="text-12 text-ink-2">
                 <span className="label-mono mr-2 text-ink">Fig. 01 — The load</span>
-                one column per judge, one cell per assigned review, filled when finished{judges.some((j) => j.excluded) ? "; orange: left out of the ranking" : ""}
+                one column per judge, one cell per assigned review, filled when finished{everyone.some((j) => j.excluded) ? "; orange: left out of the ranking" : ""}
               </figcaption>
             </figure>
           ) : null}
@@ -123,7 +143,42 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
             <h2 id="judges-title" className="sr-only">
               Every judge
             </h2>
-            {judges.length === 0 ? (
+            {assigned ? (
+              // The views are plain links, so each is server-rendered and has its own address to share or come back to.
+              <nav aria-label="Filter the judges" className="mb-3 flex flex-wrap items-center gap-1.5">
+                <Link href={viewHref(null)} aria-current={onlyIdle ? undefined : "page"} className={chip}>
+                  All <span className={chipCount}>{everyone.length}</span>
+                </Link>
+                {idle.length || onlyIdle ? (
+                  <Link href={viewHref(NOT_STARTED)} aria-current={onlyIdle ? "page" : undefined} className={chip}>
+                    {groups[1]} <span className={chipCount}>{idle.length}</span>
+                  </Link>
+                ) : (
+                  <span className="inline-flex items-baseline gap-1.5 rounded-sm border border-dashed border-rule px-3 py-1 text-13 text-ink-3">
+                    Every judge has started
+                  </span>
+                )}
+              </nav>
+            ) : null}
+            {onlyIdle ? (
+              // The not-started view: who has reviews and has saved nothing, and everything to remind them at once.
+              <div className="mb-4 flex flex-col gap-3 rounded-sm border border-rule bg-surface p-4 md:flex-row md:items-center md:justify-between">
+                <p className="max-w-[560px] text-14 text-ink-2">
+                  {idle.length
+                    ? `${idle.length === 1 ? "This judge has" : `These ${idle.length} judges have`} reviews assigned and ${idle.length === 1 ? "has" : "have"} saved nothing yet: no score, no word of feedback, no conflict declared.${published ? " Results are published, so scoring is over." : ""}`
+                    : "Every judge with reviews assigned has saved something."}
+                </p>
+                {idle.length ? (
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {published ? null : (
+                      <CopyButton text={idle.map(nudge).join("\n\n")} label={`Copy ${idle.length} ${idle.length === 1 ? "reminder" : "reminders"}`} />
+                    )}
+                    <CopyButton text={idle.map((j) => `${j.name} <${j.email}>`).join(", ")} label={idle.length === 1 ? "Copy address" : "Copy addresses"} />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {judges.length === 0 && onlyIdle ? null : judges.length === 0 ? (
               <p className="rounded-sm border border-rule bg-surface p-6 text-15 text-ink-2">
                 {emailIsOn()
                   ? "No judges yet. Make an invitation on the right: with an email address, the portal mails the judge the link; without one, send the link yourself."
@@ -166,7 +221,9 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                       const g = groupOf(j);
                       const first = grouped && (n === 0 || groupOf(judges[n - 1]) !== g);
                       const work = openWork(j.pending, published);
-                      const reminder = `Hi ${j.name}, ${j.pending} of your ${plural(j.assigned, "review")} for ${event.name} ${j.pending === 1 ? "is" : "are"} still open. Your console: ${origin}/judge/${event.slug}`;
+                      const reminder = j.notStarted
+                        ? nudge(j)
+                        : `Hi ${j.name}, ${j.pending} of your ${plural(j.assigned, "review")} for ${event.name} ${j.pending === 1 ? "is" : "are"} still open. Your console: ${console_}`;
                       return (
                         <Fragment key={j.id}>
                         {first ? (
@@ -262,7 +319,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                           <TableCell
                             className={`max-w-[260px] text-13 max-md:col-span-2 max-md:max-w-none max-md:p-0 ${
                               // On phones a finished judge's standing is a lone check under the group's "All finished": drop it.
-                              grouped && g === 2 && !j.flat && !j.override ? "max-md:hidden" : "max-md:block"
+                              grouped && g === FINISHED && !j.flat && !j.override ? "max-md:hidden" : "max-md:block"
                             }`}
                           >
                             {j.flat ? (
@@ -287,7 +344,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                                 </div>
                                 {/* When a judge last scored matters only while they still have work: it shows who has gone quiet. */}
                                 <p className={`text-12 text-ink-3 ${work.note ? "" : "whitespace-nowrap"}`}>
-                                  {work.note ?? (j.lastScoredAt ? `last review ${formatUtc(j.lastScoredAt)}` : "nothing scored yet")}
+                                  {work.note ?? (j.lastScoredAt ? `last review ${formatUtc(j.lastScoredAt)}` : j.notStarted ? "nothing saved yet" : "nothing scored yet")}
                                 </p>
                               </div>
                             ) : j.assigned > 0 ? (

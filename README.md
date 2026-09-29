@@ -162,7 +162,8 @@ Each item in full, with its rules: [`docs/FEATURES.md`](docs/FEATURES.md).
 - **Events and teams:** dates, tracks, prizes, custom questions, a weighted rubric; teams by invite link; the
   organizer picks which project fields are required, optional or hidden; one-person events in one step.
 - **Judging:** judges invited by link, a seeded and stored assignment run, a keyboard-first console with autosave,
-  the decisions that must be made before results go out, leniency correction with receipts and a judge ledger.
+  the judges who have not started in a view of their own with their reminders, the decisions that must be made
+  before results go out, leniency correction with receipts and a judge ledger.
 - **Pairwise judging (optional):** "which is better?" instead of scores, ranked by a Bradley-Terry fit.
 - **Results and exports:** publishing locked until every decision is made; CSV and `event.json` at every stage.
 - **Community vote and comments:** signed-in, voter-list or open-link voting; comments organizers can hide with a

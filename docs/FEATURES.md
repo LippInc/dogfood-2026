@@ -66,6 +66,10 @@ organizer's questions); the server refuses changes after it.
   invitation, and the old link tells whoever opens it that a newer invitation replaced it.
 - **Assignment.** Projects are assigned with a seeded, stored assignment run; judges score in a keyboard-first
   console with autosave and see only their own scores.
+- **Who has not started.** The Judges page lists the judges who have reviews assigned and have saved nothing (no
+  score, no word of feedback, no pairwise answer, no conflict declared) right after the flagged ones, and its
+  "Not started" view (`?show=not-started`, a link to share) shows only them, with every reminder and their
+  addresses to copy at once; `GET /api/events/{event}/judges` marks each judge `notStarted`.
 - **Decisions before publishing.** The organizer's overview shows progress live and lists the decisions that
   must be made before results can go out: a flat judge, a duplicate entry, an under-reviewed project.
 - **Live pages.** The overview and the Judges, Voting and Integrations pages refresh every 15 s while the tab is

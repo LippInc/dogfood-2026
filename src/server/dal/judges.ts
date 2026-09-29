@@ -4,7 +4,7 @@ import { sortByName } from "@/lib/names";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
-import { assignmentRuns, assignments, events, judgeInvites, judgeTracks, projects, scores, tracks, userRoles, users, auditLog } from "../db/schema";
+import { assignmentRuns, assignments, comparisons, events, judgeInvites, judgeTracks, projects, scores, tracks, userRoles, users, auditLog } from "../db/schema";
 import { ConflictError, HttpError, NotFoundError, ValidationError } from "../errors";
 import { formatUtc } from "@/lib/format";
 import type { FlatFlag } from "../judging/flat";
@@ -497,6 +497,13 @@ export type JudgeRow = {
   done: number;
   pending: number;
   recused: number;
+  /** reviews the judge has saved something on (a score, a word of feedback: a review row), finished or not */
+  started: number;
+  /**
+   * Has reviews assigned and has saved nothing at all: no review row, no pairwise answer, no recusal. The Judges page
+   * lists them first after the flagged ones, to find and remind.
+   */
+  notStarted: boolean;
   lastScoredAt: string | null;
   flat: FlatFlag | null;
   override: ActiveOverride | null;
@@ -541,6 +548,8 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
       judgeId: assignments.judgeUserId,
       status: assignments.status,
       n: sql<number>`sum(case when ${assignments.status} != 'pending' or ${inJudgeTracks} then 1 else 0 end)`,
+      // a review row exists from the first thing the judge saves on it (corrections.ts's "started")
+      started: sql<number>`sum(case when ${scores.id} is not null then 1 else 0 end)`,
       last: sql<string | null>`max(${scores.submittedAt})`,
     })
     .from(assignments)
@@ -571,17 +580,30 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
     }
   }
   const set = judgeSet(db, eventId);
+  // pairwise mode saves answers, not review rows: a judge with one standing answer has started
+  const compared = new Set(
+    db
+      .selectDistinct({ judgeId: comparisons.judgeUserId })
+      .from(comparisons)
+      .where(and(eq(comparisons.eventId, eventId), isNull(comparisons.voidedAt)))
+      .all()
+      .map((r) => r.judgeId),
+  );
   return people.map((p) => {
     const mine = counts.filter((c) => c.judgeId === p.id);
     const of = (s: string) => mine.find((c) => c.status === s)?.n ?? 0;
     const last = mine.map((c) => c.last).filter((x): x is string => Boolean(x)).sort().at(-1) ?? null;
+    const started = mine.reduce((sum, c) => sum + (c.started ?? 0), 0);
+    const assigned = of("pending") + of("done");
     return {
       ...p,
       tracks: trackRows.filter((t) => t.judgeId === p.id).map(({ id, name }) => ({ id, name, byHand: granted.get(`${p.id}|${id}`) ?? null })),
-      assigned: of("pending") + of("done"),
+      assigned,
       done: of("done"),
       pending: of("pending"),
       recused: of("recused"),
+      started,
+      notStarted: assigned > 0 && started === 0 && of("recused") === 0 && !compared.has(p.id),
       lastScoredAt: last,
       flat: set.flags.find((f) => f.judgeId === p.id) ?? null,
       override: [...set.overrides].reverse().find((o) => o.judgeId === p.id) ?? null,
