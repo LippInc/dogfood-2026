@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from "@/components/ui/textarea";
 import { useFlip } from "@/components/use-flip";
 import { formatUtc, weightShares } from "@/lib/format";
+import { startIndex } from "@/lib/judge-start";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
 import { Kbd, letters, paragraphs, RecuseDialog, shortUrl } from "./judge-bits";
 import { saveAndNextTarget } from "./save-next";
@@ -105,12 +106,8 @@ export function JudgeConsoleView({
     reviewsRef.current = reviews;
   }, [reviews]);
   const [saveState, setSaveState] = useState<Record<string, SaveState>>({});
-  const [start] = useState(() => {
-    const asked = startProject ? items.findIndex((i) => i.project.id === startProject) : -1;
-    if (asked >= 0) return asked;
-    const pending = items.findIndex((i) => i.status === "pending");
-    return pending >= 0 ? pending : 0;
-  });
+  // ?project= wins; otherwise the first project still to score, never a recused one when another is there
+  const [start] = useState(() => startIndex(items, startProject));
   const [index, setIndex] = useState(start);
   // Open a half-scored project on the criterion still to do, not always on the first.
   const [focus, setFocus] = useState(() => (items[start] ? firstOpen(criteria, items[start].values) : 0));
