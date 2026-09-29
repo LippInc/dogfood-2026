@@ -66,7 +66,7 @@ export const QuestionRows = z
   .array(
     z.object({
       id: z.string().optional(),
-      label: z.string().trim().min(3).max(200),
+      label: z.string().trim().min(3, "a question needs at least 3 characters").max(200),
       help: z.string().trim().max(300).default(""),
       type: z.enum(["text", "longtext", "url"]).default("longtext"),
       required: z.coerce.boolean().default(false),
@@ -82,7 +82,7 @@ export const RubricRows = z
   .array(
     z.object({
       id: z.string().optional(),
-      label: z.string().trim().min(2).max(60),
+      label: z.string().trim().min(2, "a criterion needs a name of at least 2 characters").max(60),
       prompt: z.string().trim().max(200).default(""),
       weight: z.coerce.number().positive("a weight must be above 0").max(100),
     }),

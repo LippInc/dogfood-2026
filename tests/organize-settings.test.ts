@@ -8,7 +8,7 @@ import { auditLog, userRoles } from "@/server/db/schema";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { requireEvent } from "@/server/dal/events";
-import { createEvent, MAX_CRITERIA, saveRubric, saveTracks, updateEventDetails } from "@/server/dal/organize";
+import { createEvent, MAX_CRITERIA, saveQuestions, saveRubric, saveTracks, updateEventDetails } from "@/server/dal/organize";
 import { latestAudit } from "@/server/dal/audit-log";
 import { acceptUnderReviewed, dismissDuplicate, setJudgeOverride } from "@/server/dal/decisions";
 import { getPublishedResults, publishResults } from "@/server/dal/results";
@@ -258,5 +258,26 @@ describe("the tracks", () => {
     const before = tracks();
     expectHttpError(() => saveTracks(judge(), "evt_01", renamed()), 403, "not_an_organizer");
     expect(tracks()).toEqual(before);
+  });
+});
+
+describe("a settings row sent without its name says so in words", () => {
+  // the rows editor now sends a new row with only a tick or a weight changed (tests/row-typed.test.ts),
+  // so the refusal it gets back is what the organizer reads under that row
+  function detailsOf(call: () => unknown) {
+    try {
+      call();
+    } catch (err) {
+      expect((err as HttpError).status).toBe(422);
+      return JSON.stringify((err as HttpError).details);
+    }
+    throw new Error("expected a 422");
+  }
+  it("a question ticked Required with no question: 422 naming what it needs", () => {
+    expect(detailsOf(() => saveQuestions(organizer(), "evt_01", [{ label: "", help: "", type: "longtext", required: true }]))).toContain("a question needs at least 3 characters");
+  });
+  it("a criterion with only a weight: 422 naming what it needs", () => {
+    const fresh = createEvent({ ...organizer(), isAdmin: true }, { details: { name: "Weights Only Hack", submissionsCloseAt: "2026-12-01T18:00:00Z" }, tracks: [{ name: "Open" }], prizes: [] });
+    expect(detailsOf(() => saveRubric(organizer(), fresh.id, [{ label: "", prompt: "", weight: 2 }]))).toContain("a criterion needs a name of at least 2 characters");
   });
 });
