@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -326,6 +327,9 @@ describe("pairwise mode: publishing", () => {
     // win_pct is the fifth column from the end
     for (const l of lines) expect(l.split(",").at(-5), l).toBe(winPct.get(l.split(",")[0]!));
     expect(lines.length).toBe(winPct.size);
+    // JUDGING.md reads rank_win_pct as what it is: no answer links two tracks, so it is not a cross-track order
+    const doc = fs.readFileSync(path.join(process.cwd(), "JUDGING.md"), "utf8");
+    expect(doc).toMatch(/`rank_win_pct`[^.]*how far above its own track's average[^.]*not a cross-track order; `track_place` is the place\./);
   });
 
   it("stores ranks that share a place on equal values, as the results page shows them (known-bad: 1, 2, 3 on a tie)", () => {

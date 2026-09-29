@@ -235,7 +235,7 @@ In simulation the rule flags an honest judge in 7.7 % (no bias), 8.0 % (moderate
 
 **Publishing** is refused while submissions are still open (a project sent later would be missing from the results) and while any of these decisions is open, and it stores the exact run it publishes.
 
-- From then on `normalized.csv` is read from that stored run (the engine's whole table, kept with the run), not worked out again, so a later engine or anything that moved since cannot change it. A pairwise run exports its own columns (judges, win rate, win %, its ±, ranks, track place).
+- From then on `normalized.csv` is read from that stored run (the engine's whole table, kept with the run), not worked out again, so a later engine or anything that moved since cannot change it. A pairwise run exports its own columns (judges, win rate, win %, its ±, ranks, track place). Win % is measured against the project's own track's average, so `rank_win_pct`, which ranks it across the whole event, orders how far above its own track's average each project stands, not a cross-track order; `track_place` is the place.
 - The organizers' results page (and `GET /api/events/{event}/normalization`) still works the score ranking out live, for its working. After publishing it compares that with the stored run, and should any project's score or rank differ (a later engine), it says so and stops calling the view the published run.
 - After publishing, the scoring rubric, the event's dates, the tracks (their names and order, which group and head the published results) and the judge assignments are final too (409), so every live view, export and judge's console keeps matching what was published.
 
