@@ -277,8 +277,8 @@ def run_checks(cfg):
     checks.append(c)
 
     # A4 -- the aggregate exports
-    c = Check("A4", "score and assignment exports are organizer-only")
-    for name in ("scores.csv", "normalized.csv", "assignments.csv"):
+    c = Check("A4", "score, assignment and prize exports are organizer-only")
+    for name in ("scores.csv", "normalized.csv", "assignments.csv", "awards.csv"):
         url = u(f"/api/events/{EVENT_ID}/export/{name}")
         s, body, _ = organizer.request("GET", url)
         first = body.splitlines()[0] if body.splitlines() else ""
