@@ -256,6 +256,18 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     expect((restored.ballots as object[]).every((x) => Object.keys(x).sort().join() === "picks,voter")).toBe(true);
   });
 
+  it("a track order that is not the ids' order moves as it is", () => {
+    const order = (h: Handle) => (h.sqlite.prepare("SELECT name FROM tracks WHERE event_id = 'evt_01' ORDER BY position").all() as { name: string }[]).map((t) => t.name);
+    const byId = order(ha);
+    ha.sqlite.prepare("UPDATE tracks SET position = 7 - position WHERE event_id = 'evt_01'").run();
+    const reordered = order(ha);
+    expect(reordered).toEqual([...byId].reverse()); // the planted order is not the ids' order
+    const a = exported("fixtures.json");
+    importIntoB(JSON.parse(a));
+    expect(inB(() => order(hb!))).toEqual(reordered);
+    expect(exportedB("fixtures.json")).toBe(a);
+  });
+
   it("a pairwise event moves too: its answers (one taken back), its rulings and its Bradley-Terry ranking as published", () => {
     const org = organizerA();
     setJudgingMode(org, "evt_01", { mode: "pairwise", reason: "try the better-of-two mode" });

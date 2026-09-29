@@ -496,7 +496,8 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
         ...(event.votingOpenAt ? { voting_open: event.votingOpenAt } : {}),
         ...(event.votingCloseAt ? { voting_close: event.votingCloseAt } : {}),
       },
-      tracks: db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, event.id)).orderBy(asc(tracks.id)).all(),
+      // in the event's own order: the import gives each track its place in the file as its position
+      tracks: db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, event.id)).orderBy(asc(tracks.position), asc(tracks.id)).all(),
       ...(Object.keys(fields).length ? { project_fields: fields } : {}),
       ...(canonicalJson(rubric) !== canonicalJson(derived) ? { rubric } : {}),
       ...(questionRows.length ? { questions: questionRows } : {}),
