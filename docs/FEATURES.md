@@ -68,7 +68,9 @@ at most 40 characters); the same tag in another case is not added twice.
   The Judges page then says the older link stopped working, the audit log says it was replaced by a new
   invitation, and the old link tells whoever opens it that a newer invitation replaced it.
 - **Assignment.** Projects are assigned with a seeded, stored assignment run; judges score in a keyboard-first
-  console with autosave and see only their own scores.
+  console with autosave and see only their own scores. Saving the last project of a finished batch opens a
+  "Batch complete" view: every project scored and saved, when judging closes, and that any score can still change
+  until then; the main button and Ctrl+Enter still walk the batch from any earlier project.
 - **Who has not started.** The Judges page lists the judges who have reviews assigned and have saved nothing (no
   score, no word of feedback, no pairwise answer, no conflict declared) right after the flagged ones, and its
   "Not started" view (`?show=not-started`, a link to share) shows only them, with every reminder and their
