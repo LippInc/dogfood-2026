@@ -469,6 +469,9 @@ export function CloseCallBody({
   const leader = c.top.length === 1 ? titleOf(c, c.top[0]) : `${c.top.map((id) => titleOf(c, id)).join(" and ")}, tied`;
   const others = c.projects.filter((p) => c.close.includes(p.id) && !(c.top.length === 1 && p.id === c.top[0]));
   const settledNow = c.choice !== null && c.stale === null;
+  // a choice can be made only while the track is too close to call: once the scores name the winner (or fewer than two
+  // projects are ranked), keeping or recording would be refused, so only the undo is offered
+  const choosable = c.projects.length > 0 && !c.callable;
   return (
     <div className={explain ? "flex flex-col gap-3" : "flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-6"}>
       {explain ? null : (
@@ -478,15 +481,15 @@ export function CloseCallBody({
       )}
       {explain ? (
       <p className="text-14 leading-6">
-        <strong>Too close to call from the scores: {chancesLine(c)}.</strong>{" "}
+        <strong>{choosable || published ? "Too close to call from the scores" : "Clear from the scores now"}: {chancesLine(c)}.</strong>{" "}
         Each figure is that project&rsquo;s chance of really being first, from its score and its ± (JUDGING.md, &ldquo;Close calls&rdquo;); the scores name a
         winner only at 95 %.{" "}
-        {published
+        {published || !choosable
           ? ""
           : c.signal
           ? `Keep the ranking's winner, ${leader}, or record the judges' decision: after they deliberate, they name the winner among these projects, with the reason.`
           : `The signal check finds that the scores cannot tell these projects apart, so this is advice, not a decision you must make: the ranking's winner, ${leader}, stands unless you record the judges' decision.`}{" "}
-        {published ? null : (
+        {published || !choosable ? null : (
           <>
             A judges&rsquo; decision puts their winner first on the published results, marked &ldquo;Winner by the judges&rsquo; decision&rdquo; with the reason, and
             the score order stays shown.
@@ -497,7 +500,7 @@ export function CloseCallBody({
       {c.stale && c.choice ? (
         <p className="basis-full text-13 text-flag">
           Your earlier choice ({c.choice.mode === "keep" ? "keep the ranking's winner" : `the judges named ${titleOf(c, c.choice.winnerId)}`}) no longer fits: {c.stale}.
-          Choose again, or undo it.
+          {choosable ? " Choose again, or undo it." : " There is no close call left to settle here, so undo it to clear it."}
         </p>
       ) : null}
       {settledNow ? (
@@ -515,10 +518,10 @@ export function CloseCallBody({
         <p className="text-13 text-ink-2">Published with the ranking&rsquo;s winner, {leader}.</p>
       ) : (
         <div className={`flex flex-wrap items-start gap-3 ${choosing ? "basis-full" : ""}`}>
-          {c.signal || c.choice ? (
+          {choosable && (c.signal || c.choice) ? (
             <OneClick label={`Keep the ranking's winner, ${leader}`} action={keepRankingAction} fields={{ track: c.trackId }} eventSlug={eventSlug} />
           ) : null}
-          {others.length > 0 && !choosing ? (
+          {choosable && others.length > 0 && !choosing ? (
             <Button ref={opener} type="button" variant="outline" onClick={() => setChoosing(true)}>
               Record the judges&rsquo; decision…
             </Button>
@@ -526,7 +529,7 @@ export function CloseCallBody({
           {c.stale && c.choice ? (
             <OneClick label="Undo my earlier choice" variant="outline" action={undoCloseCallAction} fields={{ track: c.trackId }} eventSlug={eventSlug} />
           ) : null}
-          {others.length > 0 && choosing ? (
+          {choosable && others.length > 0 && choosing ? (
             <form {...form} className="flex w-full flex-col gap-3">
               <input type="hidden" name="event" value={eventSlug} />
               <input type="hidden" name="track" value={c.trackId} />
