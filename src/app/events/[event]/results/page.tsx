@@ -80,7 +80,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
       : results.published && results.k !== null
         ? "Each score is the judges’ weighted rubric average, evened out for judges who score higher or lower than the rest."
         : "Each score is the plain average of the judges’ weighted rubric totals: no judge’s leniency was taken out.",
-    "Read gaps smaller than the margin of error (±) as ties.",
+    "Read gaps smaller than about two margins of error (two ±) as ties.",
     ...(underReviewed
       ? [
           pairwise
@@ -160,7 +160,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
               <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
                 {/* what the figures below mean for the places, in one plain sentence; the step-by-step lives in its own block, not here */}
                 <p className="text-ink">
-                  What this means for the places: a project ahead of the next by less than the ± could as well have been behind it, and the
+                  What this means for the places: a project ahead of the next by less than about two ± could as well have been behind it, and the
                   figures below measure that margin; each step, project by project, is under{" "}
                   <a href="#how-reached" className="underline underline-offset-4 hover:text-accent-ink">
                     How this ranking was reached
