@@ -89,6 +89,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["dates", "deadline", "when", "schedule", "timeline", "rules", "prizes", "what are the prizes", "which prizes", "prizes to win", "tracks", "criteria", "rubric", "how are projects judged", "submissions close", "submit until", "voting opens", "voting closes", "vote until", "when is the event", "time zone"],
   },
   {
+    id: "updates-public",
+    kind: "page",
+    title: "Updates",
+    href: "/events/[event]/updates",
+    who: ["everyone"],
+    answer:
+      "The organizers' news to the event, newest first: a deadline moved, judging has started, when the winners are announced. The newest three also show on the event's Projects and About pages.",
+    keywords: ["updates", "news", "announcements", "announcement", "what's new", "latest news", "deadline extended", "organizer news"],
+    doc: { file: "docs/FEATURES.md", heading: "Updates" },
+  },
+  {
     id: "results-public",
     kind: "page",
     title: "Results",
@@ -484,6 +495,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["settings", "configure", "dates", "deadline", "team size", "tracks", "prizes", "rubric", "weights", "criteria", "questions", "fields", "co-organizer", "change the deadline", "extend the deadline", "change dates", "close submissions", "reopen submissions", "extend submissions", "submission deadline", "add tracks"],
   },
   {
+    id: "post-update",
+    kind: "task",
+    title: "Post an update",
+    href: "/organize/[event]/updates",
+    who: ["organizer"],
+    answer:
+      "Settings links to Updates: write a title and plain text, and it shows on the event's public pages at once; edit or remove it there, the audit log keeping the old words. Updates can go out after publishing too. With email on (SMTP_URL set) a box, off by default, also mails it to everyone on a team.",
+    keywords: ["post update", "announce", "announcement", "news", "tell participants", "email participants", "deadline extended", "broadcast", "message everyone"],
+    doc: { file: "docs/FEATURES.md", heading: "Updates" },
+  },
+  {
     id: "team-organizer",
     kind: "task",
     title: "Change a team after the close",
@@ -592,6 +614,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
     answer:
       "On Judges, make an invitation link for one judge (optionally tied to their email) or paste a list of names and addresses for one link each, and tick the tracks they judge. With email on (SMTP_URL set) the portal mails each invitation that has an address; with email off, as out of the box, you send the links yourself.",
     keywords: ["invite judge", "add judge", "judge link", "invitation", "bulk invite", "paste list", "judges email"],
+    doc: { file: "docs/FEATURES.md", heading: "Judging" },
+  },
+  {
+    id: "remind-judges",
+    kind: "task",
+    title: "Remind judges",
+    href: "/organize/[event]/judges",
+    who: ["organizer"],
+    answer:
+      "On Judges, the Not started view lists the judges who have saved nothing yet, with a reminder to copy for each and for all. With email on (SMTP_URL set) it also has Email reminder and Email all, the same words, at most once an hour per judge.",
+    keywords: ["remind judges", "reminder", "nudge judges", "judges not started", "chase judges", "email judges", "late judges"],
     doc: { file: "docs/FEATURES.md", heading: "Judging" },
   },
   {
