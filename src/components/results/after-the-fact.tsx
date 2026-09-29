@@ -123,3 +123,50 @@ export function tieBrokenByOf(
 ): { criterion: string; figure: number | null } | null {
   return tieBreak && tieDecided(row, place) ? { criterion: tieBreak.criterion, figure: typeof row.tie === "number" ? row.tie : null } : null;
 }
+
+/** A judges' decision as the published results carry it (dal/results.ts PublishedDecision). */
+type Decision = {
+  winnerId: string;
+  reason: string;
+  scoreOrder: string[];
+  close: { id: string; title: string; score: number | null; se: number | null }[];
+};
+
+/** The anchor of a track's judges' decision on the per-track results page, so the overall order can link to it. */
+export const decisionAnchor = (trackId: string) => `decision-${trackId}`;
+
+const scoreWithSe = (c: Decision["close"][number]) =>
+  `${c.title}${c.score !== null ? ` ${c.score.toFixed(2)}` : ""}${c.score !== null && c.se !== null ? ` ± ${c.se.toFixed(2)}` : ""}`;
+
+/**
+ * A close call the judges decided: who they named, their reason, the close projects with their scores, and the order
+ * the scores alone give. No chance of being first: the portal shows no prize odds (JUDGING.md, "What it does not do").
+ */
+export function JudgesDecision({ trackId, decision, titles }: { trackId: string; decision: Decision; titles: Map<string, string> }) {
+  return (
+    <div id={decisionAnchor(trackId)} className="mt-3 scroll-mt-24 border-l-[3px] border-accent bg-accent-tint px-4 py-3 text-14 leading-6 wrap-anywhere">
+      <p>
+        <strong>Winner by the judges&rsquo; decision: {titles.get(decision.winnerId) ?? decision.winnerId}.</strong> Their reason: &ldquo;{decision.reason}&rdquo;
+      </p>
+      <p className="mt-1 text-13 text-ink-2 tnum">
+        Too close to call from the scores: {decision.close.map(scoreWithSe).join(", ")}. By score alone the order is{" "}
+        {decision.scoreOrder.map((id) => titles.get(id) ?? id).join(", ")}; the scores below are unchanged.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The overall order's mark on a track's winner by the judges' decision: the place is theirs, not the score's (it can sit
+ * below a 2nd with a higher score), with their reason and a link to the close call on the per-track page.
+ */
+export function DecidedMark({ reason, href }: { reason: string; href: string }) {
+  return (
+    <span className="mt-1 block text-13 text-ink-2 wrap-anywhere">
+      1st in its track by the judges&rsquo; decision on a close call. Their reason: &ldquo;{reason}&rdquo;{" "}
+      <Link href={href} className="underline underline-offset-4 hover:text-accent-ink">
+        see the close call
+      </Link>
+    </span>
+  );
+}

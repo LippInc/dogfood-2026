@@ -831,7 +831,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/[event]/results",
     who: ["organizer"],
     answer:
-      "Scores mode only: when the scores cannot name a track's winner at 95 %, the Results page says so, with each close project's chance of being first. Keep the ranking's winner, or record the judges' decision naming another close project with a reason. With a signal in the scores it must be settled before publishing.",
+      "Scores mode only: when the scores cannot name a track's winner at 95 %, the Results page says so and names the close projects with their scores and ±; it shows no chance of being first. Keep the ranking's winner, or record the judges' decision naming another close project with a reason. With a signal in the scores it must be settled before publishing.",
     keywords: ["close call", "too close to call", "too close to call scores", "tie for first", "judges decide", "judges' decision", "deliberation", "pick the winner", "override the winner", "chance of being first", "p first", "keep the ranking"],
     doc: { file: "JUDGING.md", heading: "Close calls and the judges' decision" },
   },
@@ -842,8 +842,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/events/[event]/results",
     who: ["everyone"],
     answer:
-      "Where the scores were too close to call, the judges may name the winner after deliberating. The results then put that project first, marked \"Winner by the judges' decision\" with their reason, the close projects' chances and the order by score alone; every score stays as it was.",
-    keywords: ["winner by decision", "why is it first", "lower score first", "first with a lower score", "deliberation", "decided winner", "not the top score"],
+      "Where the scores were too close to call, the judges may name the winner after deliberating. The results then put that project first, marked \"Winner by the judges' decision\" with their reason, the close projects with their scores and ± and the order by score alone; every score stays as it was. The overall order marks it too, and its certificate reads \"1st place, <track>, by the judges' decision\".",
+    keywords: ["winner by decision", "why is it first", "lower score first", "first with a lower score", "deliberation", "decided winner", "not the top score", "by the judges' decision"],
     doc: { file: "JUDGING.md", heading: "Close calls and the judges' decision" },
   },
 

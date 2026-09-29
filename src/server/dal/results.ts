@@ -409,7 +409,7 @@ export type PublishedResults =
           /** set only on a track's first row when the judges' decision named it the winner */
           decided?: true;
         }[];
-        /** set only when the judges' decision named this track's winner on a close call: their reason, the score order and the close projects' chances */
+        /** set only when the judges' decision named this track's winner on a close call: their reason, the score order and the close projects */
         decision?: PublishedDecision;
       }[];
     };
@@ -421,8 +421,8 @@ export type PublishedDecision = {
   at: string;
   /** the track's projects by score alone, best first */
   scoreOrder: string[];
-  /** the close projects and their chances of being first by the scores, highest first */
-  close: { id: string; title: string; p: number }[];
+  /** the close projects, in score order, with the score and ± the rows carry */
+  close: { id: string; title: string; score: number | null; se: number | null }[];
 };
 
 /** A pull the pairwise fit measured and corrected for, as the share of wins it gives between two equal projects; null until it is measured. */
@@ -655,7 +655,7 @@ function placedRows(rows: StoredRow[], tie: StoredTieBreak | null, teamChanges: 
 function decidedTrack(t: { id: string; name: string; rows: StoredRow[] }, d: AppliedDecision, tie: StoredTieBreak | null, teamChanges: Map<string, { at: string }>): PublishedTrack {
   const ordered = withDecidedWinner(t.rows, d.winnerId);
   const rest = placedRows(ordered.slice(1), tie, teamChanges).map((r) => ({ ...r, place: r.place === null ? null : r.place + 1 }));
-  const title = new Map(t.rows.map((r) => [r.projectId, r.title]));
+  const byId = new Map(t.rows.map((r) => [r.projectId, r]));
   const winner: PublishedRow = { ...publishedRow(ordered[0]!, 1, teamChanges), ...(tie ? { tie: null, tieBroken: false } : {}), decided: true };
   return {
     id: t.id,
@@ -666,7 +666,7 @@ function decidedTrack(t: { id: string; name: string; rows: StoredRow[] }, d: App
       reason: d.reason,
       at: d.at,
       scoreOrder: t.rows.map((r) => r.projectId),
-      close: d.close.map((c) => ({ id: c.id, title: title.get(c.id) ?? c.id, p: c.p })),
+      close: d.close.map((id) => ({ id, title: byId.get(id)?.title ?? id, score: byId.get(id)?.score ?? null, se: byId.get(id)?.se ?? null })),
     },
   };
 }

@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { Face } from "@/components/face";
-import { movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
+import { DecidedMark, decisionAnchor, movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, TrackMovesNotice, WeightChangesNotice } from "@/components/results/after-the-fact";
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { formatUtc, plural } from "@/lib/format";
 import { overallOrder } from "@/lib/overall";
@@ -99,6 +99,8 @@ export function OverallResults({
   const trackCount = new Set(entries.map((e) => e.track.id)).size;
   // what the organizers changed after the fact, disclosed as on the per-track page: the moves the published run recorded, per project
   const movesOf = movesByProject(results.trackMoves);
+  // the judges' decisions on close calls, per track: their winner's row carries the mark and the reason
+  const decisionOf = new Map(results.tracks.flatMap((t) => (t.decision ? [[t.id, t.decision] as const] : [])));
   const movedCount = entries.filter((e) => movesOf.has(e.row.projectId)).length;
 
   return (
@@ -174,6 +176,10 @@ export function OverallResults({
                     tieBrokenBy={tieBrokenByOf(r, results.tieBreak, e.trackPlace)}
                     moves={movesOf.get(r.projectId)}
                   />
+                  {/* a winner by the judges' decision can sit below a 2nd with a higher score: say whose place it is, and why */}
+                  {r.decided && decisionOf.get(e.track.id) ? (
+                    <DecidedMark reason={decisionOf.get(e.track.id)!.reason} href={`${perTrack}#${decisionAnchor(e.track.id)}`} />
+                  ) : null}
                 </span>
                 <span className="min-w-0 max-lg:hidden lg:col-start-4 lg:row-start-1">
                   <span className="sr-only">{trackPlace}</span>

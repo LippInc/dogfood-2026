@@ -158,7 +158,7 @@ function stateLine(d: Decision): string {
   if (d.kind === "close_call") {
     if (d.resolved === "kept") return "Ranking's winner kept";
     if (d.resolved === "judges") return `Judges' decision: ${titleOf(d, d.choice?.winnerId)}`;
-    return d.stale ? "Your choice no longer fits the scores" : `Top at ${pct(d.projects[0]?.p ?? 0)}`;
+    return d.stale ? "Your choice no longer fits the scores" : "Too close to call from the scores";
   }
   if (d.kind === "flat_judge") {
     if (!d.resolved) return "Left out by the flat-judge rule";
@@ -425,27 +425,23 @@ function Body({
   );
 }
 
-/** A chance as the page prints it: whole percent, never 0 % or 100 % for a chance that is neither. */
-export function pct(p: number): string {
-  if (p > 0 && p < 0.005) return "under 1 %";
-  if (p < 1 && p >= 0.995) return "over 99 %";
-  return `${Math.round(p * 100)} %`;
-}
-
 function titleOf(c: TrackCloseCall, id: string | undefined): string {
   return c.projects.find((p) => p.id === id)?.title ?? id ?? "";
 }
 
-/** "A 52 %, B 31 %, C 11 %": the close projects and their chances of really being first. */
-export function chancesLine(c: TrackCloseCall): string {
+/**
+ * "Tide Clock 3.91 ± 0.22, Lantern Map 3.84 ± 0.25": the close projects in score order, each with its score and ±
+ * as every score on the page shows. Never a chance of being first: the portal shows no prize odds (JUDGING.md).
+ */
+export function closeLine(c: TrackCloseCall): string {
   return c.projects
     .filter((p) => c.close.includes(p.id))
-    .map((p) => `${p.title} ${pct(p.p)}`)
+    .map((p) => `${p.title} ${p.score.toFixed(2)} ± ${p.se.toFixed(2)}`)
     .join(", ");
 }
 
 /**
- * One track's close call: the close projects' chances of being first, and the two audited choices,
+ * One track's close call: the close projects with their scores, and the two audited choices,
  * keep the ranking's winner or record the judges' decision with a reason. On scores without a
  * signal it only advises, so keeping needs no click. The Overview's decisions and the Results page share it.
  */
@@ -465,8 +461,15 @@ export function CloseCallBody({
   const [state, form, pending] = useFormAction(judgesDecisionAction, idle);
   const opener = useRef<HTMLButtonElement>(null);
   useRescueFocus(() => opener.current, choosing);
-  // an exact tie at the top is a joint first place: say so, not "the winner, A and B"
-  const leader = c.top.length === 1 ? titleOf(c, c.top[0]) : `${c.top.map((id) => titleOf(c, id)).join(" and ")}, tied`;
+  // an exact tie at the top is a joint first place: say so, not "the winner, A and B"; when the event's tie-break splits
+  // it, name what keeping really publishes, the tie-break's winner 1st alone, with the tie-break named
+  const tb = c.tieBroken;
+  const leader =
+    c.top.length === 1
+      ? titleOf(c, c.top[0])
+      : tb
+        ? `${titleOf(c, tb.winnerId)} (tie with ${c.top.filter((id) => id !== tb.winnerId).map((id) => titleOf(c, id)).join(" and ")} broken by ${tb.criterion})`
+        : `${c.top.map((id) => titleOf(c, id)).join(" and ")}, tied`;
   const others = c.projects.filter((p) => c.close.includes(p.id) && !(c.top.length === 1 && p.id === c.top[0]));
   const settledNow = c.choice !== null && c.stale === null;
   // a choice can be made only while the track is too close to call: once the scores name the winner (or fewer than two
@@ -476,14 +479,18 @@ export function CloseCallBody({
     <div className={explain ? "flex flex-col gap-3" : "flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-6"}>
       {explain ? null : (
         <p className="text-14 leading-6 md:min-w-0 md:flex-1">
-          <strong>{chancesLine(c)}.</strong> Ranking&rsquo;s winner: {leader}.
+          <strong>
+            {c.callable ? "Clear from the scores now: " : ""}
+            {closeLine(c)}.
+          </strong>{" "}
+          Ranking&rsquo;s winner: {leader}.
         </p>
       )}
       {explain ? (
       <p className="text-14 leading-6">
-        <strong>{choosable || published ? "Too close to call from the scores" : "Clear from the scores now"}: {chancesLine(c)}.</strong>{" "}
-        Each figure is that project&rsquo;s chance of really being first, from its score and its ± (JUDGING.md, &ldquo;Close calls&rdquo;); the scores name a
-        winner only at 95 %.{" "}
+        <strong>{choosable || published ? "Too close to call from the scores" : "Clear from the scores now"}: {closeLine(c)}.</strong>{" "}
+        Each is a score and its ±. The scores name a winner only when the ranking&rsquo;s first comes out first in at least 95 % of 4,000 draws within
+        the ± (JUDGING.md, &ldquo;Close calls&rdquo;); these are the fewest projects that together come out first in 95 % of them.{" "}
         {published || !choosable
           ? ""
           : c.signal
@@ -545,7 +552,7 @@ export function CloseCallBody({
                     <span>
                       <span className="block text-14 font-medium">{p.title}</span>
                       <span className="block text-13 text-ink-2 tnum">
-                        {pct(p.p)} chance of being first · score {p.score.toFixed(2)} ± {p.se.toFixed(2)}
+                        score {p.score.toFixed(2)} ± {p.se.toFixed(2)}
                       </span>
                     </span>
                   </label>

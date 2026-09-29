@@ -3,15 +3,17 @@ import { seededRng } from "./random";
 
 // The judges' decision on a close call (JUDGING.md, "Close calls and the judges' decision").
 //
-// P(first): each project's chance of really being first in its track, read from the engine's
-// own score and ± (one standard error). DRAWS normal draws around every score, from one fixed
-// seed per track: the same rows give the same chances on every machine, and one track's
-// chances never depend on another track. A track's top is too close to call when the
-// ranking's top project is first in fewer than CALL_LINE of the draws.
+// DRAWS normal draws around every project's score, each spread by its own ± (one standard error),
+// from one fixed seed per track: the same rows give the same answer on every machine, and one
+// track's answer never depends on another track. A track's top is too close to call when the
+// ranking's top project is first in fewer than CALL_LINE of the draws. Only that yes/no and the
+// close set leave this module: the share of draws a project wins is never shown as a chance
+// (JUDGING.md, "What it does not do": no prize odds; on fields with no real differences such
+// figures named a favourite that was not there).
 //
 // Nothing here reads the database: the data access layer passes a track's ranked rows in.
 
-/** The line the engine verifier held the rule to: a winner is called at P(first) >= 0.95. */
+/** The line the engine verifier held the rule to: a winner is called when the top is first in at least 95 % of the draws. */
 export const CALL_LINE = 0.95;
 export const DRAWS = 4000;
 /** The verifier's seed (engine experiment, 2026-09-29), fixed so a close call can be recomputed by anyone. */
@@ -53,11 +55,9 @@ export function firstCounts(rows: readonly Contender[]): Map<string, number> | n
 export type CloseCall = {
   /** the ranking's first place: every project that shares the top score (more than one only on an exact tie) */
   top: string[];
-  /** every ranked project's chance of being first, highest first (score, then id, breaks equal chances) */
-  chances: { id: string; p: number }[];
   /** the ranking's top is first in at least CALL_LINE of the draws: the scores name the winner */
   callable: boolean;
-  /** the fewest projects, highest chance first, that are first in at least CALL_LINE of the draws together: the close projects */
+  /** the fewest projects, most draws won first, that are first in at least CALL_LINE of the draws together: the close projects */
   close: string[];
 };
 
@@ -86,7 +86,7 @@ export function closeCall(rows: readonly Contender[]): CloseCall | null {
     sum += c.n;
     if (sum >= need) break;
   }
-  return { top, chances: ordered.map((c) => ({ id: c.id, p: c.n / DRAWS })), callable, close: callable ? [top[0]!] : close };
+  return { top, callable, close: callable ? [top[0]!] : close };
 }
 
 /**

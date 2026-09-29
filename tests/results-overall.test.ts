@@ -32,6 +32,7 @@ import { requireEvent } from "@/server/dal/events";
 import { saveRubric } from "@/server/dal/organize";
 import { renameTeam } from "@/server/dal/teams";
 import { setTieBreak } from "@/server/dal/tiebreak";
+import { closeCallsOf, settleCloseCall } from "@/server/dal/close-calls";
 import { getPublishedResults, publishResults } from "@/server/dal/results";
 import { getPairwiseState, pickPairwise, setJudgingMode } from "@/server/dal/pairwise";
 import { actorForToken } from "@/server/session";
@@ -341,6 +342,32 @@ describe("the public overall order", () => {
       expect(places.get("prj_05")).not.toBe(places.get("prj_21"));
     });
 
+    it("a winner by the judges' decision: its overall row says so, with their reason and a link to the close call on the per-track page", async () => {
+      const org = actor("organizer");
+      // the sample event's scores carry no signal, so a judges' decision is allowed there, never required
+      const call = closeCallsOf(h.db, requireEvent(h.db, "evt_01"))[0]!;
+      const winner = call.close.find((id) => id !== call.top[0])!;
+      settleCloseCall(org, "evt_01", call.trackId, { mode: "judges", winnerId: winner, reason: "The judges saw both demos again" });
+      settleAndPublish();
+      const results = getPublishedResults("evt_01");
+      if (!results.published) throw new Error("not published");
+      expect(results.tracks.find((t) => t.id === call.trackId)!.rows[0]!.projectId).toBe(winner);
+
+      const overall = await overallHtml();
+      const perTrack = await perTrackHtml();
+      const mark = (html: string, id: string) => itemOf(html, id)?.includes("1st in its track by the judges’ decision on a close call") ?? false;
+      const row = itemOf(overall, winner)!;
+      expect(mark(overall, winner)).toBe(true);
+      expect(row).toContain("The judges saw both demos again");
+      expect(row).toMatch(new RegExp(`href="/events/[^/"]+/results#decision-${call.trackId}"`));
+      // the link lands on the per-track page's decision, which names the close projects with their scores and no chance
+      expect(perTrack).toContain(`id="decision-${call.trackId}"`);
+      expect(perTrack).not.toMatch(/chance of (really )?being first/);
+      // only the decided row carries the mark, and its track place is 1st as on the per-track page
+      expect(overallRows(overall).filter((r) => mark(overall, r.id)).map((r) => r.id)).toEqual([winner]);
+      expect(overallRows(overall).find((r) => r.id === winner)!.place).toMatch(/^1st/);
+    });
+
     it("control: with no change after the fact, the overall page shows none of these", async () => {
       publish();
       const html = await overallHtml();
@@ -348,6 +375,7 @@ describe("the public overall order", () => {
       expect(html).not.toContain("weights after judging began");
       expect(html).not.toContain("to another track after judges were assigned");
       expect(html).not.toContain("Team changed by the organizers");
+      expect(html).not.toContain("by the judges’ decision");
     });
   });
 });

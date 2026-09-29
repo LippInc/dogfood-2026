@@ -11,10 +11,11 @@ import { eventFacts, organizerMutation, requireEvent, type EventRow } from "./ev
 import { computeNormalization, type Normalized } from "./normalization";
 import { judgingModeOf } from "./pairwise";
 import { parse } from "./parse";
+import { tieBreakOf, type TieBreakView } from "./tiebreak";
 
-// Close calls (JUDGING.md, "Close calls and the judges' decision"): per track, each ranked
-// project's chance of really being first, read from the score engine's own ± (judging/decision.ts),
-// and the organizer's choice where the ranking's top is too close to call: keep the ranking's
+// Close calls (JUDGING.md, "Close calls and the judges' decision"): per track, whether the scores
+// name the first place at 95 %, read from the score engine's own ± (judging/decision.ts), the close
+// projects when they do not (no chance-of-first figure is ever shown), and the organizer's choice where the ranking's top is too close to call: keep the ranking's
 // winner, or record the judges' decision naming another of the close projects, with a reason.
 // A choice is stored in the event's settings, so publishing freezes it; publishing also stores
 // the decisions it applies with the run, and the published results read them from there.
@@ -25,13 +26,19 @@ export const SIGNAL_LINE = 0.05;
 export type TrackCloseCall = {
   trackId: string;
   trackName: string;
-  /** every ranked project of the track, highest chance of being first first */
-  projects: { id: string; title: string; score: number; se: number; p: number }[];
+  /** every ranked project of the track, in score order */
+  projects: { id: string; title: string; score: number; se: number }[];
   /** the ranking's first place (more than one project only on an exact tie) */
   top: string[];
+  /**
+   * an exact tie at the top that the event's tie-break splits: the project it puts 1st alone and the criterion, which
+   * is what "keep the ranking's winner" publishes; null without a tie at the top, without a tie-break, or when the
+   * criterion leaves the top tied too
+   */
+  tieBroken: { winnerId: string; criterion: string } | null;
   /** the scores name the winner: the ranking's top is first in at least 95 % of the draws */
   callable: boolean;
-  /** the close projects: the fewest, highest chance first, that are first in 95 % of the draws together */
+  /** the close projects, in score order: the fewest that are first in 95 % of the draws together */
   close: string[];
   /** the signal check found real differences between the projects (share at or below SIGNAL_LINE) */
   signal: boolean;
@@ -80,19 +87,31 @@ export function closeCallsOf(db: DbOrTx, event: EventRow, now?: Normalized): Tra
   // the signal check (2,000 shuffles) runs only when some track is too close to call; memoized with the run
   const check = n.signal ?? (checked.some((c) => c.cc && !c.cc.callable) ? computeNormalization(db, event, { signal: true }).signal : null);
   const signal = check !== null && check.share <= SIGNAL_LINE;
+  // the tie-break is read only when some track's top is an exact tie, once for the event
+  let tb: TieBreakView | null | undefined;
+  const tieBreakWinner = (top: string[]): TrackCloseCall["tieBroken"] => {
+    if (top.length < 2) return null;
+    if (tb === undefined) tb = tieBreakOf(db, event, n);
+    if (!tb) return null;
+    const firsts = top.filter((id) => tb!.places[id] === 1);
+    return firsts.length === 1 ? { winnerId: firsts[0]!, criterion: tb.criterion.label } : null;
+  };
   const out: TrackCloseCall[] = [];
   for (const { t, rows, cc, choice } of checked) {
-    const byId = new Map(rows.map((p) => [p.id, p]));
+    // score order, best first (id breaks an exact tie, as the ranking lists it)
+    const projects = cc
+      ? rows
+          .map((p) => ({ id: p.id, title: p.title, score: p.score!, se: p.se! }))
+          .sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      : [];
     out.push({
       trackId: t.id,
       trackName: t.name,
-      projects: (cc?.chances ?? []).map((c) => {
-        const p = byId.get(c.id)!;
-        return { id: c.id, title: p.title, score: p.score!, se: p.se!, p: c.p };
-      }),
+      projects,
       top: cc?.top ?? [],
+      tieBroken: tieBreakWinner(cc?.top ?? []),
       callable: cc?.callable ?? true,
-      close: cc?.close ?? [],
+      close: projects.filter((p) => cc?.close.includes(p.id)).map((p) => p.id),
       signal,
       required: Boolean(cc && !cc.callable && signal),
       choice,
@@ -117,8 +136,8 @@ export type AppliedDecision = {
   at: string;
   /** the ranking's first place by score */
   top: string[];
-  /** the close projects' chances of being first, highest first */
-  close: { id: string; p: number }[];
+  /** the close projects, in score order */
+  close: string[];
 };
 
 export function appliedDecisions(calls: TrackCloseCall[]): AppliedDecision[] {
@@ -130,7 +149,7 @@ export function appliedDecisions(calls: TrackCloseCall[]): AppliedDecision[] {
       reason: c.choice!.reason ?? "",
       at: c.choice!.at,
       top: c.top,
-      close: c.projects.filter((p) => c.close.includes(p.id)).map((p) => ({ id: p.id, p: p.p })),
+      close: c.close,
     }));
 }
 
@@ -211,7 +230,6 @@ export function settleCloseCall(actor: Actor | null, eventIdOrSlug: string, trac
     const before = (event.settings.closeCalls ?? []).find((c) => c.trackId === t.id) ?? null;
     const closeCalls = [...(event.settings.closeCalls ?? []).filter((c) => c.trackId !== t.id), choice].sort((a, b) => (a.trackId < b.trackId ? -1 : 1));
     tx.update(events).set({ settings: { ...event.settings, closeCalls } }).where(eq(events.id, event.id)).run();
-    const chances = call.projects.filter((p) => call.close.includes(p.id)).map((p) => ({ id: p.id, p: p.p }));
     return {
       result: { trackId: t.id, choice },
       audit: {
@@ -220,7 +238,7 @@ export function settleCloseCall(actor: Actor | null, eventIdOrSlug: string, trac
         targetType: "track",
         targetId: t.id,
         before: before ? { ...before } : null,
-        after: { ...choice, track: t.name, required: call.required, chances },
+        after: { ...choice, track: t.name, required: call.required, close: call.close },
       },
     };
   });

@@ -14,6 +14,7 @@ import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
 import { PairwiseResults } from "./pairwise-results";
 import { plainSummary } from "./plain-summary";
+import { closeCallsHeading } from "./close-call-heading";
 import { ScoreOpening } from "./score-opening";
 import { PrizesSection } from "./prizes-section";
 import { exportHref } from "@/lib/export-href";
@@ -61,6 +62,8 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const actor = await currentActor();
   if (!actor) unauthorized();
   const { event, normalization: n, decisions, closeCalls, notes, crossCheck, published, tieBreak } = guardPage(() => getNormalization(actor, key));
+  // too close to call now; the rest of closeCalls are tracks the scores now decide that still carry an earlier choice
+  const closeNow = closeCalls.filter((c) => !c.callable);
   // teams the organizers changed after the close (the teams the judges saw), marked on their rows: one query for the event
   const teamChanges = guardPage(() => getTeamChangesAfterClose(actor, key));
   const tracks = [...new Map(n.projects.map((p) => [p.trackId, p.trackName])).entries()];
@@ -210,15 +213,16 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
         {closeCalls.length ? (
           <section aria-labelledby="close-calls-title" className="flex flex-col gap-3">
             <h2 id="close-calls-title" className="text-17 font-semibold">
-              Close calls: {plural(closeCalls.length, "track")} too close to call from the scores
+              {/* only tracks too close to call now count; a choice kept on a track the scores now decide is listed as an earlier choice */}
+              {closeCallsHeading(closeCalls)}
             </h2>
-            {/* what the figures mean, said once for every track below */}
+            {/* what the rule is, said once for every track below */}
             <p className="max-w-[80ch] text-14 leading-6 text-ink-2">
-              Each figure is a project&rsquo;s chance of really being first, from its score and its ± (JUDGING.md, &ldquo;Close calls&rdquo;); the scores name a
-              winner only at 95 %.{" "}
+              The scores name a winner only when the ranking&rsquo;s first comes out first in at least 95 % of 4,000 draws within each score&rsquo;s ±
+              (JUDGING.md, &ldquo;Close calls&rdquo;); each track below lists the fewest projects that together do, with their scores.{" "}
               {event.resultsPublishedAt
                 ? "The published places are final."
-                : closeCalls.some((c) => c.signal)
+                : closeNow.some((c) => c.signal)
                   ? "Settle each before publishing: keep the ranking's winner, or record the judges' decision, naming another of the close projects with their reason."
                   : "The signal check finds that these scores cannot tell the projects apart, so this only advises: each ranking's winner stands unless you record the judges' decision, naming another of the close projects with their reason."}{" "}
               {event.resultsPublishedAt
@@ -229,7 +233,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
               {closeCalls.map((c) => (
                 <li key={c.trackId} className="border-t border-rule p-5 first:border-t-0">
                   <p className="label-mono mb-2 text-ink-2">
-                    {c.trackName} · {c.required ? "decision" : c.choice?.mode === "judges" ? "judges' decision" : "advice"}
+                    {c.trackName} · {c.callable ? "earlier choice" : c.required ? "decision" : c.choice?.mode === "judges" ? "judges' decision" : "advice"}
                   </p>
                   <CloseCallBody c={c} eventSlug={event.slug} published={Boolean(event.resultsPublishedAt)} explain={false} />
                 </li>

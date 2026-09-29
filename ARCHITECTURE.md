@@ -204,7 +204,7 @@ The README's "Beyond the checker" table says what exists and who reaches it; `TH
 - `src/server/` — everything private:
   - the data access layer (`dal/`);
   - the database (`db/`: schema, client, migration runner, triggers, fixture import);
-  - the judging engines (`judging/`: normalization, assignment, `pairwise.ts`, the Bradley-Terry fit and the binary insertion a judge's list is replayed with, and `decision.ts`, each project's seeded chance of being first for close calls, with the judges' winner put first);
+  - the judging engines (`judging/`: normalization, assignment, `pairwise.ts`, the Bradley-Terry fit and the binary insertion a judge's list is replayed with, and `decision.ts`, the seeded close-call check (too close to call or not, and the close projects), with the judges' winner put first);
   - the cross-cutting modules: `authz.ts`, `mutate.ts`, `audit.ts`, `session.ts`, `openapi.ts`, `webhooks.ts`, `signing.ts`, `rate-limit.ts`, `http.ts`, `errors.ts`, `boot.ts`, `checker.ts`.
 - `src/instrumentation.ts` — the Next hook that starts the boot.
 - `drizzle/` — the SQL migrations.

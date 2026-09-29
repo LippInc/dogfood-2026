@@ -119,7 +119,10 @@ The rule and its numbers are in [`JUDGING.md`](../JUDGING.md), "Close calls and 
 each person sees.
 
 - **The organizer's Results page** lists every track whose first place is too close to call from the scores, with
-  each close project's chance of really being first ("Too close to call from the scores: A 52 %, B 31 %, C 11 %").
+  the close projects' scores and ± ("Too close to call from the scores: Tide Clock 3.91 ± 0.22, Lantern Map 3.84 ±
+  0.25"); no chance of being first is shown anywhere. A track the scores now decide that still holds an earlier choice
+  is listed as an earlier choice, not counted as close. On a top tied exactly, "Keep the ranking's winner" names what
+  will be published: the tie-break's winner with the tie-break named when the event sets one, else the joint first.
 - **When the scores carry a signal,** such a track is also a decision on the Overview, and publishing waits for it:
   **Keep the ranking's winner** settles it with one click; **Record the judges' decision…** names another of the
   close projects, with the judges' reason (required). Either can be undone until publishing.
@@ -127,8 +130,9 @@ each person sees.
   advises: the ranking's winner stands unless the organizer records the judges' decision, which then shows on the
   Overview as a decision made.
 - **Everyone, after publishing:** the judges' winner is first in its track, marked "Winner by the judges' decision"
-  with their reason, the close projects' chances and the order by score alone; every score is shown unchanged. The
-  project pages and the certificates follow the published places. Each team of that track reads it on its own My
+  with their reason, the close projects with their scores and ± and the order by score alone; every score is shown
+  unchanged. The overall order marks the winner's row with the reason and a link to the track. The project pages
+  follow the published places, and the winner's certificate reads "1st place, <track>, by the judges' decision". Each team of that track reads it on its own My
   project page too: "1st place in <track> went to <project> by the judges' decision on a close call", with the reason
   (or, for the winner, that its 1st place is the judges' decision).
 - **API:** `GET /api/events/{event}/close-calls`, `PUT` and `DELETE /api/events/{event}/close-calls/{track}`

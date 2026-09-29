@@ -9,7 +9,7 @@ import { auditLog, userRoles } from "@/server/db/schema";
 import { HttpError } from "@/server/errors";
 import { resetRateLimits } from "@/server/rate-limit";
 import { CALL_LINE, DRAWS, closeCall, firstCounts, withDecidedWinner, type Contender } from "@/server/judging/decision";
-import { competitionPlaces } from "@/lib/places";
+import { awardPlace, competitionPlaces } from "@/lib/places";
 import type { Actor } from "@/server/authz";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -33,6 +33,7 @@ const { computeNormalization } = await import("@/server/dal/normalization");
 const { createLoginSession } = await import("@/server/session");
 const { importEventFile } = await import("@/server/dal/imports");
 const { getMyWork } = await import("@/server/dal/projects");
+const { getRecord, issueOwnRecord } = await import("@/server/dal/records");
 const listRoute = await import("@/app/api/events/[event]/close-calls/route");
 const trackRoute = await import("@/app/api/events/[event]/close-calls/[track]/route");
 
@@ -148,7 +149,11 @@ describe("P(first): each project's chance of really being first", () => {
     ])!;
     expect(cc.callable).toBe(true);
     expect(cc.close).toEqual(["a"]);
-    expect(cc.chances[0]).toEqual({ id: "a", p: 1 });
+    expect(firstCounts([
+      { id: "a", score: 4.6, se: 0.2 },
+      { id: "b", score: 2.0, se: 0.2 },
+      { id: "c", score: 1.8, se: 0.2 },
+    ])!.get("a")).toBe(DRAWS);
   });
 
   it("known-bad: a flat field (equal scores, equal ±) must not declare a winner", () => {
@@ -156,7 +161,7 @@ describe("P(first): each project's chance of really being first", () => {
     const cc = closeCall(flat)!;
     expect(cc.callable).toBe(false);
     expect(cc.top).toEqual(["a", "b", "c", "d"]);
-    for (const c of cc.chances) expect(Math.abs(c.p - 0.25)).toBeLessThan(0.04);
+    for (const n of firstCounts(flat)!.values()) expect(Math.abs(n / DRAWS - 0.25)).toBeLessThan(0.04);
     // the 95 % set of a flat field holds every project
     expect(cc.close.sort()).toEqual(["a", "b", "c", "d"]);
     // and a module that ignored the ± (P(first) = 1 for the top) would have declared: the check sees the difference
@@ -174,9 +179,11 @@ describe("P(first): each project's chance of really being first", () => {
     // two projects whose gap is 1.645 standard errors of the difference: P(first) sits right at 95 %
     const se = 0.2;
     const gap = 1.6449 * Math.sqrt(2) * se;
-    const cc = closeCall([{ id: "a", score: 3 + gap, se }, { id: "b", score: 3, se }])!;
-    expect(Math.abs(cc.chances[0]!.p - 0.95)).toBeLessThan(0.012);
-    expect(cc.callable).toBe(cc.chances[0]!.p >= 0.95);
+    const rows = [{ id: "a", score: 3 + gap, se }, { id: "b", score: 3, se }];
+    const cc = closeCall(rows)!;
+    const share = firstCounts(rows)!.get("a")! / DRAWS;
+    expect(Math.abs(share - 0.95)).toBeLessThan(0.012);
+    expect(cc.callable).toBe(share >= 0.95);
   });
 
   it("composes with the tie-break: the decided row is 1st alone, and an exact tie below it is split by the criterion or stays joint", () => {
@@ -222,9 +229,12 @@ describe("the close-call check on an event", () => {
         expect(c.callable).toBe(false);
         expect(c.signal).toBe(false);
         expect(c.required).toBe(false);
-        const topP = c.projects.find((p) => p.id === c.top[0])!.p;
+        const counts = firstCounts(c.projects)!;
+        const topP = counts.get(c.top[0]!)! / DRAWS;
         expect(topP).toBeLessThan(0.95);
         expect(topP).toBeGreaterThan(0.2);
+        // no chance-of-first figure leaves the check: the projects carry their score and ± only
+        for (const p of c.projects) expect(Object.keys(p).sort()).toEqual(["id", "score", "se", "title"]);
       }
     }
     // so the sample event's decisions are what they were: no close call among them
@@ -289,6 +299,25 @@ describe("settling a close call", () => {
     expect(clear.rows[0]!.projectId).toBe("prj_b1");
     // the certificate follows the published place
     expect(competitionPlaces(t.rows)[0]).toEqual({ place: 1, joint: false });
+    // the public decision names the close projects with their scores and ±, never a chance of being first
+    expect(Object.keys(t.decision!.close[0]!).sort()).toEqual(["id", "score", "se", "title"]);
+    expect(JSON.stringify(r)).not.toMatch(/"p":|chance/);
+  });
+
+  it("the winner's certificate says the place is the judges' decision, and the record and /verify read it back", () => {
+    settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "judges", winnerId: "prj_a2", reason: "The judges found its demo worked end to end." });
+    publishResults(organizer(), "evt_cc");
+    const awardsOf = (projectId: string) => {
+      const { id } = issueOwnRecord(memberOf(projectId), "evt_cc", "participant");
+      return (getRecord(id).envelope.record as { project: { awards: string[] } }).project.awards;
+    };
+    const won = awardsOf("prj_a2");
+    expect(won).toContain("1st place, Close, by the judges' decision");
+    expect(awardPlace(won[0]!)).toEqual({ joint: false, ordinal: "1st", place: 1, track: "Close", tieBrokenBy: null, decided: true });
+    // positive control: the project the scores had first is 2nd, with no mark
+    const second = awardsOf("prj_a1");
+    expect(second).toContain("2nd place, Close");
+    expect(awardPlace(second[0]!)!.decided).toBe(false);
   });
 
   it("\"How this ranking was reached\" says the judges' decision moved the first place, never that every place is the plain average's", () => {
@@ -420,8 +449,11 @@ describe("settling a close call", () => {
     settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "judges", winnerId: "prj_a2", reason: "The judges deliberated." });
     const write = (settings: unknown) => h.sqlite.prepare("UPDATE events SET settings = ? WHERE id = 'evt_cc'").run(JSON.stringify(settings));
     const now = () => JSON.parse((h.sqlite.prepare("SELECT settings FROM events WHERE id = 'evt_cc'").get() as { settings: string }).settings);
-    // before publishing the key is the app's to change (positive control)
-    expect(() => write({ ...now(), closeCalls: now().closeCalls })).not.toThrow();
+    // before publishing the key is the app's to change (positive control): a real change, which the trigger would refuse after
+    const settled = now();
+    expect(() => write({ ...settled, closeCalls: [{ ...settled.closeCalls[0], reason: "Changed before publishing." }] })).not.toThrow();
+    expect(now().closeCalls[0].reason).toBe("Changed before publishing.");
+    expect(() => write(settled)).not.toThrow();
     publishResults(organizer(), "evt_cc");
     const published = now();
     expect(() => write({ ...published, closeCalls: [{ ...published.closeCalls[0], winnerId: "prj_a1" }] })).toThrow(/close-call choices are final/);
@@ -583,6 +615,47 @@ describe("the close-call choice travels in the event's own file", () => {
     expect(shown(onB)).toEqual(shown(getPublishedResults("evt_cc")));
     if (!onB.published) throw new Error("not published on B");
     expect(onB.tracks.find((t) => t.id === "trk_close")!.decision!.winnerId).toBe("prj_a2");
+  });
+
+  it("an imported close-call choice holds the app's rules: the judges name a winner with a reason of 3 characters, keeping names none (422 otherwise)", () => {
+    settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "judges", winnerId: "prj_a2", reason: "The judges deliberated." });
+    const base = JSON.parse(fileOf());
+    const withCall = (patch: Record<string, unknown>, drop: string[] = []) => {
+      const f = structuredClone(base);
+      const c = { ...f.decisions.close_calls[0], ...patch };
+      for (const k of drop) delete c[k];
+      f.decisions.close_calls = [c];
+      return f;
+    };
+    const refusal = (f: unknown) => {
+      try {
+        inB(() => importEventFile(adminB(), f));
+        return null;
+      } catch (e) {
+        return e;
+      }
+    };
+    const bad = [
+      withCall({}, ["reason"]), // the judges' decision with no reason: published as Their reason: "" before
+      withCall({ reason: " ok " }), // under 3 characters once trimmed
+      withCall({}, ["winner"]), // no winner named
+      withCall({ winner: "prj_a1" }), // the ranking's winner already
+      withCall({ mode: "keep" }, ["reason"]), // keeping names no other winner
+    ];
+    for (const f of bad) {
+      const e = refusal(f);
+      expect(e).toBeInstanceOf(HttpError);
+      expect((e as HttpError).status).toBe(422);
+      expect((e as Error).message).toMatch(/close_calls/);
+    }
+    // positive controls: keeping with no winner, and the judges' decision as exported, both import
+    expect(refusal(withCall({ mode: "keep" }, ["winner", "reason"]))).toBeNull();
+  });
+
+  it("an exported judges' decision with its reason imports (positive control for the rules above)", () => {
+    settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "judges", winnerId: "prj_a2", reason: "The judges deliberated." });
+    const file = JSON.parse(fileOf());
+    expect(inB(() => importEventFile(adminB(), file)).skipped).toEqual([]);
   });
 
   it("known-bad: a file whose choice names a project the file does not carry restores no choice, and says so", () => {
