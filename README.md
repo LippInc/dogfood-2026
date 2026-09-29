@@ -12,6 +12,8 @@ change lands in an append-only audit log.
 - **T3 and T4:** our hand check, `tests/isolation_check.py`; its output is [`isolation-report.txt`](isolation-report.txt).
   Every bullet, where it lives and how to check it: [Beyond the checker](#beyond-the-checker).
 - **The judging engine:** [`JUDGING.md`](JUDGING.md), with the Monte Carlo that backs it (one command, below).
+- **Built in the window:** the first commit is 2026-09-26 18:43 UTC, after the kickoff; the submission deadline the
+  organizers announced in the event's Discord is 2026-09-29 18:00 UTC.
 
 ## Run it
 
