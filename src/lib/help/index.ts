@@ -99,6 +99,16 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["results", "winners", "who won", "ranking", "leaderboard", "places", "standings", "final scores", "public results"],
   },
   {
+    id: "results-overall",
+    kind: "page",
+    title: "Overall order",
+    href: "/events/[event]/results/overall",
+    who: ["everyone"],
+    answer:
+      "Linked from Results and hidden as long as they are: every project in one order by score across tracks, each beside its track and its place there. Places and prizes are still decided within each track; in pairwise mode it says why there is no overall order.",
+    keywords: ["overall", "overall ranking", "all tracks", "across tracks", "one list", "overall winner", "best overall", "top projects", "overall order"],
+  },
+  {
     id: "sign-in",
     kind: "page",
     title: "Sign in",
