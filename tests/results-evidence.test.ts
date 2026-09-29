@@ -10,7 +10,7 @@ import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/
 import { CORRECTED_FROM, getPublishedResults, publishResults, type PublishedResults } from "@/server/dal/results";
 import { getPairwiseState, pickPairwise, pullShare, setJudgingMode, PAIRWISE_METHOD } from "@/server/dal/pairwise";
 import { actorForToken } from "@/server/session";
-import { RankingEvidence } from "@/components/results/ranking-evidence";
+import { mostlyFromScores, pairwiseSources, RankingEvidence } from "@/components/results/ranking-evidence";
 
 // The public results page's "How this ranking was reached" block: shown only once results are
 // published, built only from the published run, and never naming a judge or carrying a judge's id.
@@ -150,8 +150,12 @@ describe("How this ranking was reached (public results page)", () => {
     expect(e.left).toBeNull();
     const html = render(results);
     // the judge count covers the answers and the score-implied pairs together (never "1 answer from 26 judges")
-    expect(html).toMatch(/1 answer and \d+ pairs implied by scores given before the switch, from \d+ judges/);
+    expect(html).toMatch(/1 answer from judges to .* and \d+ pairs implied by scores given before the switch to this way of judging, from \d+ judges in all/);
     expect(html).not.toMatch(/1 answer from \d+ judges/);
+    // each kind counted apart: the pairs implied by scores are never put under what judges answered
+    expect(html).not.toMatch(/Judges answered[^.]*pairs implied/);
+    expect(e.fromScores).toBeGreaterThan(e.answers);
+    expect(html).toContain("More of these comparisons come from the scores than from answers.");
     // judges answer about the projects they were given, never "their own projects"
     expect(html).toContain("about projects they were given to judge");
     expect(html).not.toContain("their own projects");
@@ -160,5 +164,14 @@ describe("How this ranking was reached (public results page)", () => {
     expect(html).toContain("too few answers to measure");
     expect(html).not.toContain("Signal check");
     expect(judgeLeaks(html, judgesOfEvent())).toEqual([]);
+  });
+
+  it("names where a pairwise ranking's comparisons came from, each kind apart, and says so only when the scores' pairs outnumber the answers", () => {
+    const base = { kind: "pairwise" as const, judges: 4, left: null, fresh: null, placed: 10, moved: 0, excluded: 0 };
+    expect(pairwiseSources({ ...base, answers: 12, fromScores: 0 })).toBe("12 answers from judges to “which of these two is better?” about projects they were given to judge");
+    expect(pairwiseSources({ ...base, answers: 3, fromScores: 190 })).toMatch(/^3 answers from judges .* and 190 pairs implied by scores given before the switch/);
+    expect(mostlyFromScores({ ...base, answers: 3, fromScores: 190 })).not.toBeNull();
+    expect(mostlyFromScores({ ...base, answers: 40, fromScores: 12 })).toBeNull();
+    expect(mostlyFromScores({ ...base, answers: 12, fromScores: 0 })).toBeNull();
   });
 });

@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { LogSeal } from "@/components/results/log-seal";
-import { RankingEvidence } from "@/components/results/ranking-evidence";
+import { mostlyFromScores, pairwiseSources, RankingEvidence } from "@/components/results/ranking-evidence";
 import { VoteCountChanges, VoteRuleChanges } from "@/components/results/vote-rule-changes";
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { PublicShell } from "@/components/shell/public-shell";
@@ -44,6 +44,9 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
   // the open link's column shows only when some of its ballots are in the count's rows
   const linkVotes = Boolean(community.tally?.some((t) => t.openLink > 0));
   const pairwise = results.published && results.method === PAIRWISE_METHOD;
+  // where a pairwise ranking's comparisons came from, answers and pairs implied by scores counted apart (the evidence block's words)
+  const pw = results.published && results.evidence.kind === "pairwise" ? results.evidence : null;
+  const pwMostly = pw ? mostlyFromScores(pw) : null;
 
   const fmtScore = (v: number | null) => (v === null ? "–" : pairwise ? `${Math.round(v * 100)} %` : v.toFixed(2));
   const fmtSe = (v: number | null) => (v === null ? "" : pairwise ? `± ${Math.max(1, Math.round(v * 100))}` : `± ${v.toFixed(2)}`);
@@ -71,7 +74,9 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
   const readingPoints: string[] = [
     "Places compare within a track.",
     pairwise
-      ? "Judges compared their own projects two at a time; each project’s win % is its chance to beat an average project of its track."
+      ? pw?.fromScores
+        ? `Each project’s win % is its chance to beat an average project of its track, fitted from ${pairwiseSources(pw)}.${pwMostly ? ` ${pwMostly}` : ""}`
+        : "Judges compared projects they were given, two at a time; each project’s win % is its chance to beat an average project of its track."
       : results.published && results.k !== null
         ? "Each score is the judges’ weighted rubric average, evened out for judges who score higher or lower than the rest."
         : "Each score is the plain average of the judges’ weighted rubric totals: no judge’s leniency was taken out.",
@@ -155,10 +160,12 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
               <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
                 {pairwise ? (
                   <p>
-                    Judges answered &ldquo;which of these two is better?&rdquo; about their own projects (scores given before the event switched to that
-                    way of judging count as the order they imply), and each project&rsquo;s win % is its chance to beat an average project of its track,
-                    with the pull of the side a project was shown on and of the project a judge had just opened measured and taken out. The ± is one
-                    standard error: win % closer than about two of them are not told apart.
+                    Each project&rsquo;s win % is its chance to beat an average project of its track, fitted from {pw ? pairwiseSources(pw) : "judges’ answers"}
+                    {pw?.fromScores ? " (a judge’s scores in a track count as the order they imply)" : ""}.{pwMostly ? ` ${pwMostly}` : ""}{" "}
+                    {pw?.left && pw.fresh
+                      ? "The pull of the side a project was shown on and of the project a judge had just opened were measured and taken out."
+                      : "The fit takes out the pull of the side a project was shown on and of the project a judge had just opened once there are answers enough to measure them; “How this ranking was reached” below says which it could."}{" "}
+                    The ± is one standard error: win % closer than about two of them are not told apart.
                   </p>
                 ) : (
                   <p>

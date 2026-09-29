@@ -19,6 +19,24 @@ const SIGNAL_LINE = 0.05;
 
 const link = "underline underline-offset-4 hover:text-accent-ink";
 
+type PairwiseEvidence = Extract<Published["evidence"], { kind: "pairwise" }>;
+
+/**
+ * Where a pairwise ranking's comparisons came from, each kind counted apart: judges' answers and
+ * the pairs implied by scores given before the switch. The results page's reading point, its "How
+ * these win % were made" and this block's Method all use it, so none of them can let a reader take
+ * the pairs implied by scores for judges' answers.
+ */
+export function pairwiseSources(e: PairwiseEvidence): string {
+  const answers = `${plural(e.answers, "answer")} from judges to “which of these two is better?” about projects they were given to judge`;
+  return e.fromScores ? `${answers} and ${plural(e.fromScores, "pair")} implied by scores given before the switch to this way of judging` : answers;
+}
+
+/** Said when the pairs implied by scores outnumber the answers, so the ranking rests mostly on the scores. */
+export function mostlyFromScores(e: PairwiseEvidence): string | null {
+  return e.fromScores > e.answers ? "More of these comparisons come from the scores than from answers." : null;
+}
+
 function Row({ term, children }: { term: string; children: ReactNode }) {
   return (
     <div className="grid gap-x-6 gap-y-1 border-t border-rule py-3 md:grid-cols-[160px_minmax(0,1fr)]">
@@ -39,10 +57,8 @@ export function RankingEvidence({ results }: { results: PublishedResults }) {
   let method: string;
   let correction: string | null;
   if (e.kind === "pairwise") {
-    method =
-      `Judges answered "which of these two is better?" about projects they were given to judge: ${plural(e.answers, "answer")}` +
-      (e.fromScores ? ` and ${plural(e.fromScores, "pair")} implied by scores given before the switch` : "") +
-      `, from ${plural(e.judges, "judge")}, fitted into each project’s win %.`;
+    const mostly = mostlyFromScores(e);
+    method = `Each project’s win % is fitted from ${pairwiseSources(e)}, from ${plural(e.judges, "judge")}${e.fromScores ? " in all" : ""}.${mostly ? ` ${mostly}` : ""}`;
     const SIDE = "the side a project was shown on";
     const FRESH = "the project a judge had just opened";
     const measured = (p: typeof e.left, what: string) => (p ? `${what} (${pct(p.share)} ± ${p.pm} between two equal projects)` : null);
