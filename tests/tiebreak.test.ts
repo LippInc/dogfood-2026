@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { awardPlace, competitionPlaces, tieBrokenWords, tieDecided } from "@/lib/places";
+import { awardPlace, competitionPlaces, tieBreakMethod, tieBrokenWords, tieDecided } from "@/lib/places";
 import { breakTies, criterionMeans } from "@/server/judging/tiebreak";
 import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
 import { exportFile } from "@/server/dal/exports";
@@ -140,6 +140,15 @@ describe("the pure stage", () => {
     }
     // the certificate's award line keeps its own words, which the record page and /verify read back
     expect(awardPlace("2nd place, Data and analytics, tie broken by Functionality")?.tieBrokenBy).toBe("Functionality");
+  });
+
+  it("names the rule in the public method block only when the published run used a tie-break, and labels the row's figure as a plain average", () => {
+    expect(tieBreakMethod("Functionality")).toBe(
+      "Projects with exactly the same score are then ordered by their plain average on Functionality, a rule the organizers chose; it is a convention, not a measured difference.",
+    );
+    const page = fs.readFileSync(path.join(process.cwd(), "src/app/events/[event]/results/page.tsx"), "utf8");
+    expect(page).toContain("{results.tieBreak ? ` ${tieBreakMethod(results.tieBreak.criterion)}` : null}");
+    expect(page).toMatch(/, plain average on \{results\.tieBreak\.criterion\} <span className="tnum">\{r\.tie\.toFixed\(2\)\}<\/span>/);
   });
 
   it("keeps a tie joint when the criterion ties too, and places without figures exactly as before", () => {

@@ -14,7 +14,7 @@ import { movesByProject, RowChangeMarks, TieBreakChangesNotice, tieBrokenByOf, T
 import { formatUtc, plural } from "@/lib/format";
 import { actorNav, currentActor, getCommunityResults, getGallery, getPublishedResults, NotFoundError, PAIRWISE_METHOD, publishedPrizes, type Gallery } from "@/server/dal";
 import { PrizeWinners } from "@/components/results/prize-winners";
-import { competitionPlaces, ordinal, tieBrokenWords, tieDecided } from "@/lib/places";
+import { competitionPlaces, ordinal, tieBreakMethod, tieBrokenWords, tieDecided } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Results" };
@@ -159,6 +159,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                       ? `Each project’s score is its judges’ weighted rubric average, adjusted for how lenient each judge proved to be across the event (k = ${results.k.toFixed(1)}).`
                       : "Each project’s score is the plain average of its judges’ weighted rubric totals: the reviews showed no steady leniency to take out, or were too few to measure one."}{" "}
                     The ± under each score is one standard error: scores closer than about two of them are not told apart.
+                    {results.tieBreak ? ` ${tieBreakMethod(results.tieBreak.criterion)}` : null}
                   </p>
                 )}
                 {results.yardstick ? (

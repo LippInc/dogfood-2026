@@ -51,6 +51,10 @@ export function tieDecided(row: { tieBroken?: boolean }, place: { place: number 
  */
 export const tieBrokenWords = (criterion: string) => `Exactly tied on score; tie broken by ${criterion}`;
 
+/** The public method block's sentence on the tie-break, shown only when the published run used one. */
+export const tieBreakMethod = (criterion: string) =>
+  `Projects with exactly the same score are then ordered by their plain average on ${criterion}, a rule the organizers chose; it is a convention, not a measured difference.`;
+
 /** Each id's competition place by its value, highest first, with the same tie rule as competitionPlaces: values within 1e-9 share a place. */
 export function competitionPlaceOf(values: Map<string, number>): Map<string, number> {
   const out = new Map<string, number>();
