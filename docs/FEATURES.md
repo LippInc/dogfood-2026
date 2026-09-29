@@ -37,6 +37,9 @@ organizer's questions); the server refuses changes after it.
   console with autosave and see only their own scores.
 - **Decisions before publishing.** The organizer's overview shows progress live and lists the decisions that
   must be made before results can go out: a flat judge, a duplicate entry, an under-reviewed project.
+- **Live pages.** The overview and the Judges, Voting and Integrations pages refresh every 15 s while the tab is
+  in view, keeping an open decision or a half-typed reason. Their Live switch pauses that for the whole tab, on
+  every organizer page, until it is resumed; resuming fetches fresh numbers at once.
 - **Normalization and receipts.** Scores are normalized for judge leniency (method and its defence in
   `JUDGING.md`), and each project's normalized score comes with its receipt, judge by judge: the change from the
   raw mean and a ± of one standard error. A judge ledger shows each judge's leniency ± error and, before any
@@ -77,6 +80,13 @@ This section is the one place the voting rules are stated.
   organizer chose that before the first ballot; the choice is fixed once ballots are in.
 - **Ballots.** Up to three picks; each ballot lists the projects in the voter's own shuffled order; nobody signed
   in can vote for their own team's project; one ballot per person the portal can name.
+- **Saving a pick.** Each pick saves at once and the ballot's bar says how it went; a quick second pick goes out
+  after the first, never alongside it. A dropped connection keeps the pick on screen, marked not saved, and
+  retries (1, 2, 4, 8 s, then every 15 s) until it saves. An answer that is not the portal's (a reverse proxy's
+  502 page while the portal restarts) gets the same retries for about 45 s, the bar saying it is still trying. A
+  refusal (voting has closed) puts the ballot back to what the portal holds, with the reason; an error from the
+  portal, or the 45 s running out, puts it back and says to reload. A link away or a reload with a pick not yet
+  saved asks first, and a retry that was waiting goes out as the ballot goes.
 - **The count** is live for organizers only while the window is open, public when it closes, and final from then
   on. Publishing the results closes an open vote (and calls off one not yet open), so nobody votes with the
   ranking in view; its count goes public with the results.
