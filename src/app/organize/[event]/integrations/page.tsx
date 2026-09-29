@@ -21,6 +21,8 @@ const small = "inline-flex h-8 items-center rounded-sm border border-edge px-3 t
 /** The retry schedule, in seconds: the same as RETRY_DELAYS_S in src/server/webhooks.ts, which pages cannot import (only the DAL). */
 const RETRY_DELAYS_S = [10, 60, 300, 1800, 7200] as const;
 const MAX_ATTEMPTS = RETRY_DELAYS_S.length + 1;
+/** The most attempts one delivery keeps, retries by hand included: ATTEMPTS_CAP in src/server/webhooks.ts. */
+const ATTEMPTS_CAP = 20;
 /** What each export holds, in the overview's words; a file added to the DAL later shows with no line until it is named here. */
 const EXPORT_HOLDS: Record<string, string> = {
   "scores.csv": "every raw score",
@@ -467,7 +469,9 @@ function DeliveryRow({ slug, hookId, d, reason }: { slug: string; hookId: string
         {s !== "delivered" && d.error && d.error !== reason ? <span className="mt-0.5 block text-12 text-ink-2">{d.error}</span> : null}
       </td>
       <td className="py-2 text-right align-top max-sm:col-start-2 max-sm:row-start-2 max-sm:p-0">
-        {s !== "delivered" ? (
+        {s !== "delivered" && d.attempts >= ATTEMPTS_CAP ? (
+          <span className="text-12 whitespace-nowrap text-ink-2">Tried {ATTEMPTS_CAP} times</span>
+        ) : s !== "delivered" ? (
           <form action={retry.bind(null, slug, hookId, d.id)}>
             <button className="text-13 whitespace-nowrap underline underline-offset-4">Send again</button>
           </form>

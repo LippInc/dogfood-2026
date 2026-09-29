@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
@@ -25,7 +26,7 @@ import {
   setWebhookEnabled,
   testWebhook,
 } from "@/server/dal/webhooks";
-import { ANSWER_BYTES, CLAIM_MS, MAX_ATTEMPTS, RETRY_DELAYS_S, deliverDue, privateAddress, verifySignature, type Resolve, type Send } from "@/server/webhooks";
+import { ANSWER_BYTES, ATTEMPTS_CAP, CLAIM_MS, MAX_ATTEMPTS, RETRY_DELAYS_S, deliverDue, privateAddress, verifySignature, type Resolve, type Send } from "@/server/webhooks";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -473,6 +474,43 @@ describe("webhooks", () => {
     expect(row.error).toBeNull();
 
     expectHttpError(() => retryDelivery(organizer(), "evt_01", hook.id, row.id), 422, "invalid");
+  });
+
+  it("retries by hand stop at the attempts cap the table allows: past it 409, and the delivery stays failed, never stuck pending", async () => {
+    process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
+    const tableSql = (h.sqlite.prepare("SELECT sql FROM sqlite_master WHERE name = 'webhook_deliveries'").get() as { sql: string }).sql;
+    const cap = Number(/attempts" between 0 and (\d+)/.exec(tableSql)?.[1]);
+    expect(cap).toBe(ATTEMPTS_CAP);
+    // the integrations page keeps its own copy (pages import only the DAL) to hide "Send again" at the cap
+    expect(fs.readFileSync(path.join(process.cwd(), "src/app/organize/[event]/integrations/page.tsx"), "utf8")).toContain(`const ATTEMPTS_CAP = ${ATTEMPTS_CAP};`);
+    const hook = await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["comment.post"] });
+    postComment(participant(), "prj_01", { body: "Never arrives" });
+
+    const t0 = soon();
+    statuses.push(500);
+    await deliverDue({ now: t0, send: stubSend });
+    await failFrom(2, t0);
+    let row = theDelivery();
+    expect(row).toMatchObject({ status: "failed", attempts: MAX_ATTEMPTS });
+
+    // every retry by hand is one more attempt, and each fails
+    for (let attempt = MAX_ATTEMPTS + 1; attempt <= cap; attempt++) {
+      retryDelivery(organizer(), "evt_01", hook.id, row.id);
+      statuses.push(500);
+      const out = await deliverDue({ now: soon(), send: stubSend });
+      expect(out, `attempt ${attempt}`).toEqual({ attempted: 1, delivered: 0, retrying: 0, failed: 1 });
+      row = theDelivery();
+      expect(row).toMatchObject({ status: "failed", attempts: attempt });
+    }
+
+    // at the cap: refused with a plain message, nothing changes, and no pass tries it again
+    const auditBefore = auditRows().length;
+    expectHttpError(() => retryDelivery(organizer(), "evt_01", hook.id, row.id), 409, "attempts_exhausted");
+    expect(theDelivery()).toEqual(row);
+    expect(auditRows()).toHaveLength(auditBefore);
+    statuses.push(500);
+    expect((await deliverDue({ now: soon(), send: stubSend })).attempted).toBe(0);
+    statuses.length = 0;
   });
 
   it("a receiver subscribed to voting.settings also gets the rule changes a settings save makes after the first ballot", async () => {

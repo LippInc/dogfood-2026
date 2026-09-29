@@ -312,7 +312,8 @@ export const OPERATIONS: Operation[] = [
     tag: "Webhooks",
     summary: "Send a delivery again",
     access: "organizer",
-    also: [422],
+    also: [409, 422],
+    note: "A delivery that already arrived is 422. Each retry is one more attempt; one delivery keeps at most 20 attempts, the automatic ones included, and past that a retry is 409 attempts_exhausted.",
   },
 
   // Email

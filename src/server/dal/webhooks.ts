@@ -4,10 +4,10 @@ import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { webhookDeliveries, webhooks } from "../db/schema";
-import { NotFoundError, ValidationError } from "../errors";
+import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
 import { newId, newSecret, nowIso } from "../util";
-import { targetProblem } from "../webhooks";
+import { ATTEMPTS_CAP, targetProblem } from "../webhooks";
 import { eventFacts, requireEvent } from "./events";
 import { parse } from "./parse";
 
@@ -84,18 +84,21 @@ export function testWebhook(actor: Actor | null, eventIdOrSlug: string, webhookI
   });
 }
 
-/** Send a delivery again at the next pass of the worker. */
+/** Send a delivery again at the next pass of the worker; each retry is one more attempt, up to ATTEMPTS_CAP. */
 export function retryDelivery(actor: Actor | null, eventIdOrSlug: string, webhookId: string, deliveryId: string): { id: string } {
   const event = organizerEvent(actor, eventIdOrSlug);
   return organizerChange(actor, event, (tx) => {
     const hook = hookIn(tx, event.id, webhookId);
     const d = tx
-      .select({ id: webhookDeliveries.id, status: webhookDeliveries.status })
+      .select({ id: webhookDeliveries.id, status: webhookDeliveries.status, attempts: webhookDeliveries.attempts })
       .from(webhookDeliveries)
       .where(and(eq(webhookDeliveries.id, deliveryId), eq(webhookDeliveries.webhookId, hook.id)))
       .get();
     if (!d) throw new NotFoundError("Delivery");
     if (d.status === "delivered") throw new ValidationError("This delivery already arrived.");
+    if (d.attempts >= ATTEMPTS_CAP) {
+      throw new ConflictError("attempts_exhausted", `This delivery has been tried ${d.attempts} times, the most one delivery keeps. Check the receiver, then send a test.`);
+    }
     tx.update(webhookDeliveries).set({ status: "pending", nextAttemptAt: nowIso() }).where(eq(webhookDeliveries.id, d.id)).run();
     return { result: { id: d.id }, audit: { action: "webhook.redeliver", eventId: event.id, targetType: "webhook", targetId: hook.id, after: { delivery: d.id } } };
   });

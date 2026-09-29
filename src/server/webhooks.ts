@@ -17,6 +17,8 @@ import { newId } from "./util";
 /** Wait after failed attempt n (1-based) before trying again; the attempt after the last is final. */
 export const RETRY_DELAYS_S = [10, 60, 300, 1800, 7200] as const;
 export const MAX_ATTEMPTS = RETRY_DELAYS_S.length + 1;
+/** The most attempts one delivery keeps, retries by hand included: webhook_deliveries' attempts CHECK (0 to 20). */
+export const ATTEMPTS_CAP = 20;
 const TIMEOUT_MS = 5000;
 /** A delivery is claimed for this long before it is sent: longer than any send takes, so a pass that dies mid-send
  *  leaves the delivery to go out again once the claim runs out (at least once, never lost). */
