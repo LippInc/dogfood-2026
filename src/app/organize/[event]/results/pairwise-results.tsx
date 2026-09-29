@@ -2,6 +2,7 @@ import Link from "next/link";
 import { exportHref } from "@/lib/export-href";
 import { plural } from "@/lib/format";
 import { PULL_SHOWN_WITHIN, pullShare, type PairwiseRanking } from "@/server/dal";
+import { MethodFold } from "./method-fold";
 
 // The organizer's Results tab in pairwise mode (JUDGING.md "Pairwise mode"): the
 // Bradley-Terry ranking per track with its uncertainty, the two pulls the fit measured
@@ -54,12 +55,21 @@ export function PairwiseResults({
       <header className="flex flex-col gap-3">
         <p className="label-mono text-ink-2">{published ? "Published run" : "Preview: nothing is public until you publish"}</p>
         <h1 className="text-24 font-semibold">The ranking and how it is worked out</h1>
-        <p className="max-w-[860px] text-15 leading-6 wrap-anywhere">
-          <strong>Pairwise: {r.method}.</strong> {plural(r.counts.picks, "answer")} from judges, plus {plural(r.counts.fromScores, "pair")} implied by
-          scores given before the switch (a judge&rsquo;s scores in a track count as k − 1 answers together, and drop out for the pairs that judge has
-          placed by answers). A project&rsquo;s win % is its chance to beat an average project of its track; ± is one standard error. Coin-flip rule: a judge
-          with 6 or more answers who agrees with the rest of the panel no better than chance, or calls more than half of them too close, is flagged for
-          you to keep or leave out, with a reason.
+        <p className="max-w-[860px] text-17 leading-7" data-lead="">
+          {published
+            ? "Each track's ranking as published, worked out from the judges' either/or answers: a project's win % is its chance to beat an average project of its track."
+            : "Each track's ranking as it will be published, worked out from the judges' either/or answers: a project's win % is its chance to beat an average project of its track."}
+        </p>
+        <MethodFold title="How the win % are worked out" hint="The method in full, with what went into this run">
+          <p>
+            <strong>Pairwise: {r.method}.</strong> {plural(r.counts.picks, "answer")} from judges, plus {plural(r.counts.fromScores, "pair")} implied by
+            scores given before the switch (a judge&rsquo;s scores in a track count as k − 1 answers together, and drop out for the pairs that judge has
+            placed by answers). A project&rsquo;s win % is its chance to beat an average project of its track; ± is one standard error.
+          </p>
+        </MethodFold>
+        <p className="max-w-[860px] text-15 leading-6 wrap-anywhere" data-flat-rule="">
+          Coin-flip rule: a judge with 6 or more answers who agrees with the rest of the panel no better than chance, or calls more than half of them too
+          close, is flagged for you to keep or leave out, with a reason.
           {r.leftOut.length ? ` Left out of the fit: ${r.leftOut.join(", ")} (the flat-judge rule or your decision).` : " Nobody is left out of the fit."}
         </p>
         {r.flags.length ? (

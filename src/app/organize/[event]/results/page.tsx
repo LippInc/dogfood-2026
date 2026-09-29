@@ -9,11 +9,12 @@ import { RankLine, SlopeChart } from "@/components/figures/slope-chart";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { guardPage } from "@/lib/page-guard";
 import { formatUtc, plural } from "@/lib/format";
-import { currentActor, getNormalization, getPairwiseRanking, getTeamChangesAfterClose, judgingModeOf, listRecords, METHOD_LABEL, type ProjectRow } from "@/server/dal";
+import { currentActor, getNormalization, getPairwiseRanking, getTeamChangesAfterClose, judgingModeOf, listRecords, type ProjectRow } from "@/server/dal";
 import { issueEveryRecord } from "../../../records/actions";
 import { JudgeLedger } from "./judge-ledger";
 import { PairwiseResults } from "./pairwise-results";
 import { plainSummary } from "./plain-summary";
+import { ScoreOpening } from "./score-opening";
 import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
@@ -94,65 +95,14 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   return (
     <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Results")} person={actor.name} role="Organizer">
       <div className="flex flex-col gap-8">
-        <header className="flex flex-col gap-3">
-          <p className="label-mono text-ink-2">
-            {!event.resultsPublishedAt ? "Preview: nothing is public until you publish" : published?.differs.length ? "Worked out again: not the published ranking" : "Published run"}
-          </p>
-          <h1 className="text-24 font-semibold">The ranking and how it is worked out</h1>
-          {published?.differs.length ? (
-            <div role="note" className="max-w-[860px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
-              <p className="font-semibold">
-                This view is worked out again now and differs from the ranking published {formatUtc(published.computedAt)} for {published.differs.length}{" "}
-                {published.differs.length === 1 ? "project" : "projects"}.
-              </p>
-              <p className="mt-1">
-                The published ranking stands: the public results and normalized.csv read the stored run. A difference here means the engine or the stored
-                data changed since publishing.
-              </p>
-            </div>
-          ) : null}
-          <ol aria-label="What this run shows, in plain words" className="max-w-[860px] border-b border-rule text-15 wrap-anywhere">
-            {summary.map((line, i) => (
-              <li key={i} className="grid grid-cols-[36px_minmax(0,1fr)] items-baseline border-t border-rule py-2">
-                <span className="font-mono text-12 tnum text-ink-3">{String(i + 1).padStart(2, "0")}</span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ol>
-          <p className="max-w-[860px] text-15 leading-6 wrap-anywhere">
-            <strong>{METHOD_LABEL}.</strong>{" "}
-            {!n.variance.measured
-              ? "No project has two counted reviews yet, so this run cannot measure leniency or review noise: it ranks by the plain mean of each project's reviews, with no ±."
-              : !n.variance.leniencyMeasured
-              ? "No judge has two reviews of projects someone else reviewed too, so this run cannot estimate how lenient each judge is: scores are used as given, and each project ranks by the plain mean of its counted reviews."
-              : n.variance.k === null
-              ? "This run found no steady leniency (β̂² = 0), so it ranks by the plain mean of each project's counted reviews."
-              : `This run: k = ${n.variance.k.toFixed(1)} (β̂² = ${n.variance.beta2.toFixed(3)}, σ̂² = ${n.variance.sigma2.toFixed(3)}), so a judge needs ${plural(Math.round(n.variance.k), "review")} before half their tilt counts.`}{" "}
-            Flat-judge rule: a judge with 3 or more reviews and the same scores on every project is left out, as a flag the organizer can overturn with a reason.
-            {excludedNames.length ? ` Left out in this run: ${excludedNames.join(", ")}.` : " Nobody is left out in this run."}
-          </p>
-          {n.judges.some((j) => j.override) ? (
-            <ul className="flex flex-col gap-1 text-14 text-ink-2 wrap-anywhere">
-              {n.judges
-                .filter((j) => j.override)
-                .map((j) => (
-                  <li key={j.id}>
-                    Override: {j.override!.mode === "include" ? "reinstated" : "left out"} {j.name}, “{j.override!.reason}”
-                  </li>
-                ))}
-            </ul>
-          ) : null}
-          {!event.resultsPublishedAt && open > 0 ? (
-            <p className="flex max-w-[860px] flex-wrap items-baseline gap-x-3 gap-y-1 border-l-[3px] border-flag-bar py-1 pl-3 text-14">
-              <span className="font-medium">
-                {open} {open === 1 ? "decision is" : "decisions are"} still open before the results can go out.
-              </span>
-              <Link href={`/organize/${event.slug}#decisions-title`} className="underline underline-offset-4">
-                Decide on the overview
-              </Link>
-            </p>
-          ) : null}
-        </header>
+        <ScoreOpening
+          n={n}
+          summary={summary}
+          published={published}
+          resultsPublished={Boolean(event.resultsPublishedAt)}
+          eventSlug={event.slug}
+          open={open}
+        />
 
         <section aria-label="Findings" className="grid gap-6 wrap-anywhere lg:grid-cols-3">
           <div className="rounded-sm border border-rule bg-surface p-5">
