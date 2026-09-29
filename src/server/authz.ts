@@ -322,7 +322,7 @@ export function authorize(
     }
 
     case "pairwise.pick": {
-      // Pairwise mode: the judge's own answer about two of their own projects. The judge
+      // Pairwise mode: the judge's own answer about two of the projects they were given. The judge
       // id is the session's; which two projects is the server's question, checked in the DAL.
       if (resource.kind !== "event") return refuse("bad_resource", "This action needs an event.");
       if (!hasRole(actor, resource.event.id, "judge")) {

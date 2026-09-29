@@ -280,7 +280,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
             description={
               event.resultsPublishedAt
                 ? "Results are published, so the way this event was judged is final."
-                : "Either way every judge sees only their own projects, and the scores or answers already given stay. Scores given before a switch to pairwise still count, as the order they imply. The switch is written to the audit log with your reason."
+                : "Either way every judge sees only the projects they were given, and the scores or answers already given stay. Scores given before a switch to pairwise still count, as the order they imply. The switch is written to the audit log with your reason."
             }
             action={saveJudgingModeAction}
             hidden={hidden}

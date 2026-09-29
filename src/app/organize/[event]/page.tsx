@@ -350,7 +350,7 @@ export default async function OverviewPage({
                 </span>
               </p>
               <p className="text-13 leading-5 text-ink-2">
-                Judged pairwise: each judge places their own projects ({o.pairwise.total} in all; the first in each track needs no question).{" "}
+                Judged pairwise: each judge places the projects they were given ({o.pairwise.total} in all; the first in each track needs no question).{" "}
                 {plural(o.pairwise.answers, "answer")} so far, plus the order of every judge&rsquo;s earlier scores.{" "}
                 {o.pairwise.left?.measured && o.pairwise.fresh?.measured
                   ? `Between two equal projects the one on the left wins ${Math.round(o.pairwise.left.share * 100)} % and the one a judge has just opened ${Math.round(o.pairwise.fresh.share * 100)} %; the ranking is corrected for both as measured.`

@@ -413,7 +413,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
               Cross-check: the same reviews as comparisons
             </h2>
             <p className="max-w-[860px] text-14 text-ink-2">
-              A second ranking from the same reviews, read only as each judge&rsquo;s order of their own projects: every two projects a judge scored
+              A second ranking from the same reviews, read only as each judge&rsquo;s order of the projects they were given: every two projects a judge scored
               become one comparison, fitted by the pairwise engine (JUDGING.md, &ldquo;Pairwise mode&rdquo;). It never sets one judge&rsquo;s 4 against
               another&rsquo;s 3, so no judge&rsquo;s leniency can move it. Where the two orders agree, the leniency correction is not what decides the
               order; where they differ, read those projects&rsquo; receipts.

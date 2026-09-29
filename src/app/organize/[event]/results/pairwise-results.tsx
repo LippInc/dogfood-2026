@@ -5,7 +5,7 @@ import { PULL_SHOWN_WITHIN, pullShare, type PairwiseRanking } from "@/server/dal
 
 // The organizer's Results tab in pairwise mode (JUDGING.md "Pairwise mode"): the
 // Bradley-Terry ranking per track with its uncertainty, the two pulls the fit measured
-// and took out, the judges flagged as coin flips, groups never compared with each other,
+// and corrected for (as measured; part of each may stay in), the judges flagged as coin flips, groups never compared with each other,
 // and every project's receipt: each comparison that went into its place.
 
 type Ranking = PairwiseRanking;

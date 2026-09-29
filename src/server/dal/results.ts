@@ -129,7 +129,7 @@ export type CrossCheck = {
 
 /**
  * A second opinion on a scores-mode ranking from the same reviews: the pairwise engine
- * reads each judge's reviews only as their order of their own projects (JUDGING.md,
+ * reads each judge's reviews only as their order of the projects they were given (JUDGING.md,
  * "Pairwise mode"), so no judge's scale can move it. Per track: how far the two
  * orders agree (Kendall's tau-b) and the projects whose places differ most.
  */
