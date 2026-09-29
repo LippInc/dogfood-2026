@@ -132,11 +132,13 @@ describe("a refused save in the judge console", () => {
     expect(out.message).toBe("Not saved: A judge can only score their own assigned projects.");
     expect(out.review.readOnly).toBe("A judge can only score their own assigned projects.");
   });
-  it("a 409 session_changed ends the page's say too; a 422 reverts but leaves the review open", () => {
+  it("a 409 session_changed ends the page's say too; a 422 keeps what was typed and leaves the review open", () => {
     expect(afterRefusal(typed, saved, 409, { error: "session_changed", message: "Not saved: signed out." }).review.readOnly).toBe("Not saved: signed out.");
     expect(afterRefusal(typed, saved, 409, { error: "session_changed", message: "Not saved: signed out." }).message).toBe("Not saved: signed out.");
     const invalid = afterRefusal(typed, saved, 422, { message: "A score is 1 to 5." });
-    expect(invalid.review.values).toEqual(saved.values);
+    expect(invalid.review.values).toEqual(typed.values);
+    expect(invalid.review.feedback).toBe("Typed words");
+    expect(invalid.message).toBe("Not saved: A score is 1 to 5.");
     expect(invalid.review.readOnly).toBeNull();
     expect(afterRefusal(typed, saved, 422, {}).message).toBe("Not saved.");
   });
