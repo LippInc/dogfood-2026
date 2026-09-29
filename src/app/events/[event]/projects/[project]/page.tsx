@@ -250,6 +250,7 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                         <a href={src} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-xs border border-rule">
                           <ProjectImage
                             src={src}
+                            fit="contain"
                             alt={`Image ${n + 1} of ${p.galleryUrls.length} from ${p.team.name}`}
                             fallback={<p className="flex aspect-video items-center justify-center p-4 text-13 text-ink-3">This image did not load. Open it on its own host.</p>}
                           />

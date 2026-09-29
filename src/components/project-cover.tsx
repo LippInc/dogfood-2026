@@ -6,9 +6,23 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * A team's own image (a thumbnail or a gallery image) on its own host, in a fixed
  * 16:9 box. If it fails to load (a dead link, or a portal used offline) the
  * fallback shows instead, so a card never shows a broken image. No referrer is
- * sent, so the image host does not learn which page a visitor was on.
+ * sent, so the image host does not learn which page a visitor was on. fit "cover" (a card, a thumbnail) fills the
+ * box and crops; "contain" (the project page's gallery) shows the whole image, centred, the box's own fill beside
+ * or above it, so a tall phone screenshot is not cut to its middle. The box is the same size either way.
  */
-export function ProjectImage({ src, alt, fallback, className = "" }: { src: string; alt: string; fallback: ReactNode; className?: string }) {
+export function ProjectImage({
+  src,
+  alt,
+  fallback,
+  className = "",
+  fit = "cover",
+}: {
+  src: string;
+  alt: string;
+  fallback: ReactNode;
+  className?: string;
+  fit?: "cover" | "contain";
+}) {
   const [failed, setFailed] = useState(false);
   const ref = useRef<HTMLImageElement>(null);
   useEffect(() => {
@@ -28,7 +42,7 @@ export function ProjectImage({ src, alt, fallback, className = "" }: { src: stri
       decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
-      className={`block aspect-video w-full bg-face-bg object-cover ${className}`}
+      className={`block aspect-video w-full bg-face-bg ${fit === "contain" ? "object-contain" : "object-cover"} ${className}`}
     />
   );
 }
