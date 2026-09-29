@@ -11,7 +11,7 @@ import { finishedReviews, rubricOf } from "./judging";
 import type { Normalized } from "./normalization";
 import { judgingModeOf } from "./pairwise";
 import { parse } from "./parse";
-import { competitionPlaces } from "@/lib/places";
+import { competitionPlaces, tieDecided } from "@/lib/places";
 
 // The event's tie-break rule (JUDGING.md, "Breaking exact ties"): which rubric criterion orders projects whose
 // scores are exactly tied within a track, or none (joint places, the default). Set by an organizer before the
@@ -126,7 +126,7 @@ export function criterionFigures(db: DbOrTx, event: EventRow, n: Normalized, cri
 export type TieBreakView = {
   criterion: TieBreakCriterion;
   /** every exact score tie within a track, in track order then best first, and how the criterion ordered it */
-  groups: (Omit<TieBreakGroup, "projects"> & { trackName: string; projects: { id: string; title: string; figure: number | null; place: number; broken: boolean }[] })[];
+  groups: (Omit<TieBreakGroup, "projects"> & { trackName: string; projects: { id: string; title: string; figure: number | null; place: number; broken: boolean; decided: boolean }[] })[];
   /** every ranked project's competition place in its track after the tie-break */
   places: Record<string, number>;
 };
@@ -152,9 +152,11 @@ export function tieBreakOf(db: DbOrTx, event: EventRow, n: Normalized): TieBreak
     const placed = competitionPlaces(broken);
     const places = new Map(broken.map((r, i) => [r.projectId, placed[i]!.place!]));
     const split = new Map(broken.map((r) => [r.projectId, r.tieBroken]));
+    // whether the criterion decided the place (tieDecided), not only moved it: a place it left joint is not decided
+    const decided = new Map(broken.map((r, i) => [r.projectId, tieDecided(r, placed[i]!)]));
     for (const [id, place] of places) allPlaces[id] = place;
     for (const g of tieGroups(trackId, broken)) {
-      groups.push({ ...g, trackName: t.name, projects: g.projects.map((p) => ({ ...p, title: title.get(p.id) ?? p.id, place: places.get(p.id)!, broken: split.get(p.id)! })) });
+      groups.push({ ...g, trackName: t.name, projects: g.projects.map((p) => ({ ...p, title: title.get(p.id) ?? p.id, place: places.get(p.id)!, broken: split.get(p.id)!, decided: decided.get(p.id)! })) });
     }
   }
   return { criterion, groups, places: allPlaces };
