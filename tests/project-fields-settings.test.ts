@@ -285,6 +285,18 @@ describe("every project keeps a track", () => {
     expect(refusal(() => createProject(team.member(), jam.slug, { title: "No track", summary: "One line" }))?.fields).toHaveProperty("trackId");
   });
 
+  it("the organizer's hidden track comes back with one track again, though other fields were saved while there were two", () => {
+    const jam = sameBriefEvent();
+    saveProjectFields(organizer(), jam.slug, { trackId: "hidden" });
+    saveTracks(organizer(), jam.slug, [{ id: jam.trackId, name: "The brief" }, { name: "Wildcard" }]);
+    // the settings form sends every field as it shows it, the track as required while there are two; then one field alone
+    saveProjectFields(organizer(), jam.slug, { ...fieldModes(h.db, jam.id), summary: "optional" });
+    saveProjectFields(organizer(), jam.slug, { tags: "hidden" });
+    expect(fieldModes(h.db, jam.id)).toMatchObject({ trackId: "required", summary: "optional", tags: "hidden" });
+    saveTracks(organizer(), jam.slug, [{ id: jam.trackId, name: "The brief" }]);
+    expect(fieldModes(h.db, jam.id)).toMatchObject({ trackId: "hidden", summary: "optional", tags: "hidden" });
+  });
+
   it("the database itself refuses a track that is optional, a field it does not know and a mode it does not know", () => {
     const insert = (field: string, mode: string) => () =>
       h.sqlite.prepare("INSERT INTO project_fields (event_id, field, mode) VALUES ('evt_01', ?, ?)").run(field, mode);

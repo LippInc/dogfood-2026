@@ -573,7 +573,9 @@ export function saveProjectFields(actor: Actor | null, idOrSlug: string, body: u
         }
       }
       if (Object.keys(after).length === 0) return { result: { fields: next, changed: false }, audit: null };
-      for (const f of PROJECT_FIELDS) {
+      // Only what changed is stored. A field saved as it is now shown keeps its row: a hidden track shows as
+      // required while the event has several tracks, and must come back hidden if it has one track again.
+      for (const f of Object.keys(after) as (keyof FieldModes)[]) {
         tx.insert(projectFields)
           .values({ eventId: e.id, field: f, mode: next[f] })
           .onConflictDoUpdate({ target: [projectFields.eventId, projectFields.field], set: { mode: next[f] } })
