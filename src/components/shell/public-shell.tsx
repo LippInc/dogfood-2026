@@ -5,7 +5,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { PageBand, PageMark } from "@/components/page-mark";
 import { PhoneMenu } from "@/components/shell/phone-menu";
 import { eventPhase, idLabel, type EventTimes } from "@/lib/format";
-import type { NavLink } from "@/server/dal";
+import { listEvents, type NavLink } from "@/server/dal";
 
 type ShellEvent = EventTimes & { id: string; slug: string; name: string; votingOpenAt?: string | null };
 type Section = "projects" | "vote" | "results" | "about" | "none";
@@ -16,6 +16,14 @@ const SECTIONS: { key: Section; label: string; path: string }[] = [
   { key: "results", label: "Results", path: "/results" },
   { key: "about", label: "About", path: "/about" },
 ];
+
+/**
+ * Where the event header's "All events" leads: the home page's list of every event (with the reader's part in each),
+ * once the portal holds more than one; with one, the home page opens that event, so the link would lead back here.
+ */
+export function publicAllEventsLink(eventCount: number): string | null {
+  return eventCount > 1 ? "/" : null;
+}
 
 /** The public side's frame: event masthead, section nav, account, mode, status strip. */
 export function PublicShell({
@@ -37,6 +45,8 @@ export function PublicShell({
   // the team page (start or join a team), through sign-up when signed out.
   const myProject = `${base}/my-project`;
   const inEvent = links.some((l) => l.href === myProject || l.href.endsWith(`/${event.slug}`));
+  // the way out of this event to the list of them, as the organizer's top bar has it (a participant found none)
+  const allEvents = publicAllEventsLink(listEvents().length);
   const takePart =
     (phase.key === "open" || phase.key === "upcoming") && !inEvent ? (signedInAs ? myProject : `/sign-up?next=${encodeURIComponent(myProject)}`) : null;
   return (
@@ -49,6 +59,20 @@ export function PublicShell({
       </a>
       <header className="border-b border-rule print:hidden">
         <div className="mx-auto flex h-16 max-w-[1440px] items-stretch gap-4 px-4 sm:gap-8 sm:px-8 md:gap-6 lg:gap-8 xl:px-16">
+          {/* below md it is the phone menu's first row, so the event's name keeps its line */}
+          {allEvents ? (
+            <span className="hidden shrink-0 items-center gap-3 self-center md:flex">
+              <Link
+                href={allEvents}
+                className="text-14 whitespace-nowrap text-ink-2 underline decoration-transparent underline-offset-4 hover:text-ink hover:decoration-ink"
+              >
+                All events
+              </Link>
+              <span className="text-15 text-ink-3" aria-hidden>
+                /
+              </span>
+            </span>
+          ) : null}
           <Link href={base} className="flex items-center gap-4 self-center">
             {idLabel(event.id) ? <span className="label-mono hidden whitespace-nowrap text-ink-3 sm:inline md:hidden xl:inline">[ {idLabel(event.id)} ]</span> : null}
             <span title={event.name} className="line-clamp-2 font-display text-20 leading-none tracking-[0.01em] uppercase wrap-anywhere">
@@ -101,6 +125,14 @@ export function PublicShell({
               </Link>
             )}
             <PhoneMenu>
+              {allEvents ? (
+                <>
+                  <Link href={allEvents} className="flex h-11 items-center rounded-sm px-3 text-15 hover:bg-raised">
+                    All events
+                  </Link>
+                  <div className="my-2 border-t border-rule" />
+                </>
+              ) : null}
               {SECTIONS.filter((s) => s.key !== "vote" || event.votingOpenAt).map((s) => (
                 <Link
                   key={s.key}
