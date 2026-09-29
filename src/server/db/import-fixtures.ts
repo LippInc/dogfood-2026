@@ -783,15 +783,16 @@ export function importFixtures(
 
       const complete = eventKeys.every((k) => typeof s.criteria[k] === "number");
       const projectId = projectOf.get(s.project)!;
-      const assignmentId = `asg_${s.judge}_${projectId}`;
-      const scoreId = `scr_${s.judge}_${projectId}`;
+      // A review given out on the portal has an assignment and a score with ids of their own: the pair's rows are found
+      // by judge and project after the insert-or-ignore, never assumed to carry the importer's ids (a score pointing at
+      // an assignment that does not exist failed the whole import on its foreign key)
       const brought: ImportedReview = { judge: accountOf.get(s.judge)!, project: projectId, finished: complete, values: {} };
       let broughtAny = false;
       const newAssignment = insertOnce(
         tx
           .insert(assignments)
           .values({
-            id: assignmentId,
+            id: `asg_${s.judge}_${projectId}`,
             eventId,
             judgeUserId: accountOf.get(s.judge)!,
             projectId,
@@ -804,6 +805,16 @@ export function importFixtures(
           .onConflictDoNothing(),
       );
       bump("assignments", newAssignment);
+      const assignmentId = tx
+        .select({ id: assignments.id })
+        .from(assignments)
+        .where(and(eq(assignments.judgeUserId, accountOf.get(s.judge)!), eq(assignments.projectId, projectId)))
+        .get()?.id;
+      if (!assignmentId) {
+        // the importer's id is another judge's assignment (a file judge id an earlier file gave another account)
+        report.skipped.push({ kind: "score", id: pair, reason: `the review id asg_${s.judge}_${projectId} belongs to another judge's review` });
+        continue;
+      }
       if (newAssignment) {
         broughtAny = true;
         added.assignments.push({ file: `${s.judge} of ${s.project}`, judge: accountOf.get(s.judge)!, project: projectId });
@@ -815,7 +826,7 @@ export function importFixtures(
         tx
           .insert(scores)
           .values({
-            id: scoreId,
+            id: `scr_${s.judge}_${projectId}`,
             assignmentId,
             submittedAt: complete ? now : null,
             updatedAt: now,
@@ -824,6 +835,11 @@ export function importFixtures(
           .onConflictDoNothing(),
       );
       bump("scores", scoreChanges);
+      const scoreId = tx.select({ id: scores.id }).from(scores).where(eq(scores.assignmentId, assignmentId)).get()?.id;
+      if (!scoreId) {
+        report.skipped.push({ kind: "score", id: pair, reason: `the score id scr_${s.judge}_${projectId} belongs to another judge's review` });
+        continue;
+      }
       if (scoreChanges) broughtAny = true;
       if (conflicted && scoreChanges > 0) report.conflicts.push(scoreId);
 
