@@ -66,7 +66,7 @@ describe("the published prize on the public pages", () => {
     expect(block).toContain("Bold idea");
 
     const own = await project(fourth.projectId);
-    expect(own).toMatch(/aria-label="Prizes won"[^>]*>.*Winner(<!-- -->)?, (<!-- -->)?Best in show/s);
+    expect(own).toMatch(/aria-label="Prizes won"[^>]*>[\s\S]*Winner(<!-- -->)?, (<!-- -->)?Best in show/);
   });
 
   it("positive control: before publishing neither page shows the prize", async () => {
