@@ -145,12 +145,18 @@ The portal's own `/privacy` page ("What we keep") shows this same list; the sign
 | What | Where | Kept | Removed by |
 |---|---|---|---|
 | A person's name, email address and password hash | `users` | as long as the portal's data | nothing in the portal yet: removing the data volume |
+| Who organizes, judges or takes part in which event, and which tracks a judge covers | `user_roles`, `judge_tracks` | as long as the portal's data, or until an organizer takes the person off the event | an organizer (removing a judge or an organizer); the audit log keeps the change |
+| Team membership: who is on which team, and who is its captain | `team_members` | until the person leaves, is taken off the team, or the team is disbanded | the person, the team's captain, the organizers |
 | The name and email address a judge was invited with | `judge_invites` | as long as the portal's data | removing the data volume |
+| Judging: the projects a judge was given, their scores per criterion, their feedback to the team, their private notes to the organizers and their pairwise answers | `assignments`, `scores`, `score_items`, `score_comments`, `comparisons` | as long as the portal's data, and once the event's results are published the database refuses to change or delete them | nothing in the portal: a started review stays in the record (before publication the judge can change it; an organizer can withdraw only a review not yet started) |
+| Which organizer made an assignment run, a results run, a judge override (with its reason) or a webhook | `assignment_runs`, `normalization_runs`, `judge_overrides`, `webhooks` | as long as the portal's data; results runs for good (append-only) | removing the data volume |
 | Email addresses on an organizer's voter list | `voters.email` | as long as the portal's data | removing the data volume |
 | Comments, with the author's name beside them | `comments` | until the author deletes it (not while the organizers have it hidden) | the author |
 | Community-vote picks | `votes`, `voters` | as long as the portal's data | the voter, while voting is open |
 | Keyed hashes of a voter's network address and browser | `voters.ip_hash`, `voters.agent_hash` | until the operator purges them, once the vote has closed | `scripts/purge.mjs` |
 | Sign-in sessions (stored as a hash of the cookie) | `sessions` | until sign-out or their end (`SESSION_DAYS`, default 14); an ended one is deleted within the hour | the portal, by itself |
+| A person's named API tokens (stored as a hash), with their first characters and when they were last used | `api_tokens` | as long as the portal's data: a revoked or expired token stays as a row that no longer works | removing the data volume (the person can revoke one, which does not remove it) |
+| Password-reset and account-claim links (stored as a hash): for whom, who made them, when they were used | `password_resets`, `account_claims` | as long as the portal's data: a used or expired link stays as a row; an unused one is replaced by the next | nothing in the portal (neither the hourly sweep nor `scripts/purge.mjs`): removing the data volume |
 | Keyed hashes of an email or network address, counting tries | `rate_buckets` | about an hour after the last try (idle buckets are deleted every hour) | the portal, by itself |
 | Mail the portal sent: address, subject, body with its link blanked (nothing while email is off) | `outbox` | until the operator purges it (older than 90 days by default) | `scripts/purge.mjs` |
 | Changes sent to the organizers' webhooks, which can include names, and the receivers' answers | `webhook_deliveries` | until the operator purges the finished ones (older than 90 days by default) | `scripts/purge.mjs`; the receiver keeps its own copy |

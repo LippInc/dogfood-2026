@@ -1,6 +1,7 @@
 // What the portal keeps about people, for how long, and what removes it: one list, shown on the /privacy page and
 // written out as the table under "What is kept, and for how long" in DATA-MODEL.md. tests/privacy-facts.test.ts
 // fails when the two differ, so a change here goes into DATA-MODEL.md in the same commit (the test prints the table).
+// tests/privacy-facts-schema.test.ts fails when a table holding a user id, an email or who-did-it is left out of it.
 // A cell may hold `code` spans, as Markdown writes them.
 
 export type KeptFact = { what: string; where: string; kept: string; removedBy: string };
@@ -13,9 +14,33 @@ export const KEPT: KeptFact[] = [
     removedBy: "nothing in the portal yet: removing the data volume",
   },
   {
+    what: "Who organizes, judges or takes part in which event, and which tracks a judge covers",
+    where: "`user_roles`, `judge_tracks`",
+    kept: "as long as the portal's data, or until an organizer takes the person off the event",
+    removedBy: "an organizer (removing a judge or an organizer); the audit log keeps the change",
+  },
+  {
+    what: "Team membership: who is on which team, and who is its captain",
+    where: "`team_members`",
+    kept: "until the person leaves, is taken off the team, or the team is disbanded",
+    removedBy: "the person, the team's captain, the organizers",
+  },
+  {
     what: "The name and email address a judge was invited with",
     where: "`judge_invites`",
     kept: "as long as the portal's data",
+    removedBy: "removing the data volume",
+  },
+  {
+    what: "Judging: the projects a judge was given, their scores per criterion, their feedback to the team, their private notes to the organizers and their pairwise answers",
+    where: "`assignments`, `scores`, `score_items`, `score_comments`, `comparisons`",
+    kept: "as long as the portal's data, and once the event's results are published the database refuses to change or delete them",
+    removedBy: "nothing in the portal: a started review stays in the record (before publication the judge can change it; an organizer can withdraw only a review not yet started)",
+  },
+  {
+    what: "Which organizer made an assignment run, a results run, a judge override (with its reason) or a webhook",
+    where: "`assignment_runs`, `normalization_runs`, `judge_overrides`, `webhooks`",
+    kept: "as long as the portal's data; results runs for good (append-only)",
     removedBy: "removing the data volume",
   },
   {
@@ -47,6 +72,18 @@ export const KEPT: KeptFact[] = [
     where: "`sessions`",
     kept: "until sign-out or their end (`SESSION_DAYS`, default 14); an ended one is deleted within the hour",
     removedBy: "the portal, by itself",
+  },
+  {
+    what: "A person's named API tokens (stored as a hash), with their first characters and when they were last used",
+    where: "`api_tokens`",
+    kept: "as long as the portal's data: a revoked or expired token stays as a row that no longer works",
+    removedBy: "removing the data volume (the person can revoke one, which does not remove it)",
+  },
+  {
+    what: "Password-reset and account-claim links (stored as a hash): for whom, who made them, when they were used",
+    where: "`password_resets`, `account_claims`",
+    kept: "as long as the portal's data: a used or expired link stays as a row; an unused one is replaced by the next",
+    removedBy: "nothing in the portal (neither the hourly sweep nor `scripts/purge.mjs`): removing the data volume",
   },
   {
     what: "Keyed hashes of an email or network address, counting tries",
