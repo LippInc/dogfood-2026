@@ -42,6 +42,7 @@ import { issuer } from "./records";
 import { eventReviews } from "./scores";
 import { changedFromDefaults } from "@/lib/project-fields";
 import { labelFor } from "../db/import-fixtures";
+import { readTrackMoves } from "../db/track-moves";
 import { BUILTIN_CRITERIA } from "../rubric-defaults";
 import { canonicalJson } from "../util";
 import { fieldModes, shownTitle } from "./project-fields";
@@ -732,6 +733,7 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
     .orderBy(asc(judgeOverrides.createdAt), asc(judgeOverrides.id))
     .all()
     .filter((o) => judgeIds.has(o.judgeUserId));
+  const moves = readTrackMoves(db, event.id).filter((m) => submitted.has(m.projectId));
   const decisions: Record<string, unknown> = {
     ...(overrides.length
       ? {
@@ -743,6 +745,8 @@ function eventHistory(db: DbOrTx, event: EventRow, submitted: Set<string>, judge
     ...(s.weightChanges?.length ? { weight_changes: s.weightChanges } : {}),
     ...(s.voteRuleChanges?.length ? { vote_rule_changes: s.voteRuleChanges } : {}),
     ...(s.voteCountChanges?.length ? { vote_count_changes: s.voteCountChanges } : {}),
+    // projects moved to another track after judges were assigned, each with its reason (the audit log keeps them)
+    ...(moves.length ? { track_moves: moves.map((m) => ({ project: m.projectId, from: m.fromTrackId, to: m.toTrackId, reason: m.reason, at: m.at })) } : {}),
   };
 
   const answers = db

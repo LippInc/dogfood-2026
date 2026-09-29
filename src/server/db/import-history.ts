@@ -10,6 +10,7 @@ import type { Tx } from "./client";
 import { ConflictError } from "../errors";
 import { canonicalJson, newSecret, sha256 } from "../util";
 import { atMost, dateTime, id } from "./fixture-fields";
+import { readTrackMoves, type TrackMove } from "./track-moves";
 import {
   comments,
   comparisons,
@@ -107,6 +108,11 @@ export const HistoryFields = {
       vote_rule_changes: z
         .array(z.looseObject({ at: dateTime, reason: z.string().max(2_000), before: voteRules, after: voteRules }))
         .max(HISTORY_LIMITS.changes)
+        .optional()
+        .default([]),
+      track_moves: z
+        .array(z.object({ project: id, from: id, to: id, reason: z.string().max(2_000), at: dateTime }))
+        .max(HISTORY_LIMITS.decisions, atMost(HISTORY_LIMITS.decisions, "track moves"))
         .optional()
         .default([]),
       vote_count_changes: z
@@ -267,6 +273,7 @@ export function refuseHistoryForExistingEvent(
   eventId: string,
   published: { at: string | null; runId: string | null; settings: EventSettings },
   projectOf: Map<string, string>,
+  trackOf: Map<string, string>,
 ) {
   // a row an earlier import brought under a renamed id ('<id>.<event id>', another event held the file's) is present too
   const renamed = (x: string) => `${x}.${eventId}`;
@@ -312,6 +319,10 @@ export function refuseHistoryForExistingEvent(
     inList(d?.weight_changes, s.weightChanges),
     inList(d?.vote_rule_changes, s.voteRuleChanges),
     inList(remapIds(d?.vote_count_changes, projectOf) as unknown[] | undefined, s.voteCountChanges),
+    inList(
+      d?.track_moves.map((m) => ({ project: own(m.project), from: trackOf.get(m.from) ?? m.from, to: trackOf.get(m.to) ?? m.to, reason: m.reason, at: m.at })),
+      readTrackMoves(tx, eventId).map((m) => ({ project: m.projectId, from: m.fromTrackId, to: m.toTrackId, reason: m.reason, at: m.at })),
+    ),
   ];
   const otherDecisions = settingsDecisions.reduce((a, c) => ({ present: a.present + c.present, missing: a.missing + c.missing }), { present: 0, missing: 0 });
 
@@ -373,6 +384,8 @@ export type RestoredHistory = {
   ballots: { voter: string; picks: number }[];
   comments: string[];
   published?: { run: string; at: string };
+  /** projects moved to another track on the portal the event came from; the event's track moves are read from here too */
+  trackMoves?: TrackMove[];
 };
 
 export type RestoreContext = {
@@ -490,6 +503,18 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
     if (d.weight_changes.length) next.weightChanges = d.weight_changes as EventSettings["weightChanges"];
     if (d.vote_rule_changes.length) next.voteRuleChanges = d.vote_rule_changes as EventSettings["voteRuleChanges"];
     if (d.vote_count_changes.length) next.voteCountChanges = remapIds(d.vote_count_changes, ctx.projectOf) as EventSettings["voteCountChanges"];
+    // track moves live in the audit log: this import's row carries them (db/track-moves.ts reads them there)
+    const moves = d.track_moves.flatMap((m) => {
+      const project = projectHere(m.project);
+      const from = ctx.trackOf.get(m.from);
+      const to = ctx.trackOf.get(m.to);
+      if (!project || !from || !to) {
+        ctx.skip("decision", `${m.project}:${m.from}>${m.to}`, !project ? `unknown project ${m.project}` : `unknown track ${!from ? m.from : m.to}`);
+        return [];
+      }
+      return [{ projectId: project, fromTrackId: from, toTrackId: to, reason: m.reason, at: m.at }];
+    });
+    if (moves.length) out.trackMoves = moves;
     const added = pairs.length + accepted.length + d.weight_changes.length + d.vote_rule_changes.length + d.vote_count_changes.length;
     if (added) {
       tx.update(events).set({ settings: next }).where(eq(events.id, eventId)).run();

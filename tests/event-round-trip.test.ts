@@ -26,6 +26,7 @@ const { savePrizes } = await import("@/server/dal/organize");
 const { computeNormalization } = await import("@/server/dal/normalization");
 const { requireEvent } = await import("@/server/dal/events");
 const { getPairwiseState, pickPairwise, setJudgingMode, undoPairwise } = await import("@/server/dal/pairwise");
+const { moveProjectTrack, projectTrackMoves } = await import("@/server/dal/corrections");
 
 // Leaving without loss: an event exported from one portal after its whole life (ballots, comments, pairwise answers, a
 // merge, the organizers' decisions, published) and imported into another portal as a new event is the same event
@@ -69,6 +70,14 @@ function importIntoB(file: unknown) {
   setHandleForTests(hb);
   try {
     return importEventFile(actorIn(hb, "usr_b", true), file);
+  } finally {
+    setHandleForTests(ha);
+  }
+}
+function inPortal<T>(h: Handle, fn: () => T): T {
+  setHandleForTests(h);
+  try {
+    return fn();
   } finally {
     setHandleForTests(ha);
   }
@@ -140,6 +149,7 @@ function liveTheEvent() {
   setJudgeOverride(org, "evt_01", { judgeUserId: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" });
   mergeDuplicate(org, "evt_01", { keepId: "prj_07", duplicateId: "prj_41" });
   acceptUnderReviewed(org, "evt_01", { projectId: "prj_19", reason: "One review is all it can get" });
+  moveProjectTrack(org, "evt_01", "prj_05", { trackId: "trk_04", reason: "The team entered the wrong track" });
   publishResults(org, "evt_01");
 }
 
@@ -169,6 +179,7 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     expect(file.projects.find((p: { id: string }) => p.id === "prj_41").duplicate_of).toBe("prj_07");
     expect(file.decisions.judges).toEqual([expect.objectContaining({ judge: "jdg_07", mode: "exclude", reason: "Flat vector, confirmed by hand" })]);
     expect(file.decisions.accepted_under_reviewed).toEqual(["prj_19"]);
+    expect(file.decisions.track_moves).toEqual([{ project: "prj_05", from: "trk_02", to: "trk_04", reason: "The team entered the wrong track", at: expect.any(String) }]);
     expect(file.scores.some((s: { private_note?: string }) => s.private_note === "Ask them about the licence")).toBe(true);
     expect(file.published).toMatchObject({ at: expect.any(String), run: { method: "leniency-shrunk-v1" } });
     expect(file.published.scores.length).toBeGreaterThan(30);
@@ -196,6 +207,10 @@ describe("fixtures.json moves a whole event: export, import as a new event, expo
     expect(shown(inB(() => getPublishedResults("evt_01")))).toEqual(shown(getPublishedResults("evt_01")));
     expect(inB(() => getCommunityResults("evt_01"))).toEqual(getCommunityResults("evt_01"));
     const live = (h: Handle) => computeNormalization(h.db, requireEvent(h.db, "evt_01")).projects.map((p) => [p.id, p.score, p.rankNormalized, p.duplicateOf]);
+    // the track move is read from the import's own audit row on B, as from the move's row on A
+    const moves = (h: Handle) => inPortal(h, () => projectTrackMoves(h.db, "evt_01"));
+    expect(moves(hb!)).toEqual(moves(ha));
+    expect(moves(hb!)).toHaveLength(1);
     expect(live(hb!)).toEqual(live(ha));
     const b = hb!.sqlite;
     expect(b.prepare("SELECT results_published_at AS at, submissions_open_at AS o, judging_close_at AS j FROM events WHERE id = 'evt_01'").get()).toEqual(

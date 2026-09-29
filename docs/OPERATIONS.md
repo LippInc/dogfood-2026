@@ -34,7 +34,7 @@ event's id, so it adds to that same event.
 3. The event arrives as it was: tracks, rubric, questions and answers, judges, teams, projects, finished reviews (with
    their times, feedback and private notes), its dates, settings and prizes, the duplicate merges, every organizer
    decision with its reason (a judge left out or reinstated, pairs ruled not duplicates, projects published as they
-   are, weight and vote-rule changes), the pairwise answers (taken-back ones too), the ballots (a set-aside one still
+   are, projects moved to another track, weight and vote-rule changes), the pairwise answers (taken-back ones too), the ballots (a set-aside one still
    set aside, with its reason), the comments (a hidden one still hidden, with its reason) and the published results as
    they were published. The import's audit entry lists every row it restored by id, and its importer stands for
    whoever made each decision (their names are in the old `audit.csv`).

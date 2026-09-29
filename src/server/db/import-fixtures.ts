@@ -373,7 +373,7 @@ export function importFixtures(
     // An event that is here keeps what it is: a file never adds a ballot, a comment, a pairwise answer, a merge, a
     // decision or a published ranking to it (refused whole, 409 new_event_only; those it holds already count as
     // present), and its own dates, settings and prizes stand (a file that differs gets a skipped line saying so).
-    if (here) keepExistingEvent(tx, fixture, report, projectOf);
+    if (here) keepExistingEvent(tx, fixture, report, projectOf, trackOf);
 
     // Tracks (position = order in the file)
     const trackIds = new Set<string>();
@@ -1082,10 +1082,10 @@ function accountForAddress(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], 
  * already as present, and says in a skipped line when the file's dates, settings or prizes differ from the event's
  * own, which stand (they change on its Settings and Voting tabs, where changes after the fact need their reasons).
  */
-function keepExistingEvent(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], fixture: Fixture, report: ImportReport, projectOf: Map<string, string>) {
+function keepExistingEvent(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], fixture: Fixture, report: ImportReport, projectOf: Map<string, string>, trackOf: Map<string, string>) {
   const eventId = fixture.event.id;
   const ev = tx.select().from(events).where(eq(events.id, eventId)).get()!;
-  const present = refuseHistoryForExistingEvent(tx, fixture, eventId, { at: ev.resultsPublishedAt, runId: ev.settings.publishedRunId ?? null, settings: ev.settings }, projectOf);
+  const present = refuseHistoryForExistingEvent(tx, fixture, eventId, { at: ev.resultsPublishedAt, runId: ev.settings.publishedRunId ?? null, settings: ev.settings }, projectOf, trackOf);
   for (const [table, n] of Object.entries(present)) report.existing[table as TableKey] += n;
   const instant = (s: string | null | undefined) => (s ? Date.parse(s) : null);
   const dates: [string, string | undefined, string | null][] = [
