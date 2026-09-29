@@ -116,7 +116,9 @@ function projectsCsv(db: DbOrTx, event: EventRow): string {
   const rows = db
     .select({
       id: projects.id,
-      title: shownTitle(),
+      // the organizer's export is complete: what the team typed, even while the title is hidden, and the name shown
+      title: projects.title,
+      shownTitle: shownTitle(),
       summary: projects.summary,
       teamId: teams.id,
       team: teams.name,
@@ -134,8 +136,8 @@ function projectsCsv(db: DbOrTx, event: EventRow): string {
     .orderBy(asc(projects.id))
     .all();
   return toCsv(
-    ["project_id", "title", "summary", "team_id", "team", "track", "status", "submitted_at", "repo_url", "duplicate_of", "finished_reviews"],
-    rows.map((r) => [r.id, r.title, r.summary, r.teamId, r.team, r.track, r.status, r.submittedAt, r.repoUrl, r.duplicateOf, r.reviews]),
+    ["project_id", "title", "summary", "team_id", "team", "track", "status", "submitted_at", "repo_url", "duplicate_of", "finished_reviews", "shown_title"],
+    rows.map((r) => [r.id, r.title, r.summary, r.teamId, r.team, r.track, r.status, r.submittedAt, r.repoUrl, r.duplicateOf, r.reviews, r.shownTitle]),
   );
 }
 

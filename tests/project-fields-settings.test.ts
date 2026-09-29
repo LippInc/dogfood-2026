@@ -173,8 +173,12 @@ describe("a title the team does not give", () => {
       results: getNormalization(organizer(), "evt_01").normalization.projects.find((p) => p.id === "prj_01")?.title,
       submissions: getSubmissions(organizer(), "evt_01").rows.find((p) => p.id === "prj_01")?.title,
       team: getMyWork(captain, "evt_01").project?.title,
-      csv: exportFile(organizer(), "evt_01", "projects.csv").body.split("\n").find((l) => l.startsWith("prj_01,"))?.split(",")[1],
+      csv: csvRow()?.at(-1),
     });
+    // projects.csv: the stored title in `title` (the organizer's export stays complete), the shown one in `shown_title`
+    const csvLines = () => exportFile(organizer(), "evt_01", "projects.csv").body.split(/\r?\n/);
+    const csvRow = () => csvLines().find((l) => l.startsWith("prj_01,"))?.split(",");
+    expect(csvLines()[0]!.split(",").at(-1)).toBe("shown_title");
     const everywhere = (name: string) => ({ page: name, gallery: name, judge: name, results: name, submissions: name, team: name, csv: name });
     // a second, differently named entry from the same team: not a copy while the titles differ
     const cols = (h.sqlite.prepare("PRAGMA table_info(projects)").all() as { name: string }[]).map((c) => c.name);
@@ -188,6 +192,7 @@ describe("a title the team does not give", () => {
     saveProjectFields(organizer(), "evt_01", { title: "hidden" });
     expect(names()).toEqual(everywhere(teamName));
     expect(row("prj_01").title).toBe(typed);
+    expect(csvRow()?.[1]).toBe(typed);
     // copies of one entry are still found by what the team typed, not by the shared team name
     expect(duplicates()).toEqual(found);
     // the event's own export keeps what the team typed, so an import loses nothing
