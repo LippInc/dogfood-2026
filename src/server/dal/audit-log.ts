@@ -400,6 +400,11 @@ function sentence(r: Row, n: Names): Part[] {
       return [actor, t(" took back an answer about "), project(String(before.left)), t(" and "), project(String(before.right))];
     case "event.judging_mode":
       return [actor, t(after.mode === "pairwise" ? " switched judging to pairwise: " : " switched judging to rubric scores: "), t(quote(after.reason))];
+    case "event.tie_break": {
+      const c = after.criterion as { label?: string } | null | undefined;
+      const why = typeof after.reason === "string" && after.reason ? `: ${quote(after.reason)}` : "";
+      return [actor, t(c?.label ? ` set exact ties to be broken by ${c.label}${why}` : ` set exact ties to keep joint places${why}`)];
+    }
     case "event.judge_ranking":
       return [actor, t(after.show ? " let judges see their own ranking so far" : " hid each judge's own ranking so far from their console")];
     case "judge.override_revoke":

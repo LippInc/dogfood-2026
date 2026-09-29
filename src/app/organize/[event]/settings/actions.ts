@@ -14,6 +14,7 @@ import {
   saveTracks,
   setJudgeRanking,
   setJudgingMode,
+  setTieBreak,
   updateEventDetails,
   type ActionResult,
 } from "@/server/dal";
@@ -130,4 +131,24 @@ export async function saveJudgingModeAction(_prev: ActionResult, form: FormData)
   if (rankingChanged) return { ok: true, message: ranking.trim() };
   // Saving what the event already has changes nothing and logs nothing; say so.
   return { ok: true, message: `Nothing changed: the event already judges ${mode === "pairwise" ? "pairwise" : "by scores"}, so nothing was logged.` };
+}
+
+/** The tie-break: a criterion's id, or "" for joint places. A change after the first score needs its reason (the DAL asks). */
+export async function saveTieBreakAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const actor = await currentActor();
+  const chosen = String(form.get("criterionId") ?? "");
+  let result: { criterion: { label: string } | null; changed: boolean } = { criterion: null, changed: false };
+  const saved = await run(
+    form,
+    (slug) => {
+      result = setTieBreak(actor, slug, { criterionId: chosen || null, reason: form.get("reason") ?? "" });
+    },
+    "",
+  );
+  if (!saved.ok) return saved;
+  if (!result.changed) return { ok: true, message: "Nothing changed, so nothing was logged." };
+  return {
+    ok: true,
+    message: result.criterion ? `Exact ties are now broken by ${result.criterion.label}.` : "Exactly tied projects now keep a joint place.",
+  };
 }

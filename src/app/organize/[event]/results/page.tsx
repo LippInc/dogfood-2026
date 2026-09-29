@@ -16,6 +16,7 @@ import { PairwiseResults } from "./pairwise-results";
 import { plainSummary } from "./plain-summary";
 import { ScoreOpening } from "./score-opening";
 import { exportHref } from "@/lib/export-href";
+import { ordinal } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Results and their working" };
@@ -57,7 +58,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
   const { track } = await searchParams;
   const actor = await currentActor();
   if (!actor) unauthorized();
-  const { event, normalization: n, decisions, notes, crossCheck, published } = guardPage(() => getNormalization(actor, key));
+  const { event, normalization: n, decisions, notes, crossCheck, published, tieBreak } = guardPage(() => getNormalization(actor, key));
   // teams the organizers changed after the close (the teams the judges saw), marked on their rows: one query for the event
   const teamChanges = guardPage(() => getTeamChangesAfterClose(actor, key));
   const tracks = [...new Map(n.projects.map((p) => [p.trackId, p.trackName])).entries()];
@@ -366,6 +367,45 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
             Normalized ranks compare within a track; tracks compare only through judges who score in both.
           </p>
         </section>
+
+        {tieBreak ? (
+          <section aria-labelledby="ties-title" className="flex flex-col gap-3 wrap-anywhere">
+            <h2 id="ties-title" className="text-17 font-semibold">
+              Exact ties, broken by {tieBreak.criterion.label}
+            </h2>
+            <p className="max-w-[760px] text-14 text-ink-2">
+              The published places follow the scores. Where two or more projects in a track have exactly the same score, the higher plain average on{" "}
+              {tieBreak.criterion.label} over the counted reviews places first; projects tied on it too stay joint. The results, certificates and
+              normalized.csv say &ldquo;tie broken by {tieBreak.criterion.label}&rdquo;.{" "}
+              <Link href={`/organize/${event.slug}/settings#tie-break`} className="underline underline-offset-4 hover:text-ink">
+                Change it in Settings
+              </Link>
+              {event.resultsPublishedAt ? " (final now: the results are published)" : ""}.
+            </p>
+            {tieBreak.groups.length ? (
+              <ul className="flex flex-col divide-y divide-rule rounded-sm border border-rule bg-surface">
+                {tieBreak.groups.map((g) => (
+                  <li key={`${g.trackId}-${g.projects[0]!.id}`} className="flex flex-col gap-1 px-4 py-3">
+                    <span className="text-13 text-ink-2">
+                      {g.trackName} · score <span className="tnum">{f2(g.score)}</span> · {g.broken ? "tie broken" : `still joint: tied on ${tieBreak.criterion.label} too`}
+                    </span>
+                    <span className="text-14">
+                      {g.projects.map((p, i) => (
+                        <span key={p.id}>
+                          {i ? " · " : ""}
+                          <span className="font-medium">{p.title}</span> <span className="tnum text-ink-2">{f2(p.figure)}</span>{" "}
+                          <span className="tnum">{ordinal(p.place)}</span>
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-14 text-ink-2">No two projects in a track have exactly the same score now, so the rule changes no place.</p>
+            )}
+          </section>
+        ) : null}
 
         {crossCheck && crossCheck.tracks.length ? (
           <section aria-labelledby="cross-title" className="flex flex-col gap-3">

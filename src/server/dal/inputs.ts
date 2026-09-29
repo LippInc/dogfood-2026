@@ -25,4 +25,5 @@ export { TokenInput } from "./tokens";
 export { OrganizerInput } from "./organizers";
 export { FixtureSchema } from "../db/import-fixtures";
 export { ModeInput, PickInput, UndoInput } from "./pairwise";
+export { TieBreakInput } from "./tiebreak";
 export { PublishInput } from "./results";

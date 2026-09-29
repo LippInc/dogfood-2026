@@ -38,6 +38,9 @@ import { computeNormalization } from "./normalization";
 import { PAIRWISE_METHOD } from "./pairwise";
 import { answeredPairs } from "./judges";
 import { averageRanks } from "../judging/normalize";
+import { competitionPlaces } from "@/lib/places";
+import { getPublishedResults } from "./results";
+import { tieBreakOf } from "./tiebreak";
 import { issuer } from "./records";
 import { eventReviews } from "./scores";
 import { changedFromDefaults } from "@/lib/project-fields";
@@ -231,6 +234,9 @@ function publishedRunCsv(db: DbOrTx, event: EventRow): string | null {
   for (const scores of byTrack.values()) for (const [id, place] of averageRanks(scores)) places.set(id, place);
   const byRank = [...stored].sort((a, b) => (a.rankNormalized ?? 1e9) - (b.rankNormalized ?? 1e9) || a.id.localeCompare(b.id));
 
+  // the tie-break stage, only when the published run used one: three columns more (TIE_HEAD), else the file is as before
+  const tie = tieColumnsFromPublished(event.id);
+
   if (run.method === PAIRWISE_METHOD) {
     return toCsv(
       ["project_id", "title", "track", "team", "judges", "win_rate", "win_pct", "win_pct_se", "rank_plain", "rank_win_pct", "track_place"],
@@ -250,11 +256,11 @@ function publishedRunCsv(db: DbOrTx, event: EventRow): string | null {
     ];
   const measured = params.measured !== false;
   return toCsv(
-    NORMALIZED_HEAD,
+    tie ? [...NORMALIZED_HEAD, ...TIE_HEAD] : NORMALIZED_HEAD,
     table.map((t) => {
       const p = info.get(t.id);
       const s = byId.get(t.id);
-      return [
+      const row = [
         t.id,
         p?.title ?? "",
         p?.track ?? "",
@@ -276,8 +282,28 @@ function publishedRunCsv(db: DbOrTx, event: EventRow): string | null {
         measured && typeof params.sigma2 === "number" ? params.sigma2.toFixed(4) : "",
         (params.excluded ?? []).join(" "),
       ];
+      return tie ? [...row, ...tie(t.id)] : row;
     }),
   );
+}
+
+const TIE_HEAD = ["tie_break_figure", "track_place", "tie_broken_by"];
+
+/**
+ * The tie-break's columns for the published run, read from the published results (the stored figures): each tied
+ * project's figure on the criterion, every ranked project's place in its track after the tie-break, and the
+ * criterion's name where it split the project's tie. Null when the run used no tie-break.
+ */
+function tieColumnsFromPublished(eventId: string): ((id: string) => (string | number)[]) | null {
+  const r = getPublishedResults(eventId);
+  if (!r.published || !r.tieBreak) return null;
+  const label = r.tieBreak.criterion;
+  const cols = new Map<string, (string | number)[]>();
+  for (const t of r.tracks) {
+    const places = competitionPlaces(t.rows);
+    t.rows.forEach((row, i) => cols.set(row.projectId, [fixed(row.tie, 4), places[i]!.place ?? "", row.tieBroken ? label : ""]));
+  }
+  return (id) => cols.get(id) ?? ["", "", ""];
 }
 
 /**
@@ -288,9 +314,13 @@ function normalizedCsv(db: DbOrTx, event: EventRow): string {
   const published = publishedRunCsv(db, event);
   if (published !== null) return published;
   const n = computeNormalization(db, event);
+  const tie = tieBreakOf(db, event, n);
+  const tied = new Map(tie?.groups.flatMap((g) => g.projects.map((p) => [p.id, p] as const)) ?? []);
+  const tieCols = (id: string) => [fixed(tied.get(id)?.figure, 4), tie!.places.get(id) ?? "", tied.get(id)?.broken ? tie!.criterion.label : ""];
   return toCsv(
-    NORMALIZED_HEAD,
+    tie ? [...NORMALIZED_HEAD, ...TIE_HEAD] : NORMALIZED_HEAD,
     n.projects.map((p) => [
+      ...[
       p.id,
       p.title,
       p.trackName,
@@ -311,6 +341,8 @@ function normalizedCsv(db: DbOrTx, event: EventRow): string {
       n.variance.measured ? n.variance.beta2.toFixed(4) : "",
       n.variance.measured ? n.variance.sigma2.toFixed(4) : "",
       n.excluded.join(" "),
+      ],
+      ...(tie ? tieCols(p.id) : []),
     ]),
   );
 }

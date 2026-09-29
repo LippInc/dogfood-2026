@@ -8,7 +8,7 @@ import { getDb, type DbOrTx } from "../db/client";
 import { assignments, auditLog, events, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, users, type WeightChange } from "../db/schema";
 import type { ChainAnchor } from "../audit";
 import { formatUtc } from "@/lib/format";
-import { competitionPlaceOf } from "@/lib/places";
+import { competitionPlaceOf, competitionPlaces } from "@/lib/places";
 import { ConflictError } from "../errors";
 import { averageRanks, type SignalCheck } from "../judging/normalize";
 import type { Bias } from "../judging/pairwise";
@@ -25,6 +25,9 @@ import { decisions, eventDecisions, notPublished } from "./decisions";
 import { shownTitle } from "./project-fields";
 import { projectTrackMoves, type PublishedTrackMove } from "./corrections";
 import { organizerChangesAfterCloseByProject } from "./teams";
+import { tieBreakOf, type TieBreakView } from "./tiebreak";
+import { breakTies } from "../judging/tiebreak";
+import type { TieBreakChange } from "../db/schema";
 
 // The organizer's results view (the normalization, its decisions, the judges' private notes
 // and the cross-check between methods), publishing, which stores the run it publishes, and
@@ -101,6 +104,8 @@ export function getNormalization(actor: Actor | null, eventIdOrSlug: string) {
     decisions: decisions(db, event, now),
     notes: privateNotes(db, event.id, now.projects),
     crossCheck: judgingModeOf(event) === "scores" ? crossCheck(db, event, now.projects) : null,
+    /** the event's tie-break over the live ranking; null with none set (or in pairwise mode) */
+    tieBreak: tieBreakOf(db, event, now),
   };
 }
 
@@ -169,7 +174,7 @@ function crossCheck(db: DbOrTx, event: EventRow, rows: ProjectRow[]): CrossCheck
 // Publishing
 // ---------------------------------------------------------------------------
 
-function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: string): string {
+function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: string, tie: TieBreakView | null): string {
   const set = judgeSet(tx, event.id);
   const id = newId("nrm");
   tx.insert(normalizationRuns)
@@ -189,6 +194,8 @@ function storeRun(tx: DbOrTx, event: EventRow, actor: Actor, n: Normalized, at: 
         moved: n.moved,
         signal: n.signal,
         yardstick: n.yardstick,
+        // the tie-break stage, only when the event sets one: the criterion and each tied project's figure on it
+        ...(tie ? { tieBreak: storedTieBreak(tie) } : {}),
         // the engine's table beyond what normalized_scores holds, in its order: normalized.csv after publishing is this run
         table: n.projects.map((p) => ({
           id: p.id,
@@ -292,7 +299,8 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string, body:
     if (open.length) {
       throw new ConflictError("decisions_open", `${open.length} ${open.length === 1 ? "decision is" : "decisions are"} still open. Settle ${open.length === 1 ? "it" : "them"} before publishing.`);
     }
-    const runId = storeRun(tx, event, actor!, n, at);
+    const tie = tieBreakOf(tx, event, n);
+    const runId = storeRun(tx, event, actor!, n, at, tie);
     const vote = endVoteForPublish(tx, event, at);
     tx.update(events)
       .set({ resultsPublishedAt: at, settings: { ...event.settings, publishedRunId: runId } })
@@ -312,11 +320,36 @@ export function publishResults(actor: Actor | null, eventIdOrSlug: string, body:
           sigma2: n.variance.sigma2,
           ranked: n.ranked,
           excluded: n.excluded,
+          ...(tie ? { tieBreak: auditedTieBreak(tie) } : {}),
           ...(vote ? { voteEnded: vote.ended, voting: vote.after } : {}),
         },
       },
     };
   });
+}
+
+/**
+ * What a published run keeps of the tie-break: the criterion, and the figure of every project in an exact score tie
+ * (a list, not an object keyed by id, so an event file's import renames the project ids in it as in the rest of the run).
+ */
+export type StoredTieBreak = { criterionId: string; label: string; figures: { id: string; figure: number }[] };
+
+function storedTieBreak(tie: TieBreakView): StoredTieBreak {
+  const figures = tie.groups.flatMap((g) => g.projects.flatMap((p) => (p.figure === null ? [] : [{ id: p.id, figure: p.figure }])));
+  return { criterionId: tie.criterion.id, label: tie.criterion.label, figures };
+}
+
+/** The publish row's account of the tie-break: each exact tie, by track, with each project's figure and place. */
+function auditedTieBreak(tie: TieBreakView) {
+  return {
+    criterion: tie.criterion.label,
+    ties: tie.groups.map((g) => ({
+      track: g.trackName,
+      score: Number(g.score.toFixed(4)),
+      broken: g.broken,
+      projects: g.projects.map((p) => ({ id: p.id, title: p.title, figure: p.figure === null ? null : Number(p.figure.toFixed(4)), place: p.place })),
+    })),
+  };
 }
 
 export type PublishedResults =
@@ -338,6 +371,10 @@ export type PublishedResults =
       trackMoves: PublishedTrackMove[];
       /** a pairwise fit that had not settled when it was published, with the organizer's reason; null otherwise */
       unsettled: Unsettled | null;
+      /** only when the event broke exact ties by a criterion: its name (rows then carry tie and tieBroken) */
+      tieBreak?: { criterion: string };
+      /** only when the tie-break changed after judging began: each change with its reason */
+      tieBreakChanges?: TieBreakChange[];
       /** how the ranking was reached, in aggregate numbers only: never a judge's id, name or own figure */
       evidence: RankingEvidence;
       tracks: {
@@ -356,6 +393,10 @@ export type PublishedResults =
           rankOverall: number | null;
           /** when the organizers last changed this project's team after submissions closed (renamed it, added or took off a member); null when they did not */
           teamChangedAt: string | null;
+          /** with a tie-break only: the project's figure on the criterion when its score is exactly tied with another's, else null */
+          tie?: number | null;
+          /** with a tie-break only: the criterion split this project's exact score tie */
+          tieBroken?: boolean;
         }[];
       }[];
     };
@@ -503,6 +544,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     t.rows.push(r);
     byTrack.set(r.trackId, t);
   }
+  const tie = run.method === METHOD ? ((run.params as { tieBreak?: StoredTieBreak }).tieBreak ?? null) : null;
   const anchor =
     db
       .select({ entry: auditLog.id, hash: auditLog.hash })
@@ -521,24 +563,36 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     weightChanges: event.settings.weightChanges ?? [],
     trackMoves: (run.params as { trackMoves?: PublishedTrackMove[] }).trackMoves ?? [],
     unsettled: (run.params as { unsettled?: Unsettled }).unsettled ?? null,
+    ...(tie ? { tieBreak: { criterion: tie.label } } : {}),
+    ...(tie && event.settings.tieBreakChanges?.length ? { tieBreakChanges: event.settings.tieBreakChanges } : {}),
     evidence: evidenceOf(run.method, run.params as Record<string, unknown>, [...byTrack.values()]),
     tracks: [...byTrack.values()].map((t) => {
       const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
+      const row = (r: (typeof t.rows)[number]) => ({
+        projectId: r.projectId,
+        title: r.title,
+        teamName: r.teamName,
+        n: r.n,
+        score: r.score,
+        se: r.se,
+        raw: r.raw,
+        place: places.get(r.projectId) ?? null,
+        rankOverall: r.rankOverall,
+        teamChangedAt: teamChanges.get(r.projectId)?.at ?? null,
+      });
+      if (!tie) return { id: t.id, name: t.name, rows: t.rows.map(row) };
+      // the tie-break stage: exact score ties ordered by the stored figures; a tied group's average place then counts
+      // only the projects still tied on the criterion too
+      const broken = breakTies(t.rows, new Map(tie.figures.map((f) => [f.id, f.figure])));
+      const placed = competitionPlaces(broken);
       return {
         id: t.id,
         name: t.name,
-        rows: t.rows.map((r) => ({
-          projectId: r.projectId,
-          title: r.title,
-          teamName: r.teamName,
-          n: r.n,
-          score: r.score,
-          se: r.se,
-          raw: r.raw,
-          place: places.get(r.projectId) ?? null,
-          rankOverall: r.rankOverall,
-          teamChangedAt: teamChanges.get(r.projectId)?.at ?? null,
-        })),
+        rows: broken.map((r, i) => {
+          const p = placed[i]!;
+          const alike = r.tie === null ? 1 : broken.filter((x) => x.tie !== null && x.score !== null && r.score !== null && Math.abs(x.score - r.score) <= 1e-9 && Math.abs(x.tie - r.tie!) <= 1e-9).length;
+          return { ...row(r), place: r.tie === null ? (places.get(r.projectId) ?? null) : p.place! + (alike - 1) / 2, tie: r.tie, tieBroken: r.tieBroken };
+        }),
       };
     }),
   };

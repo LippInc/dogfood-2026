@@ -128,7 +128,17 @@ export type EventSettings = {
   voteRuleChanges?: VoteRuleChange[];
   /** Duplicate merges and unmerges made after the voting window closed that moved the final count; the count shows them. */
   voteCountChanges?: VoteCountChange[];
+  /**
+   * Break exact score ties within a track by this rubric criterion (JUDGING.md, "Breaking exact ties"); absent: tied
+   * projects keep a joint place. Scores mode only; frozen with the rest of the settings once results are published.
+   */
+  tieBreak?: { criterionId: string };
+  /** Tie-break changes made after the first score, each with its reason; the published results show them. */
+  tieBreakChanges?: TieBreakChange[];
 };
+
+/** One change of the tie-break after judging began: when, why, and the criterion before and after (null: joint places). */
+export type TieBreakChange = { at: string; reason: string; before: { id: string; label: string } | null; after: { id: string; label: string } | null };
 
 /** Who may vote and how many favourites each: the community vote's counting rules. */
 export type VoteRules = { modes: ("account" | "listed" | "link")[]; votesPerVoter: number };

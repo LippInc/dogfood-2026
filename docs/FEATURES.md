@@ -12,9 +12,9 @@ organizer's questions); the server refuses changes after it.
 
 - **A second event from the first one's settings.** On New event, "Start from the settings of" lists the events
   the administrator organizes; the new event takes that event's tracks, rubric (labels, prompts, weights, anchor
-  text), questions to teams, what teams fill in, team size, prizes, certificate places, judging mode, reviews per
-  project, the judges' own-ranking switch, the accent colour and the voting rules, and nothing else: never its dates, people, teams, projects, reviews, votes, comments or invitations, nor
-  the history kept with its settings (weight and vote rule changes, the published run) or its open voting link.
+  text), questions to teams, what teams fill in, team size, prizes, certificate places, judging mode, the tie-break
+  criterion, reviews per project, the judges' own-ranking switch, the accent colour and the voting rules, and nothing else: never its dates, people, teams, projects, reviews, votes, comments or invitations, nor
+  the history kept with its settings (weight, tie-break and vote rule changes, the published run) or its open voting link.
   The name and dates come from the form. Starting from an event you do not organize is refused (403), and the
   create and the copy are one audited change whose log line names the source (`sourceEventId` on
   `POST /api/events` does the same).
@@ -113,6 +113,17 @@ track with its score and ±, and the audit entry the results were published as, 
 their place, their score with its ±, and each review's feedback, judges unnamed. CSV exports (scores, projects,
 assignments, normalized ranking, pairwise answers, ballots, comments, audit log) and a full `event.json` are
 available at every stage (each file's columns: "Import and export").
+
+## Breaking exact ties
+
+Projects in one track with exactly the same score share a place ("Joint 2nd") unless the organizer chooses, under
+Settings, "Exact ties", one rubric criterion to break such ties: the higher plain average on that criterion over the
+counted reviews places first, and projects tied on it too stay joint. It applies within a track only, and only to
+exactly equal scores; it never reorders anything else. The organizer's Results tab lists each exact tie and how the
+criterion ordered it. The public results, the project's page, the embed, the certificates and `normalized.csv` say
+"tie broken by" the criterion wherever it decided a place. The choice is audited, needs a reason once judges have
+scored (the published results then show the change), and is final once results are published. Pairwise judging has no
+criteria, so there the setting is refused (409) and ties stay joint. The exact rule: JUDGING.md, "Breaking exact ties".
 
 ## Community vote
 

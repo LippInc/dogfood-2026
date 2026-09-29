@@ -138,6 +138,19 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                   </ul>
                 </div>
               ) : null}
+              {results.tieBreakChanges?.length ? (
+                <div className="mt-6 max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
+                  <p className="font-semibold">The organizers chose how exact ties are broken after judging began.</p>
+                  <ul className="mt-1.5 flex flex-col gap-1">
+                    {results.tieBreakChanges.map((c, i) => (
+                      <li key={i}>
+                        <span className="tnum">{formatUtc(c.at)}</span>: {c.before ? `by ${c.before.label}` : "joint places"} → {c.after ? `by ${c.after.label}` : "joint places"}. Their
+                        reason: &ldquo;{c.reason}&rdquo;
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {movedCount ? (
                 <div className="mt-6 max-w-[760px] border-l-[3px] border-flag-bar bg-flag-bg px-4 py-3 text-15 text-flag">
                   <p className="font-semibold">
@@ -237,6 +250,9 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                           </span>
                         </span>
                         {w.joint.length ? <span className="mt-2 block text-13 text-ink-2">Joint first with {w.joint.map((j) => j.title).join(", ")}</span> : null}
+                        {w.first.tieBroken && results.published && results.tieBreak ? (
+                          <span className="mt-2 block text-13 text-ink-2">Tied on score; tie broken by {results.tieBreak.criterion}</span>
+                        ) : null}
                       </a>
                     </li>
                   ))}
@@ -319,6 +335,12 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
                               <Link href={`/events/${event.slug}/projects/${r.projectId}`} className="underline underline-offset-4 hover:text-accent-ink">
                                 see the project page
                               </Link>
+                            </span>
+                          ) : null}
+                          {r.tieBroken && results.published && results.tieBreak ? (
+                            <span className="mt-1 block text-13 text-ink-2 wrap-anywhere">
+                              Tied on score; tie broken by {results.tieBreak.criterion}
+                              {r.tie !== null && r.tie !== undefined ? <span className="tnum">, {r.tie.toFixed(2)}</span> : null}
                             </span>
                           ) : null}
                           {movesOf.get(r.projectId)?.map((m, mi) => (

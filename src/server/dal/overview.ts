@@ -268,6 +268,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       "project.track_moved",
       "assignment.recusal_undone",
       "event.judging_mode",
+      "event.tie_break",
       "results.publish",
       "event.update",
       "voting.settings",

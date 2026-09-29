@@ -608,13 +608,25 @@ export function setJudgingMode(actor: Actor | null, eventIdOrSlug: string, body:
     const before = judgingModeOf(event);
     if (before === input.mode) return { result: { mode: before, changed: false }, audit: null };
     if (input.reason.length < 3) throw new ValidationError("Check the highlighted fields.", { reason: ["say why, in a few words"] });
+    // Pairwise judging has no criteria, so a tie-break by one goes with the switch (JUDGING.md, "Breaking exact ties"),
+    // recorded in this same audit row; switching back does not bring it back.
+    const { tieBreak, ...rest } = event.settings;
+    const dropTie = input.mode === "pairwise" && tieBreak !== undefined;
     tx.update(events)
-      .set({ settings: { ...event.settings, judgingMode: input.mode } })
+      .set({ settings: { ...(dropTie ? rest : event.settings), judgingMode: input.mode } })
       .where(eq(events.id, event.id))
       .run();
+    const tieLabel = dropTie ? (rubricOf(tx, event.id).find((c) => c.id === tieBreak!.criterionId)?.label ?? tieBreak!.criterionId) : null;
     return {
       result: { mode: input.mode, changed: true },
-      audit: { action: "event.judging_mode", eventId: event.id, targetType: "event", targetId: event.id, before: { mode: before }, after: { mode: input.mode, reason: input.reason } },
+      audit: {
+        action: "event.judging_mode",
+        eventId: event.id,
+        targetType: "event",
+        targetId: event.id,
+        before: { mode: before, ...(dropTie ? { tieBreak: tieLabel } : {}) },
+        after: { mode: input.mode, reason: input.reason, ...(dropTie ? { tieBreak: null } : {}) },
+      },
     };
   });
 }

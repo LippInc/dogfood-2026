@@ -96,6 +96,15 @@ export const TRIGGERS: Record<string, string> = {
   BEGIN
     SELECT RAISE(ABORT, 'events: published results cannot be withdrawn or swapped');
   END`,
+  // the tie-break (JUDGING.md, "Breaking exact ties") and its changes are final with the results they ordered
+  events_tie_break_final: `
+  BEFORE UPDATE OF settings ON events
+  WHEN OLD.results_published_at IS NOT NULL
+    AND (json_extract(NEW.settings, '$.tieBreak') IS NOT json_extract(OLD.settings, '$.tieBreak')
+      OR json_extract(NEW.settings, '$.tieBreakChanges') IS NOT json_extract(OLD.settings, '$.tieBreakChanges'))
+  BEGIN
+    SELECT RAISE(ABORT, 'events: the tie-break is final once results are published');
+  END`,
   audit_log_no_update: `
   BEFORE UPDATE ON audit_log
   BEGIN

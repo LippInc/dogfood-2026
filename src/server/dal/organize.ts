@@ -178,8 +178,10 @@ export function eventsToStartFrom(actor: Actor | null): { id: string; slug: stri
  * comments or invitations, nor the history kept with its settings (weight and vote rule changes, the published run,
  * the organizer's rulings on duplicates and under-reviewed projects) or its open voting link.
  */
-function copiedSettings(s: EventSettings): EventSettings {
+function copiedSettings(s: EventSettings, tieKey: string | null, to: string): EventSettings {
   const out: EventSettings = {};
+  // the tie-break by the same criterion of the new event's copied rubric (copySettingsRows names it by key); never its history
+  if (tieKey && s.judgingMode !== "pairwise") out.tieBreak = { criterionId: `crit_${to}_${tieKey}` };
   if (s.maxTeamSize !== undefined) out.maxTeamSize = s.maxTeamSize;
   if (s.certificatePlaces !== undefined) out.certificatePlaces = s.certificatePlaces;
   if (s.accent !== undefined) out.accent = s.accent;
@@ -191,6 +193,13 @@ function copiedSettings(s: EventSettings): EventSettings {
     out.voting = { modes: [...modes], votesPerVoter, linkHash: null, ...(countLink !== undefined ? { countLink } : {}), ...(linkPerAddress !== undefined ? { linkPerAddress } : {}) };
   }
   return out;
+}
+
+/** The key of the criterion that breaks the source event's exact ties, or null. */
+function tieKeyOf(tx: Tx, from: EventRow): string | null {
+  const id = from.settings.tieBreak?.criterionId;
+  if (!id) return null;
+  return tx.select({ key: rubricCriteria.key }).from(rubricCriteria).where(eq(rubricCriteria.id, id)).get()?.key ?? null;
 }
 
 /** Copy the source event's settings rows into the new event, inside the create's transaction; returns what was copied. */
@@ -265,7 +274,7 @@ export function createEvent(actor: Actor | null, body: unknown) {
           submissionsCloseAt: d.submissionsCloseAt,
           judgingCloseAt: d.judgingCloseAt,
           settings: from
-            ? copiedSettings(from.settings)
+            ? copiedSettings(from.settings, tieKeyOf(tx, from), id)
             : { maxTeamSize: d.maxTeamSize, ...(d.certificatePlaces ? { certificatePlaces: d.certificatePlaces } : {}) },
           createdAt: now,
         })
@@ -638,6 +647,11 @@ export function saveRubric(actor: Actor | null, idOrSlug: string, body: unknown)
       }
       if (!sameSet) {
         const keep = rows.map((r) => r.id).filter(Boolean) as string[];
+        const tie = e.settings.tieBreak?.criterionId;
+        if (tie && !keep.includes(tie)) {
+          const label = existing.find((c) => c.id === tie)?.label ?? tie;
+          throw new ConflictError("tie_break_criterion", `"${label}" breaks exact ties in this event. Choose another tie-break (or joint places) under "Exact ties" before removing it.`);
+        }
         tx.delete(rubricCriteria)
           .where(and(eq(rubricCriteria.eventId, e.id), keep.length ? notInArray(rubricCriteria.id, keep) : sql`1 = 1`))
           .run();

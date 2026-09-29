@@ -16,6 +16,7 @@ import {
   saveProjectFieldsAction,
   saveQuestionsAction,
   saveRubricAction,
+  saveTieBreakAction,
   saveTracksAction,
 } from "./actions";
 import { RemoveOrganizer } from "./remove-organizer";
@@ -43,6 +44,7 @@ const SECTIONS: [string, string][] = [
   ["questions", "Questions for teams"],
   ["judging-mode", "How judges judge"],
   ["rubric", "Scoring rubric"],
+  ["tie-break", "Exact ties"],
 ];
 
 export default async function SettingsPage({ params }: PageProps<"/organize/[event]/settings">) {
@@ -56,6 +58,9 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
   const mode = judgingModeOf(event);
   const count = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "none");
   const hiddenCount = PROJECT_FIELDS.filter((f) => o.fields[f] === "hidden").length;
+  // the criterion that breaks exact ties, when one is set and the event judges by scores (pairwise has no criteria)
+  const tieId = mode === "scores" ? (event.settings.tieBreak?.criterionId ?? null) : null;
+  const tieLabel = o.rubric.find((c) => c.id === tieId)?.label ?? null;
   /** What each section holds now, from the saved event: the contents read as an index, not only a list of names. */
   const holds: Record<string, string> = {
     details: event.resultsPublishedAt ? "dates final" : "",
@@ -67,6 +72,7 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
     questions: o.questions.length ? String(o.questions.length) : "none",
     "judging-mode": mode === "pairwise" ? "Pairwise" : "Scores",
     rubric: count(o.rubric.length, "criterion", "criteria"),
+    "tie-break": tieLabel ?? "Joint",
   };
   const contents: ContentsEntry[] = SECTIONS.map(([id, title], i) => ({ id, num: num(i), title, holds: holds[id] }));
   return (
@@ -348,6 +354,43 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
               lockedHint="Judges have scored already: the set of criteria is fixed. Labels and prompts can change; a weight change needs a reason and shows on the published results."
               changes={event.settings.weightChanges ?? []}
             />
+          </SectionForm>
+
+          <SectionForm
+            id="tie-break"
+            markUnsaved
+            number={num(8)}
+            title="Exact ties"
+            description={
+              event.resultsPublishedAt
+                ? "Results are published, so how ties were broken is final."
+                : mode === "pairwise"
+                  ? "This event judges pairwise, which has no rubric criteria to break a tie by: projects with exactly the same win % keep a joint place."
+                  : "Projects in one track with exactly the same score share a place (“Joint 2nd”). Choose a criterion to order them instead: the higher average on it places first, and the results, certificates and normalized.csv say “tie broken by” it. Projects tied on that criterion too stay joint. Best chosen before judging: a change after the first score needs a reason, and the published results show it."
+            }
+            action={saveTieBreakAction}
+            hidden={hidden}
+            submitLabel="Save how ties are broken"
+            fieldLabels={{ criterionId: "Break exact ties by", reason: "Why" }}
+          >
+            <fieldset className="flex flex-col gap-2" disabled={Boolean(event.resultsPublishedAt) || mode === "pairwise"}>
+              <legend className="mb-1 text-13 text-ink-2">Break exact ties by</legend>
+              {[{ id: "", label: "Keep joint places", help: "Tied projects share the place, as the scores have it. The default." }, ...o.rubric.map((c) => ({ id: c.id, label: c.label, help: `The higher plain average on ${c.label} over the reviews the ranking counts places first.` }))].map((c) => (
+                <label key={c.id || "joint"} className="flex items-start gap-3 rounded-sm border border-edge px-3 py-2.5 has-[:checked]:border-accent has-[:checked]:bg-accent-tint">
+                  <input type="radio" name="criterionId" value={c.id} defaultChecked={(tieId ?? "") === c.id || (c.id === "" && !tieLabel)} className="mt-1 size-4 accent-[var(--primary)]" />
+                  <span className="min-w-0">
+                    <span className="block text-14 font-medium wrap-anywhere">{c.label}</span>
+                    <span className="block text-13 text-ink-2">{c.help}</span>
+                  </span>
+                </label>
+              ))}
+              {o.scored ? (
+                <label className="mt-2 flex flex-col gap-1 text-13 text-ink-2">
+                  Why, when you change it (judges have scored: the published results show it)
+                  <input name="reason" maxLength={500} className={input} />
+                </label>
+              ) : null}
+            </fieldset>
           </SectionForm>
         </div>
       </div>

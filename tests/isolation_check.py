@@ -351,6 +351,15 @@ def run_checks(cfg):
     s, body, _ = organizer.request("PUT", ranking_url, {"show": True})
     if expect(c, s == 200, organizer, "PUT", ranking_url, s, "200 (showing what is already shown)"):
         expect(c, as_json(body).get("changed") is False, organizer, "PUT", ranking_url, f"changed {as_json(body).get('changed')!r}", "changed False")
+    # the tie-break (JUDGING.md, "Breaking exact ties"): refused to all but the organizer, whose "keep joint places"
+    # changes nothing on an event that has no tie-break set
+    tie_url = u(f"/api/events/{EVENT_ID}/tie-break")
+    for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403), (judge_b, 403)):
+        s, _, _ = person.request("PUT", tie_url, {"criterionId": None})
+        expect(c, s == wanted, person, "PUT", tie_url, s, str(wanted))
+    s, body, _ = organizer.request("PUT", tie_url, {"criterionId": None})
+    if expect(c, s == 200, organizer, "PUT", tie_url, s, "200 (keeping joint places, as the event has)"):
+        expect(c, as_json(body).get("changed") is False, organizer, "PUT", tie_url, f"changed {as_json(body).get('changed')!r}", "changed False")
     held = judge_a_ids[0] if judge_a_ids else "none"
     remove_url = u(f"/api/events/{EVENT_ID}/assignments/{held}/remove")
     unrecuse_url = u(f"/api/events/{EVENT_ID}/assignments/{held}/undo-recusal")

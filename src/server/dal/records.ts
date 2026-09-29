@@ -78,7 +78,9 @@ function awards(event: EventRow, projectId: string): string[] {
       const i = t.rows.findIndex((r) => r.projectId === projectId);
       if (i < 0) continue;
       const p = competitionPlaces(t.rows)[i]!;
-      if (p.place !== null && p.place <= (event.settings.certificatePlaces ?? DEFAULT_CERTIFICATE_PLACES)) out.push(`${p.joint ? "Joint " : ""}${ordinal(p.place)} place, ${t.name}`);
+      // a place the event's tie-break decided says so (JUDGING.md, "Breaking exact ties")
+      const broke = t.rows[i]!.tieBroken && results.tieBreak ? `, tie broken by ${results.tieBreak.criterion}` : "";
+      if (p.place !== null && p.place <= (event.settings.certificatePlaces ?? DEFAULT_CERTIFICATE_PLACES)) out.push(`${p.joint ? "Joint " : ""}${ordinal(p.place)} place, ${t.name}${broke}`);
     }
   }
   const community = getCommunityResults(event.id);

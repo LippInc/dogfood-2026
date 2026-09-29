@@ -215,3 +215,4 @@ export {
   type ReceiptLine,
 } from "./pairwise";
 export type { Yardstick } from "../judging/yardstick";
+export { setTieBreak, TieBreakInput, type TieBreakCriterion, type TieBreakView } from "./tiebreak";

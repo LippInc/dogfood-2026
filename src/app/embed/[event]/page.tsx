@@ -40,7 +40,8 @@ export default async function EmbedPage({
     const upTo = shownTrack ? 3 : 1;
     for (const t of results.tracks) {
       competitionPlaces(t.rows).forEach(({ place, joint }, i) => {
-        if (place !== null && place <= upTo) places.set(t.rows[i]!.projectId, `${joint ? "Joint " : ""}${ordinal(place)} in ${t.name}`);
+        const broke = t.rows[i]!.tieBroken && results.tieBreak ? `, tie broken by ${results.tieBreak.criterion}` : "";
+        if (place !== null && place <= upTo) places.set(t.rows[i]!.projectId, `${joint ? "Joint " : ""}${ordinal(place)} in ${t.name}${broke}`);
       });
     }
   }
