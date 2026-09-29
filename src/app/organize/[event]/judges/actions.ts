@@ -46,15 +46,18 @@ export async function inviteJudgeAction(_prev: InviteResult, form: FormData): Pr
   }
 }
 
-export async function revokeInviteAction(form: FormData): Promise<void> {
+export async function revokeInviteAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   const actor = await currentActor();
   const slug = String(form.get("event") ?? "");
   try {
     revokeJudgeInvite(actor, String(form.get("invite") ?? ""));
   } catch (err) {
-    actionError(err);
+    // no refresh: the row keeps its button and shows why (an invitation accepted meanwhile would
+    // otherwise just turn into "accepted", its Revoke and the refusal gone with it)
+    return actionError(err);
   }
   refresh(slug);
+  return { ok: true, message: null };
 }
 
 export async function setTracksAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {

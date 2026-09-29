@@ -4,7 +4,6 @@ import { Fragment } from "react";
 import { unauthorized } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DetailRows, DetailToggle } from "@/components/detail-row";
 import { formatUtc, plural } from "@/lib/format";
@@ -12,9 +11,9 @@ import { openWork } from "@/lib/judge-open-work";
 import { guardPage } from "@/lib/page-guard";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
 import { currentActor, emailIsOn, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeRow, type JudgeStanding } from "@/server/dal";
-import { removeJudgeAction, revokeInviteAction } from "./actions";
+import { removeJudgeAction } from "./actions";
 import { WithReason } from "../decisions";
-import { BatchInviteForm, ByHandForm, CopyButton, InviteForm, RunForm, TracksForm } from "./forms";
+import { BatchInviteForm, ByHandForm, CopyButton, InviteForm, RevokeInviteForm, RunForm, TracksForm } from "./forms";
 
 export const dynamic = "force-dynamic";
 
@@ -363,13 +362,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                           </span>
                         </span>
                         {i.state === "open" ? (
-                          <form action={revokeInviteAction} className="shrink-0">
-                            <input type="hidden" name="event" value={event.slug} />
-                            <input type="hidden" name="invite" value={i.id} />
-                            <Button size="sm" variant="ghost">
-                              Revoke
-                            </Button>
-                          </form>
+                          <RevokeInviteForm eventSlug={event.slug} inviteId={i.id} />
                         ) : null}
                       </li>
                     ))}

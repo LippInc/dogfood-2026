@@ -12,6 +12,7 @@ import {
   assignByHandAction,
   inviteJudgeAction,
   inviteJudgesAction,
+  revokeInviteAction,
   runAssignmentAction,
   setTracksAction,
   type BatchInviteResult,
@@ -165,6 +166,25 @@ export function BatchInviteForm({ eventSlug, tracks }: { eventSlug: string; trac
             ))}
           </ul>
         </div>
+      ) : null}
+    </form>
+  );
+}
+
+/** An open invitation's Revoke button; a refusal (accepted meanwhile, no longer your event) shows under it. */
+export function RevokeInviteForm({ eventSlug, inviteId }: { eventSlug: string; inviteId: string }) {
+  const [state, form, pending] = useFormAction<ActionResult>(revokeInviteAction, { ok: false, message: null }, { resetOnSuccess: false });
+  return (
+    <form {...form} className="flex max-w-48 shrink-0 flex-col items-end gap-1">
+      <input type="hidden" name="event" value={eventSlug} />
+      <input type="hidden" name="invite" value={inviteId} />
+      <Button size="sm" variant="ghost" disabled={pending}>
+        Revoke
+      </Button>
+      {!state.ok && state.message ? (
+        <p role="alert" className="text-right text-12 text-flag">
+          {state.message}
+        </p>
       ) : null}
     </form>
   );
