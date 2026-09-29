@@ -8,6 +8,9 @@
 // (n reverse proxies in front, each appending the address it saw), to the address the
 // outermost of them saw. Whatever a client wrote further left is ignored, and X-Real-IP
 // is dropped. Standard library only.
+// Why a patch of http.Server.prototype.emit and not a wrapper server: the standalone server.js that `next build`
+// writes makes its own http.Server and has no hook ahead of Next.js reading the header, so a wrapper would mean
+// replacing the generated server with a custom one; and src/proxy.ts gets only the request, never the connection.
 import http from "node:http";
 
 /**
