@@ -240,6 +240,30 @@ describe("updateProject with the event open", () => {
       expect(answerOf(draft.id, "q_1")).toBe("Changed");
       expect(answerCount(draft.id)).toBe(1); // updated, never a second row
     });
+
+    it("an edit that leaves the stored required answer out of the body is saved and keeps the answer", () => {
+      const { u, draft } = draftWithQuestion();
+      updateProject(u, draft.id, { title: "Q Draft", summary: "one line", trackId: "trk_01", status: "submitted", answers: { q_1: "Nothing" } });
+
+      const saved = updateProject(u, draft.id, { title: "Q Draft", summary: "a better line", trackId: "trk_01" });
+
+      expect(saved.status).toBe("submitted");
+      expect(answerOf(draft.id, "q_1")).toBe("Nothing");
+      expect((h.sqlite.prepare("SELECT summary AS s FROM projects WHERE id = ?").get(draft.id) as { s: string }).s).toBe("a better line");
+    });
+
+    it("known-bad: a body that clears the stored required answer is still a 422 that names q_1", () => {
+      const { u, draft } = draftWithQuestion();
+      updateProject(u, draft.id, { title: "Q Draft", summary: "one line", trackId: "trk_01", status: "submitted", answers: { q_1: "Nothing" } });
+
+      const err = expectHttpError(
+        () => updateProject(u, draft.id, { title: "Q Draft", summary: "one line", trackId: "trk_01", answers: { q_1: "" } }),
+        422,
+        "invalid",
+      );
+      expect(JSON.stringify(err.details)).toContain("q_1");
+      expect(answerOf(draft.id, "q_1")).toBe("Nothing");
+    });
   });
 
   it("known-bad: an answer to an unknown question id is ignored, never an error and never stored", () => {

@@ -169,6 +169,12 @@ function requireTrack(tx: Tx, trackId: string, eventId: string) {
   if (!track) throw new ValidationError("The project is not valid.", { trackId: ["not a track of this event"] });
 }
 
+/** The answers stored for a project, by question id. */
+function storedAnswers(tx: Tx, projectId: string): Record<string, string> {
+  const rows = tx.select({ id: customAnswers.questionId, value: customAnswers.value }).from(customAnswers).where(eq(customAnswers.projectId, projectId)).all();
+  return Object.fromEntries(rows.map((r) => [r.id, r.value]));
+}
+
 function writeAnswers(tx: Tx, projectId: string, eventId: string, answers: Record<string, string>) {
   const ids = Object.keys(answers);
   if (ids.length === 0) return;
@@ -310,7 +316,8 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
         }
       }
       const status = project.status === "submitted" ? "submitted" : input.status;
-      if (status === "submitted") assertSubmittable(tx, project.eventId, values, input.answers, modes);
+      // an answer the body leaves out stays stored (writeAnswers), so the check sees the stored answers overlaid by the body's
+      if (status === "submitted") assertSubmittable(tx, project.eventId, values, { ...storedAnswers(tx, project.id), ...input.answers }, modes);
       const now = new Date().toISOString();
       const next = { ...values, status };
       if (project.thumbnailUrl !== next.thumbnailUrl) {

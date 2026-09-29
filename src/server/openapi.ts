@@ -136,7 +136,7 @@ export const OPERATIONS: Operation[] = [
     also: [409],
     note: "409 team_has_project: a team has one project; edit it with PUT /api/projects/{project}.",
   },
-  { method: "PUT", path: "/api/projects/{project}", tag: "Teams and projects", summary: "Edit your team's project until submissions close", access: "team member", body: In.ProjectInput, also: [409], note: "Which fields are required, optional or hidden is the event's choice (GET /api/events/{event}/project-fields); the body shown is an event's with the defaults. A hidden field is ignored and keeps what is stored. 409 track_locked: once judges are assigned to the project in its track, only an organizer moves it." },
+  { method: "PUT", path: "/api/projects/{project}", tag: "Teams and projects", summary: "Edit your team's project until submissions close", access: "team member", body: In.ProjectInput, also: [409], note: "Which fields are required, optional or hidden is the event's choice (GET /api/events/{event}/project-fields); the body shown is an event's with the defaults. A hidden field is ignored and keeps what is stored; an answer to a custom question the body leaves out stays as stored and counts when the project is checked for submitting. 409 track_locked: once judges are assigned to the project in its track, only an organizer moves it." },
   {
     method: "POST",
     path: "/api/projects/{project}/image",
