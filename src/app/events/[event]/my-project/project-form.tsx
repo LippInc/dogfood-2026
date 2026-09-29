@@ -3,6 +3,7 @@
 import { Check, Circle, Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Field } from "@/components/field";
+import { TagPicker } from "@/components/tag-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -91,6 +92,7 @@ export function ProjectForm({
   project,
   side,
   face,
+  eventTags = [],
 }: {
   eventSlug: string;
   open: boolean;
@@ -103,6 +105,8 @@ export function ProjectForm({
   side: React.ReactNode;
   /** the project's generated face, drawn by the page on the server (the face module is server-only) */
   face: React.ReactNode;
+  /** the tags the event's gallery already shows, the most carried first: the tag picker offers them first */
+  eventTags?: string[];
 }) {
   // Never reset, even after a save: a reset would drop the chosen track and the checklist with it.
   const [state, form, pending] = useFormAction<ActionResult>(saveProjectAction, { ok: false, message: null }, { resetOnSuccess: false });
@@ -213,8 +217,8 @@ export function ProjectForm({
                 <PictureField projectId={project?.id ?? null} initial={project?.thumbnailUrl ?? null} error={e.thumbnailUrl} face={face} required={required("thumbnailUrl")} onChange={pictureChanged} />
               ) : null}
               {shown("tags") ? (
-                <Field id="tags" label="Tech tags" help="Up to 8, separated by commas. Visitors can search for them." required={required("tags")} error={e.tags}>
-                  {(a) => <Input {...a} name="tags" placeholder="rust, webgpu, accessibility" defaultValue={(project?.tags ?? []).join(", ")} />}
+                <Field id="tags" label="Tech tags" help="Up to 8. Pick from the list or type your own. Visitors can search for them." required={required("tags")} error={e.tags}>
+                  {(a) => <TagPicker {...a} name="tags" initial={project?.tags ?? []} eventTags={eventTags} onChange={pictureChanged} />}
                 </Field>
               ) : null}
             </div>

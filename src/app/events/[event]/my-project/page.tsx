@@ -8,7 +8,8 @@ import { PublicShell } from "@/components/shell/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { formatUtc, isPast } from "@/lib/format";
 import { ordinal, tieBrokenWords } from "@/lib/places";
-import { actorNav, currentActor, getMyWork, myRecords, NotFoundError, PAIRWISE_METHOD, type MyWork } from "@/server/dal";
+import { tagCounts } from "@/lib/search";
+import { actorNav, currentActor, getGallery, getMyWork, myRecords, NotFoundError, PAIRWISE_METHOD, type MyWork } from "@/server/dal";
 import { openOwnRecord } from "../../../records/actions";
 import { HandedIn } from "./handed-in";
 import { ProjectForm, type FormProject } from "./project-form";
@@ -53,6 +54,9 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
         answers: project.answers,
       }
     : null;
+  // The tags the event's gallery already shows (submitted projects, what the organizers do not hide), the most carried
+  // first: the tag picker offers them before its own list, so projects share tags and the gallery's tag filter holds.
+  const eventTags = open && work.fields.tags !== "hidden" ? tagCounts(getGallery(event.id).projects).map((t) => t.label) : [];
   const trackName = work.tracks.find((t) => t.id === project?.trackId)?.name ?? null;
   const recordButton = "inline-flex h-10 items-center rounded-sm border border-edge px-4 text-14 font-medium hover:bg-surface";
 
@@ -202,6 +206,7 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
           project={formProject}
           side={side}
           face={<Face id={work.faceId ?? team.id} className="block aspect-video w-full" />}
+          eventTags={eventTags}
         />
       ) : (
         <div className="grid gap-10 lg:grid-cols-[minmax(0,680px)_320px] lg:justify-between">
