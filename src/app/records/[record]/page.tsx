@@ -24,7 +24,12 @@ type JudgeRecord = { judging: { finishedReviews: number; tracks: string[]; answe
 type ParticipantRecord = { project: { id: string; title: string; team: string; track: string | null; awards: string[] } };
 type Common = { id: string; kind: "judge" | "participant"; issuer: string; keyId: string; issuedAt: string; person: { name: string }; event: { name: string } };
 
+/**
+ * A record names a person, so search engines are asked not to index it (like the voting and invitation pages): it is
+ * public to whoever holds its link, and should not turn up when someone searches for the name.
+ */
 export async function generateMetadata({ params }: PageProps<"/records/[record]">): Promise<Metadata> {
+  const robots = { index: false, follow: false };
   try {
     const r = getRecord((await params).record);
     const rec = r.envelope.record as unknown as Common & Partial<ParticipantRecord>;
@@ -35,9 +40,9 @@ export async function generateMetadata({ params }: PageProps<"/records/[record]"
         ? `${rec.person.name} judged at ${rec.event.name}.`
         : `${rec.person.name}${rec.project?.awards.length ? `, ${rec.project.awards[0]}` : ""}, with ${rec.project?.title ?? "their project"} at ${rec.event.name}.`;
     const description = `${what} A signed record anyone can check on this page.`;
-    return { title, description, openGraph: { title, description, type: "article" } };
+    return { title, description, openGraph: { title, description, type: "article" }, robots };
   } catch {
-    return { title: "Record" };
+    return { title: "Record", robots };
   }
 }
 

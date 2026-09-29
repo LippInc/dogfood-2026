@@ -154,7 +154,7 @@ The portal's own `/privacy` page ("What we keep") shows this same list; the sign
 | Keyed hashes of an email or network address, counting tries | `rate_buckets` | about an hour after the last try (idle buckets are deleted every hour) | the portal, by itself |
 | Mail the portal sent: address, subject, body with its link blanked (nothing while email is off) | `outbox` | until the operator purges it (older than 90 days by default) | `scripts/purge.mjs` |
 | Changes sent to the organizers' webhooks, which can include names, and the receivers' answers | `webhook_deliveries` | until the operator purges the finished ones (older than 90 days by default) | `scripts/purge.mjs`; the receiver keeps its own copy |
-| Signed certificates, with the person's name | `signed_records` | for good: whoever holds one can check it | nothing |
+| Signed certificates, with the person's name | `signed_records` | for good: whoever holds one can check it; its page asks search engines not to index it | nothing |
 | Project pictures, re-encoded without their metadata | the uploads folder | until the team replaces it or the organizers take it down | the team, the organizers |
 | The audit log: who did what and when, by name, and email addresses in some entries (a judge invited, an organizer added or removed) | `audit_log` | for good: it is append-only, and removing a row would break the chain | nothing |
 | Backups: a copy of all of the above | `/data/backups` | the newest 7 (`BACKUP_KEEP`) on the volume, and any copied off it | the operator |

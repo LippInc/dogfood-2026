@@ -69,7 +69,7 @@ export const KEPT: KeptFact[] = [
   {
     what: "Signed certificates, with the person's name",
     where: "`signed_records`",
-    kept: "for good: whoever holds one can check it",
+    kept: "for good: whoever holds one can check it; its page asks search engines not to index it",
     removedBy: "nothing",
   },
   {
