@@ -360,6 +360,7 @@ export function VerifyForm() {
                             {p ? <span className="font-serif text-15 text-ink-2 sm:text-17">in the {p.track} track</span> : null}
                             {p?.tieBrokenBy && !p.joint ? <span className="text-13 text-ink-2">{tieBrokenWords(p.tieBrokenBy)}</span> : null}
                             {z ? <span className="font-serif text-15 text-ink-2 sm:text-17">of the prize {z.prize}</span> : null}
+                            {p?.decided ? <span className="text-13 text-ink-2">Winner by the judges&rsquo; decision on a close call</span> : null}
                           </p>
                         </li>
                       );

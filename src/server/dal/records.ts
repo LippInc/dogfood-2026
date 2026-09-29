@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { compareNames } from "@/lib/names";
 import { z } from "zod";
-import { competitionPlaces, ordinal, tieDecided } from "@/lib/places";
+import { competitionPlaces, DECIDED_SUFFIX, ordinal, tieDecided } from "@/lib/places";
 import { appendAudit, anchorHolds, chainHead, type ChainAnchor } from "../audit";
 import type { Actor, Resource } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
@@ -80,9 +80,11 @@ function awards(event: EventRow, projectId: string): string[] {
       const i = t.rows.findIndex((r) => r.projectId === projectId);
       if (i < 0) continue;
       const p = competitionPlaces(t.rows)[i]!;
-      // a place the event's tie-break decided says so (JUDGING.md, "Breaking exact ties")
+      // a place the event's tie-break decided says so (JUDGING.md, "Breaking exact ties"), and so does a winner the judges
+      // named on a close call (JUDGING.md, "Close calls and the judges' decision")
       const broke = tieDecided(t.rows[i]!, p) && results.tieBreak ? `, tie broken by ${results.tieBreak.criterion}` : "";
-      if (p.place !== null && p.place <= (event.settings.certificatePlaces ?? DEFAULT_CERTIFICATE_PLACES)) out.push(`${p.joint ? "Joint " : ""}${ordinal(p.place)} place, ${t.name}${broke}`);
+      const decided = t.rows[i]!.decided ? DECIDED_SUFFIX : "";
+      if (p.place !== null && p.place <= (event.settings.certificatePlaces ?? DEFAULT_CERTIFICATE_PLACES)) out.push(`${p.joint ? "Joint " : ""}${ordinal(p.place)} place, ${t.name}${broke}${decided}`);
     }
   }
   const community = getCommunityResults(event.id);

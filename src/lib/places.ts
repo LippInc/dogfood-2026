@@ -1,5 +1,4 @@
 /**
-/**
  * Competition-style places for rows sorted best first: tied projects share the first place of their group. A row may
  * carry `tie`, its figure on the event's tie-break criterion (src/server/judging/tiebreak.ts), set only on rows whose
  * score is exactly tied with another's: among those, a higher figure places first, and only rows tied on both share
@@ -75,13 +74,17 @@ export function competitionPlaceOf(values: Map<string, number>): Map<string, num
 export const ordinal = (n: number) =>
   `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
 
+/** How a certificate, the embed and the record pages mark a winner the judges named on a close call. */
+export const DECIDED_SUFFIX = ", by the judges' decision";
+
 /**
- * A podium award as a certificate words it ("Joint 1st place, Health", or "2nd place, Health, tie broken by Impact"
- * when the event's tie-break decided it), read back into its parts; null for any other award (a community vote win).
+ * A podium award as a certificate words it ("Joint 1st place, Health", "2nd place, Health, tie broken by Impact" when
+ * the event's tie-break decided it, or "1st place, Health, by the judges' decision" when the judges named the winner on
+ * a close call), read back into its parts; null for any other award (a community vote win).
  */
-export function awardPlace(award: string): { place: number; ordinal: string; joint: boolean; track: string; tieBrokenBy: string | null } | null {
-  const m = /^(Joint )?(([0-9]+)(?:st|nd|rd|th)) place, (.+?)(?:, tie broken by (.+))?$/.exec(award);
-  return m ? { joint: Boolean(m[1]), ordinal: m[2]!, place: Number(m[3]), track: m[4]!, tieBrokenBy: m[5] ?? null } : null;
+export function awardPlace(award: string): { place: number; ordinal: string; joint: boolean; track: string; tieBrokenBy: string | null; decided: boolean } | null {
+  const m = /^(Joint )?(([0-9]+)(?:st|nd|rd|th)) place, (.+?)(?:, tie broken by (.+?))?(, by the judges' decision)?$/.exec(award);
+  return m ? { joint: Boolean(m[1]), ordinal: m[2]!, place: Number(m[3]), track: m[4]!, tieBrokenBy: m[5] ?? null, decided: Boolean(m[6]) } : null;
 }
 
 /** A prize award as a certificate words it ("Winner, Best in show", "Joint winner, Best in show"), read back into its parts; null for any other award. */

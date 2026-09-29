@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { PageMark } from "@/components/page-mark";
-import { competitionPlaces, ordinal, tieDecided } from "@/lib/places";
+import { competitionPlaces, DECIDED_SUFFIX, ordinal, tieDecided } from "@/lib/places";
 import { getGallery, getPublishedResults, NotFoundError, type Gallery } from "@/server/dal";
 import { ReportHeight } from "./height";
 
@@ -41,7 +41,8 @@ export default async function EmbedPage({
     for (const t of results.tracks) {
       competitionPlaces(t.rows).forEach(({ place, joint }, i) => {
         const broke = tieDecided(t.rows[i]!, { place, joint }) && results.tieBreak ? `, tie broken by ${results.tieBreak.criterion}` : "";
-        if (place !== null && place <= upTo) places.set(t.rows[i]!.projectId, `${joint ? "Joint " : ""}${ordinal(place)} in ${t.name}${broke}`);
+        const decided = t.rows[i]!.decided ? DECIDED_SUFFIX : "";
+        if (place !== null && place <= upTo) places.set(t.rows[i]!.projectId, `${joint ? "Joint " : ""}${ordinal(place)} in ${t.name}${broke}${decided}`);
       });
     }
   }

@@ -170,8 +170,8 @@ describe("the pure stage", () => {
   });
 
   it("reads a certificate's award back into its parts, with the tie-break when it decided the place", () => {
-    expect(awardPlace("Joint 1st place, Health")).toEqual({ joint: true, ordinal: "1st", place: 1, track: "Health", tieBrokenBy: null });
-    expect(awardPlace("2nd place, Data and analytics, tie broken by Functionality")).toEqual({ joint: false, ordinal: "2nd", place: 2, track: "Data and analytics", tieBrokenBy: "Functionality" });
+    expect(awardPlace("Joint 1st place, Health")).toEqual({ joint: true, ordinal: "1st", place: 1, track: "Health", tieBrokenBy: null, decided: false });
+    expect(awardPlace("2nd place, Data and analytics, tie broken by Functionality")).toEqual({ joint: false, ordinal: "2nd", place: 2, track: "Data and analytics", tieBrokenBy: "Functionality", decided: false });
     expect(awardPlace("Winner of the community vote")).toBeNull();
   });
 
