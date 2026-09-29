@@ -5,9 +5,10 @@ type Row = { id: string; title: string; from: number; to: number };
 
 export function SlopeChart({ rows, total, highlight, label }: { rows: Row[]; total: number; highlight: string | null; label: string }) {
   const W = 260;
-  const H = 180;
+  // the axis labels sit below the plot with room for their descenders inside the viewBox
+  const H = 184;
   const top = 14;
-  const bottom = H - 14;
+  const bottom = 166;
   const y = (rank: number) => top + ((rank - 1) / Math.max(1, total - 1)) * (bottom - top);
   const hl = rows.find((r) => r.id === highlight);
   return (
@@ -38,10 +39,10 @@ export function SlopeChart({ rows, total, highlight, label }: { rows: Row[]; tot
           </text>
         </>
       ) : null}
-      <text x={60} y={H - 1} textAnchor="middle" className="fill-ink-3 text-[10px]">
+      <text x={60} y={H - 6} textAnchor="middle" className="fill-ink-3 text-[10px]">
         all judges
       </text>
-      <text x={200} y={H - 1} textAnchor="middle" className="fill-ink-3 text-[10px]">
+      <text x={200} y={H - 6} textAnchor="middle" className="fill-ink-3 text-[10px]">
         without
       </text>
     </svg>

@@ -189,7 +189,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
                     ? `Shuffling the review totals spreads the projects at least as far apart as the real scores in ${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles, so these scores cannot tell the projects apart better than chance.`
                     : `Shuffling the review totals almost never spreads the projects as far apart as the real scores (${Math.round(n.signal.share * 100)} % of ${n.signal.trials.toLocaleString("en")} shuffles): the projects really differ.`}
                 </p>
-                <svg viewBox="0 0 320 32" className="mt-3 w-full max-w-[360px]" role="img" aria-label={`Permutation share ${n.signal.share.toFixed(3)} on a scale from 0 to 1, with the 0.05 line`}>
+                <svg viewBox="0 0 320 34" className="mt-3 w-full max-w-[360px]" role="img" aria-label={`Permutation share ${n.signal.share.toFixed(3)} on a scale from 0 to 1, with the 0.05 line`}>
                   <line x1={10} x2={310} y1={14} y2={14} className="stroke-edge" strokeWidth={1} />
                   <line x1={10} x2={10} y1={10} y2={18} className="stroke-edge" strokeWidth={1} />
                   <line x1={310} x2={310} y1={10} y2={18} className="stroke-edge" strokeWidth={1} />

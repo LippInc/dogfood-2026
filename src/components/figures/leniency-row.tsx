@@ -38,7 +38,7 @@ export function LeniencyRow({ tilt, leniency, se, span }: { tilt: number | null;
 /** The shared axis for the column head: harsher on the left, more lenient on the right. */
 export function LeniencyAxis({ span }: { span: number }) {
   return (
-    <svg viewBox={`0 0 ${W} 14`} width={W} height={14} className="block" aria-hidden="true" focusable="false">
+    <svg viewBox={`0 0 ${W} 17`} width={W} height={17} className="block" aria-hidden="true" focusable="false">
       <line x1={PAD} x2={W - PAD} y1={3} y2={3} className="stroke-edge" />
       {[-span, 0, span].map((v) => (
         <g key={v}>
