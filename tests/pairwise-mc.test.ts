@@ -18,14 +18,15 @@ import {
 // binary insertion exactly as the Compare screen asks them, with known qualities, their own
 // discrimination and known pulls of the left side (h) and of the project just opened (nu).
 // Assertions pre-declared 2026-09-27 before the first run (pairwise-2026-09-27/DESIGN.md):
-//  (a) with the pulls present, the engine's within-track Kendall tau beats the naive
+//  (a) with the pulls present, the engine's within-track Kendall tau (tau-b) beats the naive
 //      win-rate ranking's; (b) without them it trails nothing by more than the run-to-run sd;
 //  (c) the mean estimates of h and nu are within 0.1 of truth; (d) the 95 % intervals of
 //      each project's strength relative to its track cover the truth in 90 to 99 % of cases;
 //  (e) the coin-flip flag fires on honest judges (6+ picks) in at most 15 % of cases.
 // Known-bad: a fit with its project labels shuffled must fail (a).
-// Measured 2026-09-27: (a) holds by +0.002 against a run-to-run sd of 0.044, so it reads as
-// a match with the win rate, not a win; JUDGING.md "The proof" says so.
+// Measured 2026-09-27 with gamma under the name tau: (a) held by +0.002 (run-to-run sd 0.044).
+// Re-measured 2026-09-29 with tau-b: +0.011 (sd 0.043), mostly because the win rate ties
+// projects; JUDGING.md "The proof" gives both and reads it as about a match, not a win.
 
 type Fixture = {
   tracks: { id: string }[];
@@ -119,21 +120,39 @@ function simulate(seed: number, sc: Scenario) {
   return { q, comps, flipper, strategic };
 }
 
-/** Kendall tau between estimates and truth within each track, averaged over tracks by pairs. */
-function tau(est: Map<string, number>, truth: Map<string, number>) {
+/**
+ * Kendall's tau-b between estimates and truth over the pairs of projects in the same track
+ * (every track's pairs pooled): (C - D) / sqrt((n - tied in est) (n - tied in truth)). A pair
+ * the estimate ties counts in n, so a ranking that cannot tell two projects apart pays for it;
+ * dropping tied pairs instead would be Goodman-Kruskal gamma, which the first version of this
+ * test computed under the name tau (2026-09-29, a judge's-eye reading). The same formula as
+ * tests/normalization-mc.test.ts and kendallTauB in src/server/dal/results.ts.
+ */
+function tau(est: Map<string, number>, truth: Map<string, number>, tracks: { projectIds: string[] }[] = TRACKS) {
   let conc = 0;
   let disc = 0;
-  for (const t of TRACKS) {
+  let n = 0;
+  let tiedEst = 0;
+  let tiedTruth = 0;
+  for (const t of tracks) {
     const ids = t.projectIds.filter((id) => est.has(id));
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
-        const u = (est.get(ids[i]!)! - est.get(ids[j]!)!) * (truth.get(ids[i]!)! - truth.get(ids[j]!)!);
-        if (u > 0) conc++;
-        else if (u < 0) disc++;
+        const dx = est.get(ids[i]!)! - est.get(ids[j]!)!;
+        const dy = truth.get(ids[i]!)! - truth.get(ids[j]!)!;
+        const zx = Math.abs(dx) <= 1e-12;
+        const zy = Math.abs(dy) <= 1e-12;
+        n++;
+        if (zx) tiedEst++;
+        if (zy) tiedTruth++;
+        if (zx || zy) continue;
+        if (dx > 0 === dy > 0) conc++;
+        else disc++;
       }
     }
   }
-  return (conc - disc) / Math.max(1, conc + disc);
+  const den = Math.sqrt((n - tiedEst) * (n - tiedTruth));
+  return den > 0 ? (conc - disc) / den : 0;
 }
 
 function winRate(comps: Comparison[]) {
@@ -179,6 +198,16 @@ function compare(runs: number, seed0: number, sc: Scenario) {
 }
 
 describe("pairwise Monte Carlo on the fixture's judges and assignments", () => {
+  it("scores with Kendall's tau-b: a tie in the estimate costs it, where gamma would not notice", () => {
+    const m = (xs: number[]) => new Map(xs.map((x, i) => [`p${i}`, x]));
+    const one = [{ projectIds: ["p0", "p1", "p2"] }];
+    expect(tau(m([1, 2, 3]), m([1, 2, 3]), one)).toBe(1);
+    expect(tau(m([3, 2, 1]), m([1, 2, 3]), one)).toBe(-1);
+    // known-bad for gamma: it drops the tied pair and reads 1
+    expect(tau(m([1, 1, 2]), m([1, 2, 3]), one)).toBeCloseTo(2 / Math.sqrt(6), 12);
+    expect(tau(m([1, 1, 1]), m([1, 2, 3]), one)).toBe(0);
+  });
+
   it("(a) and (c): with a left pull of 0.3 and a just-opened pull of 0.2, the engine beats the win rate and recovers both pulls; known-bad fails (a)", () => {
     const res = compare(200, 1000, { h: 0.3, nu: 0.2, tau: heterogeneous });
     console.log(
