@@ -193,22 +193,9 @@ export function rotateInvite(actor: Actor | null, teamId: string) {
     actor,
     action: "team.manage",
     load: (tx) => {
-      const t = tx.select({ id: teams.id, eventId: teams.eventId }).from(teams).where(eq(teams.id, teamId)).get();
-      if (!t) throw new NotFoundError("Team");
-      team = t;
-      const membership = actor
-        ? tx
-            .select({ role: teamMembers.role })
-            .from(teamMembers)
-            .where(and(eq(teamMembers.teamId, t.id), eq(teamMembers.userId, actor.userId)))
-            .get()
-        : undefined;
-      return {
-        kind: "team",
-        event: eventFacts(requireEvent(tx, t.eventId)),
-        isMember: Boolean(membership),
-        isCaptain: membership?.role === "captain",
-      };
+      const loaded = loadTeam(tx, actor, teamId);
+      team = loaded.team;
+      return loaded.resource;
     },
     run: (tx) => {
       const inviteCode = newSecret(12);
