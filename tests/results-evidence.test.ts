@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -10,7 +11,7 @@ import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/
 import { CORRECTED_FROM, getPublishedResults, publishResults, type PublishedResults } from "@/server/dal/results";
 import { getPairwiseState, pickPairwise, pullShare, setJudgingMode, PAIRWISE_METHOD } from "@/server/dal/pairwise";
 import { actorForToken } from "@/server/session";
-import { mostlyFromScores, pairwiseSources, RankingEvidence } from "@/components/results/ranking-evidence";
+import { mostlyFromScores, pairwiseSources, RankingEvidence, winPctMethod } from "@/components/results/ranking-evidence";
 
 // The public results page's "How this ranking was reached" block: shown only once results are
 // published, built only from the published run, and never naming a judge or carrying a judge's id.
@@ -191,5 +192,38 @@ describe("How this ranking was reached (public results page)", () => {
     const one = withPulls({ share: 0.57, pm: 3 }, null);
     expect(one).toContain("The fit measured one pull and corrected for it, the side a project was shown on (57 % ± 3");
     for (const html of [both, one]) expect(html).not.toMatch(/took (them |it )?out|taken out/);
+  });
+});
+
+describe("How these win % were made (the public results page's fold, pairwise)", () => {
+  const base = { kind: "pairwise" as const, judges: 4, placed: 10, moved: 0, excluded: 0 };
+  const pull = { share: 0.57, pm: 3 };
+
+  it("says where the comparisons came from, that measured pulls were measured and corrected for, and what the ± means", () => {
+    const both = winPctMethod({ ...base, answers: 12, fromScores: 190, left: pull, fresh: pull });
+    expect(both).toBe(
+      `Each project’s win % is its chance to beat an average project of its track, fitted from ${pairwiseSources({ ...base, answers: 12, fromScores: 190, left: pull, fresh: pull })}` +
+        " (a judge’s scores in a track count as the order they imply). More of these comparisons come from the scores than from answers." +
+        " The pull of the side a project was shown on and of the project a judge had just opened were measured and corrected for." +
+        " The ± is one standard error: win % closer than about two of them are not told apart.",
+    );
+    const unmeasured = winPctMethod({ ...base, answers: 12, fromScores: 0, left: pull, fresh: null });
+    expect(unmeasured).toContain("about projects they were given to judge.");
+    expect(unmeasured).toContain("The fit corrects for the pull of the side a project was shown on and of the project a judge had just opened once there are answers enough to measure them");
+    expect(winPctMethod(null)).toContain("fitted from judges’ answers.");
+    for (const text of [both, unmeasured, winPctMethod(null)]) {
+      expect(text).not.toMatch(/taken out|took (them |it )?out/);
+      expect(text).not.toContain("their own projects");
+    }
+  });
+
+  it("is what the page prints: the page calls it and keeps no sentence of its own about the pulls or whose projects were compared", () => {
+    const page = fs.readFileSync(path.join(process.cwd(), "src/app/events/[event]/results/page.tsx"), "utf8");
+    expect(page).toContain("winPctMethod(pw)");
+    const forbidden = (text: string) => [/their own projects/, /measured and taken out/, /pull of the side a project was shown on/i].filter((re) => re.test(text)).map(String);
+    // known-bad control: the paragraph the page printed before this helper existed is caught on all three
+    const old = "Judges answered &ldquo;which of these two is better?&rdquo; about their own projects, with the pull of the side a project was shown on and of the project a judge had just opened measured and taken out.";
+    expect(forbidden(old)).toHaveLength(3);
+    expect(forbidden(page)).toEqual([]);
   });
 });

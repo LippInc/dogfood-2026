@@ -37,6 +37,23 @@ export function mostlyFromScores(e: PairwiseEvidence): string | null {
   return e.fromScores > e.answers ? "More of these comparisons come from the scores than from answers." : null;
 }
 
+/**
+ * The public results page's "How these win % were made", pairwise: where the comparisons came from,
+ * what the fit did about the two pulls, and what the ± means. Kept here, beside the evidence block's
+ * words, so the page has no sentence of its own to drift (tests/results-evidence.test.ts). `pw` is null
+ * only for a pairwise run stored before its evidence was.
+ */
+export function winPctMethod(pw: PairwiseEvidence | null): string {
+  const mostly = pw ? mostlyFromScores(pw) : null;
+  const sources = pw ? pairwiseSources(pw) : "judges’ answers";
+  const scoresNote = pw?.fromScores ? " (a judge’s scores in a track count as the order they imply)" : "";
+  const pulls =
+    pw?.left && pw.fresh
+      ? "The pull of the side a project was shown on and of the project a judge had just opened were measured and corrected for."
+      : "The fit corrects for the pull of the side a project was shown on and of the project a judge had just opened once there are answers enough to measure them; “How this ranking was reached” below says which it could.";
+  return `Each project’s win % is its chance to beat an average project of its track, fitted from ${sources}${scoresNote}.${mostly ? ` ${mostly}` : ""} ${pulls} The ± is one standard error: win % closer than about two of them are not told apart.`;
+}
+
 function Row({ term, children }: { term: string; children: ReactNode }) {
   return (
     <div className="grid gap-x-6 gap-y-1 border-t border-rule py-3 md:grid-cols-[160px_minmax(0,1fr)]">

@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Face } from "@/components/face";
 import { LogSeal } from "@/components/results/log-seal";
-import { mostlyFromScores, pairwiseSources, RankingEvidence } from "@/components/results/ranking-evidence";
+import { mostlyFromScores, pairwiseSources, RankingEvidence, winPctMethod } from "@/components/results/ranking-evidence";
 import { VoteCountChanges, VoteRuleChanges } from "@/components/results/vote-rule-changes";
 import { ScaleAxis, ScoreLine, scaleFor } from "@/components/results/score-line";
 import { PublicShell } from "@/components/shell/public-shell";
@@ -159,14 +159,7 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
               </summary>
               <div className="flex flex-col gap-3 border-t border-rule px-4 pt-3 pb-4">
                 {pairwise ? (
-                  <p>
-                    Each project&rsquo;s win % is its chance to beat an average project of its track, fitted from {pw ? pairwiseSources(pw) : "judges’ answers"}
-                    {pw?.fromScores ? " (a judge’s scores in a track count as the order they imply)" : ""}.{pwMostly ? ` ${pwMostly}` : ""}{" "}
-                    {pw?.left && pw.fresh
-                      ? "The pull of the side a project was shown on and of the project a judge had just opened were measured and corrected for."
-                      : "The fit corrects for the pull of the side a project was shown on and of the project a judge had just opened once there are answers enough to measure them; “How this ranking was reached” below says which it could."}{" "}
-                    The ± is one standard error: win % closer than about two of them are not told apart.
-                  </p>
+                  <p>{winPctMethod(pw)}</p>
                 ) : (
                   <p>
                     {results.k !== null
