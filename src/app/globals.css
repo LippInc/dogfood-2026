@@ -84,18 +84,13 @@
  * scrollbar belongs to <html>, outside .work and .public, so :root carries the .work values.
  * Chrome, Edge (121+) and Firefox read scrollbar-width and scrollbar-color; Safari, which lacks
  * scrollbar-color, gets the ::-webkit-scrollbar rules below, drawn to look the same.
- * scrollbar-gutter: stable keeps the page from moving sideways when its scrollbar comes and goes
- * (the header moved when the demo disclosure opened and the page grew a scrollbar).
+ * No scrollbar-gutter: stable here: the dialogs' scroll lock already pads the body by the scrollbar's width, and a
+ * reserved gutter on top of that pushed the page 10 px sideways whenever Help or a judge dialog opened.
  */
 :root {
   --scroll-thumb: light-dark(#7f889e, #65739a);
   --scroll-thumb-hover: light-dark(#5a6683, #8e9bbe);
   scrollbar-color: var(--scroll-thumb) transparent;
-  scrollbar-gutter: stable;
-}
-/* The embedded gallery sizes its iframe to fit (embed/[event]/height.tsx): no empty gutter there. */
-:root:has([data-embed]) {
-  scrollbar-gutter: auto;
 }
 .work,
 .public {
