@@ -558,6 +558,22 @@ describe("a new event's history reaches only its own rows", () => {
     expect(again.existing).toMatchObject({ voters: 3, comments: 2, comparisons: 2, judgeOverrides: 1, normalizationRuns: 1 });
   });
 
+  it("a prize whose id another event holds is renamed with its award, and the same file again finds the award present, not new", () => {
+    liveTheEvent();
+    const file = JSON.parse(exported("fixtures.json"));
+    const best = file.prizes[0].id as string;
+    portalWithAnotherEvent();
+    hb!.sqlite.prepare("INSERT INTO prizes (id, event_id, name, description, position) VALUES (?, 'evt_theirs', 'Their prize', '', 0)").run(best);
+    const report = importIntoB(file);
+    expect(report.renamed).toContainEqual({ kind: "prize", from: best, to: `${best}.evt_01` });
+    const awards = (hb!.sqlite.prepare("SELECT json_extract(settings, '$.prizeAwards') AS a FROM events WHERE id = 'evt_01'").get() as { a: string }).a;
+    expect(JSON.parse(awards)).toEqual([{ prizeId: `${best}.evt_01`, projectIds: ["prj_02.evt_01", "prj_03"], note: "Two ways to one good idea", at: expect.any(String) }]);
+    // the same file again: the award is present under the renamed prize, so nothing is refused and nothing added
+    const again = importIntoB(JSON.parse(exported("fixtures.json")));
+    expect(Object.values(again.inserted).every((n) => n === 0)).toBe(true);
+    expect(again.existing).toMatchObject({ voters: 3, comments: 2, comparisons: 2, judgeOverrides: 1, normalizationRuns: 1 });
+  });
+
   it("known-bad: a file that names another event's project in a pick, a comment, an answer, a merge or its ranking gets none of them there", () => {
     portalWithAnotherEvent();
     const file = JSON.parse(exported("fixtures.json"));

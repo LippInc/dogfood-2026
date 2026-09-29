@@ -330,6 +330,7 @@ export function refuseHistoryForExistingEvent(
     return { present: all.length - missing, missing };
   };
   const d = file.decisions;
+  const awardedPrizes = new Set((s.prizeAwards ?? []).map((a) => a.prizeId));
   const settingsDecisions = [
     inList(
       d?.not_duplicates.map((p) => p.split("|").map(own).sort().join("|")),
@@ -341,7 +342,8 @@ export function refuseHistoryForExistingEvent(
     inList(d?.vote_rule_changes, s.voteRuleChanges),
     inList(remapIds(d?.vote_count_changes, projectOf) as unknown[] | undefined, s.voteCountChanges),
     inList(
-      d?.prize_awards.map((a) => ({ prize: a.prize, projects: a.projects.map(own), note: a.note, at: a.at })),
+      // a prize an earlier import renamed (another event held its id) is held under '<id>.<event id>'
+      d?.prize_awards.map((a) => ({ prize: awardedPrizes.has(renamed(a.prize)) ? renamed(a.prize) : a.prize, projects: a.projects.map(own), note: a.note, at: a.at })),
       s.prizeAwards?.map((a) => ({ prize: a.prizeId, projects: a.projectIds, note: a.note, at: a.at })),
     ),
     inList(
