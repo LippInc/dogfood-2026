@@ -227,6 +227,44 @@ describe("importFixtures", () => {
     expect(db.select().from(scores).where(eq(scores.id, "scr_jdg_08_prj_01")).get()?.submittedAt).toBe(later);
   });
 
+  it("known-bad: the audit row of an import that finishes a partly imported review says it finished it", () => {
+    const { fixture, sha256 } = loadFixture();
+    const pair = (f: Fixture) => f.scores.find((s) => s.judge === "jdg_08" && s.project === "prj_01")!;
+    const partial: Fixture = structuredClone(fixture);
+    delete pair(partial).criteria.innovation;
+    importFixture(db, partial, sha256);
+
+    // the second file's score for that pair holds only the missing criterion
+    const rest: Fixture = structuredClone(fixture);
+    rest.scores = [{ ...pair(rest), criteria: { innovation: pair(fixture).criteria.innovation } }];
+    const report = importFixtures(db, rest, { source: "fixtures.json", sha256, now: "2026-09-27T09:00:00.000Z" });
+    expect(db.select().from(assignments).where(eq(assignments.id, "asg_jdg_08_prj_01")).get()?.status).toBe("done");
+
+    const review = report.added.reviews.find((r) => r.project === "prj_01" && r.values.innovation !== undefined)!;
+    expect(review.finished).toBe(true);
+    const rows = db.select({ action: auditLog.action, after: auditLog.after }).from(auditLog).all().filter((r) => r.action === "fixtures.import");
+    const logged = (rows.at(-1)!.after as { reviews: { finished: boolean; values: Record<string, number> }[] }).reviews;
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ finished: true, values: { innovation: pair(fixture).criteria.innovation } });
+  });
+
+  it("an import that brings part of a still unfinished review logs it unfinished", () => {
+    // positive control: two criteria missing, the second import brings one; the review stays pending and says so
+    const { fixture, sha256 } = loadFixture();
+    const pair = (f: Fixture) => f.scores.find((s) => s.judge === "jdg_08" && s.project === "prj_01")!;
+    const partial: Fixture = structuredClone(fixture);
+    const [first, second] = Object.keys(pair(fixture).criteria);
+    delete pair(partial).criteria[first!];
+    delete pair(partial).criteria[second!];
+    importFixture(db, partial, sha256);
+    const rest: Fixture = structuredClone(fixture);
+    rest.scores = [{ ...pair(rest), criteria: { [first!]: pair(fixture).criteria[first!] } }];
+    const report = importFixtures(db, rest, { source: "fixtures.json", sha256, now: "2026-09-27T09:00:00.000Z" });
+    expect(db.select().from(assignments).where(eq(assignments.id, "asg_jdg_08_prj_01")).get()?.status).toBe("pending");
+    expect(report.added.reviews).toHaveLength(1);
+    expect(report.added.reviews[0]!.finished).toBe(false);
+  });
+
   it("a recused assignment stays recused when a second import brings its missing score", () => {
     const { fixture, sha256 } = loadFixture();
     const partial: Fixture = structuredClone(fixture);

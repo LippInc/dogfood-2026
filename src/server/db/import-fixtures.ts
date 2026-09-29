@@ -225,7 +225,7 @@ export type ImportReport = {
   /**
    * What this import added that judging rests on, one entry each, for its audit row: the accounts it
    * made judges of the event, and every review it brought in or added to (the judge's account, the
-   * project, whether the file's review is finished, the scores and feedback it added).
+   * project, whether the review is finished once this import is done, the scores and feedback it added).
    */
   added: { judges: string[]; reviews: ImportedReview[]; judgeTracks: { judge: string; track: string }[]; criteria: string[] };
 };
@@ -857,7 +857,12 @@ export function importFixtures(
       }
       // A review an earlier import brought in part, that this one completes, is finished as a judge's save finishes it
       if (!newAssignment && broughtAny) finishIfComplete(tx, [...criterionOf.values()], assignmentId, scoreId, now);
-      if (broughtAny) report.added.reviews.push(brought);
+      if (broughtAny) {
+        // finished as the review stands after this import, not as the file has it: a file that brings only the
+        // missing scores of an earlier import's review is what finished it
+        brought.finished = tx.select({ status: assignments.status }).from(assignments).where(eq(assignments.id, assignmentId)).get()?.status === "done";
+        report.added.reviews.push(brought);
+      }
     }
 
     // An event that was here keeps the rules its forms keep (the team pages, the project form, hand assignment): a
