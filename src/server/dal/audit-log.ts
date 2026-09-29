@@ -437,7 +437,11 @@ function sentence(r: Row, n: Names): Part[] {
       const [one, many] = MAIL_WORDS[String(after.kind)] ?? ["message", "messages"];
       const count = (k: number) => `${k} ${k === 1 ? one : many}`;
       // the record written before the send (0015), then the outcome
-      if (after.sending !== undefined) return [actor, t(` handed ${count(Number(after.sending))} to the mail server`)];
+      if (after.sending !== undefined) {
+        const refused = Number(after.refused ?? 0);
+        const handed = ` handed ${count(Number(after.sending))} to the mail server`;
+        return [actor, t(refused ? `${handed}; ${refused} refused before sending (not a deliverable address)` : handed)];
+      }
       const unknown = Number(after.unknown ?? 0);
       const maybe = unknown ? `; ${unknown} may have arrived (the connection broke)` : "";
       return [actor, t(sent ? ` mailed ${count(sent)}${failed ? `; ${failed} could not be sent` : ""}${maybe}` : failed ? ` could not mail ${count(failed)}${maybe}` : ` may have mailed ${count(unknown)} (the connection broke)`)];
