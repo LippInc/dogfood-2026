@@ -377,7 +377,7 @@ export default async function ResultsWorkingPage({ params, searchParams }: PageP
               The published places follow the scores. Where two or more projects in a track have exactly the same score, the higher plain average on{" "}
               {tieBreak.criterion.label} over the counted reviews places first; projects tied on it too stay joint. The results, certificates and
               normalized.csv say &ldquo;tie broken by {tieBreak.criterion.label}&rdquo;.{" "}
-              <Link href={`/organize/${event.slug}/settings#tie-break`} className="underline underline-offset-4 hover:text-ink">
+              <Link href={`/organize/${event.slug}/settings#tie-break-title`} className="underline underline-offset-4 hover:text-ink">
                 Change it in Settings
               </Link>
               {event.resultsPublishedAt ? " (final now: the results are published)" : ""}.

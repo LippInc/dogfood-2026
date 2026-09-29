@@ -5,6 +5,7 @@ import { DitherDigits } from "@/components/dither-digits";
 import { Face } from "@/components/face";
 import { PublicShell } from "@/components/shell/public-shell";
 import { formatUtc } from "@/lib/format";
+import { awardPlace as placeOf } from "@/lib/places";
 import { linkedInAddHref, linkedInCertName } from "@/lib/linkedin";
 import { actorNav, currentActor, getRecord, NotFoundError, type RecordView } from "@/server/dal";
 import { BrowserCheck, CheckedSheet, ForgeTry, LiveBits, LiveSeal, RecordActions, RecordCheck } from "./check";
@@ -44,12 +45,6 @@ export async function generateMetadata({ params }: PageProps<"/records/[record]"
   } catch {
     return { title: "Record", robots };
   }
-}
-
-/** A podium award as the record words it ("Joint 1st place, Health"), read back into its parts; other awards stay whole. */
-function placeOf(award: string): { place: number; ordinal: string; joint: boolean; track: string } | null {
-  const m = /^(Joint )?(([0-9]+)(?:st|nd|rd|th)) place, (.+)$/.exec(award);
-  return m ? { joint: Boolean(m[1]), ordinal: m[2]!, place: Number(m[3]), track: m[4]! } : null;
 }
 
 const recordLink = "rounded-xs font-medium underline decoration-edge underline-offset-4 hover:decoration-ink";
@@ -169,6 +164,7 @@ export default async function RecordPage({ params }: PageProps<"/records/[record
                     <p className="flex flex-col gap-1">
                       <span className="font-display text-24 uppercase leading-tight text-accent-ink sm:text-38">{p ? `${p.joint ? "Joint " : ""}${p.ordinal} place` : a}</span>
                       {p ? <span className="font-serif text-17 text-ink-2 sm:text-20">in the {p.track} track</span> : null}
+                      {p?.tieBrokenBy ? <span className="text-14 text-ink-2">Tied on score; tie broken by {p.tieBrokenBy}</span> : null}
                     </p>
                   </li>
                 );

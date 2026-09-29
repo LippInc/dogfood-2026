@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DitherDigits } from "@/components/dither-digits";
 import { SignatureBits, bitsOf } from "@/components/signature-bits";
 import { formatUtc } from "@/lib/format";
+import { awardPlace as placeOf } from "@/lib/places";
 import { checkInBrowser } from "../records/[record]/check";
 
 type Envelope = { record: Record<string, unknown>; signature: string };
@@ -89,12 +90,6 @@ function envelopeOf(text: string): Envelope | null {
     if (e && typeof e === "object" && "record" in e && "signature" in e) return e as Envelope;
   } catch {}
   return null;
-}
-
-/** "Joint 1st place, Health" back into its parts, from the award text the signed record carries. */
-function placeOf(award: string): { place: number; ordinal: string; joint: boolean; track: string } | null {
-  const m = /^(Joint )?(([0-9]+)(?:st|nd|rd|th)) place, (.+)$/.exec(award);
-  return m ? { joint: Boolean(m[1]), ordinal: m[2]!, place: Number(m[3]), track: m[4]! } : null;
 }
 
 /** How many of the bits of two signatures differ (every bit, when one cannot be read or the lengths differ). */
@@ -360,6 +355,7 @@ export function VerifyForm() {
                           <p className="flex flex-col gap-0.5">
                             <span className="font-display text-20 uppercase leading-tight text-accent-ink sm:text-24">{p ? `${p.joint ? "Joint " : ""}${p.ordinal} place` : a}</span>
                             {p ? <span className="font-serif text-15 text-ink-2 sm:text-17">in the {p.track} track</span> : null}
+                            {p?.tieBrokenBy ? <span className="text-13 text-ink-2">Tied on score; tie broken by {p.tieBrokenBy}</span> : null}
                           </p>
                         </li>
                       );

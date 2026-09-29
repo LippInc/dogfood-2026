@@ -48,3 +48,12 @@ export function competitionPlaceOf(values: Map<string, number>): Map<string, num
 
 export const ordinal = (n: number) =>
   `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
+
+/**
+ * A podium award as a certificate words it ("Joint 1st place, Health", or "2nd place, Health, tie broken by Impact"
+ * when the event's tie-break decided it), read back into its parts; null for any other award (a community vote win).
+ */
+export function awardPlace(award: string): { place: number; ordinal: string; joint: boolean; track: string; tieBrokenBy: string | null } | null {
+  const m = /^(Joint )?(([0-9]+)(?:st|nd|rd|th)) place, (.+?)(?:, tie broken by (.+))?$/.exec(award);
+  return m ? { joint: Boolean(m[1]), ordinal: m[2]!, place: Number(m[3]), track: m[4]!, tieBrokenBy: m[5] ?? null } : null;
+}

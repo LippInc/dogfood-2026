@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { competitionPlaces } from "@/lib/places";
+import { awardPlace, competitionPlaces } from "@/lib/places";
 import { breakTies, criterionMeans } from "@/server/judging/tiebreak";
 import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
 import { exportFile } from "@/server/dal/exports";
@@ -98,6 +98,12 @@ describe("the pure stage", () => {
       { place: 1, joint: true },
     ]);
     expect(competitionPlaces(rows)).toEqual(competitionPlaces(out));
+  });
+
+  it("reads a certificate's award back into its parts, with the tie-break when it decided the place", () => {
+    expect(awardPlace("Joint 1st place, Health")).toEqual({ joint: true, ordinal: "1st", place: 1, track: "Health", tieBrokenBy: null });
+    expect(awardPlace("2nd place, Data and analytics, tie broken by Functionality")).toEqual({ joint: false, ordinal: "2nd", place: 2, track: "Data and analytics", tieBrokenBy: "Functionality" });
+    expect(awardPlace("Winner of the community vote")).toBeNull();
   });
 
   it("counts a judge who scored both copies of a merged project once, then takes the mean over judges", () => {
