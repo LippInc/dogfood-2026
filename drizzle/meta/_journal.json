@@ -127,6 +127,13 @@
       "when": 1790648302177,
       "tag": "0017_published_inserts",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1790648402177,
+      "tag": "0018_audit_chain",
+      "breakpoints": true
     }
   ]
 }

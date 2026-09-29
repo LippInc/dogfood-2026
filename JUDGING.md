@@ -460,7 +460,7 @@ This section says what the audit log records, what protects it, and where that p
 
 **What protects it.**
 
-- Triggers refuse UPDATE and DELETE on the log, and they are re-created at every start.
+- Triggers refuse UPDATE and DELETE on the log, and a new row that does not link to the last one or would take an existing row's place, and they are re-created at every start.
 - Each row carries the hash of the row before it. The organizer's audit page and `audit.csv` show the head hash.
 - A hash never gives away what its row keeps from a reader: the row of a ballot, a score or a pairwise answer is hashed with its own random salt, shown in `audit.csv` only together with the values (a ballot's once voting closes) and never sent in a webhook, so nobody can hash guessed picks or scores to find the one that matches. Once shown, the row can be recomputed from its own line (`DATA-MODEL.md`, the chain).
 
@@ -471,7 +471,7 @@ This section says what the audit log records, what protects it, and where that p
 
 ## Threat model
 
-In its own file, `THREAT-MODEL.md`: Sybil votes, ballot stuffing, submission scraping, judge collusion, deadline gaming, tactical pairwise answers, forged requests and filling the audit log, each with what is stopped and what is not.
+In its own file, `THREAT-MODEL.md`: Sybil votes, ballot stuffing, submission scraping, judge collusion, deadline gaming, tactical pairwise answers, forged requests, filling the audit log and rewriting the record, each with what is stopped and what is not.
 
 ## What it does not do
 

@@ -58,6 +58,8 @@ const frozenInsert = (table: string, eventId: string, already: string) => `
     SELECT RAISE(ABORT, '${table}: the results are published, so nothing can be added');
   END`;
 const eventOfRun = (runId: string) => `(SELECT r.event_id FROM normalization_runs r WHERE r.id = ${runId})`;
+// the first row's prev_hash: GENESIS_HASH in src/server/audit.ts (tests/audit-chain-db.test.ts holds the two equal)
+const GENESIS = "0".repeat(64);
 
 export const TRIGGERS: Record<string, string> = {
   normalization_runs_no_update: appendOnly("normalization_runs", "UPDATE"),
@@ -90,6 +92,30 @@ export const TRIGGERS: Record<string, string> = {
   BEFORE DELETE ON audit_log
   BEGIN
     SELECT RAISE(ABORT, 'audit_log is append-only: DELETE rejected');
+  END`,
+  // The chain in the database (drizzle/0018_audit_chain.sql): a row goes only at the end of the log, linked to
+  // the last one. SQLite has no SHA-256, so the database checks the links and verifyAuditChain (src/server/audit.ts)
+  // checks the hashes. Refused: a row whose prev_hash is not the last row's hash (64 zeros, audit.ts's GENESIS_HASH,
+  // before the first row); a row with an id or a hash the log already holds, so INSERT OR REPLACE cannot rewrite a
+  // row even from a connection without recursive_triggers, where the REPLACE's own delete fires no DELETE trigger;
+  // and a row put before the last one by an explicit id (AFTER, since a BEFORE trigger reads an id left to SQLite as -1).
+  audit_log_chain_link: `
+  BEFORE INSERT ON audit_log
+  WHEN NEW.prev_hash IS NOT coalesce((SELECT a.hash FROM audit_log a ORDER BY a.id DESC LIMIT 1), '${GENESIS}')
+  BEGIN
+    SELECT RAISE(ABORT, 'audit_log: a new row must link to the last row (prev_hash is not its hash)');
+  END`,
+  audit_log_no_replace: `
+  BEFORE INSERT ON audit_log
+  WHEN EXISTS (SELECT 1 FROM audit_log a WHERE a.id = NEW.id OR a.hash = NEW.hash)
+  BEGIN
+    SELECT RAISE(ABORT, 'audit_log is append-only: a row with this id or hash is already there');
+  END`,
+  audit_log_at_end: `
+  AFTER INSERT ON audit_log
+  WHEN NEW.id < (SELECT max(a.id) FROM audit_log a)
+  BEGIN
+    SELECT RAISE(ABORT, 'audit_log is append-only: a new row goes after the last one');
   END`,
   score_items_range_insert: range("INSERT"),
   score_items_range_update: range("UPDATE OF value, criterion_id"),

@@ -66,6 +66,12 @@ Voting and submission abuse, as the event asked: for each attack, what the porta
 
 **What is not:** a cap across people. Many accounts, each under its own ceiling, still add rows; making accounts is itself limited (300 sign-ups and password sign-ins per network address in 10 minutes by default, the operator's `SIGN_IN_LIMIT_PER_ADDRESS`; see "Deadline gaming").
 
+## Rewriting the record
+
+**What is built:** the audit log is append-only in the database, not only in the app. Triggers refuse every UPDATE and DELETE; a new row that does not link to the last one; a row that takes an existing row's id or hash (an `INSERT OR REPLACE`, which on a connection without `recursive_triggers`, such as a plain `sqlite3` shell, would otherwise delete the row it replaces without firing a DELETE trigger); and a row put before the last one. They are made again at every start, and one replaced with a no-op is restored. Each row carries the hash of the row before it, and every view of the log recomputes the chain from the first row (`tests/audit-chain-db.test.ts` shows each refusal, and the same statement getting through with that trigger dropped).
+
+**What is not:** protection from someone who holds the database file. They can drop the triggers, rewrite rows and compute every hash again, since the chain has no key, and the database checks the links, not the hashes. What shows such a rewrite is a hash kept outside the portal (`DATA-MODEL.md`, the chain).
+
 ## The public default secret
 
 **What is built:** `DOGFOOD_SEED_SECRET` derives the checker's sessions, salts the voters' address hashes and seals the signing key, and its default is published so that `docker compose up` works with no setup. With that default (or none) the portal starts only as the local demo: with demo mode off it refuses to start whatever `PUBLIC_URL` says (a portal behind a reverse proxy may leave it unset; judge's-eye reading 9), and a portal whose `PUBLIC_URL` is not this machine's own address (localhost, a name under `.localhost`, 127.x.x.x, ::1) refuses demo mode or not; each refusal comes before it opens the database and says what to set. With demo mode on it also refuses the checker's sessions there. Demo mode itself is refused on such an address whatever the secret, since its sign-in page makes anyone the demo organizer, an administrator, with one click; `PUBLIC_DEMO=true` (with an own secret) runs a public demo on purpose.

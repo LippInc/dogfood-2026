@@ -367,10 +367,12 @@ describe("the chain a portal already holds", () => {
         // still append-only after the ALTER, and the column refuses a salt that is not 32 bytes of hex
         expect(() => old.sqlite.prepare("UPDATE audit_log SET salt = NULL").run()).toThrow(/append-only/);
         expect(() => old.sqlite.prepare("DELETE FROM audit_log").run()).toThrow(/append-only/);
+        // linked to the last row, as the chain trigger (0018_audit_chain) asks of every new row
+        const lastHash = () => (old.sqlite.prepare("SELECT hash FROM audit_log ORDER BY id DESC LIMIT 1").get() as { hash: string }).hash;
         const withSalt = (salt: string) =>
           old.sqlite
             .prepare("INSERT INTO audit_log (at, actor_label, action, prev_hash, hash, salt) VALUES ('2026-09-29T02:00:00.000Z', 'x', 'x', ?, ?, ?)")
-            .run(GENESIS_HASH, sha(salt), salt);
+            .run(lastHash(), sha(salt), salt);
         expect(() => withSalt("not-hex")).toThrow(/CHECK constraint failed/);
         expect(() => withSalt("AB".repeat(32))).toThrow(/CHECK constraint failed/); // lowercase hex only
         expect(() => withSalt("ab".repeat(32))).not.toThrow(); // positive control
