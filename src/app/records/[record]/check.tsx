@@ -311,8 +311,9 @@ export function RecordActions({ envelope, id, linkedIn }: { envelope: Envelope; 
         </span>
       </button>
       {/* A plain link to LinkedIn's add-certification form, prefilled: the portal itself fetches nothing. */}
-      <a href={linkedIn} target="_blank" rel="noopener noreferrer" className={button}>
-        Add to LinkedIn
+      <a href={linkedIn} target="_blank" rel="noopener noreferrer" aria-label="Add to LinkedIn" className={button}>
+        <span className="sm:hidden">LinkedIn</span>
+        <span className="max-sm:hidden">Add to LinkedIn</span>
       </a>
     </div>
   );
