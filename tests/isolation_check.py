@@ -20,6 +20,7 @@ import csv
 import io
 import json
 import secrets
+import socket
 import sys
 import urllib.error
 import urllib.request
@@ -32,6 +33,19 @@ TIMEOUT = 10
 EVENT_ID = "evt_01"
 EVENT_SLUG = "sample-hack-2026"
 VOTE_COOKIE = f"vote_{EVENT_ID}"
+
+# "localhost" resolves to ::1 first, and a portal published on 127.0.0.1 only (docker-compose.yml) refuses it: on
+# Windows each refused ::1 attempt costs about 2 s before Python falls back to 127.0.0.1, which made the whole run take
+# 7 minutes. Try the IPv4 addresses first; a portal that listens on IPv6 only is still reached, one step later.
+_getaddrinfo = socket.getaddrinfo
+
+
+def _ipv4_first(host, *args, **kwargs):
+    found = _getaddrinfo(host, *args, **kwargs)
+    return sorted(found, key=lambda a: a[0] != socket.AF_INET) if host == "localhost" else found
+
+
+socket.getaddrinfo = _ipv4_first
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
