@@ -73,7 +73,7 @@ The rate limits and the duplicate-ballot flags key on the requester's network ad
 - `src/server/` — everything private: the data access layer (`dal/`), the database (`db/`: schema, client, migration runner, triggers, fixture import), the judging engines (`judging/`: normalization, assignment, and `pairwise.ts`, the Bradley-Terry fit and the binary insertion a judge's list is replayed with), and the cross-cutting modules: `authz.ts`, `mutate.ts`, `audit.ts`, `session.ts`, `openapi.ts`, `webhooks.ts`, `signing.ts`, `rate-limit.ts`, `http.ts`, `errors.ts`, `boot.ts`, `checker.ts`.
 - `src/instrumentation.ts` — the Next hook that starts the boot.
 - `drizzle/` — the SQL migrations.
-- `scripts/` — for operators, in the image too: `backup.mjs` and `restore.mjs` (README, "Running it for a real event") `verify-record.mjs`, which checks a signed record offline, and `webhook-receiver.mjs`, which prints webhook deliveries and checks their signatures.
+- `scripts/` — for operators, in the image too: `backup.mjs` and `restore.mjs` (`docs/OPERATIONS.md`, "Backup and restore"), `verify-record.mjs`, which checks a signed record offline, and `webhook-receiver.mjs`, which prints webhook deliveries and checks their signatures.
 - `tests/` — vitest suites, including the boundary and API registry tests; the hand check for the tiers run.py does not verify is `tests/isolation_check.py`.
 
 ## Where to change what

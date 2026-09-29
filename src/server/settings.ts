@@ -2,7 +2,7 @@ import "server-only";
 
 // Operator settings that are whole numbers, read from the environment. Each has a safe
 // default; boot refuses to start on a value that is not a whole number in range, so a typo
-// never silently leaves the default in place. README's operator table documents each one.
+// never silently leaves the default in place. docs/OPERATIONS.md's settings table documents each one.
 
 type Env = Record<string, string | undefined>;
 

@@ -30,8 +30,8 @@ export const metadata: Metadata = { title: "Overview" };
 // ground, each a number, a picture of it and one line, with the details a click
 // away. The figures sit under a ruled head, like the gallery's Field.
 
-// Each export with what it holds (README, T4 row: "scores, projects, normalized
-// ranking and audit log as CSV, event.json").
+// Each export with what it holds (docs/HAND-CHECKS.md, bulk import and export: "scores,
+// projects, normalized ranking and audit log as CSV, `event.json`").
 const EXPORTS = [
   ["scores.csv", "every raw score"],
   ["projects.csv", "the projects"],

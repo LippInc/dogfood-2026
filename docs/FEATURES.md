@@ -1,0 +1,142 @@
+# What the portal does, in full
+
+The README gives the short list; this page has the rules behind each item. How judging turns scores into a
+ranking is in [`JUDGING.md`](../JUDGING.md), and what the portal stops is in [`THREAT-MODEL.md`](../THREAT-MODEL.md).
+
+## Events and teams
+
+An administrator creates an event with dates, tracks, prizes, custom questions and a weighted rubric. People
+sign up, form a team, share an invite link and draft and edit a project until the deadline (name, tagline,
+description, repository, demo video and live links, a picture, an image gallery, tech tags, the track and the
+organizer's questions); the server refuses changes after it.
+
+- **What teams fill in.** The organizer makes each of those fields required, optional or hidden (Settings, "What
+  teams fill in"), so an event where everyone builds the same thing can ask for a repository link and nothing
+  else. A project with no title of its own is called by its team's name, and so is every project while the title
+  is hidden; a hidden track is the event's one track, and a hidden field is shown nowhere (what a team typed
+  before stays stored and returns if the field comes back).
+- **Solo events.** With one person per team (most people on one team: 1), taking part is one step: no team to
+  name (the entry goes by the person's name) and no invite link.
+- **Team changes before the deadline.** A member can rename the team or leave, the captain can take a member off
+  or hand the captaincy over, and a team's only member can dissolve it, a draft project with it, but never a
+  submitted one.
+- **Team changes after the deadline.** An organizer renames a team, adds someone to it or takes someone off, each
+  with a reason for the audit log, from the team's page under Submissions, until results are published; the
+  project page says the organizers changed the team after the close. A change that would move the community
+  vote count, because the person voted for that team's project, is refused until the vote is voided.
+- **Gallery.** The public gallery shows every submitted project, searchable (tags included) and filterable by
+  track.
+
+## Judging
+
+- **Invitations.** The organizer invites judges by link, one at a time or from a pasted list of names and
+  addresses, one link each (no mail server needed; a link stops admitting judges once judging closes or the
+  results are out).
+- **Assignment.** Projects are assigned with a seeded, stored assignment run; judges score in a keyboard-first
+  console with autosave and see only their own scores.
+- **Decisions before publishing.** The organizer's overview shows progress live and lists the decisions that
+  must be made before results can go out: a flat judge, a duplicate entry, an under-reviewed project.
+- **Normalization and receipts.** Scores are normalized for judge leniency (method and its defence in
+  `JUDGING.md`), and each project's normalized score comes with its receipt, judge by judge: the change from the
+  raw mean and a ± of one standard error. A judge ledger shows each judge's leniency ± error and, before any
+  override, what leaving that judge out would move.
+- **Fixing set-up mistakes,** each with a reason in the audit log: from a project's page (Submissions, its review
+  count) an organizer takes back an assignment nobody started, undoes a recusal clicked by mistake, or moves the
+  project to another track after judges were assigned; on the Judges page, a judge's name opens their removal
+  (an invitation taken by the wrong account): what they saved stays on record, out of the ranking, and the
+  receipts name them.
+
+## Pairwise judging (optional)
+
+An organizer can have judges answer "which is better?" instead of scoring: the switch is on Settings, audited,
+with a reason, and can be switched back until results are published. Judges see two of their own projects at a
+time, may call it too close, and place each project into their own order in about log₂ n answers, with the arrow
+keys. The ranking is a Bradley-Terry fit of every answer, with the pull of the left side and of the project just
+opened measured and taken out; each place carries its chance of really being ahead of the next, each project a
+receipt of the comparisons behind it, and scores given before the switch still count as the order they imply.
+Judges whose answers look like coin flips are flagged for the organizer to settle before publishing. The method,
+its limits and its Monte Carlo proof: `JUDGING.md`, "Pairwise mode".
+
+## Results and exports
+
+Publishing is locked until every decision is made; it stores the exact normalization run it publishes, and the
+database refuses to withdraw it or swap it for another run. The public results page shows every project in each
+track with its score and ±, and the audit entry the results were published as, with its hash. Teams then see
+their place, their score with its ±, and each review's feedback, judges unnamed. CSV exports (scores, projects,
+normalized ranking, audit log) and a full `event.json` are available at every stage.
+
+## Community vote
+
+This section is the one place the voting rules are stated.
+
+- **Who may vote.** The organizer opens a voting window and chooses any of: signed-in accounts; a voter list by
+  address, with one personal link each (with `SMTP_URL` set the portal mails each link as it is made, otherwise
+  the organizer sends them); an open link.
+- **The open link is counted apart.** Its ballots show in their own column and add to the result only if the
+  organizer chose that before the first ballot; the choice is fixed once ballots are in.
+- **Ballots.** Up to three picks; each ballot lists the projects in the voter's own shuffled order; nobody signed
+  in can vote for their own team's project; one ballot per person the portal can name.
+- **The count** is live for organizers only while the window is open, public when it closes, and final from then
+  on. Publishing the results closes an open vote (and calls off one not yet open), so nobody votes with the
+  ranking in view; its count goes public with the results.
+- **Abuse.** Suspected duplicate ballots are flagged while voting is open, for an audited set-aside; ballots,
+  link entries, comments and sign-in are rate limited (429 with `Retry-After`); every step is in the audit log.
+- **Demo mode.** On the demo portal the sample event's vote opens at the first start for 30 days, for signed-in
+  accounts and through an open link the start prints (`community vote (demo): ...`); like a new event, the demo
+  does not add open-link ballots to the result.
+
+## Comments
+
+Signed-in visitors can comment on projects and delete their own comments; an organizer can hide a comment with a
+reason that stays in its place (its author cannot delete it then), and unhide it again. Comments cannot be
+edited: delete and post again.
+
+## Signed certificates and judging records
+
+Once results are published, each member of a submitting team can get a certificate (places 1 to 3 in the track,
+or as many as the organizer sets on Settings before publishing, and a community-vote win on it) and each judge a
+record of their judging, at `/records/<id>`, printable, signed with the portal's Ed25519 key over the record's
+canonical JSON. Organizers issue them all on the Results tab; people can fetch their own from their project page
+or the judge console. Anyone holding one can check it: on its page (the browser verifies the signature itself
+with WebCrypto), on `/verify`, by `POST /api/records/verify`, or offline with `node scripts/verify-record.mjs
+<record URL or file> [--keys <saved key file>]`. The public key is at `/.well-known/dogfood-keys.json`. A record
+keeps what it was signed with: if the organizers rename the event later, its page says so beside the signed
+name. The key is made at first start and kept in the database, sealed under `DOGFOOD_SEED_SECRET`; back the
+database up ([`OPERATIONS.md`](OPERATIONS.md)) and keep the secret to keep it.
+
+## API and webhooks
+
+Everything the interface does is also a JSON route (a test holds every form and button to one), through the same
+data access layer and permission checks, documented at `/api-docs` and as OpenAPI 3.1 at `/api/openapi.json`. Its
+request bodies come from the server's own validators, and a test fails if a route is missing from it or it lists
+a method and path no route answers. Scripts use named API tokens (made at `/account/tokens`, revocable) as
+`Authorization: Bearer <token>`; a token acts with its owner's permissions and cannot make more tokens. Webhooks
+(the organizer's Integrations tab) send any audited action to your URL (ballot picks, scores and pairwise answers
+left out: who acted and when, never the values), signed `Dogfood-Signature: t=…,v1=<HMAC-SHA256>` and retried
+with backoff, with a delivery log; each delivery is written in the same transaction as the change, so none is
+lost or invented, and claimed before it is sent, so two portal processes on one database do not both send it.
+
+## Import and export
+
+Every stage exports as CSV (the download buttons add a UTF-8 byte-order mark so Excel reads accented names; the
+API adds it only with `?bom=1`), and a whole event as `event.json` or as `fixtures.json`, the organizers' own
+fixture format with the rubric (labels, prompts, weights), the questions to teams and their answers, and each
+project's description and links added: the file that moves an event. An administrator imports such a file on Your
+events (or `POST /api/imports`), through the same idempotent importer the portal boots with, and gets the same
+projects, judges, scores and rubric, and the same ranking as before any decision (settings and the organizer's
+decisions stay in `event.json`, the record to keep). A file for an event already here adds to it only for that
+event's organizers and never once its results are published, never changes the criteria of an event judges have
+scored (409 `rubric_in_use`), keeps the forms' team rules there (409 `team_full`, `team_has_project`,
+`conflict_of_interest`, naming the row), and ids another event holds are renamed, never shared; the import's audit row names each judge, review and judge's track it added, and
+`scores.csv` marks each imported review in its `source` column. Files up to 64 MB, which holds the portal's own
+export of 1,000 projects and 8,000 reviews with every field at its longest; people who come in that way get
+one-time personal links to set a password (Integrations tab).
+
+## Audit log
+
+Every change, and every request refused to someone signed in or holding a voting link, is recorded in the same
+transaction as the change (past 60 refusals in 10 minutes a person gets 429 and no row, so the log cannot be
+flooded). Each event's entries are on its Audit log tab; the entries no event owns (accounts, sign-ins, API
+tokens, the signing key, demo mode) are on Your events, Portal log, for administrators; both are in the API
+(`GET /api/events/{event}/audit`, `GET /api/audit`). The database refuses edits and deletes of the log, and each
+row carries the hash of the one before; the organizer's audit page and `audit.csv` show the chain's head.
