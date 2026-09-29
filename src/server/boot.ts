@@ -152,8 +152,9 @@ export function bootFixture(h: Handle, now: string): string | null {
         : "";
     const why = `${err.message.replace(/\s*Nothing was imported\.$/, "")} (rule ${err.code}${details ? `; ${details}` : ""})`;
     // A volume with no event at all (a fresh one): there is nothing to start with, so the start stops here with the
-    // file, the row and the rule, as it does for a file past the format's limits above. Going on would only stop a
-    // step later on a reason that is not the real one. A file for a new event on a volume that holds others is
+    // file, the row and the rule, as it does for a file past the format's limits above. Going on would start an empty
+    // portal the operator did not ask for (or, with the demo sessions on, stop a step later on a reason that is not the
+    // real one). A file for a new event on a volume that holds others is
     // logged below and the portal starts with those.
     if (volumeEmpty()) {
       throw new Error(
