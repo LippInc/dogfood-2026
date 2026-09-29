@@ -1,4 +1,4 @@
-import { buildMatcher, COVERAGE_FLOOR, MATCH_FLOOR, RELATIVE_FLOOR, type Matcher } from "./match";
+import { buildMatcher, COVERAGE_FLOOR, MATCH_FLOOR, RELATIVE_FLOOR, WORD_SHARE_FLOOR, type Matcher } from "./match";
 
 /**
  * The Help panel's guide: every page a person can reach, the tasks the README tour walks through, and the ideas a
@@ -59,6 +59,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["gallery", "projects", "submissions", "browse", "entries", "search projects", "filter by track", "field", "faces", "all projects", "showcase"],
   },
   {
+    id: "tracks",
+    kind: "concept",
+    title: "Tracks",
+    href: "/events/[event]",
+    who: ["everyone"],
+    answer:
+      "A track is one of the event's categories. Each project is entered in one track, the gallery shows one column per track, judges are invited for chosen tracks and given projects from those tracks alone, and the results rank projects within each track.",
+    keywords: ["track", "tracks", "what is a track", "category", "categories", "which track", "theme"],
+    doc: { file: "JUDGING.md", heading: "Assignment" },
+  },
+  {
     id: "project-page",
     kind: "page",
     title: "A project's page",
@@ -98,6 +109,16 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["sign in", "log in", "login", "account", "password", "demo identities", "one click", "judge a", "judge b", "priya1", "demo organizer"],
   },
   {
+    id: "sign-out",
+    kind: "task",
+    title: "Sign out",
+    href: null,
+    who: ["signed-in"],
+    answer:
+      "On the event's pages, Sign out is in the top bar (on a phone, in the Menu); on the judging and organizer pages it is in the account menu, the person icon at the top right. It ends this browser's session; your API tokens keep working until you revoke them.",
+    keywords: ["sign out", "log out", "logout", "leave my account", "end session", "switch account"],
+  },
+  {
     id: "sign-up",
     kind: "page",
     title: "Create an account",
@@ -124,7 +145,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/privacy",
     who: ["everyone"],
     answer: "Everything the portal stores about people, how long it stays and what removes it. There are no analytics or tracking scripts, and no raw network addresses are stored.",
-    keywords: ["privacy", "personal data", "gdpr", "data kept", "tracking", "cookies", "delete my data", "retention", "what do you store"],
+    keywords: ["privacy", "personal data", "gdpr", "data kept", "tracking", "cookies", "delete my data", "delete my account", "who can see my email", "retention", "what do you store"],
     doc: { file: "docs/OPERATIONS.md", heading: "Personal data" },
   },
   {
@@ -178,7 +199,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["signed-in", "participant"],
     answer:
       "Start a team on My project and share its invite link; teammates open it to join. Before the deadline a member can rename the team or leave, and the captain can take a member off or hand over the captaincy.",
-    keywords: ["team", "teammate", "join team", "invite link", "add member", "captain", "leave team", "rename team", "team size", "dissolve"],
+    keywords: ["team", "teammate", "join team", "invite link", "add member", "captain", "leave team", "rename team", "change team name", "team name", "team size", "people per team", "dissolve"],
     doc: { file: "docs/FEATURES.md", heading: "Events and teams" },
   },
   {
@@ -448,8 +469,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/accounts",
     who: ["admin"],
     answer:
-      "Where an administrator makes a one-time password reset link for someone who lost their password; it works once, within a day, and the portal sends no email, so you hand it over yourself.",
-    keywords: ["password reset", "forgot password", "lost password", "reset link", "accounts", "locked out"],
+      "Where an administrator makes a one-time password reset link for someone who lost their password; it works once, within a day. With email on (SMTP_URL set) the portal also mails it to the account's address; with email off, as out of the box, you hand it over yourself.",
+    keywords: ["password reset", "forgot password", "lost password", "reset link", "accounts", "locked out", "reset email"],
     doc: { file: "docs/OPERATIONS.md", heading: "People and accounts" },
   },
   {
@@ -504,9 +525,20 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/[event]/judges",
     who: ["organizer"],
     answer:
-      "On Judges, make an invitation link for one judge (optionally tied to their email) or paste a list of names and addresses for one link each, and tick the tracks they judge. No mail server is needed: send the links yourself.",
+      "On Judges, make an invitation link for one judge (optionally tied to their email) or paste a list of names and addresses for one link each, and tick the tracks they judge. With email on (SMTP_URL set) the portal mails each invitation that has an address; with email off, as out of the box, you send the links yourself.",
     keywords: ["invite judge", "add judge", "judge link", "invitation", "bulk invite", "paste list", "judges email"],
     doc: { file: "docs/FEATURES.md", heading: "Judging" },
+  },
+  {
+    id: "reviews-per-project",
+    kind: "task",
+    title: "Judges per project",
+    href: "/organize/[event]/judges",
+    who: ["organizer"],
+    answer:
+      "On Judges, the assignment form's Reviews per project (1 to 10, 3 unless the event already has its own number) sets how many judges review each project, all from the project's own track. A later top-up run fills the missing ones.",
+    keywords: ["judges per project", "reviews per project", "how many judges", "how many reviews", "number of judges", "judges each project"],
+    doc: { file: "JUDGING.md", heading: "Assignment" },
   },
   {
     id: "assignment",
@@ -516,7 +548,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["organizer"],
     answer:
       "Projects are given to judges by a seeded, stored run that never crosses tracks, keeps a judge off their own team's project and spreads the load; the same seed on the same data gives the same assignment. A top-up keeps every pair and fills only missing reviews.",
-    keywords: ["assignment", "assign", "who judges what", "seed", "top-up", "reviews per project", "distribution", "bridge"],
+    keywords: ["assignment", "assign", "who judges what", "judge my own project", "judge my own team", "seed", "top-up", "reviews per project", "distribution", "bridge"],
     doc: { file: "JUDGING.md", heading: "Assignment" },
   },
   {
@@ -606,6 +638,17 @@ export const HELP_ENTRIES: HelpEntry[] = [
     doc: { file: "JUDGING.md", heading: "Scoring" },
   },
   {
+    id: "become-organizer",
+    kind: "task",
+    title: "Become an organizer",
+    href: null,
+    who: ["everyone"],
+    answer:
+      "Make an account, then ask one of the event's organizers to add you: Settings, Organizers, by your account's email. A portal administrator who creates an event becomes its organizer.",
+    keywords: ["become an organizer", "become organizer", "organizer role", "organizer access", "run an event", "make me an organizer"],
+    doc: { file: "docs/OPERATIONS.md", heading: "People and accounts" },
+  },
+  {
     id: "co-organizers",
     kind: "task",
     title: "Add a co-organizer",
@@ -657,7 +700,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     who: ["organizer"],
     answer:
       "A project with fewer than two counted reviews is flagged. The organizer tops up its reviews or publishes it as it is, with a reason, and the public results mark it under-reviewed.",
-    keywords: ["under-reviewed", "one review", "too few reviews", "not enough reviews", "small relay", "minimum reviews"],
+    keywords: ["under-reviewed", "one review", "only one review", "project with one review", "too few reviews", "not enough reviews", "small relay", "minimum reviews"],
     doc: { file: "JUDGING.md", heading: "Normalization" },
   },
 
@@ -885,22 +928,48 @@ export function suggestionsFor(viewer: Pick<HelpViewer, "signedIn" | "roles">): 
 const AUDIENCE_LABEL: Record<HelpAudience, string> = {
   everyone: "Everyone",
   "signed-in": "Anyone signed in",
-  participant: "Teams",
+  participant: "Team members",
   judge: "Judges",
   organizer: "Organizers",
   admin: "Administrators",
 };
 
-/** "Organizers", "Judges and organizers", "Everyone". */
+/** "Organizers", "Judges and organizers", "Everyone"; anyone signed in covers the roles beside it. */
 export function audienceLabel(who: HelpAudience[]): string {
   if (who.includes("everyone")) return AUDIENCE_LABEL.everyone;
-  const names = who.map((w) => AUDIENCE_LABEL[w]);
+  if (who.includes("signed-in")) return AUDIENCE_LABEL["signed-in"];
+  return joinNames(who.map((w) => AUDIENCE_LABEL[w]));
+}
+
+function joinNames(names: string[]): string {
   if (names.length === 1) return names[0]!;
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)!.toLowerCase()}`;
 }
 
+/**
+ * How near this person is to what an entry describes: 0, they can do it; 1, they could once signed in (a visitor,
+ * for what any account can do); 2, it is for a role they do not hold. The panel ranks by it, then by the text.
+ */
+export function reach(entry: Pick<HelpEntry, "who">, viewer: Pick<HelpViewer, "signedIn" | "roles">): 0 | 1 | 2 {
+  if (canUse(entry, viewer)) return 0;
+  if (!viewer.signedIn && entry.who.includes("signed-in")) return 1;
+  return 2;
+}
+
+/**
+ * The line over an answer, for this person: who it is for when they can use it ("Everyone", "Organizers"), "Sign
+ * in to do this" when an account is all they lack, and else whose it is ("Organizers only", "Judges and organizers
+ * only").
+ */
+export function accessLabel(entry: Pick<HelpEntry, "who">, viewer: Pick<HelpViewer, "signedIn" | "roles">): string {
+  const r = reach(entry, viewer);
+  if (r === 0) return audienceLabel(entry.who);
+  if (r === 1) return "Sign in to do this";
+  return `${joinNames(entry.who.filter((w) => w !== "signed-in").map((w) => AUDIENCE_LABEL[w]))} only`;
+}
+
 /** Whether this person can use what the entry describes (an administrator sees every event as its organizers do). */
-export function canUse(entry: HelpEntry, viewer: Pick<HelpViewer, "signedIn" | "roles">): boolean {
+export function canUse(entry: Pick<HelpEntry, "who">, viewer: Pick<HelpViewer, "signedIn" | "roles">): boolean {
   return entry.who.some(
     (w) =>
       w === "everyone" ||
@@ -919,9 +988,6 @@ export function resolveHref(entry: HelpEntry, event: HelpViewer["event"]): strin
   return filled.includes("[") ? null : filled;
 }
 
-/** What a person cannot use weighs this much of its text score, so what they can do ranks first among close matches. */
-export const OTHERS_WEIGHT = 0.8;
-
 export type HelpMatch = { entry: HelpEntry; usable: boolean; score: number };
 export type HelpAnswer = { question: string; matches: HelpMatch[]; places: HelpEntry[] };
 
@@ -934,26 +1000,36 @@ export function helpEntry(id: string): HelpEntry | undefined {
   return byId.get(id);
 }
 
+/** Matches within this share of the best text score, covering as much of the question, are close: among them, what
+ *  the person can do ranks first. */
+export const CLOSE_SHARE = 0.6;
+
 /**
- * The best one to three entries for a question, what this person can use first among close matches; none when the
- * best scores under MATCH_FLOOR, and then `places` holds the top-level places to offer instead.
+ * The best one to three entries for a question. The text decides what matches: an entry must clear the floors
+ * (./match.ts) and reach RELATIVE_FLOOR of the best text score. Among the close matches (CLOSE_SHARE of the best),
+ * what this person can do comes first, then what they could do once signed in, then what is someone else's
+ * (reach), each group best text first; a weaker match never jumps a much better one. None when nothing clears the
+ * floors, and then `places` holds the top-level places to offer instead.
  */
 export function ask(question: string, viewer: Pick<HelpViewer, "signedIn" | "roles">): HelpAnswer {
   const scored = guide()
     .score(question)
-    .filter((m) => m.coverage >= COVERAGE_FLOOR && m.score >= MATCH_FLOOR)
-    .map(({ id, score }) => {
-      const entry = byId.get(id)!;
-      const usable = canUse(entry, viewer);
-      return { entry, usable, text: score, score: usable ? score : score * OTHERS_WEIGHT };
-    })
-    .sort((a, b) => b.score - a.score || b.text - a.text);
+    .filter((m) => m.coverage >= COVERAGE_FLOOR && m.wordShare >= WORD_SHARE_FLOOR && m.score >= MATCH_FLOOR);
   const best = scored[0];
   if (!best) return { question, matches: [], places: placesFor(viewer) };
   const matches = scored
-    .filter((m, i) => i === 0 || m.score >= best.score * RELATIVE_FLOOR)
+    .filter((m) => m.score >= best.score * RELATIVE_FLOOR)
+    .map(({ id, score, coverage, wordShare }) => {
+      const entry = byId.get(id)!;
+      // close: nearly as good a text match as the best, answering as much of the question
+      const close = score >= best.score * CLOSE_SHARE && coverage >= best.coverage - 1e-9 && wordShare >= best.wordShare;
+      // an account is a click away: for a visitor, what any account can do counts as theirs
+      const near = reach(entry, viewer);
+      return { entry, near, score, group: close ? (near === 2 ? 1 : 0) : 2 };
+    })
+    .sort((a, b) => a.group - b.group || b.score - a.score)
     .slice(0, 3)
-    .map(({ entry, usable, score }) => ({ entry, usable, score }));
+    .map(({ entry, near, score }) => ({ entry, usable: near === 0, score }));
   return { question, matches, places: [] };
 }
 

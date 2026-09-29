@@ -6,7 +6,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogDescription, DialogSheet, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ask, audienceLabel, resolveHref, suggestionsFor, type HelpAnswer, type HelpEntry, type HelpViewer } from "@/lib/help";
+import { accessLabel, ask, resolveHref, suggestionsFor, type HelpAnswer, type HelpEntry, type HelpViewer } from "@/lib/help";
 import { HELP_KEY_STORAGE, helpKeyWanted } from "@/lib/help/key";
 
 /** The reader's choice for the ? key, in this browser only; on unless they turned it off. */
@@ -49,7 +49,7 @@ const KIND_LABEL: Record<HelpEntry["kind"], string> = { page: "Page", task: "How
  * and nothing is kept: the thread lasts while the page is open, closed and opened again included. `questionKey`
  * binds the ? key to it (off on the judge pages, whose own ? lists their keys).
  */
-export function HelpButton({ viewer, variant, questionKey = true }: { viewer: HelpViewer; variant: "public" | "work"; questionKey?: boolean }) {
+export function HelpButton({ viewer, variant, questionKey = true }: { viewer: HelpViewer; variant: "public" | "work" | "menu"; questionKey?: boolean }) {
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [container, setContainer] = useState<HTMLElement | null>(null);
@@ -59,6 +59,9 @@ export function HelpButton({ viewer, variant, questionKey = true }: { viewer: He
   // the sheet renders inside the page's own frame, so it wears the tokens of the side it opened on
   const show = () => {
     setContainer((trigger.current?.closest(".public, .work") as HTMLElement | null) ?? null);
+    // in the phone menu, the menu closes as Help opens, as it does after any of its links
+    const menu = variant === "menu" ? trigger.current?.closest("details") : null;
+    if (menu) menu.open = false;
     setOpen(true);
   };
 
@@ -75,12 +78,15 @@ export function HelpButton({ viewer, variant, questionKey = true }: { viewer: He
   }, [questionKey]);
 
   // The work side's bar is full on busy pages (the overview's tools), so there Help is an icon beside the mode
-  // toggle's, as quiet as it; the public side has room for the word from lg up. Either way the size is fixed on
-  // the server, so nothing moves when the page comes alive.
+  // toggle's, as quiet as it; the public side has room for the word from lg up, and below md Help is a row of the
+  // phone menu, so the event's name keeps its line. Either way the size is fixed on the server, so nothing moves
+  // when the page comes alive.
   const button =
     variant === "work"
       ? "inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-ink-2 hover:bg-raised hover:text-ink"
-      : "inline-flex size-9 shrink-0 items-center justify-center gap-1.5 rounded-sm border border-transparent text-14 text-ink-2 hover:border-rule hover:text-ink lg:w-auto lg:px-3";
+      : variant === "menu"
+        ? "flex h-11 w-full items-center gap-2 rounded-sm px-3 text-left text-15 hover:bg-raised"
+        : "inline-flex size-9 shrink-0 items-center justify-center gap-1.5 rounded-sm border border-transparent text-14 text-ink-2 hover:border-rule hover:text-ink lg:w-auto lg:px-3";
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? show() : setOpen(false))}>
@@ -93,7 +99,7 @@ export function HelpButton({ viewer, variant, questionKey = true }: { viewer: He
           className={button}
         >
           <CircleHelp className="size-4 shrink-0" aria-hidden />
-          <span className={variant === "public" ? "max-lg:sr-only" : "sr-only"}>Help</span>
+          <span className={variant === "public" ? "max-lg:sr-only" : variant === "menu" ? "" : "sr-only"}>Help</span>
         </button>
       </DialogTrigger>
       <HelpSheet
@@ -104,6 +110,11 @@ export function HelpButton({ viewer, variant, questionKey = true }: { viewer: He
         turns={turns}
         setTurns={setTurns}
         onLeave={() => setOpen(false)}
+        returnFocus={
+          variant === "menu"
+            ? () => (trigger.current?.closest("details")?.querySelector("summary") as HTMLElement | null)?.focus()
+            : undefined
+        }
       />
     </Dialog>
   );
@@ -117,6 +128,7 @@ function HelpSheet({
   turns,
   setTurns,
   onLeave,
+  returnFocus,
 }: {
   viewer: HelpViewer;
   container: HTMLElement | null;
@@ -125,6 +137,8 @@ function HelpSheet({
   turns: Turn[];
   setTurns: React.Dispatch<React.SetStateAction<Turn[]>>;
   onLeave: () => void;
+  /** where focus goes when the sheet closes, when its trigger is no longer on screen (the phone menu's Help) */
+  returnFocus?: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -150,6 +164,14 @@ function HelpSheet({
   return (
     <DialogSheet
       container={container}
+      onCloseAutoFocus={
+        returnFocus
+          ? (e) => {
+              e.preventDefault();
+              returnFocus();
+            }
+          : undefined
+      }
       onOpenAutoFocus={(e) => {
         // on a phone the keyboard would cover the suggestions: focus stays on the sheet's first control there
         if (window.matchMedia("(min-width: 640px)").matches) {
@@ -278,7 +300,7 @@ function Exchange({ id, answer, viewer, onLeave }: { id: number; answer: HelpAns
                   ) : (
                     <span className="text-15 font-medium">{e.title}</span>
                   )}
-                  <span className="label-mono shrink-0 text-ink-3">{audienceLabel(e.who)}</span>
+                  <span className="label-mono shrink-0 text-ink-3">{accessLabel(e, viewer)}</span>
                 </li>
               );
             })}
@@ -291,11 +313,10 @@ function Exchange({ id, answer, viewer, onLeave }: { id: number; answer: HelpAns
 
 function Match({ entry, usable, viewer, onLeave }: { entry: HelpEntry; usable: boolean; viewer: HelpViewer; onLeave: () => void }) {
   const href = resolveHref(entry, viewer.event);
-  const who = audienceLabel(entry.who);
   return (
     <div className="flex flex-col gap-1.5">
       <p className="label-mono text-ink-3">
-        {KIND_LABEL[entry.kind]} · <span className={usable ? "" : "text-accent-ink"}>{usable ? who : `Only ${who.toLowerCase()}`}</span>
+        {KIND_LABEL[entry.kind]} · <span className={usable ? "" : "text-accent-ink"}>{accessLabel(entry, viewer)}</span>
       </p>
       {href ? (
         <Link

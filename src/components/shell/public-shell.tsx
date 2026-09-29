@@ -48,14 +48,14 @@ export function PublicShell({
         Skip to content
       </a>
       <header className="border-b border-rule print:hidden">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-stretch gap-8 px-4 sm:px-8 xl:px-16">
+        <div className="mx-auto flex h-16 max-w-[1440px] items-stretch gap-4 px-4 sm:gap-8 sm:px-8 md:gap-6 lg:gap-8 xl:px-16">
           <Link href={base} className="flex items-center gap-4 self-center">
-            {idLabel(event.id) ? <span className="label-mono hidden whitespace-nowrap text-ink-3 sm:inline md:hidden lg:inline">[ {idLabel(event.id)} ]</span> : null}
+            {idLabel(event.id) ? <span className="label-mono hidden whitespace-nowrap text-ink-3 sm:inline md:hidden xl:inline">[ {idLabel(event.id)} ]</span> : null}
             <span title={event.name} className="line-clamp-2 font-display text-20 leading-none tracking-[0.01em] uppercase wrap-anywhere">
               {event.name}
             </span>
           </Link>
-          <nav aria-label="Event" className="hidden items-stretch gap-7 md:flex">
+          <nav aria-label="Event" className="hidden items-stretch gap-5 md:flex lg:gap-7">
             {SECTIONS.filter((s) => s.key !== "vote" || event.votingOpenAt).map((s) => (
               <Link
                 key={s.key}
@@ -68,7 +68,10 @@ export function PublicShell({
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <HelpSlot event={{ slug: event.slug, name: event.name }} variant="public" />
+            {/* below md Help is a row of the phone menu, so the event's name keeps its one line */}
+            <div className="hidden md:contents">
+              <HelpSlot event={{ slug: event.slug, name: event.name }} variant="public" />
+            </div>
             <ModeToggle />
             {takePart ? (
               <Link href={takePart} className="hidden h-10 items-center rounded-sm bg-primary px-4 text-15 font-medium text-on-primary hover:opacity-90 md:inline-flex">
@@ -108,6 +111,8 @@ export function PublicShell({
                   {s.label}
                 </Link>
               ))}
+              {/* the ? key stays with the bar's Help, which is only hidden here, so it opens once */}
+              <HelpSlot event={{ slug: event.slug, name: event.name }} variant="menu" questionKey={false} />
               <div className="my-2 border-t border-rule" />
               {takePart ? (
                 <Link href={takePart} className="flex h-11 items-center rounded-sm px-3 text-15 font-semibold hover:bg-raised">

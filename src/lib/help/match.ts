@@ -4,9 +4,10 @@
  * stripped of filler words and lightly stemmed; a word the guide never uses is read as the guide's word one typing
  * slip away, and each word also stands for its synonyms at a lower weight. Entries are scored with BM25 over three
  * fields (title, keywords, answer), each with its own weight and length normalization, and an entry whose whole
- * title the question names gets a bonus. An entry is a match only when it covers enough of what was asked
- * (COVERAGE_FLOOR, each word weighted by how rare it is) and scores above MATCH_FLOOR: otherwise the answer is
- * "no match", and the panel never guesses.
+ * title the question names gets a bonus. An entry is a match only when it covers enough of what was asked, both
+ * weighted by how rare each word is (COVERAGE_FLOOR) and counted word by word (more than half the question's words,
+ * WORD_SHARE_FLOOR), and scores above MATCH_FLOOR: otherwise the answer is "no match", and the panel never guesses.
+ * The stemmer never merges two different words ("tracking" is not "track"; KEEP_WHOLE).
  */
 
 export type MatchDoc = { id: string; title: string; keywords: string[]; answer: string };
@@ -17,6 +18,9 @@ export const MATCH_FLOOR = 0.8;
 export const COVERAGE_FLOOR = 0.35;
 /** A second or third match must reach this share of the best one's score. */
 export const RELATIVE_FLOOR = 0.45;
+/** The share of the question's words (counted, not weighted) an entry must cover, so more than half of them: one rare word no longer
+ *  carries a question whose other words point elsewhere ("become" in "how do I become an organizer"). */
+export const WORD_SHARE_FLOOR = 0.6;
 
 const K1 = 1.2;
 const FIELDS = { title: 3, keywords: 2, answer: 1 } as const;
@@ -38,7 +42,7 @@ const STOP = new Set(
     "get got getting see seen look find show tell give go going use using used make made have has had some any all each " +
     "thing things way ways work works page portal dogfood hi hello thanks thank ok okay happen happens happened able possible " +
     "know mean means meaning explain question help else exactly actually really anything something someone anyone everything stuff " +
-    "set up put"
+    "set up put many much per"
   ).split(" "),
 );
 
@@ -71,9 +75,28 @@ export function normalize(text: string): string {
   return t;
 }
 
+/**
+ * Words the suffix rules would turn into a different word of the guide, kept whole (each form to one index word):
+ * "tracking" (what the privacy page says there is none of) is not a "track", a "site" is not "sit", a "theme" is
+ * not "them", the "standings" are not "stands", "rights" are not "right". tests/help.test.ts lists every group of
+ * words the guide's own text merges, so a new one is seen.
+ */
+const KEEP_WHOLE: Record<string, string> = {
+  tracking: "tracking",
+  tracked: "tracking",
+  site: "site",
+  sites: "site",
+  theme: "theme",
+  themes: "theme",
+  standings: "standings",
+  rights: "rights",
+};
+
 /** A light suffix stemmer: plurals, -ing, -ed, -ation, a final e; applied to questions and entries alike. */
 export function stem(word: string): string {
   let w = word;
+  const whole = KEEP_WHOLE[w];
+  if (whole) return whole;
   if (w.length <= 3) return w;
   if (w.endsWith("'s")) w = w.slice(0, -2);
   if (w.endsWith("ies") && w.length > 4) w = w.slice(0, -3) + "y";
@@ -334,7 +357,7 @@ type IndexedDoc = { id: string; tf: Record<Field, Map<string, number>>; len: Rec
 /** One word of the question: what it counts for coverage, and the index words that stand for it with their weights. */
 type QueryWord = { weight: number; alts: Map<string, number> };
 
-export type Scored = { id: string; score: number; coverage: number };
+export type Scored = { id: string; score: number; coverage: number; wordShare: number };
 export type Matcher = { size: number; words(question: string): QueryWord[]; score(question: string): Scored[] };
 
 /**
@@ -403,6 +426,7 @@ export function buildMatcher(docs: MatchDoc[]): Matcher {
       for (const d of indexed) {
         let score = 0;
         let covered = 0;
+        let coveredWords = 0;
         for (const q of qs) {
           let hit = false;
           for (const [t, weight] of q.alts) {
@@ -415,12 +439,15 @@ export function buildMatcher(docs: MatchDoc[]): Matcher {
             hit = true;
             score += weight * idf(t) * ((tf * (K1 + 1)) / (tf + K1));
           }
-          if (hit) covered += q.weight;
+          if (hit) {
+            covered += q.weight;
+            coveredWords++;
+          }
         }
         if (score <= 0) continue;
         // the question is mostly the entry's whole title ("invite judges", "audit log", "pairwise mode")
         if (d.title.size && d.title.size * 2 >= qs.length && [...d.title].every((t) => named.has(t))) score *= TITLE_BONUS;
-        out.push({ id: d.id, score, coverage: covered / total });
+        out.push({ id: d.id, score, coverage: covered / total, wordShare: coveredWords / qs.length });
       }
       return out.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
     },

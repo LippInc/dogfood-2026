@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { ask, canUse, HELP_ENTRIES, HELP_SUGGESTIONS, placesFor, resolveHref, suggestionsFor, type HelpRole } from "@/lib/help";
-import { buildMatcher, MATCH_FLOOR, stem, tokens } from "@/lib/help/match";
+import { accessLabel, ask, canUse, HELP_ENTRIES, HELP_SUGGESTIONS, placesFor, reach, resolveHref, suggestionsFor, type HelpEntry, type HelpRole } from "@/lib/help";
+import { buildMatcher, MATCH_FLOOR, stem, tokens, WORD_SHARE_FLOOR } from "@/lib/help/match";
 import { helpKeyWanted } from "@/lib/help/key";
 
 // The Help panel (src/components/help): its guide, its matcher, its key. The guide must be true of the portal,
@@ -331,6 +331,171 @@ describe("no network", () => {
       // an answer's links do not prefetch their pages (Next's Link would load each one it shows)
       const links = text.match(/<Link\b/g)?.length ?? 0;
       expect(text.match(/prefetch=\{false\}/g)?.length ?? 0, f).toBe(links);
+    }
+  });
+});
+
+describe("the second review: rank, labels, no confident wrong answers", () => {
+  const participant = { signedIn: true, roles: ["participant"] as HelpRole[] };
+  const organizer = { signedIn: true, roles: ["organizer"] as HelpRole[] };
+  const judge = { signedIn: true, roles: ["judge"] as HelpRole[] };
+  const ids = (q: string, viewer: { signedIn: boolean; roles: HelpRole[] }) => ask(q, viewer).matches.map((m) => m.entry.id);
+
+  it("ranks what the signed-in person can do first: a team member asking to rename the team gets the team page, not the organizers' tool", () => {
+    // before: "Change a team after the close" (organizers only) came first for a team member and a visitor
+    expect(top("how to change team name", participant)).toBe("teams");
+    expect(top("how to change team name", visitor)).toBe("teams");
+    expect(ask("how to change team name", participant).matches[0]!.usable).toBe(true);
+    // the organizers' tool is still offered to the team member, marked as theirs
+    const other = ask("how to change team name", participant).matches.find((m) => m.entry.id === "team-organizer");
+    expect(other?.usable).toBe(false);
+    // positive control: an organizer can use both, and the text decides
+    expect(ids("how to change team name", organizer).slice(0, 2).sort()).toEqual(["team-organizer", "teams"]);
+  });
+
+  it("puts a close match the person can do before one they cannot, and never lets a weak one jump a strong one", () => {
+    // a judge and a team member asking the same words get their own page first
+    expect(top("where are my scores", judge)).toBe("judge-console");
+    expect(top("where are my scores", participant)).toBe("my-feedback");
+    // a visitor asking how to publish gets the organizers' answer among the first, marked as not theirs
+    const pub = ask("how do i publish the results", visitor).matches.find((m) => m.entry.id === "publish")!;
+    expect(pub.usable).toBe(false);
+    // the only strong answer stays first for a visitor, however many weak ones they could use
+    expect(top("how many judges per project", visitor)).toBe("reviews-per-project");
+    expect(top("how many judges per project", organizer)).toBe("reviews-per-project");
+  });
+
+  it("labels every answer in plain words for the person reading it", () => {
+    const entry = (who: HelpEntry["who"]) => ({ who });
+    const cases: [HelpEntry["who"], { signedIn: boolean; roles: HelpRole[] }, string][] = [
+      [["everyone"], visitor, "Everyone"],
+      [["everyone"], organizer, "Everyone"],
+      [["signed-in"], visitor, "Sign in to do this"],
+      [["signed-in"], participant, "Anyone signed in"],
+      [["signed-in", "participant"], visitor, "Sign in to do this"],
+      [["signed-in", "participant"], judge, "Anyone signed in"],
+      [["signed-in", "organizer"], visitor, "Sign in to do this"],
+      [["participant"], visitor, "Team members only"],
+      [["participant"], judge, "Team members only"],
+      [["participant"], participant, "Team members"],
+      [["judge"], participant, "Judges only"],
+      [["judge"], judge, "Judges"],
+      [["organizer"], visitor, "Organizers only"],
+      [["organizer"], participant, "Organizers only"],
+      [["organizer"], organizer, "Organizers"],
+      [["organizer"], { signedIn: true, roles: ["admin"] }, "Organizers"],
+      [["organizer", "admin"], judge, "Organizers and administrators only"],
+      [["admin"], organizer, "Administrators only"],
+      [["judge", "organizer"], participant, "Judges and organizers only"],
+      [["judge", "organizer"], judge, "Judges and organizers"],
+      [["participant", "judge"], organizer, "Team members and judges only"],
+    ];
+    for (const [who, viewer, label] of cases) expect(accessLabel(entry(who), viewer), `${who.join("+")} for ${JSON.stringify(viewer)}`).toBe(label);
+    // every entry of the guide gets a label without "only anyone" or "only everyone", for every kind of person
+    for (const e of HELP_ENTRIES)
+      for (const v of [visitor, participant, judge, organizer, everyRole]) {
+        const l = accessLabel(e, v);
+        expect(l, e.id).not.toMatch(/only (anyone|everyone)|anyone signed in only|everyone only/i);
+        expect(reach(e, v) === 0, `${e.id}: ${l}`).toBe(!/only$|^Sign in/.test(l));
+      }
+  });
+
+  it("the stemmer never merges two different words of the guide", () => {
+    expect(stem("tracking")).not.toBe(stem("track"));
+    expect(stem("tracks")).toBe(stem("track"));
+    expect(stem("site")).not.toBe(stem("sit"));
+    expect(stem("theme")).not.toBe(stem("them"));
+    expect(stem("standings")).not.toBe(stem("stands"));
+    expect(stem("rights")).not.toBe(stem("right"));
+    // every word of the guide that shares a stem with another: each group is one word's forms
+    const groups = new Map<string, Set<string>>();
+    for (const e of HELP_ENTRIES)
+      for (const w of [e.title, e.answer, ...e.keywords].join(" ").toLowerCase().normalize("NFD").split(/[^a-z0-9]+/)) {
+        if (!w) continue;
+        const s = stem(w);
+        if (!groups.has(s)) groups.set(s, new Set());
+        groups.get(s)!.add(w);
+      }
+    const merged = [...groups.values()].filter((g) => g.size > 1).map((g) => [...g].sort().join(" "));
+    for (const bad of ["track tracking", "site sit", "them theme", "standings stands", "right rights"])
+      expect(merged.some((g) => bad.split(" ").every((w) => g.split(" ").includes(w))), bad).toBe(false);
+  });
+
+  it("answers the review's questions and the gaps it found", () => {
+    const cases: [string, string][] = [
+      ["what is a track", "tracks"],
+      ["what tracks are there", "tracks"],
+      ["what is a category", "tracks"],
+      ["how do i sign out", "sign-out"],
+      ["how do i log out", "sign-out"],
+      ["how do i switch accounts", "sign-out"],
+      ["how many judges per project", "reviews-per-project"],
+      ["who decides the number of judges per project", "reviews-per-project"],
+      ["how do i become an organizer", "become-organizer"],
+      ["how do i get organizer access", "become-organizer"],
+      ["make me an organizer", "become-organizer"],
+      ["how many people per team", "teams"],
+      ["who can see my email", "privacy"],
+      ["how do i delete my account", "privacy"],
+    ];
+    const wrong = cases.map(([q, id]) => ({ q, id, got: top(q, visitor) })).filter((c) => c.got !== c.id);
+    expect(wrong).toEqual([]);
+    // the three the review caught guessing: none of them lands on its old wrong answer
+    expect(top("how many judges per project", visitor)).not.toBe("ballots");
+    expect(top("how do i become an organizer", visitor)).not.toBe("judge-invite");
+    expect(top("what is a track", visitor)).not.toBe("privacy");
+  });
+
+  it("says no match, rather than guess, for realistic questions the guide does not answer", () => {
+    const misses = [
+      "can i pay with a credit card",
+      "what time zone are the dates in",
+      "how do i contact the organizers",
+      "is there a mobile app",
+      "what languages are supported",
+      "who won last year",
+      "can two teams merge",
+      "how do i report a bug",
+      "is there a chat",
+      "how big can my picture be",
+      "how long is the hackathon",
+      "where do i upload slides",
+      "how do i book a flight",
+      "can i bring my dog",
+      "recipe for pancakes",
+      "is my activity tracked",
+      "where is the logout button",
+      "can i submit a video",
+      "what is the wifi password",
+      "where is the venue",
+      "is lunch provided",
+      "how do i get a refund",
+    ];
+    expect(misses.length).toBeGreaterThanOrEqual(20);
+    for (const v of [visitor, participant, organizer]) {
+      const guessed = misses.filter((q) => ask(q, v).matches.length > 0).map((q) => `${q} -> ${top(q, v)}`);
+      expect(guessed, JSON.stringify(v)).toEqual([]);
+    }
+  });
+
+  it("the word-share floor is what turns a one-word overlap into no match (the instrument fails a known-bad)", () => {
+    // one rare shared word ("become") used to carry the question to the judges' invitation
+    const m = buildMatcher([
+      { id: "a", title: "Accept an invitation", keywords: ["become a judge"], answer: "Open the link." },
+      { id: "b", title: "Beta", keywords: [], answer: "Beta." },
+    ]);
+    const [hit] = m.score("become organizer");
+    expect(hit?.id).toBe("a");
+    expect(hit!.wordShare).toBeLessThan(WORD_SHARE_FLOOR);
+    expect(m.score("become a judge")[0]!.wordShare).toBeGreaterThanOrEqual(WORD_SHARE_FLOOR);
+  });
+
+  it("says both cases of email, true with SMTP_URL set and without it", () => {
+    for (const id of ["accounts", "invite-judges"]) {
+      const a = HELP_ENTRIES.find((e) => e.id === id)!.answer;
+      expect(a, id).toMatch(/SMTP_URL/);
+      expect(a, id).toMatch(/email off/);
+      expect(a, id).not.toMatch(/sends no email|no mail server is needed/i);
     }
   });
 });

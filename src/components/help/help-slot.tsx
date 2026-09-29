@@ -13,7 +13,7 @@ export async function HelpSlot({
   questionKey = true,
 }: {
   event?: { slug: string; name: string } | null;
-  variant: "public" | "work";
+  variant: "public" | "work" | "menu";
   questionKey?: boolean;
 }) {
   // it reads the session: never at build time
