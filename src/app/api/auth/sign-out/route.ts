@@ -6,13 +6,14 @@ function fromAPage(req: Request): boolean {
 }
 
 /**
- * Ends this browser's login session (checker sessions are never touched). An API client gets
- * 200 { signedOut: true }; the interface's sign-out button, a form post, is sent home. That address
- * is relative: in the container the request URL reads http://0.0.0.0:8080, which no browser can
- * open, so a redirect built from it stranded everyone who signed out.
+ * Ends the login session the request carries, by cookie or Authorization: Bearer (checker sessions are never
+ * ended). An API client gets 200 { signedOut }: false, with a reason, while what it sent still works (an API
+ * token, which sign-out does not revoke, or a checker session). The interface's sign-out button, a form post, is
+ * sent home. That address is relative: in the container the request URL reads http://0.0.0.0:8080, which no
+ * browser can open, so a redirect built from it stranded everyone who signed out.
  */
 export async function POST(req: Request) {
-  await signOut();
+  const result = await signOut();
   if (fromAPage(req)) return new Response(null, { status: 303, headers: { location: "/", "cache-control": "no-store" } });
-  return json({ signedOut: true });
+  return json(result);
 }

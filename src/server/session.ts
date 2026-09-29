@@ -68,7 +68,12 @@ function actorForApiToken(db: DbOrTx, token: string, now: Date): Actor | null {
 export async function requestToken({ cookie = true }: { cookie?: boolean } = {}): Promise<string | null> {
   const fromCookie = cookie ? (await cookies()).get(SESSION_COOKIE)?.value : undefined;
   if (fromCookie) return fromCookie;
-  const auth = (await headers()).get("authorization");
+  return bearerToken(await headers());
+}
+
+/** The token of an Authorization: Bearer header, or null. */
+function bearerToken(h: Headers): string | null {
+  const auth = h.get("authorization");
   if (auth && /^bearer\s+/i.test(auth)) return auth.replace(/^bearer\s+/i, "").trim() || null;
   return null;
 }
@@ -108,16 +113,52 @@ export async function setSessionCookie(token: string, expires: Date): Promise<vo
   });
 }
 
-/** End this browser's login session. Checker sessions are never deleted here. */
-export async function endSession(db: DbOrTx): Promise<void> {
+/** Sign-out's answer: signedOut is false while a credential the request carried still works; reason says what stays. */
+export type SignOutResult = { signedOut: boolean; reason?: string };
+
+const CHECKER_KEPT =
+  "This is one of the four checker sessions, which sign-out never ends (the acceptance checks use them); it stays valid until the portal starts with SEED_CHECKER_SESSIONS off.";
+const API_TOKEN_KEPT =
+  "An API token is not a session, so sign-out does not end it: revoke it at /account/tokens or with POST /api/tokens/{token}/revoke.";
+
+/** Delete a login session by its raw token; answers the kind the token had, or null for a token no session has. */
+function endLoginSession(db: DbOrTx, token: string): "login" | "checker" | null {
+  const hash = sha256(token);
+  const row = db.select({ kind: sessions.kind }).from(sessions).where(eq(sessions.tokenHash, hash)).get();
+  if (row?.kind === "login") db.delete(sessions).where(eq(sessions.tokenHash, hash)).run();
+  return row?.kind ?? null;
+}
+
+function liveApiToken(db: DbOrTx, token: string, now: Date): boolean {
+  const row = db.select({ revokedAt: apiTokens.revokedAt, expiresAt: apiTokens.expiresAt }).from(apiTokens).where(eq(apiTokens.tokenHash, sha256(token))).get();
+  return Boolean(row && !row.revokedAt && (!row.expiresAt || Date.parse(row.expiresAt) > now.getTime()));
+}
+
+/**
+ * End the login sessions this request carries: the session cookie's (the cookie is cleared either way) and an
+ * Authorization: Bearer session token's. Checker sessions are never ended; a checker session or an API token sent
+ * as Bearer keeps working for its caller, so the answer is then signedOut: false, with the reason.
+ */
+export async function endSession(db: DbOrTx, now = new Date()): Promise<SignOutResult> {
   const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
-  if (token) {
-    const hash = sha256(token);
-    const row = db.select({ kind: sessions.kind }).from(sessions).where(eq(sessions.tokenHash, hash)).get();
-    if (row?.kind === "login") db.delete(sessions).where(eq(sessions.tokenHash, hash)).run();
+  const fromCookie = jar.get(SESSION_COOKIE)?.value;
+  const fromHeader = bearerToken(await headers());
+  const reasons = new Set<string>();
+  let stillSignedIn = false;
+  if (fromCookie && endLoginSession(db, fromCookie) === "checker") reasons.add(CHECKER_KEPT);
+  if (fromHeader) {
+    if (fromHeader.startsWith(API_TOKEN_PREFIX)) {
+      if (liveApiToken(db, fromHeader, now)) {
+        stillSignedIn = true;
+        reasons.add(API_TOKEN_KEPT);
+      }
+    } else if (endLoginSession(db, fromHeader) === "checker") {
+      stillSignedIn = true;
+      reasons.add(CHECKER_KEPT);
+    }
   }
   jar.delete(SESSION_COOKIE);
+  return reasons.size ? { signedOut: !stillSignedIn, reason: [...reasons].join(" ") } : { signedOut: true };
 }
 
 // ---------------------------------------------------------------------------

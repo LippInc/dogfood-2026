@@ -6,7 +6,7 @@ import { dataFolderProblem, getDb, handle } from "../db/client";
 import { events, judgeTracks, sessions, teamMembers, teams, tracks, userRoles, users } from "../db/schema";
 import { LIMITS, takeAudited } from "../rate-limit";
 import { warmingUp } from "../warmup";
-import { createLoginSession, endSession, setSessionCookie, verifyPassword } from "../session";
+import { createLoginSession, endSession, setSessionCookie, verifyPassword, type SignOutResult } from "../session";
 import type { Client } from "./voting";
 
 // A stored hash for "no such user", so an unknown email costs the same argon2 time
@@ -54,8 +54,9 @@ export async function signInWithPassword(emailRaw: string, password: string, cli
   return { ok: true, userId: user.id };
 }
 
-export async function signOut(): Promise<void> {
-  await endSession(getDb());
+/** End the login sessions the request carries, by cookie or Bearer; src/server/session.ts says what stays. */
+export async function signOut(): Promise<SignOutResult> {
+  return endSession(getDb());
 }
 
 export type DemoIdentity = { label: CheckerLabel; userId: string; name: string; detail: string };
