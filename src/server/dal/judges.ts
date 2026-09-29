@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { sortByName } from "@/lib/names";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
@@ -411,13 +412,16 @@ export type InviteRow = {
 
 /** Every judge of an event with their tracks, progress and flags. DAL-internal. */
 export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
-  const people = db
-    .select({ id: users.id, name: users.name, email: users.email })
-    .from(userRoles)
-    .innerJoin(users, eq(users.id, userRoles.userId))
-    .where(and(eq(userRoles.eventId, eventId), eq(userRoles.role, "judge")))
-    .orderBy(asc(users.name))
-    .all();
+  const people = sortByName(
+    db
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(userRoles)
+      .innerJoin(users, eq(users.id, userRoles.userId))
+      .where(and(eq(userRoles.eventId, eventId), eq(userRoles.role, "judge")))
+      .orderBy(asc(users.name))
+      .all(),
+    (p) => p.name,
+  );
   const trackRows = db
     .select({ judgeId: judgeTracks.judgeUserId, id: tracks.id, name: tracks.name })
     .from(judgeTracks)

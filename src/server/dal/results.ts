@@ -1,6 +1,7 @@
 import "server-only";
 import { CORRECTED_FROM } from "@/lib/ranking-evidence";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { compareNames } from "@/lib/names";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
@@ -46,6 +47,7 @@ function privateNotes(db: DbOrTx, eventId: string, rows: ProjectRow[]): PrivateN
     .where(and(eq(assignments.eventId, eventId), ne(scoreComments.privateNote, "")))
     .orderBy(asc(users.name))
     .all()
+    .sort((x, y) => compareNames(x.judge, y.judge))
     .filter((n) => canonical.has(n.projectId))
     .map((n) => ({ ...n, projectId: canonical.get(n.projectId)! }));
 }

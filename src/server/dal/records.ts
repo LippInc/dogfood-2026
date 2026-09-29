@@ -1,5 +1,6 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
+import { compareNames } from "@/lib/names";
 import { z } from "zod";
 import { competitionPlaces, ordinal } from "@/lib/places";
 import { appendAudit, anchorHolds, chainHead, type ChainAnchor } from "../audit";
@@ -307,5 +308,6 @@ export function listRecords(actor: Actor | null, eventIdOrSlug: string) {
     .innerJoin(users, eq(users.id, signedRecords.userId))
     .where(eq(signedRecords.eventId, event.id))
     .orderBy(signedRecords.kind, users.name)
-    .all();
+    .all()
+    .sort((a, b) => (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : compareNames(a.name, b.name)));
 }

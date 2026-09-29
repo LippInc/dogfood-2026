@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, eq } from "drizzle-orm";
+import { compareNames } from "@/lib/names";
 import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
@@ -24,7 +25,9 @@ function organizersOf(db: DbOrTx, eventId: string): Organizer[] {
     .innerJoin(users, eq(users.id, userRoles.userId))
     .where(and(eq(userRoles.eventId, eventId), eq(userRoles.role, "organizer")))
     .orderBy(asc(userRoles.createdAt), asc(users.name))
-    .all();
+    .all()
+    // oldest first; organizers added in the same instant by name, the way a reader expects
+    .sort((a, b) => (a.since < b.since ? -1 : a.since > b.since ? 1 : compareNames(a.name, b.name)));
 }
 
 export function listOrganizers(actor: Actor | null, eventIdOrSlug: string): Organizer[] {
