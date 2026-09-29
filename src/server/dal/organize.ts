@@ -22,7 +22,8 @@ import {
 } from "../db/schema";
 import { ConflictError, ValidationError } from "../errors";
 import { guardRead, mutate } from "../mutate";
-import { BUILTIN_CRITERIA, DEFAULT_CRITERIA, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
+import { BUILTIN_CRITERIA, CRITERION_LABEL, CRITERION_PROMPT_MAX, DEFAULT_CRITERIA, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
+import { MAX_QUESTIONS, QUESTION_HELP_MAX, QUESTION_LABEL } from "../project-limits";
 import { newId, slugify } from "../util";
 import { allowedModes, PROJECT_FIELDS, type FieldModes } from "@/lib/project-fields";
 import { eventFacts, requireEvent, type EventRow } from "./events";
@@ -66,13 +67,13 @@ export const QuestionRows = z
   .array(
     z.object({
       id: z.string().optional(),
-      label: z.string().trim().min(3, "a question needs at least 3 characters").max(200),
-      help: z.string().trim().max(300).default(""),
+      label: z.string().trim().min(QUESTION_LABEL.min, "a question needs at least 3 characters").max(QUESTION_LABEL.max),
+      help: z.string().trim().max(QUESTION_HELP_MAX).default(""),
       type: z.enum(["text", "longtext", "url"]).default("longtext"),
       required: z.coerce.boolean().default(false),
     }),
   )
-  .max(20);
+  .max(MAX_QUESTIONS);
 /** Places in each track that earn a certificate of achievement, unless the organizer sets it. */
 export const DEFAULT_CERTIFICATE_PLACES = 3;
 
@@ -82,8 +83,8 @@ export const RubricRows = z
   .array(
     z.object({
       id: z.string().optional(),
-      label: z.string().trim().min(2, "a criterion needs a name of at least 2 characters").max(60),
-      prompt: z.string().trim().max(200).default(""),
+      label: z.string().trim().min(CRITERION_LABEL.min, "a criterion needs a name of at least 2 characters").max(CRITERION_LABEL.max),
+      prompt: z.string().trim().max(CRITERION_PROMPT_MAX).default(""),
       weight: z.coerce.number().positive("a weight must be above 0").max(100),
     }),
   )

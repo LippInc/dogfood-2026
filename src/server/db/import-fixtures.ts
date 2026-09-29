@@ -6,8 +6,8 @@ import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./client";
 import { appendAudit } from "../audit";
-import { DEFAULT_MAX_TEAM_SIZE, MAX_GALLERY_IMAGES, MAX_TAGS, MAX_TAG_LENGTH } from "../project-limits";
-import { BUILTIN_CRITERIA, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
+import { DEFAULT_MAX_TEAM_SIZE, MAX_GALLERY_IMAGES, MAX_QUESTIONS, MAX_TAGS, MAX_TAG_LENGTH, QUESTION_HELP_MAX, QUESTION_LABEL } from "../project-limits";
+import { BUILTIN_CRITERIA, CRITERION_LABEL, CRITERION_PROMPT_MAX, MAX_CRITERIA, RUBRIC_IN_USE } from "../rubric-defaults";
 import { ConflictError, ValidationError } from "../errors";
 import { allowedModes, FIELD_MODES, PROJECT_FIELDS } from "../../lib/project-fields";
 import { newSecret, nowIso, sha256, slugify } from "../util";
@@ -59,6 +59,8 @@ const dateTime = z.string().refine(isIsoDateTime, "must be a date and time with 
  * stalling the portal for everyone. Several files can add to the same event.
  */
 export const IMPORT_LIMITS = { tracks: 100, judges: 1_000, teams: 2_000, members: 50, projects: 2_000, scores: 16_000 } as const;
+const CRITERION_LABEL_SIZE = `must be ${CRITERION_LABEL.min} to ${CRITERION_LABEL.max} characters, as on the Rubric tab`;
+const QUESTION_LABEL_SIZE = `must be ${QUESTION_LABEL.min} to ${QUESTION_LABEL.max} characters, as on the Questions tab`;
 const atMost = (n: number, what: string) => `at most ${n.toLocaleString("en")} ${what} in one file; split it into several imports`;
 
 export const FixtureSchema = z.looseObject({
@@ -77,30 +79,31 @@ export const FixtureSchema = z.looseObject({
   // Not in the organizers' format either: the rubric as the organizers set it (labels, prompts, weights, level
   // texts, order), which the portal's export writes when it differs from what the scores' keys alone would give,
   // and the event's own questions to teams. Without them an event moved between portals would score with every
-  // weight back at 1 and every label a capitalised key, and lose its questions and the teams' answers.
+  // weight back at 1 and every label a capitalised key, and lose its questions and the teams' answers. Both keep the
+  // Rubric and Questions tabs' limits (the same constants), so whatever an import brings the tab can save again.
   rubric: z
     .array(
       z.looseObject({
         key: z.string().min(1).max(80),
-        label: z.string().trim().min(1).max(80),
-        prompt: z.string().max(2_000).optional().default(""),
+        label: z.string().trim().min(CRITERION_LABEL.min, CRITERION_LABEL_SIZE).max(CRITERION_LABEL.max, CRITERION_LABEL_SIZE),
+        prompt: z.string().max(CRITERION_PROMPT_MAX, `must be at most ${CRITERION_PROMPT_MAX} characters, as on the Rubric tab`).optional().default(""),
         weight: z.number().positive().max(100).optional().default(1),
         anchors: z.record(z.string(), z.string().max(500)).optional().default({}),
       }),
     )
-    .max(20)
+    .max(MAX_CRITERIA, `at most ${MAX_CRITERIA} criteria, as on the Rubric tab`)
     .optional(),
   questions: z
     .array(
       z.looseObject({
         id,
-        label: z.string().trim().min(1).max(200),
-        help: z.string().max(1_000).optional().default(""),
+        label: z.string().trim().min(QUESTION_LABEL.min, QUESTION_LABEL_SIZE).max(QUESTION_LABEL.max, QUESTION_LABEL_SIZE),
+        help: z.string().max(QUESTION_HELP_MAX, `must be at most ${QUESTION_HELP_MAX} characters, as on the Questions tab`).optional().default(""),
         type: z.enum(QUESTION_TYPES).optional().default("longtext"),
         required: z.boolean().optional().default(false),
       }),
     )
-    .max(30)
+    .max(MAX_QUESTIONS, `at most ${MAX_QUESTIONS} questions, as on the Questions tab`)
     .optional()
     .default([]),
   judges: z.array(
@@ -420,20 +423,8 @@ export function importFixtures(
           .where(eq(rubricCriteria.eventId, eventId))
           .get()!.n > 0;
       if (scored && (adding.length > 0 || leavesOut)) throw new ConflictError("rubric_in_use", RUBRIC_IN_USE);
-      if (adding.length > 0) {
-        if (present.length + adding.length > MAX_CRITERIA) {
-          throw new ValidationError(`A rubric has at most ${MAX_CRITERIA} criteria; with this file's, this event would have ${present.length + adding.length}.`, {
-            rubric: [`at most ${MAX_CRITERIA} criteria`],
-          });
-        }
-        const labels = new Set(present.map((c) => c.label.toLowerCase()));
-        for (const key of adding) {
-          const label = given.get(key)?.label ?? labelFor(key);
-          if (labels.has(label.toLowerCase())) throw new ValidationError(`Two criteria are called "${label}".`, { rubric: [`"${label}" appears twice`] });
-          labels.add(label.toLowerCase());
-        }
-        report.added.criteria.push(...adding);
-      }
+      checkNewCriteria(present, adding, (key) => given.get(key)?.label ?? labelFor(key));
+      report.added.criteria.push(...adding);
       for (const c of present) {
         const theirs = given.get(c.key);
         if (theirs && (theirs.label !== c.label || theirs.prompt !== c.prompt || Math.abs(theirs.weight - c.weight) > 1e-9)) {
@@ -447,6 +438,7 @@ export function importFixtures(
         }
       }
     }
+    if (!here) checkNewCriteria([], criteriaKeys, (key) => given.get(key)?.label ?? labelFor(key));
     criteriaKeys.forEach((key, position) => {
       const own = given.get(key);
       const builtin = own ? { prompt: own.prompt, anchors: own.anchors } : (BUILTIN_CRITERIA[key] ?? { prompt: "", anchors: {} });
@@ -654,6 +646,16 @@ export function importFixtures(
         ),
       );
     });
+    // the file's own count is held by the schema; with those an event here has, the Questions tab's limit still holds
+    if (report.inserted.customQuestions > 0) {
+      const asked = tx.select({ n: sql<number>`count(*)` }).from(customQuestions).where(eq(customQuestions.eventId, eventId)).get()!.n;
+      if (asked > MAX_QUESTIONS) {
+        throw new ValidationError(
+          `With this file's ${report.inserted.customQuestions} new questions, this event would ask teams ${asked}; the Questions tab allows at most ${MAX_QUESTIONS}. Nothing was imported.`,
+          { questions: [`at most ${MAX_QUESTIONS} questions`] },
+        );
+      }
+    }
 
     // Projects: both rows of a duplicate submission are imported unchanged
     const projectById = new Map(fixture.projects.map((p) => [p.id, p]));
@@ -962,6 +964,31 @@ export function importFixtures(
     }
     return report;
   });
+}
+
+/**
+ * The criteria an import adds, held to the Rubric tab's limits (saveRubric), so the tab can save the rubric again:
+ * at most MAX_CRITERIA with those the event has, each label 2 to 60 characters (a label a score's key gives, too),
+ * and no two with one label. Refused whole, 422, naming the criterion.
+ */
+function checkNewCriteria(present: { label: string }[], keys: string[], labelOf: (key: string) => string): void {
+  if (keys.length === 0) return;
+  if (present.length + keys.length > MAX_CRITERIA) {
+    throw new ValidationError(`A rubric has at most ${MAX_CRITERIA} criteria; with this file's, this event would have ${present.length + keys.length}.`, {
+      rubric: [`at most ${MAX_CRITERIA} criteria`],
+    });
+  }
+  const labels = new Set(present.map((c) => c.label.toLowerCase()));
+  for (const key of keys) {
+    const label = labelOf(key);
+    if (label.length < CRITERION_LABEL.min || label.length > CRITERION_LABEL.max) {
+      throw new ValidationError(`The criterion ${key.slice(0, 80)} would be called "${label.slice(0, 80)}": a criterion's label ${CRITERION_LABEL_SIZE}. Give it a rubric row with a label.`, {
+        rubric: [`${key.slice(0, 80)}: the label ${CRITERION_LABEL_SIZE}`],
+      });
+    }
+    if (labels.has(label.toLowerCase())) throw new ValidationError(`Two criteria are called "${label}".`, { rubric: [`"${label}" appears twice`] });
+    labels.add(label.toLowerCase());
+  }
 }
 
 // ---------------------------------------------------------------------------

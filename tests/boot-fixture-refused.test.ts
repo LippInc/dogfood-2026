@@ -12,6 +12,7 @@ import { bootFixture } from "@/server/boot";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { importFixtures } from "@/server/db/import-fixtures";
 import { runMigrations } from "@/server/db/migrate";
+import { sha256 } from "@/server/util";
 
 // A changed fixture file that an event already here refuses (a team past its size, a second project for a team, a
 // judge on the team they review, a new criterion after scoring, a rubric past its limits) must not stop the start:
@@ -157,7 +158,7 @@ describe("a changed rubric the event here refuses before any score: the portal s
 
   it("a rubric past 16 criteria (ValidationError)", () => {
     const many = [...three, ...Array.from({ length: 14 }, (_, i) => ({ key: `extra_${i}`, label: `Extra ${i}` }))];
-    startsAnyway(useFile(small(many), "many"), "evt_small", "at most 16 criteria", /17/);
+    startsAnyway(useFile(small(many), "many"), "evt_small", "at most 16 criteria", /rubric/);
   });
 
   it("a criterion whose label another one has (ValidationError)", () => {
@@ -177,6 +178,47 @@ describe("a changed rubric the event here refuses before any score: the portal s
     const f = small(three);
     f.tracks.push({ id: "trk_x", name: "Taken" });
     startsAnyway(useFile(f, "ids"), "evt_small", "id_taken", /trk_x/);
+  });
+});
+
+describe("a file past the tabs' limits at start", () => {
+  const withLongLabel = (): Json => ({
+    event: { id: "evt_old", name: "Old event", submissions_close: "2026-03-01T18:00:00Z" },
+    tracks: [{ id: "trk_o", name: "Only track" }],
+    rubric: [{ key: "impact", label: "I".repeat(70) }],
+    judges: [],
+    teams: [],
+    projects: [],
+    scores: [],
+  });
+
+  it("a file an older portal imported, past a limit held now, never stops a later start", () => {
+    const f = withLongLabel();
+    const text = JSON.stringify(f);
+    // what an older portal wrote on this volume: the event and the file's import row, sha256 of the file's text
+    h.sqlite.prepare("INSERT INTO events (id, slug, name, description, submissions_close_at, created_at) VALUES ('evt_old', 'old-event', 'Old event', '', '2026-03-01T18:00:00Z', ?)").run(NOW);
+    h.sqlite.prepare("INSERT INTO fixture_imports (source, sha256, imported_at, counts) VALUES ('old.json', ?, ?, '{}')").run(sha256(text), NOW);
+    const file = path.join(os.tmpdir(), `ops2-old-${process.pid}.json`);
+    fs.writeFileSync(file, text);
+    written.push(file);
+    process.env.FIXTURES_PATH = file;
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(bootFixture(h, NOW)).toBe("evt_old");
+  });
+
+  it("a changed file past a limit, for an event here: the portal starts anyway", () => {
+    const f = withLongLabel();
+    f.rubric = [{ key: "impact", label: "Impact" }];
+    useFile(f, "old-ok");
+    expect(bootFixture(h, NOW)).toBe("evt_old");
+    const changed = withLongLabel();
+    changed.rubric = [{ key: "impact", label: "Impact" }, { key: "reach", label: "R".repeat(70) }];
+    startsAnyway(useFile(changed, "old-long"), "evt_old", "rubric.1.label", /2 to 60 characters/);
+  });
+
+  it("known-bad: the same file for an event not here stops the start, naming the row", () => {
+    useFile(withLongLabel(), "new-long");
+    expect(() => bootFixture(h, NOW)).toThrow(/is not a fixture file: rubric\.0\.label: must be 2 to 60 characters/);
   });
 });
 

@@ -1,4 +1,5 @@
 import "server-only";
+import fs from "node:fs";
 import path from "node:path";
 import { openAdminSetup } from "./admins";
 import { checkerSessionsEnabled, checkerToml, demoModeRefusal, ensureDemoOrganizer, seedCheckerSessions, seedDemoVote, startRefusal, writeCheckerFile, type DemoGrants } from "./checker";
@@ -6,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { databasePath, handle, type Handle } from "./db/client";
 import { events } from "./db/schema";
-import { importedBefore, importFixtures, loadFixtureFile } from "./db/import-fixtures";
+import { FixtureSchema, importedBefore, importFixtures, type Fixture } from "./db/import-fixtures";
 import { claimDataFolder } from "./instance-lock";
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
@@ -16,7 +17,7 @@ import { settingsProblem } from "./settings";
 import { ensureSigningKey } from "./signing";
 import { sweepOrphanUploads } from "./uploads";
 import { startWebhookWorker } from "./webhooks";
-import { nowIso } from "./util";
+import { nowIso, sha256 as sha256Of } from "./util";
 import { selfBase, warmUp, warmUpSteps } from "./warmup";
 
 // Runs once per server start, from instrumentation.ts: migrate, re-assert the
@@ -43,28 +44,39 @@ export function fixturesPath(): string {
 
 class PublishedEventImport extends Error {}
 
+const fixFile = `set FIXTURES_PATH to a fixture file the portal can read (in the container, for example one mounted into /data), or to "none" to start without the sample event`;
+const whichFile = (file: string) => (process.env.FIXTURES_PATH ? `FIXTURES_PATH names ${file}, which` : `The fixture file ${file} (FIXTURES_PATH is not set)`);
+
 /**
- * Read the fixture file, or stop the start with a message that names the setting and the path: a bare ENOENT or a
- * Zod dump says neither which file was meant nor how to fix it.
+ * Read the fixture file as JSON, or stop the start with a message that names the setting and the path: a bare ENOENT
+ * says neither which file was meant nor how to fix it. The fixture format is checked after, in bootFixture.
  */
-function readFixtureFile(file: string): ReturnType<typeof loadFixtureFile> {
-  const which = process.env.FIXTURES_PATH ? `FIXTURES_PATH names ${file}, which` : `The fixture file ${file} (FIXTURES_PATH is not set)`;
-  const fix = `set FIXTURES_PATH to a fixture file the portal can read (in the container, for example one mounted into /data), or to "none" to start without the sample event`;
+function readFixtureJson(file: string): { raw: unknown; sha256: string } {
   try {
-    return loadFixtureFile(file);
+    const text = fs.readFileSync(file, "utf8");
+    return { raw: JSON.parse(text) as unknown, sha256: sha256Of(text) };
   } catch (err) {
+    const which = whichFile(file);
     const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") throw new Error(`${which} does not exist: ${fix}`);
-    if (code === "EISDIR") throw new Error(`${which} is a folder, not a file: ${fix}`);
-    if (code === "EACCES" || code === "EPERM") throw new Error(`${which} cannot be read (${code}): ${fix}`);
-    if (err instanceof SyntaxError) throw new Error(`${which} is not valid JSON (${err.message}): ${fix}`);
-    if (err instanceof z.ZodError) {
-      const issue = err.issues[0];
-      const where = issue?.path.length ? issue.path.join(".") : "the top level";
-      throw new Error(`${which} is not a fixture file: ${where}: ${issue?.message ?? "does not match"} (${err.issues.length} ${err.issues.length === 1 ? "problem" : "problems"})`);
-    }
+    if (code === "ENOENT") throw new Error(`${which} does not exist: ${fixFile}`);
+    if (code === "EISDIR") throw new Error(`${which} is a folder, not a file: ${fixFile}`);
+    if (code === "EACCES" || code === "EPERM") throw new Error(`${which} cannot be read (${code}): ${fixFile}`);
+    if (err instanceof SyntaxError) throw new Error(`${which} is not valid JSON (${err.message}): ${fixFile}`);
     throw err;
   }
+}
+
+/** The event id a JSON file names, before it is known to be a fixture file. */
+function namedEventId(raw: unknown): string | null {
+  const id = (raw as { event?: { id?: unknown } } | null)?.event?.id;
+  return typeof id === "string" ? id : null;
+}
+
+/** A Zod refusal in a line: the first problem's place and message, and how many there are. */
+function firstProblem(err: z.ZodError): string {
+  const issue = err.issues[0];
+  const where = issue?.path.length ? issue.path.join(".") : "the top level";
+  return `${where}: ${issue?.message ?? "does not match"} (${err.issues.length} ${err.issues.length === 1 ? "problem" : "problems"})`;
 }
 
 /**
@@ -77,13 +89,28 @@ export function bootFixture(h: Handle, now: string): string | null {
     console.log("[boot] no fixture import (FIXTURES_PATH=none): the portal starts without the sample event");
     return null;
   }
-  const { fixture, sha256 } = readFixtureFile(file);
+  const { raw, sha256 } = readFixtureJson(file);
+  const named = namedEventId(raw);
   // A file is imported once. Re-running it at every start (insert-or-ignore) kept the organizers' edits but brought
   // back what they deleted, a judge taken off a track or a member who left a team; a changed file still imports.
+  // Decided before the format check: a file imported once never stops a later start, even when a newer portal holds
+  // imports to tighter limits than the one that imported it.
   if (importedBefore(h.db, sha256)) {
     console.log(`[boot] fixtures already imported (${path.basename(file)}, sha256 ${sha256.slice(0, 12)}): not imported again, so what the organizers changed or removed stands`);
-    return fixture.event.id;
+    return named;
   }
+  const eventHere = (id: string | null) => id !== null && h.db.select({ id: events.id }).from(events).where(eq(events.id, id)).get() !== undefined;
+  const parsed = FixtureSchema.safeParse(raw);
+  if (!parsed.success) {
+    // Not the fixture format, or past a limit the forms keep (a label too long, too many questions): with no such
+    // event here the start stops, as the portal has nothing to serve it from; with the event here it goes on.
+    if (!eventHere(named)) throw new Error(`${whichFile(file)} is not a fixture file: ${firstProblem(parsed.error)}`);
+    console.warn(
+      `[boot] fixtures not imported from ${file} (sha256 ${sha256.slice(0, 12)}): ${firstProblem(parsed.error)}: nothing from this file was imported; the portal starts with the data it has. Fix that row in the file; each start tries the file again.`,
+    );
+    return named;
+  }
+  const fixture: Fixture = parsed.data;
   // The same guard as an uploaded import (dal/imports.ts): an event whose results are published is final, so a
   // changed file adds nothing to it. The import rolls back and the portal starts with the event as published.
   let published = false;
@@ -122,8 +149,7 @@ export function bootFixture(h: Handle, now: string): string | null {
     console.warn(
       `[boot] fixtures not imported from ${file} (sha256 ${sha256.slice(0, 12)}): ${err.message.replace(/\s*Nothing was imported\.$/, "")} (rule ${err.code}${details ? `; ${details}` : ""}): nothing from this file was imported; the portal starts with the data it has. Fix that row in the file, or change the event on its pages; each start tries the file again.`,
     );
-    const here = h.db.select({ id: events.id }).from(events).where(eq(events.id, fixture.event.id)).get();
-    return here ? fixture.event.id : null;
+    return eventHere(fixture.event.id) ? fixture.event.id : null;
   }
   const inserted = Object.values(report.inserted).reduce((a, b) => a + b, 0);
   console.log(

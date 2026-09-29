@@ -6,6 +6,9 @@ import "server-only";
 
 /** The most criteria a rubric has: the Rubric tab and an import into an event that is here both hold to it. */
 export const MAX_CRITERIA = 16;
+/** A criterion's label, trimmed, and its prompt: the Rubric tab (saveRubric) and every import hold to these. */
+export const CRITERION_LABEL = { min: 2, max: 60 } as const;
+export const CRITERION_PROMPT_MAX = 200;
 
 /** Why the set of criteria cannot change once judges have scored: saveRubric and an import refuse in these words. */
 export const RUBRIC_IN_USE = "Judges have scored already: the set of criteria is fixed. Labels, prompts and, with a reason, weights can change.";
