@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BallotSaver, isConnectionLost, type SaverView, type SendResult } from "@/app/events/[event]/vote/ballot-saver";
+import { UnrecognizedActionError } from "next/dist/client/components/unrecognized-action-error";
+import { BallotSaver, failureKind, type SaverView, type SendResult } from "@/app/events/[event]/vote/ballot-saver";
 
 // The ballot's save line (items 2 and 3 of the night's UI pass): picks save one at a
 // time and always end on the latest, a lost connection says so and retries, a refusal
@@ -142,7 +143,7 @@ describe("BallotSaver", () => {
     vi.useFakeTimers();
     const h = harness();
     h.saver.want(["a"]);
-    class UnrecognizedActionError extends Error {}
+    // Next's own class, as the page gets it after a redeploy with a new build
     h.calls[0]!.answer.reject(new UnrecognizedActionError('Server Action "abc" was not found on the server.'));
     await vi.advanceTimersByTimeAsync(0);
     expect(h.last()).toEqual({ phase: "failed", picks: [] });
@@ -150,11 +151,129 @@ describe("BallotSaver", () => {
     expect(h.calls).toHaveLength(1);
   });
 
+  // Follow-up item 1: behind a reverse proxy, a plain restart of the portal makes the proxy answer
+  // 502/503/504 with its own page; Next turns that into a plain Error with no digest. The same build
+  // comes back with the same action id, so a later try saves the pick.
+  const gateway = () => new Error("An unexpected response was received from the server.");
+
+  it("retries an unexpected answer (a proxy's 502 while the portal restarts) and saves once the portal is back", async () => {
+    vi.useFakeTimers();
+    const h = harness(["x"]);
+    h.saver.want(["x", "a"]);
+    h.calls[0]!.answer.reject(gateway());
+    await vi.advanceTimersByTimeAsync(0);
+    // the pick stays on screen, the page says it is still trying
+    expect(h.last()).toEqual({ phase: "retrying", picks: ["x", "a"] });
+    expect(h.saver.unsaved()).toBe(true);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(h.calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(h.calls.map((c) => c.picks)).toEqual([["x", "a"], ["x", "a"]]);
+    // a proxy that answers with its own text/plain words is the same kind
+    h.calls[1]!.answer.reject(new Error("Bad Gateway"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.last()).toEqual({ phase: "retrying", picks: ["x", "a"] });
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(h.calls).toHaveLength(3);
+    h.calls[2]!.answer.resolve({ ok: true, picks: ["x", "a"] });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.last()).toEqual({ phase: "saved", picks: ["x", "a"] });
+    expect(h.saver.unsaved()).toBe(false);
+  });
+
+  it("gives up on unexpected answers after the last try, and says to reload", async () => {
+    vi.useFakeTimers();
+    const h = harness(["x"]);
+    h.saver.want(["x", "a"]);
+    // the first answer and six retries on the usual schedule (with this harness: 1, 2, 4, 4, 4, 4 s)
+    for (const wait of [1000, 2000, 4000, 4000, 4000, 4000]) {
+      h.calls.at(-1)!.answer.reject(gateway());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.last()).toEqual({ phase: "retrying", picks: ["x", "a"] });
+      const before = h.calls.length;
+      await vi.advanceTimersByTimeAsync(wait);
+      expect(h.calls.length).toBe(before + 1);
+    }
+    expect(h.calls).toHaveLength(7);
+    h.calls[6]!.answer.reject(gateway());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.last()).toEqual({ phase: "failed", picks: ["x"] });
+    expect(h.saver.unsaved()).toBe(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.calls).toHaveLength(7);
+  });
+
+  it("with the default schedule the unexpected-answer tries cover about 45 s", async () => {
+    vi.useFakeTimers();
+    const calls: ReturnType<typeof deferred>[] = [];
+    const views: SaverView[] = [];
+    const saver = new BallotSaver(
+      () => {
+        const d = deferred();
+        calls.push(d);
+        return d.promise;
+      },
+      (v) => views.push(v),
+      [],
+    );
+    saver.want(["a"]);
+    const start = Date.now();
+    while (views.at(-1)!.phase !== "failed") {
+      calls.at(-1)!.reject(gateway());
+      await vi.advanceTimersByTimeAsync(0);
+      if (views.at(-1)!.phase === "failed") break;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(calls.length).toBeLessThan(20);
+    }
+    // 1 + 2 + 4 + 8 + 15 + 15 s of waiting, then the answer to the last try
+    expect(calls).toHaveLength(7);
+    expect(Date.now() - start).toBe(6 * 20_000);
+    expect(views.filter((v) => v.phase === "retrying")).toHaveLength(6);
+  });
+
+  it("a new pick while still trying goes out at once and gets the full set of tries again", async () => {
+    vi.useFakeTimers();
+    const h = harness();
+    h.saver.want(["a"]);
+    for (let i = 0; i < 5; i++) {
+      h.calls.at(-1)!.answer.reject(gateway());
+      await vi.advanceTimersByTimeAsync(4000);
+    }
+    expect(h.calls).toHaveLength(6);
+    h.calls[5]!.answer.reject(gateway());
+    await vi.advanceTimersByTimeAsync(0);
+    h.saver.want(["a", "b"]);
+    expect(h.calls.map((c) => c.picks).at(-1)).toEqual(["a", "b"]);
+    h.calls.at(-1)!.answer.reject(gateway());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.last()).toEqual({ phase: "retrying", picks: ["a", "b"] });
+  });
+
+  it("a lost connection between unexpected answers keeps retrying and does not use up the tries", async () => {
+    vi.useFakeTimers();
+    const h = harness(["x"]);
+    h.saver.want(["x", "a"]);
+    for (let i = 0; i < 6; i++) {
+      h.calls.at(-1)!.answer.reject(gateway());
+      await vi.advanceTimersByTimeAsync(4000);
+    }
+    // the portal's port is closed for a while: the browser's fetch fails outright
+    for (let i = 0; i < 10; i++) {
+      h.calls.at(-1)!.answer.reject(new TypeError("Failed to fetch"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.last().phase).toBe("offline");
+      await vi.advanceTimersByTimeAsync(4000);
+    }
+    h.calls.at(-1)!.answer.resolve({ ok: true, picks: ["x", "a"] });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.last()).toEqual({ phase: "saved", picks: ["x", "a"] });
+  });
+
   it("a pick after a server fault tries again, and a quick pick queued behind the fault is dropped with it", async () => {
     const h = harness();
     h.saver.want(["a"]);
     h.saver.want(["a", "b"]);
-    h.calls[0]!.answer.reject(new Error("An unexpected response was received from the server."));
+    h.calls[0]!.answer.reject(Object.assign(new Error("An error occurred in the Server Components render."), { digest: "9" }));
     await tick();
     expect(h.last()).toEqual({ phase: "failed", picks: [] });
     expect(h.calls).toHaveLength(1);
@@ -165,12 +284,14 @@ describe("BallotSaver", () => {
     expect(h.last()).toEqual({ phase: "saved", picks: ["c"] });
   });
 
-  it("positive control: only a fetch that never answered (TypeError) counts as a lost connection", () => {
-    expect(isConnectionLost(new TypeError("Failed to fetch"))).toBe(true);
-    expect(isConnectionLost(new TypeError("Load failed"))).toBe(true);
-    expect(isConnectionLost(Object.assign(new Error("x"), { digest: "1" }))).toBe(false);
-    expect(isConnectionLost(new Error("An unexpected response was received from the server."))).toBe(false);
-    expect(isConnectionLost("nope")).toBe(false);
+  it("sorts each kind of failed call: lost connection, unexpected answer, server fault", () => {
+    expect(failureKind(new TypeError("Failed to fetch"))).toBe("connection");
+    expect(failureKind(new TypeError("Load failed"))).toBe("connection");
+    expect(failureKind(gateway())).toBe("unexpected");
+    expect(failureKind(new Error("Service Unavailable"))).toBe("unexpected");
+    expect(failureKind(Object.assign(new Error("x"), { digest: "1" }))).toBe("fault");
+    expect(failureKind(new UnrecognizedActionError("gone"))).toBe("fault");
+    expect(failureKind("nope")).toBe("unexpected");
   });
 
   it("sends a waiting retry at once when the ballot goes away, and does not keep retrying after", async () => {

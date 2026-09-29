@@ -105,25 +105,7 @@ export function Ballot({
     saver.want(chosen ? picks.filter((p) => p !== id) : [...picks, id]);
   }
 
-  const status: { ok: boolean; text: string } | null = note
-    ? { ok: false, text: note }
-    : view.phase === "saving"
-      ? { ok: true, text: "Saving…" }
-      : view.phase === "offline"
-        ? { ok: false, text: "Not saved yet: the connection dropped. Trying again…" }
-        : view.phase === "failed"
-          ? { ok: false, text: "Not saved: the portal answered with an error. Reload the page to see your ballot and try again." }
-          : view.phase === "refused"
-          ? { ok: false, text: view.message }
-          : view.phase === "saved"
-            ? {
-                ok: true,
-                text:
-                  picks.length === max
-                    ? "Ballot complete and saved. You can still change it until voting closes."
-                    : "Saved. You can change your picks until voting closes.",
-              }
-            : null;
+  const status: { ok: boolean; text: string } | null = note ? { ok: false, text: note } : statusLine(view, picks.length === max);
 
   const chip = (key: string, label: string, n: number) => (
     <button
@@ -269,4 +251,29 @@ export function Ballot({
       )}
     </section>
   );
+}
+
+/** What the status line says for each state of the saver (see ballot-saver.ts). */
+function statusLine(view: SaverView, full: boolean): { ok: boolean; text: string } | null {
+  switch (view.phase) {
+    case "idle":
+      return null;
+    case "saving":
+      return { ok: true, text: "Saving…" };
+    case "offline":
+      return { ok: false, text: "Not saved yet: the connection dropped. Trying again…" };
+    case "retrying":
+      return { ok: false, text: "Not saved yet: the portal did not answer as expected. Still trying…" };
+    case "failed":
+      return { ok: false, text: "Not saved: the portal answered with an error. Reload the page to see your ballot and try again." };
+    case "refused":
+      return { ok: false, text: view.message };
+    case "saved":
+      return {
+        ok: true,
+        text: full
+          ? "Ballot complete and saved. You can still change it until voting closes."
+          : "Saved. You can change your picks until voting closes.",
+      };
+  }
 }
