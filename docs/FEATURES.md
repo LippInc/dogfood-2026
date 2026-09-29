@@ -140,7 +140,7 @@ to an API route that calls it too), through the same data access layer and permi
 come from the server's own validators; a test fails if a route is missing from it or it lists a method and path no
 route answers, and another reads the handlers' code and fails when the document and the code disagree on a status.
 Scripts use named API tokens (made at `/account/tokens`, revocable) as `Authorization: Bearer <token>`; a token
-acts with its owner's permissions and cannot make more tokens or a password reset link (either would reach a full sign-in). Webhooks (the organizer's Integrations tab) send
+acts with its owner's permissions and cannot make more tokens, a password reset link or personal claim links (each would reach a full sign-in). Webhooks (the organizer's Integrations tab) send
 any audited action to your URL (ballot picks, scores and pairwise answers left out: who acted and when, never the
 values), signed `Dogfood-Signature: t=…,v1=<HMAC-SHA256>` (a receiver refuses a `t` more than five minutes from
 its clock) and retried with backoff, with a delivery log; each delivery is written in the same transaction as the

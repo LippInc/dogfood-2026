@@ -36,6 +36,7 @@ export type Action =
   | "portal.audit"
   | "portal.accounts"
   | "event.manage"
+  | "claims.issue"
   | "event.export"
   | "organizer.add"
   | "team.create"
@@ -203,6 +204,12 @@ export function authorize(
       return mode === "write" && actor.sessionKind === "api"
         ? refuse("token_cannot_reset_passwords", "Sign in to make a password reset link; an API token cannot.")
         : allow;
+
+    case "claims.issue":
+      // a claim link sets a password and opens a full sign-in, which can make tokens: a leaked token must not reach
+      // one (as account.tokens and password reset links); otherwise the event's organizers, as event.manage
+      if (actor.sessionKind === "api") return refuse("token_cannot_issue_claims", "Sign in to make personal links; an API token cannot.");
+      return authorize(actor, "event.manage", resource, now, mode);
 
     case "event.manage":
     case "event.export": {

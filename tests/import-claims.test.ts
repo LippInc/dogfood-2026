@@ -291,6 +291,10 @@ describe("bulk import, export and account claims", () => {
 
     expect(countWithoutPassword(organizer(), EVENT)).toBe(expected);
     expectHttpError(() => makeClaimLinks(actorById(anyParticipantId()), EVENT), 403, "not_an_organizer");
+    // an organizer's API token cannot make them: each link sets a password and opens a full sign-in
+    const before = nOf(ha, "SELECT count(*) AS n FROM account_claims");
+    expectHttpError(() => makeClaimLinks({ ...organizer(), sessionKind: "api" }, EVENT), 403, "token_cannot_issue_claims");
+    expect(nOf(ha, "SELECT count(*) AS n FROM account_claims")).toBe(before);
     expectHttpError(() => countWithoutPassword(actorById(anyParticipantId()), EVENT), 403, "not_an_organizer");
   });
 

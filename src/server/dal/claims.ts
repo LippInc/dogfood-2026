@@ -95,7 +95,7 @@ export function makeClaimLinks(actor: Actor | null, eventIdOrSlug: string): { li
   const expires = new Date(Date.parse(now) + CLAIM_DAYS * 86_400_000).toISOString();
   return mutate({
     actor,
-    action: "event.manage",
+    action: "claims.issue",
     load: (tx) => ({ kind: "event", event: eventFacts(requireEvent(tx, eventId)) }),
     run: (tx) => {
       const links: ClaimLink[] = [];
