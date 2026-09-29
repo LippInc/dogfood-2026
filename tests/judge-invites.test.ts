@@ -9,7 +9,7 @@ import { verifyAuditChain } from "@/server/audit";
 import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { sha256 } from "@/server/util";
-import { acceptJudgeInvite, inviteJudge, judgeInviteByCode, revokeJudgeInvite, setJudgeTracks } from "@/server/dal/judges";
+import { acceptJudgeInvite, inviteJudge, inviteRows, judgeInviteByCode, revokeJudgeInvite, setJudgeTracks } from "@/server/dal/judges";
 import { latestAudit } from "@/server/dal/audit-log";
 import { replacedNote } from "@/lib/invite-note";
 import type { Actor } from "@/server/authz";
@@ -361,6 +361,17 @@ describe("one open invitation per address", () => {
     expect(byTarget[first.id]).toMatch(/replaced a judge invitation .*with a new invitation/);
     expect(byTarget[first.id]).not.toMatch(/revoked/);
     expect(byTarget[noor.id]).toMatch(/revoked a judge invitation/);
+  });
+
+  it("the Judges page's list tells a replaced invitation from one revoked by hand", () => {
+    const first = inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    const second = inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    const noor = inviteJudge(organizer(), "evt_01", { name: "Noor", email: "noor@example.org", trackIds: ["trk_01"] });
+    revokeJudgeInvite(organizer(), noor.id);
+    const rows = Object.fromEntries(inviteRows(h.db, "evt_01").map((r) => [r.id, [r.state, r.replaced]]));
+    expect(rows[first.id]).toEqual(["revoked", true]);
+    expect(rows[noor.id]).toEqual(["revoked", false]);
+    expect(rows[second.id]).toEqual(["open", false]);
   });
 
   it("the organizer's screen says which addresses' older links stopped working", () => {

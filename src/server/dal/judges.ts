@@ -461,6 +461,8 @@ export type InviteRow = {
   tracks: string[];
   createdAt: string;
   state: "open" | "used" | "revoked";
+  /** a revoked invitation that a newer one to the same address replaced, rather than one an organizer revoked by hand */
+  replaced: boolean;
   acceptedBy: string | null;
 };
 
@@ -541,6 +543,16 @@ export function judgeRows(db: DbOrTx, eventId: string): JudgeRow[] {
 
 export function inviteRows(db: DbOrTx, eventId: string): InviteRow[] {
   const names = new Map(db.select({ id: tracks.id, name: tracks.name }).from(tracks).where(eq(tracks.eventId, eventId)).all().map((t) => [t.id, t.name]));
+  // the revocations that name a replacement (replaceOpenInvites), as wasReplaced reads one
+  const replaced = new Set(
+    db
+      .select({ id: auditLog.targetId, after: auditLog.after })
+      .from(auditLog)
+      .where(and(eq(auditLog.eventId, eventId), eq(auditLog.action, "judge.invite_revoke")))
+      .all()
+      .filter((r) => typeof (r.after as { replacedBy?: unknown } | null)?.replacedBy === "string")
+      .map((r) => r.id),
+  );
   return db
     .select({
       id: judgeInvites.id,
@@ -564,6 +576,7 @@ export function inviteRows(db: DbOrTx, eventId: string): InviteRow[] {
       tracks: r.trackIds.map((id) => names.get(id) ?? id),
       createdAt: r.createdAt,
       state: r.revokedAt ? "revoked" : r.acceptedAt ? "used" : "open",
+      replaced: Boolean(r.revokedAt) && replaced.has(r.id),
       acceptedBy: r.acceptedBy,
     }));
 }

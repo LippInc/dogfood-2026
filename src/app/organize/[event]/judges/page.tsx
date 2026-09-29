@@ -358,7 +358,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                             {i.tracks.join(", ")}
                           </span>
                           <span className="block text-ink-3">
-                            {i.state === "open" ? `made ${formatUtc(i.createdAt)}` : i.state === "used" ? `accepted by ${i.acceptedBy ?? "a judge"}` : "revoked"}
+                            {i.state === "open" ? `made ${formatUtc(i.createdAt)}` : i.state === "used" ? `accepted by ${i.acceptedBy ?? "a judge"}` : i.replaced ? "replaced by a newer invitation" : "revoked"}
                           </span>
                         </span>
                         {i.state === "open" ? (
