@@ -146,10 +146,19 @@ export function bootFixture(h: Handle, now: string): string | null {
             .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
             .join("; ")
         : "";
+    const why = `${err.message.replace(/\s*Nothing was imported\.$/, "")} (rule ${err.code}${details ? `; ${details}` : ""})`;
+    // The file's event is not here yet (a fresh volume, or a file for a new event): there is nothing to start with,
+    // so the start stops here, once, with the file, the row and the rule, as it does for a file past the format's
+    // limits above. Going on would only stop a step later on a reason that is not the real one.
+    if (!eventHere(fixture.event.id)) {
+      throw new Error(
+        `${whichFile(file)} cannot be imported (sha256 ${sha256.slice(0, 12)}): ${why}. Nothing from it was imported, and its event ${fixture.event.id} is not here yet, so the portal has nothing to start with: fix the file or point FIXTURES_PATH at another.`,
+      );
+    }
     console.warn(
-      `[boot] fixtures not imported from ${file} (sha256 ${sha256.slice(0, 12)}): ${err.message.replace(/\s*Nothing was imported\.$/, "")} (rule ${err.code}${details ? `; ${details}` : ""}): nothing from this file was imported; the portal starts with the data it has. Fix that row in the file, or change the event on its pages; each start tries the file again.`,
+      `[boot] fixtures not imported from ${file} (sha256 ${sha256.slice(0, 12)}): ${why}: nothing from this file was imported; the portal starts with the data it has. Fix that row in the file, or change the event on its pages; each start tries the file again.`,
     );
-    return eventHere(fixture.event.id) ? fixture.event.id : null;
+    return fixture.event.id;
   }
   const inserted = Object.values(report.inserted).reduce((a, b) => a + b, 0);
   console.log(
@@ -192,7 +201,15 @@ export async function boot(): Promise<void> {
   const event = eventId ? requireEvent(h.db, eventId) : null;
   const lines: string[] = [];
   if (checkerSessionsEnabled()) {
-    if (!eventId || !event) throw new Error("SEED_CHECKER_SESSIONS=true needs the fixture event: set FIXTURES_PATH to a fixture file, or turn the flag off");
+    // bootFixture returns an event that is here, or null only for FIXTURES_PATH=none (a file it cannot import has
+    // stopped the start already, with its own reason): the advice names the setting only when it is the cause
+    if (!eventId || !event) {
+      throw new Error(
+        fixturesPath() === "none"
+          ? "SEED_CHECKER_SESSIONS=true needs the fixture event, and FIXTURES_PATH=none starts without it: set FIXTURES_PATH to a fixture file, or turn the flag off"
+          : `SEED_CHECKER_SESSIONS=true needs the fixture event, and ${fixturesPath()} brought none here: turn the flag off, or point FIXTURES_PATH at a file whose event is here`,
+      );
+    }
     ensureDemoOrganizer(h.db, eventId, now);
     const seeded = seedCheckerSessions(h.db, eventId, now);
     if (seeded.enabled) {

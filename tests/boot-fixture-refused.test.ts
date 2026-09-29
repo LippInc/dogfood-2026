@@ -8,7 +8,7 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
-import { bootFixture } from "@/server/boot";
+import { boot, bootFixture } from "@/server/boot";
 import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client";
 import { importFixtures } from "@/server/db/import-fixtures";
 import { runMigrations } from "@/server/db/migrate";
@@ -219,6 +219,93 @@ describe("a file past the tabs' limits at start", () => {
   it("known-bad: the same file for an event not here stops the start, naming the row", () => {
     useFile(withLongLabel(), "new-long");
     expect(() => bootFixture(h, NOW)).toThrow(/is not a fixture file: rubric\.0\.label: must be 2 to 60 characters/);
+  });
+});
+
+// A fresh volume whose fixture file the import refuses has no event to start with: going on "with the data it has"
+// left SEED_CHECKER_SESSIONS=true to stop the start a moment later with advice already followed ("set FIXTURES_PATH
+// to a fixture file" while it named one). The start stops once, with the file, the row and the rule.
+describe("a fixture file the import refuses for an event not here yet: the start stops once, saying why", () => {
+  const fresh = (): Json => ({
+    event: { id: "evt_new", name: "New event", submissions_close: "2026-03-01T18:00:00Z" },
+    tracks: [{ id: "trk_x", name: "Only track" }],
+    judges: [{ id: "jdg_n", name: "Judge", email: "n@example.org", tracks: ["trk_x"] }],
+    teams: [{ id: "tm_n", name: "Team", members: ["t@example.org"] }],
+    projects: [{ id: "prj_n", team: "tm_n", track: "trk_x", title: "P", submitted_at: "2026-03-01T12:00:00Z" }],
+    scores: [{ judge: "jdg_n", project: "prj_n", criteria: { functionality: 3, quality: 3, innovation: 3 } }],
+  });
+  const other = (id: string, trackId: string) =>
+    importFixtures(
+      h.db,
+      { event: { id, name: id, submissions_close: "2026-03-01T18:00:00Z", description: "" }, tracks: [{ id: trackId, name: "T" }], questions: [], judges: [], teams: [], projects: [], scores: [] },
+      { source: "t", sha256: id, now: NOW },
+    );
+
+  function stops(file: string, rule: RegExp, row: RegExp) {
+    const before = snapshot();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let thrown = "";
+    try {
+      bootFixture(h, NOW);
+    } catch (err) {
+      thrown = (err as Error).message;
+    }
+    expect(thrown).toContain(file);
+    expect(thrown).toMatch(rule);
+    expect(thrown).toMatch(row);
+    expect(thrown).toContain("fix the file or point FIXTURES_PATH at another");
+    expect(snapshot()).toBe(before);
+    // one reason, not a "starts with the data it has" line the next step contradicts
+    expect(warn.mock.calls.map((c) => String(c[0])).join("\n")).not.toContain("the portal starts with the data it has");
+  }
+
+  it("ids two other events hold (id_taken)", () => {
+    other("evt_a", "trk_x");
+    other("evt_b", "trk_x.evt_new");
+    stops(useFile(fresh(), "fresh-ids"), /id_taken/, /trk_x/);
+  });
+
+  it("a score's key that makes a criterion label past the Rubric tab's limit", () => {
+    const f = fresh();
+    f.scores[0].criteria = { x: 3 };
+    stops(useFile(f, "fresh-key"), /2 to 60 characters/, /criterion x/);
+  });
+
+  it("boot() with SEED_CHECKER_SESSIONS=true stops on the import's reason, never on advice already followed", async () => {
+    other("evt_a", "trk_x");
+    other("evt_b", "trk_x.evt_new");
+    const file = useFile(fresh(), "fresh-boot");
+    const env = { db: process.env.DATABASE_PATH, flag: process.env.SEED_CHECKER_SESSIONS };
+    process.env.DATABASE_PATH = ":memory:";
+    process.env.SEED_CHECKER_SESSIONS = "true";
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const failed = await boot().then(
+        () => "",
+        (err: Error) => err.message,
+      );
+      expect(failed).toContain(file);
+      expect(failed).toMatch(/id_taken/);
+      expect(failed).not.toMatch(/set FIXTURES_PATH to a fixture file/);
+    } finally {
+      for (const [k, v] of [["DATABASE_PATH", env.db], ["SEED_CHECKER_SESSIONS", env.flag]] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
+  it("positive control: the same file with ids of its own imports and the start goes on", () => {
+    other("evt_a", "trk_x");
+    other("evt_b", "trk_x.evt_new");
+    const f = fresh();
+    f.tracks = [{ id: "trk_own", name: "Only track" }];
+    f.judges[0].tracks = ["trk_own"];
+    f.projects[0].track = "trk_own";
+    useFile(f, "fresh-own");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(bootFixture(h, NOW)).toBe("evt_new");
   });
 });
 
