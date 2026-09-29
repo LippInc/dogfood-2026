@@ -12,6 +12,7 @@ import { publishResults } from "@/server/dal/results";
 import { savePrizes } from "@/server/dal/organize";
 import { exportFile, EXPORT_FILES } from "@/server/dal/exports";
 import { getAuditLog } from "@/server/dal/audit-log";
+import { getOverview } from "@/server/dal/overview";
 import { awardPrize, getPrizeAwards, prizesWonBy, publishedPrizes } from "@/server/dal/prize-awards";
 import { getRecord, issueOwnRecord, verifyRecord } from "@/server/dal/records";
 import type { Actor } from "@/server/authz";
@@ -100,6 +101,8 @@ describe("awarding a prize before publishing", () => {
     expect(rows[0]!.after).toMatchObject({ prize: "Best hack", projects: [{ id: "prj_01", title: "Glass Signal" }], note: "Clear demo" });
     const line = getAuditLog(organizer(), "evt_01", { limit: 50 }).lines.find((l) => l.action === "prize.award")!;
     expect(line.parts.map((p) => p.text).join("")).toMatch(/awarded the prize “Best hack” to Glass Signal, noting “Clear demo”/);
+    // the Overview's log card lists it with the other decisions
+    expect(getOverview(organizer(), "evt_01").audit[0]!.action).toBe("prize.award");
   });
 
   it("a joint award names every winner; the certificate words say joint", () => {

@@ -270,6 +270,7 @@ export function getOverview(actor: Actor | null, eventIdOrSlug: string): Overvie
       "event.judging_mode",
       "event.tie_break",
       "results.publish",
+      "prize.award",
       "event.update",
       "voting.settings",
       "voting.rules_changed",
