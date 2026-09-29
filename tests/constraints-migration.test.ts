@@ -8,8 +8,8 @@ import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { TRIGGERS } from "@/server/db/triggers";
 
-// drizzle/0015_constraints.sql rebuilds nine tables to add CHECK constraints and foreign keys SQLite cannot add
-// in place. These tests take a database as the portal had it before (migrations 0000 to 0014, with the fixture
+// drizzle/0016_constraints.sql rebuilds nine tables to add CHECK constraints and foreign keys SQLite cannot add
+// in place. These tests take a database as the portal had it before (migrations 0000 to 0015, with the fixture
 // event and a row in every rebuilt table), migrate it, and check that every row survived, the triggers still
 // guard, and each new constraint refuses a bad row while the matching good row goes in.
 
@@ -28,21 +28,21 @@ const REBUILT = [
   "webhook_deliveries",
 ];
 
-let before0015: string;
+let before0016: string;
 
 beforeAll(() => {
-  // the migrations folder as it was before 0015: the same files, the journal cut after 0014
-  before0015 = fs.mkdtempSync(path.join(os.tmpdir(), "quality-before-0015-"));
-  fs.mkdirSync(path.join(before0015, "meta"));
+  // the migrations folder as it was before 0016: the same files, the journal cut after 0015
+  before0016 = fs.mkdtempSync(path.join(os.tmpdir(), "quality-before-0016-"));
+  fs.mkdirSync(path.join(before0016, "meta"));
   const journal = JSON.parse(fs.readFileSync(path.join(DRIZZLE, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
-  journal.entries = journal.entries.filter((e) => e.idx <= 14);
-  expect(journal.entries.at(-1)?.tag).toBe("0014_audit_salt");
-  fs.writeFileSync(path.join(before0015, "meta", "_journal.json"), JSON.stringify(journal));
-  for (const e of journal.entries) fs.copyFileSync(path.join(DRIZZLE, `${e.tag}.sql`), path.join(before0015, `${e.tag}.sql`));
+  journal.entries = journal.entries.filter((e) => e.idx <= 15);
+  expect(journal.entries.at(-1)?.tag).toBe("0015_outbox_outcomes");
+  fs.writeFileSync(path.join(before0016, "meta", "_journal.json"), JSON.stringify(journal));
+  for (const e of journal.entries) fs.copyFileSync(path.join(DRIZZLE, `${e.tag}.sql`), path.join(before0016, `${e.tag}.sql`));
 });
 
 afterAll(() => {
-  fs.rmSync(before0015, { recursive: true, force: true });
+  fs.rmSync(before0016, { recursive: true, force: true });
 });
 
 let h: Handle;
@@ -82,11 +82,11 @@ function fillOldDatabase({ publish }: { publish: boolean }) {
     "INSERT INTO normalization_runs (id, event_id, method, params, computed_at, computed_by) VALUES ('nrm_1', 'evt_01', 'leniency-shrunk-v1', '{}', ?, ?)",
     NOW, user,
   );
-  appendAudit(h.db, { actorUserId: null, actorLabel: "system", action: "test.before0015" }, NOW);
+  appendAudit(h.db, { actorUserId: null, actorLabel: "system", action: "test.before0016" }, NOW);
   const auditId = one<{ id: number }>("SELECT max(id) AS id FROM audit_log").id;
   run("INSERT INTO webhooks (id, event_id, url, secret, actions, created_at, created_by) VALUES ('whk_1', 'evt_01', 'https://example.test/h', 's', '[\"*\"]', ?, ?)", NOW, user);
   run(
-    "INSERT INTO webhook_deliveries (id, webhook_id, audit_id, action, payload, status, attempts, next_attempt_at, last_attempt_at, created_at, delivered_at) VALUES ('dlv_1', 'whk_1', ?, 'test.before0015', '{}', 'delivered', 1, null, ?, ?, ?)",
+    "INSERT INTO webhook_deliveries (id, webhook_id, audit_id, action, payload, status, attempts, next_attempt_at, last_attempt_at, created_at, delivered_at) VALUES ('dlv_1', 'whk_1', ?, 'test.before0016', '{}', 'delivered', 1, null, ?, ?, ?)",
     auditId, LATER, NOW, LATER,
   );
   // the event's results published last, so the published-results triggers have something to guard
@@ -94,10 +94,10 @@ function fillOldDatabase({ publish }: { publish: boolean }) {
   expect(one<{ n: number }>("SELECT count(*) AS n FROM scores").n).toBeGreaterThan(0);
 }
 
-describe("migration 0015 on a database that already holds data", () => {
+describe("migration 0016 on a database that already holds data", () => {
   beforeEach(() => {
     h = openDatabase(":memory:");
-    runMigrations(h, before0015);
+    runMigrations(h, before0016);
     fillOldDatabase({ publish: true });
   });
   afterEach(() => h.sqlite.close());
@@ -130,7 +130,7 @@ describe("migration 0015 on a database that already holds data", () => {
   });
 
   it("refuses a database holding a row that breaks a new constraint, and leaves it as it was", () => {
-    // written before 0015 existed: nothing stopped a malformed date then
+    // written before 0016 existed: nothing stopped a malformed date then
     run("UPDATE comments SET created_at = 'yesterday' WHERE id = 'cmt_1'");
     const rows = dump();
     let caught: unknown;
@@ -153,7 +153,7 @@ describe("migration 0015 on a database that already holds data", () => {
     { table: "judge_invites", sql: "UPDATE judge_invites SET created_by = 'usr_gone' WHERE id = 'jiv_1'", names: /judge_invites .*created_by = "usr_gone"/ },
   ];
   for (const d of dangling) {
-    it(`refuses a database whose ${d.table} row would dangle under 0015's foreign key, and leaves it as it was`, () => {
+    it(`refuses a database whose ${d.table} row would dangle under 0016's foreign key, and leaves it as it was`, () => {
       run(d.sql);
       const rows = dump();
       const table = tableSql(d.table);
@@ -170,15 +170,15 @@ describe("migration 0015 on a database that already holds data", () => {
     run("UPDATE webhook_deliveries SET audit_id = NULL WHERE id = 'dlv_1'");
     expect(() => runMigrations(h, DRIZZLE)).not.toThrow();
     expect(tableSql("webhook_deliveries")).toContain("REFERENCES `audit_log`");
-    // and a later boot, with 0015 applied, does not look again
+    // and a later boot, with 0016 applied, does not look again
     expect(() => runMigrations(h, DRIZZLE)).not.toThrow();
   });
 });
 
-describe("the constraints 0015 adds", () => {
+describe("the constraints 0016 adds", () => {
   beforeEach(() => {
     h = openDatabase(":memory:");
-    runMigrations(h, before0015);
+    runMigrations(h, before0016);
     fillOldDatabase({ publish: false });
     run("UPDATE events SET voting_open_at = NULL, voting_close_at = NULL WHERE id = 'evt_01'");
     runMigrations(h, DRIZZLE);
