@@ -158,5 +158,7 @@ export function organizerTabs(slug: string, active: string): WorkTab[] {
     { href: `/organize/${slug}/audit`, label: "Audit log" },
     { href: `/organize/${slug}/integrations`, label: "Integrations" },
     { href: `/organize/${slug}/settings`, label: "Settings" },
+    // the event's public side, as participants and visitors see it (no organizer page linked there)
+    { href: `/events/${slug}`, label: "Public page" },
   ].map((t) => ({ ...t, active: t.label === active }));
 }

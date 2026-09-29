@@ -85,6 +85,12 @@ export default async function OrganizeHome() {
                 the portal&rsquo;s settings; at start the portal prints a one-time sign-up link in its own log, and only an account made through
                 that link becomes an administrator. The README&rsquo;s &ldquo;Running it for a real event&rdquo; has the steps.
               </p>
+              <p>
+                <Link href="/" className="text-ink underline underline-offset-4">
+                  See the events
+                </Link>{" "}
+                on this portal, with your part in each.
+              </p>
             </div>
           )
         ) : (

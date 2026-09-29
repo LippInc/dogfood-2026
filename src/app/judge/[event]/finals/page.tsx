@@ -20,7 +20,15 @@ export default async function PanelFinalsPage({ params }: PageProps<"/judge/[eve
   const total = v.rounds.reduce((n, r) => n + r.finalists.filter((f) => !f.conflict).length, 0);
   const done = v.rounds.reduce((n, r) => n + r.finalists.filter((f) => f.mine && !f.conflict).length, 0);
   return (
-    <WorkShell eventName={v.event.name} eventHref={`/events/${v.event.slug}`} crumb="Finals" person={actor.name} role="Judge">
+    <WorkShell
+      eventName={v.event.name}
+      eventHref={`/events/${v.event.slug}`}
+      crumb="Finals"
+      person={actor.name}
+      role="Judge"
+      // the way to a judge's other events, as on the console: the portal home lists them, when there are any
+      allEventsHref={new Set(actor.roles.map((r) => r.eventId)).size > 1 ? "/" : undefined}
+    >
       <div className="flex flex-col gap-8">
         <header className="flex flex-wrap items-end justify-between gap-x-10 gap-y-3">
           <div className="max-w-[72ch]">
