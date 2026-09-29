@@ -282,6 +282,12 @@ webhook deliveries and the voters' address hashes are yours to clear with `scrip
   should be read as ties. A close call says only whether the scores name the first place at the validated 95 % line,
   and which projects are too close, never a chance of being first (JUDGING.md, "Close calls"). Pairwise mode gives
   each place its chance of being ahead of the next one, not a full interval, and has no close calls.
+- **Rubric level texts.** The three default criteria (Functionality, Quality, Innovation) come with a short text for
+  each score, for example "Works, a few rough edges" for a 4, which the judge console shows; the Rubric tab cannot
+  edit them yet. A criterion the organizer adds shows only the numbers, and a renamed default keeps its old texts.
+- **No finals round and no disqualification.** A track's places come from its one round of scores, with the
+  tie-break on exact ties and the judges' decision on a close call; there is no second round for the top projects
+  and no way to take a project out of the places for breaking the rules.
 - **Tactical pairwise answers.** Pairwise mode flags a judge who answers like a coin flip, but not one who calls "too close to call" whenever a
   favourite would lose (flagged in 14 of 120 simulated panels; the ties bought the favourite 0.258 places on
   average, at most 3; `THREAT-MODEL.md`, "Tactical pairwise answers").
