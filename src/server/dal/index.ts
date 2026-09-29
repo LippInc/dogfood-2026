@@ -126,7 +126,7 @@ export {
 } from "./results";
 export { getEventCards, getOverview, type EventCard, type Overview, type Stage } from "./overview";
 export { addOrganizer, listOrganizers, removeOrganizer, type Organizer } from "./organizers";
-export { getAuditEntries, getAuditLog, getPortalEntries, getPortalLog, type AuditEntryView, type AuditLine, type Part } from "./audit-log";
+export { checkSavedHead, getAuditEntries, getAuditLog, getPortalEntries, getPortalLog, type AuditEntryView, type AuditLine, type Part, type SavedHeadCheck } from "./audit-log";
 export { getSubmissions, type SubmissionRow } from "./submissions";
 export {
   castBallot,

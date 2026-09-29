@@ -6,7 +6,9 @@ import { chainBrokenText, chainHeading, keepHeadText, missingIn } from "@/compon
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
-import { currentActor, getAuditLog, type AuditLine } from "@/server/dal";
+import { checkSavedHead, currentActor, getAuditLog, HttpError, type AuditLine, type SavedHeadCheck } from "@/server/dal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { exportHref } from "@/lib/export-href";
 
 export const dynamic = "force-dynamic";
@@ -166,13 +168,34 @@ function Rail({ up, down, node, broken }: { up: "solid" | "dashed" | null; down:
 
 type Show = "all" | "changes" | "refused";
 
+/** A head the organizer typed into "Check a head you saved": its answer, what was wrong with it, or nothing asked yet. */
+type HeadAnswer = { kind: "idle" } | ({ kind: "checked" } & SavedHeadCheck) | { kind: "invalid"; message: string; fields: string[] };
+
+function askHead(load: () => SavedHeadCheck): HeadAnswer {
+  try {
+    return { kind: "checked", ...load() };
+  } catch (err) {
+    if (err instanceof HttpError && err.status === 422) return { kind: "invalid", message: err.message, fields: Object.keys((err.details ?? {}) as object) };
+    throw err;
+  }
+}
+
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
 export default async function AuditPage({ params, searchParams }: PageProps<"/organize/[event]/audit">) {
   const { event: key } = await params;
-  const { show: showParam } = await searchParams;
+  const { show: showParam, entry: entryParam, hash: hashParam } = await searchParams;
   const show: Show = showParam === "refused" || showParam === "changes" ? showParam : "all";
   const actor = await currentActor();
   if (!actor) unauthorized();
   const { event, lines, total, chain } = guardPage(() => getAuditLog(actor, key));
+  // "Check a head you saved" is a plain GET form, like the views: the answer is server-rendered at its own address.
+  const savedEntry = one(entryParam);
+  const savedHash = one(hashParam);
+  const head: HeadAnswer =
+    savedEntry !== undefined || savedHash !== undefined
+      ? guardPage(() => askHead(() => checkSavedHead(actor, event.id, { entry: savedEntry ?? "", hash: savedHash ?? "" })))
+      : { kind: "idle" };
   const isHead = chain.ok && lines[0]?.hash === chain.head;
   const reachesGenesis = lines.at(-1)?.id === 1;
   const olderHidden = total > lines.length;
@@ -270,10 +293,90 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
                 ))}
               </p>
               <p className="text-12 text-ink-3">
-                {keepHeadText(chain.rows)}
+                {keepHeadText(chain.rows, "below")}
               </p>
             </div>
           ) : null}
+        </section>
+
+        <section id="check-head" aria-labelledby="check-head-title" className="flex scroll-mt-4 flex-col gap-3 rounded-sm border border-rule bg-surface p-5">
+          <div>
+            <h2 id="check-head-title" className="text-17 font-semibold">
+              Check a head you saved
+            </h2>
+            <p className="mt-1 max-w-[760px] text-14 text-ink-2">
+              A row number and its hash, from this page, an earlier audit.csv (chain_head_entry and chain_head) or a signed record. The answer is only
+              whether the log still holds that row with that hash.
+            </p>
+          </div>
+          <form method="get" action={`/organize/${event.slug}/audit#check-head`} className="flex flex-wrap items-end gap-3">
+            {show !== "all" ? <input type="hidden" name="show" value={show} /> : null}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="head-entry" className="text-14 font-medium">
+                Row
+              </label>
+              <Input
+                id="head-entry"
+                name="entry"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="412"
+                defaultValue={savedEntry ?? ""}
+                aria-invalid={head.kind === "invalid" && head.fields.includes("entry") ? true : undefined}
+                aria-describedby="check-head-answer"
+                className="w-28 font-mono"
+              />
+            </div>
+            <div className="flex min-w-0 flex-1 basis-[420px] flex-col gap-1.5">
+              <label htmlFor="head-hash" className="text-14 font-medium">
+                Hash
+              </label>
+              <Input
+                id="head-hash"
+                name="hash"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="64 hex digits"
+                defaultValue={savedHash ?? ""}
+                aria-invalid={head.kind === "invalid" && head.fields.includes("hash") ? true : undefined}
+                aria-describedby="check-head-answer"
+                className="font-mono text-13"
+              />
+            </div>
+            <Button type="submit" variant="outline" size="lg">
+              Check
+            </Button>
+          </form>
+          {/* One line kept for the answer, so the form does not move when one arrives. */}
+          <p id="check-head-answer" role="status" className="flex min-h-5 items-start gap-2 text-14">
+            {head.kind === "idle" ? (
+              <span className="text-ink-3">The answer shows here: holds, or does not hold.</span>
+            ) : head.kind === "invalid" ? (
+              <span className="font-medium text-flag">{head.message}</span>
+            ) : head.holds ? (
+              <>
+                <svg viewBox="0 0 20 20" className="mt-0.5 size-4 shrink-0" aria-hidden>
+                  <rect x="1" y="1" width="18" height="18" className="fill-none stroke-ok" strokeWidth="2" />
+                  <path d="M5.5 10.5l3 3 6-7" className="fill-none stroke-ok" strokeWidth="2" />
+                </svg>
+                <span>
+                  <strong className="font-semibold text-ok">Holds.</strong> Row #{head.entry} still carries this hash, so nothing up to it was rewritten or
+                  cut since you saved it.
+                </span>
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 20 20" className="mt-0.5 size-4 shrink-0" aria-hidden>
+                  <rect x="1" y="1" width="18" height="18" className="fill-none stroke-flag-bar" strokeWidth="2" />
+                  <path d="M6 6l8 8M14 6l-8 8" className="fill-none stroke-flag-bar" strokeWidth="2" />
+                </svg>
+                <span>
+                  <strong className="font-semibold text-flag">Does not hold.</strong> The log no longer has row #{head.entry} with this hash. If you copied both
+                  whole, something up to row #{head.entry} was rewritten or cut since you saved it: treat the log from there on as unverified.
+                </span>
+              </>
+            )}
+          </p>
         </section>
 
         <section aria-labelledby="rows-title" className="flex flex-col gap-3">

@@ -2,7 +2,8 @@ import "server-only";
 import { FIELD_LABELS, type ProjectField } from "@/lib/project-fields";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
-import { chainHead, verifyAuditChain } from "../audit";
+import { anchorHolds, chainHead, verifyAuditChain } from "../audit";
+import { ValidationError } from "../errors";
 import { getDb, type DbOrTx } from "../db/client";
 import { formatUtc } from "@/lib/format";
 import type { TextEdit } from "@/lib/text-edit";
@@ -620,6 +621,31 @@ const plain = (l: AuditLine): AuditEntryView => ({
 export function getAuditEntries(actor: Actor | null, eventIdOrSlug: string, opts: { limit?: number } = {}) {
   const { lines: rows, total, chain } = getAuditLog(actor, eventIdOrSlug, opts);
   return { total, chain, entries: rows.map(plain) };
+}
+
+/** A saved head as a person types or pastes it: the row number, and the hash with any spaces or case. */
+export type SavedHead = { entry?: unknown; hash?: unknown };
+export type SavedHeadCheck = { entry: number; hash: string; holds: boolean };
+
+/**
+ * Whether the log still holds a head someone saved, from this event's log page, an earlier audit.csv
+ * (chain_head_entry and chain_head) or a signed record: row #entry with this hash (anchorHolds). Rows cut past it
+ * and written again under the same numbers carry other hashes, and a row no longer there holds nothing, so either
+ * answers no. It answers only that yes or no about a pair the caller already has, whichever event row #entry
+ * belongs to (a sign-in, another event's row): the head is the whole log's. The event's organizers.
+ */
+export function checkSavedHead(actor: Actor | null, eventIdOrSlug: string, saved: SavedHead): SavedHeadCheck {
+  const db = getDb();
+  const event = requireEvent(db, eventIdOrSlug);
+  guardRead(actor, "event.manage", { kind: "event", event: eventFacts(event) });
+  const entryText = typeof saved.entry === "number" ? String(saved.entry) : typeof saved.entry === "string" ? saved.entry.trim().replace(/^#/, "") : "";
+  const hash = typeof saved.hash === "string" ? saved.hash.replace(/\s+/g, "").toLowerCase() : "";
+  const problems: Record<string, string[]> = {};
+  if (!/^[1-9][0-9]{0,14}$/.test(entryText)) problems.entry = ["Give the row number the head was saved with, such as 412."];
+  if (!/^[0-9a-f]{64}$/.test(hash)) problems.hash = ["Give the whole hash: 64 hex digits (spaces between groups are fine)."];
+  if (problems.entry || problems.hash) throw new ValidationError(problems.entry?.[0] ?? problems.hash![0]!, problems);
+  const entry = Number(entryText);
+  return { entry, hash, holds: anchorHolds(db, { entry, hash }) };
 }
 
 /**

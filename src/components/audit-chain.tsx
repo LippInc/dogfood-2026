@@ -32,8 +32,9 @@ export function missingIn(chain: Chain, newer: number, older: number): string | 
  * How to keep the head as an anchor. A chain that verifies has ids 1 to its row count with none skipped, so the head
  * is row #rows: the same entry and hash pair audit.csv carries on every line and a signed record pins.
  */
-export function keepHeadText(rows: number): string {
-  return `Each column is one hex digit, read top to bottom as 8, 4, 2, 1. Keep this hash with its row, #${rows}: while the log still holds row #${rows} with this hash, nothing up to it was rewritten or cut. audit.csv carries the same pair on every line.`;
+export function keepHeadText(rows: number, check: "below" | "event" = "event"): string {
+  const where = check === "below" ? "with the form below" : "on an event’s Audit log page";
+  return `Each column is one hex digit, read top to bottom as 8, 4, 2, 1. Keep this hash with its row, #${rows}: while the log still holds row #${rows} with this hash, nothing up to it was rewritten or cut. audit.csv carries the same pair on every line. Check a pair you saved ${where}, or at GET /api/events/{event}/audit/anchor.`;
 }
 
 /** What a broken chain means, in words. */

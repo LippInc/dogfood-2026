@@ -305,6 +305,20 @@ def run_checks(cfg):
     expect(c, s == 403, participant, "GET", audit_url, s, "403")
     s, _, _ = visitor.request("GET", audit_url)
     expect(c, s == 401, visitor, "GET", audit_url, s, "401")
+    # checking a saved head (the CSV's own chain_head_entry and chain_head) is the organizers' too
+    rows = list(csv.DictReader(io.StringIO(body))) if first else []
+    head_entry = rows[0].get("chain_head_entry", "") if rows else ""
+    head_hash = rows[0].get("chain_head", "") if rows else ""
+    anchor_url = u(f"/api/events/{EVENT_ID}/audit/anchor?entry={head_entry}&hash={head_hash}")
+    s, abody, _ = organizer.request("GET", anchor_url)
+    parsed = as_json(abody) if s == 200 else None
+    expect(c, s == 200 and isinstance(parsed, dict) and parsed.get("holds") is True, organizer, "GET", anchor_url, f"{s} {abody[:80]!r}", "200 with holds: true")
+    s, abody, _ = judge_a.request("GET", anchor_url)
+    expect(c, s == 403 and "holds" not in abody, judge_a, "GET", anchor_url, s, "403")
+    s, _, _ = participant.request("GET", anchor_url)
+    expect(c, s == 403, participant, "GET", anchor_url, s, "403")
+    s, _, _ = visitor.request("GET", anchor_url)
+    expect(c, s == 401, visitor, "GET", anchor_url, s, "401")
     page_url = u(f"/organize/{EVENT_SLUG}/audit")
     s, _, _ = organizer.request("GET", page_url)
     expect(c, s == 200, organizer, "GET", page_url, s, "200")
