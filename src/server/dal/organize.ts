@@ -353,12 +353,17 @@ export function savePrizes(actor: Actor | null, idOrSlug: string, body: unknown)
       const e = ref.event!;
       const rows = parse(PrizeRows, body);
       const stored = tx.select({ id: prizes.id, name: prizes.name }).from(prizes).where(eq(prizes.eventId, e.id)).orderBy(asc(prizes.position)).all();
-      // a row's id is its own stored prize's, once: another event's id or a repeated one would hit the primary key (a 500)
+      // a row's id is its own stored prize's, once: another event's id or a repeated one would hit the primary key (a 500).
+      // The refusal names the row by its place alone, as a row's other errors do, so the rows editor highlights it; the
+      // form's own way here is a second tab (or organizer) that removed the prize since this page loaded.
       const own = new Set(stored.map((p) => p.id));
       const seen = new Set<string>();
       rows.forEach((p, i) => {
         if (!p.id) return;
-        if (!own.has(p.id) || seen.has(p.id)) throw new ValidationError("Check the prizes.", { [`${i}.id`]: ["not one of this event's prizes, or on two rows"] });
+        if (!own.has(p.id)) {
+          throw new ValidationError("Check the prizes.", { [`${i}`]: ["this prize was removed elsewhere since the page loaded (or is not this event's): reload the page, then make your changes again"] });
+        }
+        if (seen.has(p.id)) throw new ValidationError("Check the prizes.", { [`${i}`]: ["the same prize is on an earlier row too: reload the page, then make your changes again"] });
         seen.add(p.id);
       });
       const before = stored.map((p) => p.name);
