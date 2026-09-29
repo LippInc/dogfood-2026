@@ -149,7 +149,7 @@ describe("published results are final in the database too", () => {
       .run(NOW);
 
   it("normalization runs and their scores reject UPDATE and DELETE, published or not", () => {
-    h.sqlite.prepare("INSERT INTO normalization_runs (id, event_id, method, params, computed_at) VALUES ('nrm_t', 'evt_01', 'test', '{}', ?)").run(NOW);
+    h.sqlite.prepare("INSERT INTO normalization_runs (id, event_id, method, params, computed_at) VALUES ('nrm_t', 'evt_01', 'leniency-shrunk-v1', '{}', ?)").run(NOW);
     h.sqlite.prepare("INSERT INTO normalized_scores (run_id, project_id, n, raw_mean, normalized_mean) VALUES ('nrm_t', 'prj_01', 3, 3.5, 3.6)").run();
     refused("UPDATE normalization_runs SET method = 'edited' WHERE id = 'nrm_t'", /append-only: UPDATE rejected/);
     refused("DELETE FROM normalization_runs WHERE id = 'nrm_t'", /append-only: DELETE rejected/);

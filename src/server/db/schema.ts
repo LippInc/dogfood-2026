@@ -24,6 +24,9 @@ import {
 import { FIELD_MODES, PROJECT_FIELDS } from "../../lib/project-fields";
 
 const isoTimestamp = (column: unknown) => sql`julianday(${column}) is not null`;
+const isoOrNull = (column: unknown) => sql`${column} is null or julianday(${column}) is not null`;
+// who did it is recorded exactly when it was done: both set, or both null
+const doneBy = (at: unknown, by: unknown) => sql`(${at} is null) = (${by} is null)`;
 
 // ---------------------------------------------------------------------------
 // People, roles, sessions
@@ -173,6 +176,12 @@ export const events = sqliteTable(
   (t) => [
     check("events_slug_format", sql`${t.slug} glob '[a-z0-9]*' and ${t.slug} not glob '*[^a-z0-9-]*'`),
     check("events_close_iso", isoTimestamp(t.submissionsCloseAt)),
+    check("events_open_iso", isoOrNull(t.submissionsOpenAt)),
+    check("events_judging_close_iso", isoOrNull(t.judgingCloseAt)),
+    check("events_voting_open_iso", isoOrNull(t.votingOpenAt)),
+    check("events_voting_close_iso", isoOrNull(t.votingCloseAt)),
+    check("events_published_iso", isoOrNull(t.resultsPublishedAt)),
+    check("events_created_iso", isoTimestamp(t.createdAt)),
     check(
       "events_window_order",
       sql`${t.submissionsOpenAt} is null or julianday(${t.submissionsOpenAt}) < julianday(${t.submissionsCloseAt})`,
@@ -395,7 +404,9 @@ export const judgeInvites = sqliteTable(
     email: text("email"),
     trackIds: text("track_ids", { mode: "json" }).$type<string[]>().notNull(),
     createdAt: text("created_at").notNull(),
-    createdBy: text("created_by").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id),
     acceptedAt: text("accepted_at"),
     acceptedBy: text("accepted_by").references(() => users.id),
     revokedAt: text("revoked_at"),
@@ -405,6 +416,10 @@ export const judgeInvites = sqliteTable(
     check("judge_invites_tracks_json", sql`json_valid(${t.trackIds}) and json_type(${t.trackIds}) = 'array'`),
     check("judge_invites_email_lower", sql`${t.email} is null or ${t.email} = lower(${t.email})`),
     check("judge_invites_one_outcome", sql`${t.acceptedAt} is null or ${t.revokedAt} is null`),
+    check("judge_invites_accepted_by", doneBy(t.acceptedAt, t.acceptedBy)),
+    check("judge_invites_created_iso", isoTimestamp(t.createdAt)),
+    check("judge_invites_accepted_iso", isoOrNull(t.acceptedAt)),
+    check("judge_invites_revoked_iso", isoOrNull(t.revokedAt)),
   ],
 );
 
@@ -465,7 +480,7 @@ export const scores = sqliteTable(
     // an imported score whose judge is a member of the scored project's team
     conflicted: integer("conflicted", { mode: "boolean" }).notNull().default(false),
   },
-  (t) => [check("scores_updated_at_iso", isoTimestamp(t.updatedAt))],
+  (t) => [check("scores_updated_at_iso", isoTimestamp(t.updatedAt)), check("scores_submitted_at_iso", isoOrNull(t.submittedAt))],
 );
 
 export const scoreItems = sqliteTable(
@@ -506,6 +521,9 @@ export const judgeOverrides = sqliteTable(
   (t) => [
     check("judge_overrides_mode_check", sql`${t.mode} in ('include', 'exclude')`),
     check("judge_overrides_reason_nonempty", sql`length(trim(${t.reason})) >= 3`),
+    check("judge_overrides_revoked_by", doneBy(t.revokedAt, t.revokedBy)),
+    check("judge_overrides_created_iso", isoTimestamp(t.createdAt)),
+    check("judge_overrides_revoked_iso", isoOrNull(t.revokedAt)),
   ],
 );
 
@@ -552,7 +570,12 @@ export const normalizationRuns = sqliteTable(
     computedAt: text("computed_at").notNull(),
     computedBy: text("computed_by"),
   },
-  (t) => [check("normalization_runs_params_json", sql`json_valid(${t.params})`)],
+  (t) => [
+    check("normalization_runs_params_json", sql`json_valid(${t.params})`),
+    // the two engines' names: METHOD in dal/normalization.ts (rubric scores), PAIRWISE_METHOD in dal/pairwise.ts
+    check("normalization_runs_method", sql`${t.method} in ('leniency-shrunk-v1', 'bradley-terry-v1')`),
+    check("normalization_runs_computed_iso", isoTimestamp(t.computedAt)),
+  ],
 );
 
 export const normalizedScores = sqliteTable(
@@ -612,6 +635,10 @@ export const voters = sqliteTable(
     ),
     check("voters_email_lower", sql`${t.email} is null or ${t.email} = lower(${t.email})`),
     check("voters_void_reason", sql`${t.voidedAt} is null or length(trim(coalesce(${t.voidReason}, ''))) >= 3`),
+    check("voters_voided_by", doneBy(t.voidedAt, t.voidedBy)),
+    check("voters_created_iso", isoTimestamp(t.createdAt)),
+    check("voters_last_voted_iso", isoOrNull(t.lastVotedAt)),
+    check("voters_voided_iso", isoOrNull(t.voidedAt)),
   ],
 );
 
@@ -644,6 +671,9 @@ export const comments = sqliteTable(
     index("comments_project_idx").on(t.projectId, t.createdAt),
     check("comments_body_length", sql`length(trim(${t.body})) between 1 and 2000`),
     check("comments_hidden_reason", sql`${t.hiddenAt} is null or length(trim(coalesce(${t.hiddenReason}, ''))) >= 3`),
+    check("comments_hidden_by", doneBy(t.hiddenAt, t.hiddenBy)),
+    check("comments_created_iso", isoTimestamp(t.createdAt)),
+    check("comments_hidden_iso", isoOrNull(t.hiddenAt)),
   ],
 );
 
@@ -723,6 +753,10 @@ export const apiTokens = sqliteTable(
     index("api_tokens_user_idx").on(t.userId),
     check("api_tokens_name", sql`length(trim(${t.name})) between 1 and 60`),
     check("api_tokens_expiry", sql`${t.expiresAt} is null or julianday(${t.expiresAt}) > julianday(${t.createdAt})`),
+    check("api_tokens_created_iso", isoTimestamp(t.createdAt)),
+    check("api_tokens_expires_iso", isoOrNull(t.expiresAt)),
+    check("api_tokens_last_used_iso", isoOrNull(t.lastUsedAt)),
+    check("api_tokens_revoked_iso", isoOrNull(t.revokedAt)),
   ],
 );
 
@@ -818,7 +852,8 @@ export const webhookDeliveries = sqliteTable(
     webhookId: text("webhook_id")
       .notNull()
       .references(() => webhooks.id),
-    auditId: integer("audit_id"),
+    // the audited change this delivery reports; a reference never writes to audit_log, so its triggers never fire
+    auditId: integer("audit_id").references(() => auditLog.id),
     action: text("action").notNull(),
     payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
     status: text("status", { enum: DELIVERY_STATUSES }).notNull().default("pending"),
@@ -836,6 +871,10 @@ export const webhookDeliveries = sqliteTable(
     index("webhook_deliveries_hook_idx").on(t.webhookId, t.createdAt),
     check("webhook_deliveries_status", sql`${t.status} in ('pending', 'delivered', 'failed')`),
     check("webhook_deliveries_attempts", sql`${t.attempts} between 0 and 20`),
+    check("webhook_deliveries_created_iso", isoTimestamp(t.createdAt)),
+    check("webhook_deliveries_next_iso", isoOrNull(t.nextAttemptAt)),
+    check("webhook_deliveries_last_iso", isoOrNull(t.lastAttemptAt)),
+    check("webhook_deliveries_delivered_iso", isoOrNull(t.deliveredAt)),
   ],
 );
 
