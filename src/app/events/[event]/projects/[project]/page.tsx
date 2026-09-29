@@ -26,8 +26,10 @@ function load(event: string, project: string) {
 export async function generateMetadata({ params }: PageProps<"/events/[event]/projects/[project]">): Promise<Metadata> {
   const { event, project } = await params;
   try {
-    const p = getPublicProject(event, project).project;
-    return { title: p.title, description: p.summary };
+    const { event: e, project: p } = getPublicProject(event, project);
+    // A pasted link shows a card: the project and its event as the title, its one line under it (no image).
+    const title = `${p.title} · ${e.name}`;
+    return { title: p.title, description: p.summary, openGraph: { title, description: p.summary || undefined, type: "article", siteName: e.name } };
   } catch {
     return { title: "Project not found" };
   }
