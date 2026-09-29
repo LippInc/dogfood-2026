@@ -446,7 +446,8 @@ function eventOfLink(db: DbOrTx, hash: string): EventRow | undefined {
  * address's tries (LIMITS.voteCodeMiss) and answers 404, or 429 once they are spent. A real
  * code always goes through, whatever the bucket holds: a venue puts everyone behind one
  * address, so one person there making up codes must not lock out every voter behind it.
- * Hiding which codes are real would buy nothing: they are 144-192 random bits.
+ * Hiding which codes are real would buy nothing: they are drawn from 144 to 192 random bits
+ * (about 142 to 190 bits of entropy: newSecret writes three of the 64 symbols as one letter).
  */
 function lookedUp<T>(client: Client, found: T | null | undefined): T {
   if (found) return found;
