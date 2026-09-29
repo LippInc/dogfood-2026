@@ -240,7 +240,8 @@ Each setting in full, accounts and password resets, health checks, backup and re
   should be read as ties. Pairwise mode gives each place its chance of being ahead of the next one, not a full
   interval.
 - Pairwise mode flags a judge who answers like a coin flip, but not one who calls "too close to call" whenever a
-  favourite would lose (flagged in 9 of 120 simulated panels; `THREAT-MODEL.md`, "Tactical pairwise answers").
+  favourite would lose (flagged in 14 of 120 simulated panels; the ties bought the favourite 0.258 places on
+  average, at most 3; `THREAT-MODEL.md`, "Tactical pairwise answers").
 
 ## Licence
 
