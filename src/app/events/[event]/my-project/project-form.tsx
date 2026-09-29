@@ -10,6 +10,7 @@ import { useFormAction } from "@/components/use-form-action";
 import { FIELD_LABELS, PROJECT_FIELDS, type FieldModes, type ProjectField } from "@/lib/project-fields";
 import type { ActionResult, Question } from "@/server/dal";
 import { saveProjectAction } from "./actions";
+import { GalleryField } from "./gallery-field";
 import { PictureField } from "./picture-field";
 
 /** The labels a refused save names, for the fields a person sees on this form. */
@@ -110,7 +111,7 @@ export function ProjectForm({
   const [checklist, setChecklist] = useState<Needed[]>(() => needed(null, questions, fields, project, onlyTrack));
   const formEl = form.ref;
   const recheck = (el: HTMLFormElement | null) => setChecklist(needed(el, questions, fields, project, onlyTrack));
-  // An upload or a take-down changes a hidden input, not a typed one: count it once the field has drawn it.
+  // An upload, a take-down or a gallery change moves a hidden input, not a typed one: count it once the field has drawn it.
   const pictureChanged = () => requestAnimationFrame(() => recheck(formEl.current));
   const e = state.fieldErrors ?? {};
   // A refused save names the refused fields and moves focus to the first: the reason sits under its
@@ -219,15 +220,7 @@ export function ProjectForm({
             </div>
           ) : null}
           {shown("galleryUrls") ? (
-            <Field
-              id="galleryUrls"
-              label="Image gallery"
-              help="Up to 6 image addresses, one per line, shown on your project page."
-              required={required("galleryUrls")}
-              error={e.galleryUrls}
-            >
-              {(a) => <Textarea {...a} name="galleryUrls" rows={3} placeholder="https://" defaultValue={(project?.galleryUrls ?? []).join("\n")} className="font-mono text-14" />}
-            </Field>
+            <GalleryField projectId={project?.id ?? null} initial={project?.galleryUrls ?? []} error={e.galleryUrls} required={required("galleryUrls")} onChange={pictureChanged} />
           ) : null}
         </>
       ),

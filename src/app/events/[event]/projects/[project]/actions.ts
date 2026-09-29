@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { actionError, currentActor, deleteComment, hideComment, postComment, takeDownProjectImage, unhideComment, type ActionResult } from "@/server/dal";
+import { actionError, currentActor, deleteComment, hideComment, postComment, takeDownGalleryImage, takeDownProjectImage, unhideComment, type ActionResult } from "@/server/dal";
 
 /** A posted comment's id comes back, so the box drops "Posted." once that comment is deleted. */
 export async function postCommentAction(_prev: ActionResult & { commentId?: string }, form: FormData): Promise<ActionResult & { commentId?: string }> {
@@ -48,7 +48,12 @@ export async function unhideCommentAction(_prev: ActionResult, form: FormData): 
 
 export async function takeDownPictureAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   try {
-    takeDownProjectImage(await currentActor(), String(form.get("project") ?? ""), { reason: form.get("reason") ?? "" });
+    const actor = await currentActor();
+    const project = String(form.get("project") ?? "");
+    const galleryUrl = form.get("galleryUrl");
+    // with galleryUrl, that one image of the gallery; without it, the project's picture
+    if (typeof galleryUrl === "string") takeDownGalleryImage(actor, project, { reason: form.get("reason") ?? "", galleryUrl });
+    else takeDownProjectImage(actor, project, { reason: form.get("reason") ?? "" });
   } catch (err) {
     return actionError(err);
   }

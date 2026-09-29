@@ -1,31 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useFormAction } from "@/components/use-form-action";
 import type { ActionResult } from "@/server/dal";
 import { takeDownPictureAction } from "./actions";
 
-/** Under the picture, for this event's organizers only: take it down, with a reason for the audit log. */
-export function TakeDownPicture({ projectId, path }: { projectId: string; path: string }) {
+/**
+ * Under the picture, or under one gallery image (galleryUrl), for this event's organizers only: take it down, with a
+ * reason for the audit log.
+ */
+export function TakeDownPicture({ projectId, path, galleryUrl, label = "Take this picture down" }: { projectId: string; path: string; galleryUrl?: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const [state, form, pending] = useFormAction<ActionResult>(takeDownPictureAction, { ok: false, message: null });
+  const reasonId = useId();
   if (!open)
     return (
       <Button type="button" variant="ghost" size="sm" className="-ml-2.5 self-start text-13" onClick={() => setOpen(true)}>
-        Take this picture down
+        {label}
       </Button>
     );
   return (
     <form {...form} className="flex flex-col gap-2 border-l-[3px] border-flag-bar pl-3">
       <input type="hidden" name="project" value={projectId} />
       <input type="hidden" name="path" value={path} />
-      <label htmlFor="take-down-reason" className="text-13 font-medium">
+      {galleryUrl ? <input type="hidden" name="galleryUrl" value={galleryUrl} /> : null}
+      <label htmlFor={reasonId} className="text-13 font-medium">
         Why it comes down (goes into the audit log)
       </label>
       <div className="flex flex-wrap gap-2">
-        <Input id="take-down-reason" name="reason" required minLength={3} maxLength={300} className="h-9 min-w-0 flex-1 text-14" />
+        <Input id={reasonId} name="reason" required minLength={3} maxLength={300} className="h-9 min-w-0 flex-1 text-14" />
         <Button size="sm" variant="outline" disabled={pending} className="h-9">
           Take it down
         </Button>

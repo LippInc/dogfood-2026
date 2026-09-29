@@ -246,14 +246,15 @@ export default async function ProjectPage({ params }: PageProps<"/events/[event]
                   </h2>
                   <ul className="mt-4 grid gap-4 sm:grid-cols-2">
                     {p.galleryUrls.map((src, n) => (
-                      <li key={src} className="overflow-hidden rounded-xs border border-rule">
-                        <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+                      <li key={src} className="flex min-w-0 flex-col gap-1.5">
+                        <a href={src} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-xs border border-rule">
                           <ProjectImage
                             src={src}
                             alt={`Image ${n + 1} of ${p.galleryUrls.length} from ${p.team.name}`}
                             fallback={<p className="flex aspect-video items-center justify-center p-4 text-13 text-ink-3">This image did not load. Open it on its own host.</p>}
                           />
                         </a>
+                        {canModerate ? <TakeDownPicture projectId={p.id} path={path} galleryUrl={src} label="Take this image down" /> : null}
                       </li>
                     ))}
                   </ul>
