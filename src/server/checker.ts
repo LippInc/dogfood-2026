@@ -73,7 +73,7 @@ export function startRefusal(env: NodeJS.ProcessEnv = process.env): string | nul
     return `PUBLIC_URL (${url}) is not a local address and DOGFOOD_SEED_SECRET is the public default, which seals the signing key and salts the voters' address hashes: set DOGFOOD_SEED_SECRET to a long random string of your own, and keep it`;
   }
   if (env.SEED_CHECKER_SESSIONS === "true") return null;
-  return `DOGFOOD_SEED_SECRET is ${env.DOGFOOD_SEED_SECRET ? "the public default" : "not set, so the public default"} and demo mode is off (SEED_CHECKER_SESSIONS is not true); the default, which anyone can read in this repository, would seal the signing key and salt the voters' address hashes: set DOGFOOD_SEED_SECRET to a long random string of your own (for example the output of openssl rand -hex 32), and keep it. Only the local demo (SEED_CHECKER_SESSIONS=true on this machine's own address) runs on the default`;
+  return `DOGFOOD_SEED_SECRET is ${env.DOGFOOD_SEED_SECRET ? "the public default" : "not set, so the public default applies,"} and demo mode is off (SEED_CHECKER_SESSIONS is not true); the default, which anyone can read in this repository, would seal the signing key and salt the voters' address hashes: set DOGFOOD_SEED_SECRET to a long random string of your own (for example the output of openssl rand -hex 32), and keep it. Only the local demo (SEED_CHECKER_SESSIONS=true on this machine's own address) runs on the default`;
 }
 
 const ownSecret = (env: NodeJS.ProcessEnv) => Boolean(env.DOGFOOD_SEED_SECRET) && env.DOGFOOD_SEED_SECRET !== DEFAULT_SEED_SECRET;

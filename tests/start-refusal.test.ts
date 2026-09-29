@@ -79,7 +79,7 @@ describe("boot with the default secret outside the local demo", () => {
   it("with PUBLIC_URL unset and demo mode off, refuses too, before it opens the database", async () => {
     delete process.env.PUBLIC_URL;
     delete process.env.SEED_CHECKER_SESSIONS;
-    await expect(boot()).rejects.toThrow(/refusing to start: DOGFOOD_SEED_SECRET is not set, so the public default and demo mode is off.*long random string/);
+    await expect(boot()).rejects.toThrow(/refusing to start: DOGFOOD_SEED_SECRET is not set, so the public default applies, and demo mode is off.*long random string/);
     expect(fs.readdirSync(dir)).toEqual([]);
   });
 });
