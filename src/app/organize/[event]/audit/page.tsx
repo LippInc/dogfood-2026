@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { HashGlyph, hashGroups } from "@/components/figures/hash-glyph";
-import { chainBrokenText, chainHeading, missingIn } from "@/components/audit-chain";
+import { chainBrokenText, chainHeading, keepHeadText, missingIn } from "@/components/audit-chain";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
@@ -270,7 +270,7 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
                 ))}
               </p>
               <p className="text-12 text-ink-3">
-                Each column is one hex digit, read top to bottom as 8, 4, 2, 1. Keep this hash: if any row is later rewritten, the head no longer matches it.
+                {keepHeadText(chain.rows)}
               </p>
             </div>
           ) : null}

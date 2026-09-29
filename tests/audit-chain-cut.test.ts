@@ -5,7 +5,7 @@ import { openDatabase, type Handle } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { auditCsv } from "@/server/dal/audit-log";
-import { chainBrokenText, chainHeading, missingIn } from "@/components/audit-chain";
+import { chainBrokenText, chainHeading, keepHeadText, missingIn } from "@/components/audit-chain";
 
 // Rows cut off the end of the audit log leave what remains a whole chain, and the next row the app writes links to
 // the last one left. The check counts ids (src/server/audit.ts): AUTOINCREMENT gives the next one each time and keeps
@@ -112,6 +112,10 @@ describe("rows cut off the end of the audit log", () => {
 
   it("audit.csv carries the head's hash and entry on every line, and says so when rows were cut", () => {
     const head = chainHead(h.db)!;
+    // the log pages name the same row: a chain that verifies has ids 1 to its row count, so the head is row #rows
+    const check = verifyAuditChain(h.db);
+    expect(check).toMatchObject({ ok: true, rows: head.entry, head: head.hash });
+    expect(keepHeadText(head.entry)).toContain(`Keep this hash with its row, #${head.entry}: while the log still holds row #${head.entry} with this hash`);
     const [header, ...rows] = csvLines();
     expect(header!.slice(-3)).toEqual(["chain_ok", "chain_head", "chain_head_entry"]);
     expect(rows.length).toBeGreaterThan(0);

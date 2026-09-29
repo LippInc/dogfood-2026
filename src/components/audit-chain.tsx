@@ -28,6 +28,14 @@ export function missingIn(chain: Chain, newer: number, older: number): string | 
   return from === to ? `#${from} is missing from the log (Fig. 01)` : `#${from} to #${to} are missing from the log (Fig. 01)`;
 }
 
+/**
+ * How to keep the head as an anchor. A chain that verifies has ids 1 to its row count with none skipped, so the head
+ * is row #rows: the same entry and hash pair audit.csv carries on every line and a signed record pins.
+ */
+export function keepHeadText(rows: number): string {
+  return `Each column is one hex digit, read top to bottom as 8, 4, 2, 1. Keep this hash with its row, #${rows}: while the log still holds row #${rows} with this hash, nothing up to it was rewritten or cut. audit.csv carries the same pair on every line.`;
+}
+
 /** What a broken chain means, in words. */
 export function chainBrokenText(chain: Extract<Chain, { ok: false }>): string {
   if (!chain.missing) return `A row was changed outside the app. Treat everything from row #${chain.brokenAtId} on as unverified.`;
@@ -152,7 +160,7 @@ export function ChainSeal({ chain }: { chain: Chain }) {
             ))}
           </p>
           <p className="text-12 text-ink-3">
-            Each column is one hex digit, read top to bottom as 8, 4, 2, 1. Keep this hash: if any row is later rewritten, the head no longer matches it.
+            {keepHeadText(chain.rows)}
           </p>
         </div>
       ) : null}
