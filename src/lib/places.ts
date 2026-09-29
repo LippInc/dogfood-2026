@@ -57,3 +57,9 @@ export function awardPlace(award: string): { place: number; ordinal: string; joi
   const m = /^(Joint )?(([0-9]+)(?:st|nd|rd|th)) place, (.+?)(?:, tie broken by (.+))?$/.exec(award);
   return m ? { joint: Boolean(m[1]), ordinal: m[2]!, place: Number(m[3]), track: m[4]!, tieBrokenBy: m[5] ?? null } : null;
 }
+
+/** A prize award as a certificate words it ("Winner, Best in show", "Joint winner, Best in show"), read back into its parts; null for any other award. */
+export function prizeOf(award: string): { joint: boolean; prize: string } | null {
+  const m = /^(Joint winner|Winner), (.+)$/.exec(award);
+  return m ? { joint: m[1] === "Joint winner", prize: m[2]! } : null;
+}
