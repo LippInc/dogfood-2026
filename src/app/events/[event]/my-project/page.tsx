@@ -279,7 +279,6 @@ function Stages({ work, solo }: { work: MyWork; solo: boolean }) {
   );
 }
 
-/** The axis every review and the score share: the rubric's range as the reviews show it, 1 to 5 at the least. */
 function PlaceHeading({ feedback }: { feedback: TeamFeedback }) {
   return (
     <h2 id="feedback-title" className="flex flex-wrap items-end gap-x-4 gap-y-1">
@@ -298,6 +297,7 @@ function PlaceHeading({ feedback }: { feedback: TeamFeedback }) {
   );
 }
 
+/** The axis every review and the score share: the rubric's range as the reviews show it, 1 to 5 at the least. */
 function axisOf(feedback: TeamFeedback): [number, number] {
   const values = feedback.reviews.flatMap((r) => r.values.map((v) => v.value));
   return [Math.min(1, ...values), Math.max(5, ...values)];
