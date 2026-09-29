@@ -314,7 +314,7 @@ export function importFixtures(
       const renamed = `${id}.${eventId}`;
       const again = holderOf[kind](renamed);
       if (again !== undefined && again !== eventId) {
-        throw new Error(`The ${kind} ids ${id} and ${renamed} both belong to other events; give this file's ids a prefix of their own.`);
+        throw new ConflictError("id_taken", `The ${kind} ids ${id} and ${renamed} both belong to other events; give this file's ids a prefix of their own.`);
       }
       report.renamed.push({ kind, from: id, to: renamed });
       return renamed;

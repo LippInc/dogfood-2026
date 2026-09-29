@@ -11,6 +11,7 @@ import { claimDataFolder } from "./instance-lock";
 import { runMigrations } from "./db/migrate";
 import { requireEvent } from "./dal/events";
 import { mailProblem } from "./mail";
+import { HttpError } from "./errors";
 import { settingsProblem } from "./settings";
 import { ensureSigningKey } from "./signing";
 import { sweepOrphanUploads } from "./uploads";
@@ -100,11 +101,29 @@ export function bootFixture(h: Handle, now: string): string | null {
       },
     });
   } catch (err) {
-    if (!(err instanceof PublishedEventImport)) throw err;
+    if (err instanceof PublishedEventImport) {
+      console.warn(
+        `[boot] fixtures not imported (${path.basename(file)}, sha256 ${sha256.slice(0, 12)}): the file adds to ${fixture.event.id}, whose results are published, so nothing was added. Give the file an event id of its own to import it as a new event.`,
+      );
+      return fixture.event.id;
+    }
+    // A changed file that the event here refuses (a team past its size, a second project for a team, a judge on the
+    // team they review, a new criterion after scoring, a rubric past its limits, ids other events hold) is refused
+    // whole, as an upload is. Stopping the start for it would loop the container (restart: unless-stopped) and keep
+    // the portal down, so the start says why and goes on with the data it has. A file broken as a file (missing, not
+    // JSON, not the fixture format) still stops it, above; anything else (a database fault) still stops it too.
+    if (!(err instanceof HttpError)) throw err;
+    const details =
+      err.details && typeof err.details === "object"
+        ? Object.entries(err.details as Record<string, unknown>)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
+            .join("; ")
+        : "";
     console.warn(
-      `[boot] fixtures not imported (${path.basename(file)}, sha256 ${sha256.slice(0, 12)}): the file adds to ${fixture.event.id}, whose results are published, so nothing was added. Give the file an event id of its own to import it as a new event.`,
+      `[boot] fixtures not imported from ${file} (sha256 ${sha256.slice(0, 12)}): ${err.message.replace(/\s*Nothing was imported\.$/, "")} (rule ${err.code}${details ? `; ${details}` : ""}): nothing from this file was imported; the portal starts with the data it has. Fix that row in the file, or change the event on its pages; each start tries the file again.`,
     );
-    return fixture.event.id;
+    const here = h.db.select({ id: events.id }).from(events).where(eq(events.id, fixture.event.id)).get();
+    return here ? fixture.event.id : null;
   }
   const inserted = Object.values(report.inserted).reduce((a, b) => a + b, 0);
   console.log(
