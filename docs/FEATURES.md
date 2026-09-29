@@ -24,8 +24,9 @@ organizer's questions); the server refuses changes after it.
   with a reason for the audit log, from the team's page under Submissions, until results are published; the
   project page says the organizers changed the team after the close. A change that would move the community
   vote count, because the person voted for that team's project, is refused until the vote is voided.
-- **Gallery.** The public gallery shows every submitted project, searchable (tags included) and filterable by
-  track.
+- **Gallery.** The public gallery shows every submitted project, searchable (tags included, case and accents
+  ignored: `ecole` finds `École`) and filterable by track, in the page and through
+  `GET /api/events/{event}/projects?q=&track=`.
 
 ## Judging
 
@@ -106,15 +107,18 @@ database up ([`OPERATIONS.md`](OPERATIONS.md)) and keep the secret to keep it.
 
 ## API and webhooks
 
-Everything the interface does is also a JSON route (a test holds every form and button to one), through the same
-data access layer and permission checks, documented at `/api-docs` and as OpenAPI 3.1 at `/api/openapi.json`. Its
-request bodies come from the server's own validators, and a test fails if a route is missing from it or it lists
-a method and path no route answers. Scripts use named API tokens (made at `/account/tokens`, revocable) as
-`Authorization: Bearer <token>`; a token acts with its owner's permissions and cannot make more tokens. Webhooks
-(the organizer's Integrations tab) send any audited action to your URL (ballot picks, scores and pairwise answers
-left out: who acted and when, never the values), signed `Dogfood-Signature: t=…,v1=<HMAC-SHA256>` and retried
-with backoff, with a delivery log; each delivery is written in the same transaction as the change, so none is
-lost or invented, and claimed before it is sent, so two portal processes on one database do not both send it.
+Everything the interface does is also a JSON route (a test holds every data-layer function a form or button calls
+to an API route that calls it too), through the same data access layer and permission checks, documented at
+`/api-docs` and as OpenAPI 3.1 at `/api/openapi.json`, with every status each route can answer. Its request bodies
+come from the server's own validators; a test fails if a route is missing from it or it lists a method and path no
+route answers, and another reads the handlers' code and fails when the document and the code disagree on a status.
+Scripts use named API tokens (made at `/account/tokens`, revocable) as `Authorization: Bearer <token>`; a token
+acts with its owner's permissions and cannot make more tokens. Webhooks (the organizer's Integrations tab) send
+any audited action to your URL (ballot picks, scores and pairwise answers left out: who acted and when, never the
+values), signed `Dogfood-Signature: t=…,v1=<HMAC-SHA256>` (a receiver refuses a `t` more than five minutes from
+its clock) and retried with backoff, with a delivery log; each delivery is written in the same transaction as the
+change, so none is lost or invented, and claimed before it is sent, so two portal processes on one database do not
+both send it.
 
 ## Import and export
 
