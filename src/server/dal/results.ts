@@ -392,6 +392,8 @@ export type RankingEvidence = {
       judges: number;
       left: Pull;
       fresh: Pull;
+      /** tracks whose answers form more than one group never compared with each other, by name; null when every track is connected */
+      split: { track: string; groups: number }[] | null;
     }
 );
 
@@ -405,12 +407,13 @@ function median(xs: number[]): number {
 }
 
 type EvidenceRow = { projectId: string; score: number | null; raw: number | null };
+type EvidenceTrack = { id: string; name: string; rows: EvidenceRow[] };
 
 /** Exported for tests. */
-export function evidenceOf(method: string, params: Record<string, unknown>, tracksRows: EvidenceRow[][]): RankingEvidence {
+export function evidenceOf(method: string, params: Record<string, unknown>, tracks: EvidenceTrack[]): RankingEvidence {
   let placed = 0;
   let moved = 0;
-  for (const rows of tracksRows) {
+  for (const { rows } of tracks) {
     const both = rows.filter((r) => r.score !== null && r.raw !== null);
     placed += rows.filter((r) => r.score !== null).length;
     // the places the page prints (competition places, ties sharing the first), so a project that
@@ -426,6 +429,13 @@ export function evidenceOf(method: string, params: Record<string, unknown>, trac
       const p = pullShare((b ?? null) as Bias);
       return p?.measured ? { share: p.share, pm: p.pm } : null;
     };
+    // the fit's groups per track (union-find over the answers): a track in several groups has places
+    // that compare only within a group, and the public page says so as the organizer's Results tab does
+    const groups = Array.isArray(params.groups) ? (params.groups as { trackId: string; groups: number }[]) : [];
+    const split = tracks.flatMap((t) => {
+      const g = groups.find((x) => x.trackId === t.id)?.groups ?? 0;
+      return g > 1 ? [{ track: t.name, groups: g }] : [];
+    });
     return {
       kind: "pairwise",
       placed,
@@ -436,6 +446,7 @@ export function evidenceOf(method: string, params: Record<string, unknown>, trac
       judges: counts.judges ?? 0,
       left: pull(params.left),
       fresh: pull(params.fresh),
+      split: split.length ? split : null,
     };
   }
   const k = typeof params.k === "number" ? params.k : null;
@@ -510,7 +521,7 @@ export function getPublishedResults(eventIdOrSlug: string): PublishedResults {
     weightChanges: event.settings.weightChanges ?? [],
     trackMoves: (run.params as { trackMoves?: PublishedTrackMove[] }).trackMoves ?? [],
     unsettled: (run.params as { unsettled?: Unsettled }).unsettled ?? null,
-    evidence: evidenceOf(run.method, run.params as Record<string, unknown>, [...byTrack.values()].map((t) => t.rows)),
+    evidence: evidenceOf(run.method, run.params as Record<string, unknown>, [...byTrack.values()]),
     tracks: [...byTrack.values()].map((t) => {
       const places = averageRanks(new Map(t.rows.filter((r) => r.score !== null).map((r) => [r.projectId, r.score!])));
       return {

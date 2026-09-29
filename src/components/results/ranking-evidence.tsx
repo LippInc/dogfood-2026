@@ -54,6 +54,17 @@ export function winPctMethod(pw: PairwiseEvidence | null): string {
   return `Each project’s win % is its chance to beat an average project of its track, fitted from ${sources}${scoresNote}.${mostly ? ` ${mostly}` : ""} ${pulls} The ± is one standard error: win % closer than about two of them are not told apart.`;
 }
 
+/**
+ * A pairwise track whose answers form groups never compared with each other: its places compare only
+ * within a group (the organizer's Results tab says the same). Null when every track is one group.
+ */
+export function splitTracks(e: PairwiseEvidence): string | null {
+  if (!e.split?.length) return null;
+  const each = e.split.map((s) => `${s.track} splits into ${s.groups} groups`);
+  const list = each.length > 1 ? `${each.slice(0, -1).join(", ")} and ${each.at(-1)}` : each[0];
+  return `${list} never compared with each other, so ${e.split.length > 1 ? "those tracks’" : "its"} places compare only within a group.`;
+}
+
 function Row({ term, children }: { term: string; children: ReactNode }) {
   return (
     <div className="grid gap-x-6 gap-y-1 border-t border-rule py-3 md:grid-cols-[160px_minmax(0,1fr)]">
@@ -105,6 +116,7 @@ export function RankingEvidence({ results }: { results: PublishedResults }) {
   const effect = e.moved
     ? `${e.moved} of the ${plural(e.placed, "project")} ${e.moved === 1 ? "stands" : "stand"} at a different place in their track than ${plainFigure} would put them.`
     : `Every project stands at the place in its track that ${plainFigure} would give it.`;
+  const split = e.kind === "pairwise" ? splitTracks(e) : null;
 
   let signal: string | null = null;
   if (e.kind === "scores" && e.signal) {
@@ -127,7 +139,10 @@ export function RankingEvidence({ results }: { results: PublishedResults }) {
       <dl className="mt-4 border-b border-rule">
         <Row term="Method">{method}</Row>
         {correction ? <Row term="Correction">{correction}</Row> : null}
-        <Row term="Effect">{effect}</Row>
+        <Row term="Effect">
+          {effect}
+          {split ? ` ${split}` : null}
+        </Row>
         {signal ? <Row term="Signal check">{signal}</Row> : null}
         {anchor ? (
           <Row term="Audit log">

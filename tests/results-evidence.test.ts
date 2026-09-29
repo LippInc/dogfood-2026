@@ -116,20 +116,28 @@ describe("How this ranking was reached (public results page)", () => {
   it("counts a project as moved when its printed place differs, ties included: joint 1st to 2nd is a move", () => {
     // raw A = B = 0.6 share 1st; by score A is 1st and B 2nd. Average ranks (1.5 to 2) called that no move.
     const tie = evidenceOf("x", {}, [
-      [
-        { projectId: "A", score: 0.62, raw: 0.6 },
-        { projectId: "B", score: 0.58, raw: 0.6 },
-        { projectId: "C", score: 0.4, raw: 0.4 },
-      ],
+      {
+        id: "t1",
+        name: "One",
+        rows: [
+          { projectId: "A", score: 0.62, raw: 0.6 },
+          { projectId: "B", score: 0.58, raw: 0.6 },
+          { projectId: "C", score: 0.4, raw: 0.4 },
+        ],
+      },
     ]);
     expect(tie.moved).toBe(1);
     // positive control: the same order both ways, with the same tie, moves nobody
     const same = evidenceOf("x", {}, [
-      [
-        { projectId: "A", score: 0.6, raw: 0.6 },
-        { projectId: "B", score: 0.6, raw: 0.6 },
-        { projectId: "C", score: 0.4, raw: 0.4 },
-      ],
+      {
+        id: "t1",
+        name: "One",
+        rows: [
+          { projectId: "A", score: 0.6, raw: 0.6 },
+          { projectId: "B", score: 0.6, raw: 0.6 },
+          { projectId: "C", score: 0.4, raw: 0.4 },
+        ],
+      },
     ]);
     expect(same.moved).toBe(0);
   });
@@ -202,8 +210,36 @@ describe("How this ranking was reached (public results page)", () => {
     expect(judgeLeaks(html, judgesOfEvent())).toEqual([]);
   });
 
+  it("says when a pairwise track splits into groups never compared with each other, and not when every track is connected", () => {
+    const org = checker("organizer");
+    setJudgingMode(org, "evt_01", { mode: "pairwise", reason: "try the better-of-two mode" });
+    settle();
+    const { runId } = publishResults(org, "evt_01");
+    const results = getPublishedResults("evt_01");
+    if (!results.published || results.evidence.kind !== "pairwise") throw new Error("expected a published pairwise run");
+    // the sample event is connected: every track is one group in the stored run, and the block says nothing of groups
+    const stored = JSON.parse(runParams(runId)) as { groups: { trackId: string; groups: number }[] };
+    expect(stored.groups.length).toBe(results.tracks.length);
+    expect(stored.groups.every((g) => g.groups === 1)).toBe(true);
+    expect(results.evidence.split).toBeNull();
+    const connected = render(results);
+    expect(connected).not.toContain("never compared with each other");
+    // the same run with its first track in two groups: evidenceOf reads params.groups and the block says so
+    const [first, second] = results.tracks;
+    const params = { ...JSON.parse(runParams(runId)), groups: stored.groups.map((g) => (g.trackId === first!.id ? { ...g, groups: 2 } : g)) };
+    const split = evidenceOf(PAIRWISE_METHOD, params, results.tracks);
+    expect(split.kind === "pairwise" && split.split).toEqual([{ track: first!.name, groups: 2 }]);
+    const html = render({ ...results, evidence: split });
+    expect(html).toContain(`${first!.name} splits into 2 groups never compared with each other, so its places compare only within a group.`);
+    // two split tracks are named together
+    const two = { ...params, groups: params.groups.map((g: { trackId: string; groups: number }) => (g.trackId === second!.id ? { ...g, groups: 3 } : g)) };
+    expect(render({ ...results, evidence: evidenceOf(PAIRWISE_METHOD, two, results.tracks) })).toContain(
+      `${first!.name} splits into 2 groups and ${second!.name} splits into 3 groups never compared with each other, so those tracks’ places compare only within a group.`,
+    );
+  });
+
   it("names where a pairwise ranking's comparisons came from, each kind apart, and says so only when the scores' pairs outnumber the answers", () => {
-    const base = { kind: "pairwise" as const, judges: 4, left: null, fresh: null, placed: 10, moved: 0, excluded: 0 };
+    const base = { kind: "pairwise" as const, judges: 4, left: null, fresh: null, placed: 10, moved: 0, excluded: 0, split: null };
     expect(pairwiseSources({ ...base, answers: 12, fromScores: 0 })).toBe("12 answers from judges to “which of these two is better?” about projects they were given to judge");
     expect(pairwiseSources({ ...base, answers: 3, fromScores: 190 })).toMatch(/^3 answers from judges .* and 190 pairs implied by scores given before the switch/);
     expect(mostlyFromScores({ ...base, answers: 3, fromScores: 190 })).not.toBeNull();
@@ -244,7 +280,7 @@ describe("an unmeasured pull, on the organizer's screens", () => {
 });
 
 describe("How these win % were made (the public results page's fold, pairwise)", () => {
-  const base = { kind: "pairwise" as const, judges: 4, placed: 10, moved: 0, excluded: 0 };
+  const base = { kind: "pairwise" as const, judges: 4, placed: 10, moved: 0, excluded: 0, split: null };
   const pull = { share: 0.57, pm: 3 };
 
   it("says where the comparisons came from, that measured pulls were measured and corrected for, and what the ± means", () => {
