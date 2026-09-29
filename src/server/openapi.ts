@@ -136,7 +136,7 @@ export const OPERATIONS: Operation[] = [
     also: [409],
     note: "409 team_has_project: a team has one project; edit it with PUT /api/projects/{project}.",
   },
-  { method: "PUT", path: "/api/projects/{project}", tag: "Teams and projects", summary: "Edit your team's project until submissions close", access: "team member", body: In.ProjectInput, also: [409], note: "Which fields are required, optional or hidden is the event's choice (GET /api/events/{event}/project-fields); the body shown is an event's with the defaults. A hidden field is ignored and keeps what is stored; an answer to a custom question the body leaves out stays as stored and counts when the project is checked for submitting. 409 track_locked: once judges are assigned to the project in its track, only an organizer moves it." },
+  { method: "PUT", path: "/api/projects/{project}", tag: "Teams and projects", summary: "Edit your team's project until submissions close", access: "team member", body: In.ProjectInput, also: [409], note: "Which fields are required, optional or hidden is the event's choice (GET /api/events/{event}/project-fields); the body shown is an event's with the defaults. A hidden field is ignored and keeps what is stored; an answer to a custom question the body leaves out stays as stored and counts when the project is checked for submitting. galleryUrls is ignored here and the stored gallery stays: a saved project's gallery changes only through PUT and POST /api/projects/{project}/gallery, so an edit from a page loaded before a teammate's upload or removal neither deletes nor brings back an image. 409 track_locked: once judges are assigned to the project in its track, only an organizer moves it." },
   {
     method: "POST",
     path: "/api/projects/{project}/image",
@@ -168,7 +168,7 @@ export const OPERATIONS: Operation[] = [
     access: "team member",
     body: In.GalleryInput,
     also: [409],
-    note: "galleryUrls in the order the project page shows them, at most 6; each an https address or an /uploads/ address the gallery holds already (an upload is added only by uploading it, so another project's address is 422). An uploaded image left out is deleted, unless another project shows it. expected, when sent, is the list you last saw: 409 gallery_changed when the stored list differs, so a stale page never removes an image it did not show. PUT /api/projects/{project} sets the list the same way. Until submissions close.",
+    note: "galleryUrls in the order the project page shows them, at most 6; each an https address or an /uploads/ address the gallery holds already (an upload is added only by uploading it, so another project's address is 422). An uploaded image left out is deleted, unless another project shows it. expected, when sent, is the list you last saw: 409 gallery_changed when the stored list differs, so a stale page never removes an image it did not show. This route and the upload are the only ways a team changes a saved project's gallery (PUT /api/projects/{project} ignores galleryUrls). Until submissions close.",
   },
   { method: "POST", path: "/api/projects/{project}/take-down-picture", tag: "Teams and projects", summary: "Take a project's picture down, or with galleryUrl one image of its gallery, uploaded or linked, with a reason for the audit log; at any time", access: "organizer", body: In.TakeDownInput, note: "404 when galleryUrl is not in the project's gallery. An uploaded file is deleted, unless another project shows it." },
 

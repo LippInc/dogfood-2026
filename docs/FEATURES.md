@@ -35,7 +35,10 @@ organizer's questions); the server refuses changes after it.
   vote count, because the person voted for that team's project, is refused until the vote is voided.
 - **Pictures.** A team uploads its project's picture (the gallery card's image) and up to 6 images for the
   project page's gallery, or links images on its own host; the gallery images are shown in the team's order, which
-  it changes, like removing one, until the deadline. Each upload is PNG, JPEG or WebP, told by the file's bytes, at
+  it changes, like removing one, until the deadline. Once the project is saved, each gallery change saves at once on
+  its own, and one made on a page that no longer shows the stored gallery is refused with a request to reload; the
+  project form's Save never sends the gallery, so a Save from a page opened before a teammate's upload or removal,
+  or an organizer's take-down, leaves the gallery as it is. Each upload is PNG, JPEG or WebP, told by the file's bytes, at
   most 8 MB and 50 megapixels, and is stored redrawn from its pixels as a WebP, so nothing else in the file (a
   photo's location) is published. An organizer takes down a project's picture or any one gallery image at any
   time, with a reason for the audit log. Through the API: `POST /api/projects/{project}/image` and

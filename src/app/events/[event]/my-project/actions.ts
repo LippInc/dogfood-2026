@@ -104,8 +104,8 @@ export async function saveProjectAction(_prev: ActionResult, form: FormData): Pr
     videoUrl: field("videoUrl"),
     liveUrl: field("liveUrl"),
     thumbnailUrl: field("thumbnailUrl"),
-    // one image address per line; tags separated by commas
-    galleryUrls: list("galleryUrls", /\r?\n/),
+    // one image address per line, only for a new project (a saved one's gallery changes through its own route); tags separated by commas
+    galleryUrls: projectId ? undefined : list("galleryUrls", /\r?\n/),
     tags: list("tags", /,/),
     answers,
     status: intent,

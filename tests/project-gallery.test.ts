@@ -237,13 +237,14 @@ describe("the team reorders, removes and links", () => {
     void a;
   });
 
-  it("known-bad: another project's upload cannot be typed into a gallery (422), by the gallery route or the project form, so it cannot be deleted either", async () => {
+  it("known-bad: another project's upload cannot be typed into a gallery (422 by the gallery route or a new project; a project edit ignores the list), so it cannot be deleted either", async () => {
     const theirs = (await addGalleryImage(member(), "prj_01", PNG)).url; // public on prj_01's page
     const prj02 = { title: "p2", summary: "s", trackId: "trk_03", repoUrl: "https://example.org/repo/02", status: "submitted" };
     const e1 = refusal(() => setGallery(otherTeam(), "prj_02", { galleryUrls: [theirs] }));
     expect([e1.status, e1.code]).toEqual([422, "invalid"]);
     expect(e1.details).toMatchObject({ galleryUrls: [expect.stringMatching(/Use Upload/)] });
-    expectHttpError(() => updateProject(otherTeam(), "prj_02", { ...prj02, galleryUrls: [theirs] }), 422, "invalid");
+    updateProject(otherTeam(), "prj_02", { ...prj02, galleryUrls: [theirs] });
+    expect(galleryOf("prj_02")).not.toContain(theirs);
     // their own picture's upload cannot be moved into the gallery by typing either
     const picture = (await setProjectImage(member(), "prj_01", PNG)).thumbnailUrl;
     expectHttpError(() => setGallery(member(), "prj_01", { galleryUrls: [theirs, picture] }), 422, "invalid");
@@ -288,13 +289,14 @@ describe("the team reorders, removes and links", () => {
     expect(files()).toEqual([fileOf(a)]);
   });
 
-  it("the project form sends the gallery's uploads back, in any order; leaving one out deletes it", async () => {
+  it("the gallery route takes the uploads back in any order; leaving one out, against the list the page showed, deletes it", async () => {
     const a = (await addGalleryImage(member(), "prj_01", PNG)).url;
     const b = (await addGalleryImage(member(), "prj_01", PNG)).url;
-    updateProject(member(), "prj_01", { ...prj01Form, galleryUrls: [b, a] });
+    setGallery(member(), "prj_01", { galleryUrls: [b, a], expected: [a, b] });
     expect(galleryOf("prj_01")).toEqual([b, a]);
     expect(files()).toHaveLength(2);
-    updateProject(member(), "prj_01", { ...prj01Form, galleryUrls: [a] });
+    setGallery(member(), "prj_01", { galleryUrls: [a], expected: [b, a] });
+    expect(galleryOf("prj_01")).toEqual([a]);
     expect(files()).toEqual([fileOf(a)]);
   });
 
@@ -304,6 +306,69 @@ describe("the team reorders, removes and links", () => {
     setGalleryRow("prj_02", [a]);
     setGallery(member(), "prj_01", { galleryUrls: [] });
     expect(files()).toEqual([fileOf(a)]);
+  });
+});
+
+// A teammate's page stays open while the gallery changes under it (a teammate uploads or removes an image, an
+// organizer takes one down). Once the project exists the gallery changes only through its own route, which checks
+// the list the page last saw (409 gallery_changed); a project Save never names it, so a stale Save can neither delete
+// a teammate's upload nor be refused for naming one that is gone, nor bring a taken-down image back.
+describe("a stale project Save leaves the gallery as stored", () => {
+  beforeEach(openEvent);
+  const teammate = () => actorById(idByEmail("member1_2@example.org")); // also on tm_01
+
+  it("known-bad: a teammate's upload between page load and Save survives the Save, file and gallery row", async () => {
+    const x = (await addGalleryImage(member(), "prj_01", PNG)).url;
+    const seen = galleryOf("prj_01"); // A's page draws [x]
+    const y = (await addGalleryImage(teammate(), "prj_01", PNG)).url; // B uploads y
+    updateProject(member(), "prj_01", { ...prj01Form, summary: "edited by A", galleryUrls: seen });
+    expect(galleryOf("prj_01")).toEqual([x, y]);
+    expect(files()).toEqual([fileOf(x), fileOf(y)].sort());
+    const row = auditRows().at(-1)!;
+    expect(row.action).toBe("project.update");
+    expect(row.after).toMatchObject({ summary: "edited by A" });
+    expect(row.after).not.toHaveProperty("galleryUrls");
+    // a Save with no gallery at all (the form after the fix) keeps it too
+    updateProject(member(), "prj_01", { ...prj01Form, summary: "again" });
+    expect(galleryOf("prj_01")).toEqual([x, y]);
+    expect(files()).toEqual([fileOf(x), fileOf(y)].sort());
+  });
+
+  it("a stale Save after a teammate removed an upload saves the other fields: no 422, no image brought back", async () => {
+    const x = (await addGalleryImage(member(), "prj_01", PNG)).url;
+    const y = (await addGalleryImage(member(), "prj_01", PNG)).url;
+    const seen = galleryOf("prj_01"); // A's page draws [x, y]
+    setGallery(teammate(), "prj_01", { galleryUrls: [x], expected: [x, y] }); // B removes y
+    expect(files()).toEqual([fileOf(x)]);
+    const saved = updateProject(member(), "prj_01", { ...prj01Form, summary: "edited by A", galleryUrls: seen });
+    expect(saved.status).toBe("submitted");
+    expect(h.sqlite.prepare("SELECT summary FROM projects WHERE id = 'prj_01'").get()).toEqual({ summary: "edited by A" });
+    expect(galleryOf("prj_01")).toEqual([x]);
+    expect(files()).toEqual([fileOf(x)]);
+  });
+
+  it("an organizer's take-down between page load and Save stays taken down", async () => {
+    const x = (await addGalleryImage(member(), "prj_01", PNG)).url;
+    const y = (await addGalleryImage(member(), "prj_01", PNG)).url;
+    setGalleryRow("prj_01", [x, y, "https://example.org/linked.png"]);
+    const seen = galleryOf("prj_01");
+    takeDownGalleryImage(organizer(), "prj_01", { reason: "Not this project's image", galleryUrl: x });
+    takeDownGalleryImage(organizer(), "prj_01", { reason: "Offensive", galleryUrl: "https://example.org/linked.png" });
+    updateProject(member(), "prj_01", { ...prj01Form, summary: "edited by A", galleryUrls: seen });
+    expect(galleryOf("prj_01")).toEqual([y]);
+    expect(files()).toEqual([fileOf(y)]);
+  });
+
+  it("a project update never sets the gallery, not even with the current list reordered or a link added", async () => {
+    const x = (await addGalleryImage(member(), "prj_01", PNG)).url;
+    const y = (await addGalleryImage(member(), "prj_01", PNG)).url;
+    updateProject(member(), "prj_01", { ...prj01Form, galleryUrls: [y, x, "https://example.org/new.png"] });
+    expect(galleryOf("prj_01")).toEqual([x, y]);
+    updateProject(member(), "prj_01", { ...prj01Form, galleryUrls: [] });
+    expect(galleryOf("prj_01")).toEqual([x, y]);
+    expect(files()).toEqual([fileOf(x), fileOf(y)].sort());
+    // positive control: the same change through the gallery route takes
+    expect(setGallery(member(), "prj_01", { galleryUrls: [y, x, "https://example.org/new.png"], expected: [x, y] }).galleryUrls).toEqual([y, x, "https://example.org/new.png"]);
   });
 });
 

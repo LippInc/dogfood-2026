@@ -10,12 +10,14 @@ import { runMigrations } from "@/server/db/migrate";
 import { auditLog, events, projects } from "@/server/db/schema";
 import { getGallery } from "@/server/dal/events";
 import { exportFile } from "@/server/dal/exports";
+import { setGallery } from "@/server/dal/project-image";
 import { getPublicProject, updateProject } from "@/server/dal/projects";
 import { actorForToken } from "@/server/session";
 
 // The event page's reference field set (T1) includes a thumbnail, an image gallery
 // and tech tags. They are stored, shown, validated (http and https only, at most 6
-// images and 8 tags) and carried through the fixtures.json export and import.
+// images and 8 tags) and carried through the fixtures.json export and import. A saved
+// project's gallery is set through its own route (setGallery), never by the project Save.
 
 const NOW = "2026-09-27T08:00:00.000Z";
 let h: Handle;
@@ -66,7 +68,8 @@ describe("thumbnail, image gallery and tech tags", () => {
 
   it("are stored, shown on the project page and the gallery, and audited; tags are trimmed and kept once whatever their case", () => {
     const participant = checker("participant");
-    updateProject(participant, "prj_01", body({ thumbnailUrl: "https://img.example.org/cover.png", galleryUrls: images, tags: ["Rust", "rust", " WebGPU "] }));
+    updateProject(participant, "prj_01", body({ thumbnailUrl: "https://img.example.org/cover.png", tags: ["Rust", "rust", " WebGPU "] }));
+    setGallery(participant, "prj_01", { galleryUrls: images, expected: [] });
 
     expect(prj01()).toMatchObject({ thumbnailUrl: "https://img.example.org/cover.png", galleryUrls: images, tags: ["Rust", "WebGPU"] });
     const shown = getPublicProject("evt_01", "prj_01").project;
@@ -74,7 +77,9 @@ describe("thumbnail, image gallery and tech tags", () => {
     const card = getGallery("evt_01").projects.find((p) => p.id === "prj_01")!;
     expect(card).toMatchObject({ thumbnailUrl: "https://img.example.org/cover.png", tags: ["Rust", "WebGPU"] });
     const row = h.db.select().from(auditLog).where(eq(auditLog.action, "project.update")).orderBy(desc(auditLog.id)).get()!;
-    expect(row.after).toMatchObject({ tags: ["Rust", "WebGPU"], galleryUrls: images });
+    expect(row.after).toMatchObject({ tags: ["Rust", "WebGPU"] });
+    const gallery = h.db.select().from(auditLog).where(eq(auditLog.action, "project.gallery")).orderBy(desc(auditLog.id)).get()!;
+    expect(gallery.after).toEqual({ galleryUrls: images });
 
     // Saving the same lists again changes nothing, so the audit row names no list.
     updateProject(participant, "prj_01", body({ thumbnailUrl: "https://img.example.org/cover.png", galleryUrls: images, tags: ["Rust", "WebGPU"], title: "Glass Signal 2" }));
@@ -86,14 +91,15 @@ describe("thumbnail, image gallery and tech tags", () => {
     const participant = checker("participant");
     const refused = [
       body({ thumbnailUrl: "javascript:alert(1)" }),
-      body({ galleryUrls: ["data:image/png;base64,AAAA"] }),
-      body({ galleryUrls: Array.from({ length: 7 }, (_, n) => `https://img.example.org/${n}.png`) }),
       body({ tags: Array.from({ length: 9 }, (_, n) => `tag${n}`) }),
       body({ tags: ["x".repeat(41)] }),
     ];
-    const fields = ["thumbnailUrl", "galleryUrls", "galleryUrls", "tags", "tags"];
+    const fields = ["thumbnailUrl", "tags", "tags"];
     refused.forEach((b, n) => expect(outcome(() => updateProject(participant, "prj_01", b))).toEqual({ status: 422, fields: [fields[n]] }));
     expect(prj01().tags).toEqual([]);
+    for (const list of [["data:image/png;base64,AAAA"], Array.from({ length: 7 }, (_, n) => `https://img.example.org/${n}.png`)])
+      expect(outcome(() => setGallery(participant, "prj_01", { galleryUrls: list }))).toEqual({ status: 422, fields: ["galleryUrls"] });
+    expect(prj01().galleryUrls).toEqual([]);
 
     const eight = Array.from({ length: 8 }, (_, n) => `tag${n}`);
     expect(outcome(() => updateProject(participant, "prj_01", body({ tags: [...eight, "TAG0", "Tag1"] }))).status).toBe(200);
@@ -106,7 +112,8 @@ describe("thumbnail, image gallery and tech tags", () => {
   });
 
   it("travel through the fixtures.json export and import, and fixture projects without them export as before", () => {
-    updateProject(checker("participant"), "prj_01", body({ thumbnailUrl: "https://img.example.org/cover.png", galleryUrls: images, tags: ["Rust", "human-computer-interaction"] }));
+    updateProject(checker("participant"), "prj_01", body({ thumbnailUrl: "https://img.example.org/cover.png", tags: ["Rust", "human-computer-interaction"] }));
+    setGallery(checker("participant"), "prj_01", { galleryUrls: images });
     const exported = JSON.parse(exportFile(checker("organizer"), "evt_01", "fixtures.json").body);
     const p01 = exported.projects.find((p: { id: string }) => p.id === "prj_01");
     expect(p01).toMatchObject({ thumbnail_url: "https://img.example.org/cover.png", gallery_urls: images, tags: ["Rust", "human-computer-interaction"] });

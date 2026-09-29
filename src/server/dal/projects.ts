@@ -85,8 +85,9 @@ export function droppedGalleryUploads(tx: DbOrTx, before: readonly string[], aft
  * (src/lib/project-fields.ts): a required title or track is needed even for a draft, as always;
  * the other required fields are checked on submit (assertSubmittable). Optional and hidden ones
  * may be left out; a hidden one is ignored when sent, and what is stored in it stays.
+ * `gallery: false` (an edit of a saved project) ignores galleryUrls whatever it holds: see updateProject.
  */
-function projectInput(modes: FieldModes) {
+function projectInput(modes: FieldModes, { gallery = true }: { gallery?: boolean } = {}) {
   const needed = (f: "title" | "trackId", s: z.ZodString) => (modes[f] === "required" ? s.min(1, REQUIRED_MESSAGES[f]) : s.default(""));
   return z.object({
     title: needed("title", z.string().trim().max(120)),
@@ -104,7 +105,7 @@ function projectInput(modes: FieldModes) {
       .refine((v) => v === "" || UPLOAD_PATH.test(v) || webUrl.safeParse(v).success, WEB_URL.message)
       .optional()
       .transform((v) => (v ? v : null)),
-    galleryUrls: galleryList.default([]),
+    galleryUrls: gallery ? galleryList.default([]) : z.unknown().optional().transform((): string[] => []),
     tags: tagList,
     answers: z.record(z.string(), z.string().trim().max(5_000)).default({}),
     status: z.enum(["draft", "submitted"]).default("submitted"),
@@ -131,8 +132,8 @@ export function teamOf(tx: DbOrTx, userId: string, eventId: string) {
 
 type Input = z.output<typeof ProjectInput>;
 
-function parse(body: unknown, modes: FieldModes): Input {
-  const parsed = projectInput(modes).safeParse(body);
+function parse(body: unknown, modes: FieldModes, options?: { gallery?: boolean }): Input {
+  const parsed = projectInput(modes, options).safeParse(body);
   if (!parsed.success) throw new ValidationError("The project is not valid.", issuesOf(parsed.error));
   return parsed.data;
 }
@@ -149,7 +150,8 @@ const titleFrom = (teamName: string) => teamName.trim() || "Untitled project";
 /**
  * What a save stores in each built-in field: what was sent, except that a hidden field keeps what
  * is stored (nothing, for a new project), a hidden track is the event's one track, and a title left
- * empty where it is optional, or never asked, is the team's name.
+ * empty where it is optional, or never asked, is the team's name. A saved project's gallery is
+ * always what is stored: it changes only through its own route (setGallery), never with a Save.
  */
 function resolve(tx: Tx, eventId: string, input: Input, modes: FieldModes, stored: Values | null, teamName: string): Values {
   const pick = <K extends Exclude<keyof Values, "title" | "trackId">>(f: K, empty: Values[K]): Values[K] =>
@@ -164,7 +166,7 @@ function resolve(tx: Tx, eventId: string, input: Input, modes: FieldModes, store
     videoUrl: pick("videoUrl", null),
     liveUrl: pick("liveUrl", null),
     thumbnailUrl: pick("thumbnailUrl", null),
-    galleryUrls: pick("galleryUrls", []),
+    galleryUrls: stored ? stored.galleryUrls : pick("galleryUrls", []),
     tags: pick("tags", []),
   };
 }
@@ -296,7 +298,8 @@ export function createProject(actor: Actor | null, eventIdOrSlug: string, body: 
   });
 }
 
-const EDITABLE = ["title", "summary", "description", "trackId", "repoUrl", "videoUrl", "liveUrl", "thumbnailUrl", "galleryUrls", "tags", "status"] as const;
+// no galleryUrls: an edit never changes the gallery (updateProject)
+const EDITABLE = ["title", "summary", "description", "trackId", "repoUrl", "videoUrl", "liveUrl", "thumbnailUrl", "tags", "status"] as const;
 
 const sameField = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b);
 
@@ -304,11 +307,16 @@ const sameField = (a: unknown, b: unknown) => (Array.isArray(a) || Array.isArray
  * Edit (and optionally submit) a project. Only its team's members, and only while
  * submissions are open. A submitted project stays submitted: "draft" in the body
  * keeps the old status. The audit row records exactly the fields that changed.
+ *
+ * The gallery is not edited here: galleryUrls in the body is ignored and the stored list stays. It changes only
+ * through its own route (setGallery, addGalleryImage), which checks the list the page last saw, and an organizer's
+ * take-down. A Save from a page loaded before a teammate's upload, removal or reorder, or an organizer's take-down,
+ * therefore neither deletes the new upload, nor is refused for naming one that is gone, nor brings one back.
  */
 export function updateProject(actor: Actor | null, projectId: string, body: unknown) {
   let project: typeof projects.$inferSelect;
   let teamName = "";
-  // an uploaded picture or gallery image the save changes or clears is deleted after the commit, unless another project shows it
+  // an uploaded picture the save changes or clears is deleted after the commit, unless another project shows it
   const dropped: string[] = [];
   const result = mutate({
     actor,
@@ -332,10 +340,9 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
     },
     run: (tx) => {
       const modes = fieldModes(tx, project.eventId);
-      const input = parse(body, modes);
+      const input = parse(body, modes, { gallery: false });
       const values = resolve(tx, project.eventId, input, modes, project, teamName);
       if (values.thumbnailUrl?.startsWith("/uploads/") && values.thumbnailUrl !== project.thumbnailUrl) throw typedUpload();
-      checkGalleryUploads(values.galleryUrls, project.galleryUrls);
       requireTrack(tx, values.trackId, project.eventId);
       if (values.trackId !== project.trackId) {
         // Judges assigned in the old track would lose it (a track judge never sees another track).
@@ -354,7 +361,6 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
       const now = new Date().toISOString();
       const next = { ...values, status };
       if (project.thumbnailUrl && project.thumbnailUrl !== next.thumbnailUrl && !shownElsewhere(tx, project.thumbnailUrl, project.id)) dropped.push(project.thumbnailUrl);
-      dropped.push(...droppedGalleryUploads(tx, project.galleryUrls, next.galleryUrls, project.id));
       const before: Record<string, unknown> = {};
       const after: Record<string, unknown> = {};
       for (const k of EDITABLE) {
@@ -365,7 +371,8 @@ export function updateProject(actor: Actor | null, projectId: string, body: unkn
       }
       const submittedAt = project.submittedAt ?? (status === "submitted" ? now : null);
       tx.update(projects)
-        .set({ ...next, submittedAt, updatedAt: now })
+        // galleryUrls undefined: the column is not written at all (Drizzle leaves undefined out of an update)
+        .set({ ...next, galleryUrls: undefined, submittedAt, updatedAt: now })
         .where(eq(projects.id, project.id))
         .run();
       writeAnswers(tx, project.id, project.eventId, input.answers);

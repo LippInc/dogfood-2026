@@ -14,6 +14,7 @@ import { getGallery, getProjectFields } from "@/server/dal/events";
 import { exportFile } from "@/server/dal/exports";
 import { createEvent, getOrganizerEvent, saveProjectFields, saveTracks } from "@/server/dal/organize";
 import { fieldModes } from "@/server/dal/project-fields";
+import { setGallery } from "@/server/dal/project-image";
 import { createProject, getMyWork, getPublicProject, updateProject } from "@/server/dal/projects";
 import { getNormalization } from "@/server/dal/results";
 import { getJudgeConsole } from "@/server/dal/reviews";
@@ -232,6 +233,7 @@ describe("a hidden field", () => {
 
   it("is empty on the public page, the gallery card and the judge's console, and shows again when turned back on", () => {
     updateProject(member(), "prj_01", filled);
+    setGallery(member(), "prj_01", { galleryUrls: filled.galleryUrls }); // a saved project's gallery changes only here
     const judgeId = h.db.select({ j: assignments.judgeUserId }).from(assignments).where(eq(assignments.projectId, "prj_01")).get()!.j;
     const consoleItem = () => getJudgeConsole(actor(judgeId), "evt_01").items.find((i) => i.project.id === "prj_01")!;
     // shown while asked (the control: these values reach every reader)

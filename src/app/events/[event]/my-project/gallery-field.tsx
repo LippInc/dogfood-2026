@@ -22,7 +22,8 @@ const hostOf = (url: string) => {
  * The project page's image gallery: up to six images in the order the page shows them, each uploaded here (the
  * portal keeps the file, drawn again without its metadata) or the address of an image elsewhere. Once the project is
  * saved, every change (an upload, a link added, a move, a removal) saves at once through the gallery's route, which
- * answers the list as stored; the form's Save sends that list back, so saving the rest never undoes a change. Before
+ * answers the list as stored and refuses a change made against a list that has moved on (409 gallery_changed); the
+ * form's Save does not send the gallery at all, so a Save from a stale page never undoes a teammate's change. Before
  * the first save there is nowhere to upload to yet: links are kept here and saved with the project.
  */
 export function GalleryField({
@@ -168,8 +169,9 @@ export function GalleryField({
       <p id="gallery-help" className="text-13 text-ink-3">
         Up to {MAX} images, shown on your project page in this order. Upload PNG, JPEG or WebP up to 8 MB each, or add the address of an image.
       </p>
-      {/* the list as the form's Save sends it back: one address per line */}
-      <input type="hidden" name="galleryUrls" value={list.join("\n")} />
+      {/* the list, one address per line: the checklist reads it; the form's Save sends it only with a new project (a
+          disabled input is never submitted), since a saved project's gallery changes only through its own route */}
+      <input type="hidden" name="galleryUrls" value={list.join("\n")} disabled={projectId !== null} />
       {list.length ? (
         <ol aria-label="Gallery images, in the order the project page shows them" className="mt-1 grid gap-2.5 sm:grid-cols-2">
           {list.map((url, i) => {
