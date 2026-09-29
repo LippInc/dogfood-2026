@@ -208,7 +208,7 @@ The README's "Beyond the checker" table says what exists and who reaches it; `TH
 - `src/instrumentation.ts` — the Next hook that starts the boot.
 - `drizzle/` — the SQL migrations.
 - `scripts/` — for operators, in the image too:
-  - `backup.mjs` and `restore.mjs` (`docs/OPERATIONS.md`, "Backup and restore");
+  - `backup.mjs` (with its picture check, `backup-pictures.mjs`) and `restore.mjs` (`docs/OPERATIONS.md`, "Backup and restore");
   - `purge.mjs`, which removes what is kept about people once it has done its job (the mail log and finished webhook deliveries after 90 days, voters' address and browser hashes once a vote has closed; `docs/OPERATIONS.md`, "Personal data");
   - `verify-record.mjs`, which checks a signed record offline;
   - `webhook-receiver.mjs`, which prints webhook deliveries and checks their signatures.

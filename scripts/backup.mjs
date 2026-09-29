@@ -8,12 +8,14 @@
 // that stays on the volume goes with the volume. Only the newest BACKUP_KEEP backups (default
 // 7) are kept there: older ones are deleted after each new one checks out. A backup is written
 // under portal-<time>.partial and renamed only once its integrity check passes, so one that fails
-// or is killed part-way never counts as a backup, nor pushes a good one out. Uses DATABASE_PATH,
+// or is killed part-way never counts as a backup, nor pushes a good one out. Every picture the copied database
+// names must be in the copied uploads (scripts/backup-pictures.mjs), or the backup fails. Uses DATABASE_PATH,
 // with the portal's own default (./data/portal.db; the image sets /data/portal.db), and
 // UPLOADS_DIR, by default uploads/ beside the database.
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import { completePictures } from "./backup-pictures.mjs";
 
 const source = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "portal.db");
 if (!fs.existsSync(source)) {
@@ -43,6 +45,7 @@ const target = path.join(partial, "portal.db");
 
 let pictures = 0;
 let rows = 0;
+let alreadyMissing = [];
 try {
   const db = new Database(source, { readonly: true, fileMustExist: true });
   try {
@@ -50,11 +53,9 @@ try {
   } finally {
     db.close();
   }
-  // After the database, so every picture the copied rows name is there (a picture added since is one file more).
-  if (fs.existsSync(uploads)) {
-    fs.cpSync(uploads, path.join(partial, "uploads"), { recursive: true });
-    pictures = fs.readdirSync(path.join(partial, "uploads")).length;
-  }
+  // After the database, so a picture added since is one file more; a picture replaced in between is the
+  // picture check's below.
+  if (fs.existsSync(uploads)) fs.cpSync(uploads, path.join(partial, "uploads"), { recursive: true });
   // One self-contained file: the copy keeps the live database's WAL mode, so opening it would leave -wal and -shm
   // files beside it; a rollback journal leaves none.
   const copy = new Database(target);
@@ -67,6 +68,10 @@ try {
     copy.close();
   }
   if (ok !== "ok") throw new Error(`its integrity check says: ${ok}`);
+  // Every picture the copied rows name must be in the copied folder: one replaced between the two copies had its
+  // old file deleted after its row changed. Copied late if it is still there; otherwise the backup fails, to be run again.
+  ({ alreadyMissing } = completePictures({ copyDb: target, copyUploads: path.join(partial, "uploads"), liveUploads: uploads, liveDb: source }));
+  if (fs.existsSync(path.join(partial, "uploads"))) pictures = fs.readdirSync(path.join(partial, "uploads")).length;
   fs.renameSync(partial, folder);
 } catch (err) {
   // a failed backup is no backup: remove what was written, so nothing half-made is kept or counted
@@ -88,3 +93,6 @@ for (const n of old) fs.rmSync(path.join(dir, n), { recursive: true, force: true
 console.log(
   `${folder}  (integrity ok, ${rows} audit rows, ${pictures} uploaded ${pictures === 1 ? "picture" : "pictures"}${old.length ? `; ${old.length} older ${old.length === 1 ? "backup" : "backups"} deleted, ${keep} kept` : ""})`,
 );
+// a picture the portal itself has lost: no backup can hold it, so say which
+if (alreadyMissing.length)
+  console.log(`${alreadyMissing.length} ${alreadyMissing.length === 1 ? "picture" : "pictures"} the database names ${alreadyMissing.length === 1 ? "was" : "were"} already missing from the portal's uploads: ${alreadyMissing.join(", ")}`);

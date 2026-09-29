@@ -88,7 +88,10 @@ backup in the volume goes with the volume (`docker compose down -v`, a lost disk
 machine: `docker compose cp portal:/data/backups/portal-20260927T013000Z .`. Only the newest 7 stay in the volume
 (`BACKUP_KEEP`, for example `docker compose exec -e BACKUP_KEEP=14 portal node scripts/backup.mjs`); older ones are
 deleted once the new one checks out. A backup is written under `portal-<time>.partial` and takes its name only
-after its integrity check passes, so one that fails is removed and never pushes a good one out. To restore, stop the portal, put the folder back in the volume, and let the
+after its integrity check passes, so one that fails is removed and never pushes a good one out. Every picture the
+copied database names must be in the copied `uploads/`: one replaced while the backup ran (its old file is deleted
+once the project changes) fails the backup with "a picture changed during the backup, run it again", and one the
+portal had already lost is named in the output. To restore, stop the portal, put the folder back in the volume, and let the
 restore script replace the database, drop the old write-ahead log (copying the file over by hand would let SQLite
 replay that log onto it) and bring the pictures back; the pictures in use are moved aside to
 `/data/uploads-before-restore-<time>`, to delete once the portal looks right:

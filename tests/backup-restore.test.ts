@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
+import { completePictures } from "../scripts/backup-pictures.mjs";
 
 // scripts/backup.mjs and scripts/restore.mjs, run as an operator runs them: a
 // backup of a live, seeded database; a change made after it; a restore that brings
@@ -55,6 +56,50 @@ afterEach(() => {
 // Each test runs the scripts as child processes, synchronously: well under a second
 // alone, but past the default 5 s when the whole suite loads the machine.
 describe("backup and restore", { timeout: 30_000 }, () => {
+  describe("every picture the copied database names is in the copied uploads", () => {
+    // The database is copied first and the pictures after; a picture replaced in between had its old file
+    // deleted after its row changed. These cases put the copies in the states that race leaves.
+    const pic = (c: string) => `${c.repeat(22)}.webp`;
+    const projectsDb = (file: string, rows: { thumb: string | null; gallery: string[] }[]) => {
+      const h = openDatabase(file);
+      h.sqlite.exec("CREATE TABLE projects (thumbnail_url TEXT, gallery_urls TEXT NOT NULL DEFAULT '[]')");
+      for (const r of rows) h.sqlite.prepare("INSERT INTO projects VALUES (?, ?)").run(r.thumb, JSON.stringify(r.gallery));
+      h.sqlite.pragma("journal_mode = DELETE");
+      h.sqlite.close();
+    };
+    const setup = (copyRows: { thumb: string | null; gallery: string[] }[], liveRows: { thumb: string | null; gallery: string[] }[], copied: string[], live: string[]) => {
+      const c = { copyDb: path.join(dir, "copy.db"), copyUploads: path.join(dir, "copy-uploads"), liveUploads: path.join(dir, "live-uploads"), liveDb: path.join(dir, "live.db") };
+      projectsDb(c.copyDb, copyRows);
+      projectsDb(c.liveDb, liveRows);
+      fs.mkdirSync(c.copyUploads);
+      fs.mkdirSync(c.liveUploads);
+      for (const n of copied) fs.writeFileSync(path.join(c.copyUploads, n), n);
+      for (const n of live) fs.writeFileSync(path.join(c.liveUploads, n), n);
+      return c;
+    };
+
+    it("positive control: nothing missing, nothing copied late", () => {
+      const c = setup([{ thumb: `/uploads/${pic("a")}`, gallery: [`/uploads/${pic("b")}`, "https://example.org/x.png"] }], [], [pic("a"), pic("b")], []);
+      expect(completePictures(c)).toEqual({ copied: [], alreadyMissing: [] });
+    });
+
+    it("a named picture the copy missed but the live folder still has is copied late", () => {
+      const c = setup([{ thumb: `/uploads/${pic("a")}`, gallery: [`/uploads/${pic("b")}`] }], [], [pic("a")], [pic("b")]);
+      expect(completePictures(c)).toEqual({ copied: [pic("b")], alreadyMissing: [] });
+      expect(fs.readFileSync(path.join(c.copyUploads, pic("b")), "utf8")).toBe(pic("b"));
+    });
+
+    it("known-bad: a picture replaced between the two copies (gone, and the live rows name another) fails the backup", () => {
+      const c = setup([{ thumb: `/uploads/${pic("a")}`, gallery: [] }], [{ thumb: `/uploads/${pic("n")}`, gallery: [] }], [pic("n")], [pic("n")]);
+      expect(() => completePictures(c)).toThrow("a picture changed during the backup, run it again");
+    });
+
+    it("a picture the live portal still names but has lost is reported, not failed on: no backup can hold it", () => {
+      const c = setup([{ thumb: `/uploads/${pic("a")}`, gallery: [] }], [{ thumb: `/uploads/${pic("a")}`, gallery: [] }], [], []);
+      expect(completePictures(c)).toEqual({ copied: [], alreadyMissing: [pic("a")] });
+    });
+  });
+
   it("backs up a live database, then restores it over later changes and a write-ahead log left by a crash", () => {
     const users = count(dbPath, "SELECT count(*) AS n FROM users");
     const backup = run("backup.mjs", [path.join(dir, "backups")]);
@@ -211,6 +256,23 @@ describe("backup and restore", { timeout: 30_000 }, () => {
     const file = out.trim().split(/\s+/)[0]!;
     expect(file.startsWith(path.join(home, "data", "backups"))).toBe(true);
     expect(script("restore.mjs", [file])).toContain(path.join(home, "data", "portal.db"));
+  });
+
+  it("a project's picture the portal has already lost is named in the backup's output, and the backup still counts", () => {
+    const uploads = path.join(dir, "uploads");
+    fs.mkdirSync(uploads);
+    const pic = (c: string) => `${c.repeat(22)}.webp`;
+    fs.writeFileSync(path.join(uploads, pic("a")), "picture a");
+    const h = openDatabase(dbPath);
+    const [first, second] = h.sqlite.prepare("SELECT id FROM projects ORDER BY id LIMIT 2").all() as { id: string }[];
+    h.sqlite.prepare("UPDATE projects SET thumbnail_url = ? WHERE id = ?").run(`/uploads/${pic("a")}`, first!.id);
+    h.sqlite.prepare("UPDATE projects SET gallery_urls = ? WHERE id = ?").run(JSON.stringify([`/uploads/${pic("g")}`]), second!.id);
+    h.sqlite.close();
+    const backup = run("backup.mjs", [path.join(dir, "backups")]);
+    expect(backup.code, backup.out).toBe(0);
+    const folder = backup.out.trim().split(/\s+/)[0]!;
+    expect(fs.readdirSync(path.join(folder, "uploads"))).toEqual([pic("a")]);
+    expect(backup.out).toContain(`1 picture the database names was already missing from the portal's uploads: ${pic("g")}`);
   });
 
   it("known-bad: no database to back up is an error, not an empty backup", () => {
