@@ -589,6 +589,12 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
   // Community ballots: the voter as the portal knew them (an account and a listed address by the address; an open
   // link's voter by nothing), their picks, and a ballot set aside with its reason. A listed or link voter gets a new
   // link secret nobody holds: the old portal's links do not open ballots here (the organizers send new ones).
+  // The database keeps a closed vote's ballots final (votes_closed_insert, src/server/db/triggers.ts), and a file's
+  // ballots come from a closed vote. So the new event takes them before its vote's close is written back, all in this
+  // one transaction: nothing outside it sees the event without its close, and publishing still comes last.
+  const closeAt = tx.select({ at: events.votingCloseAt }).from(events).where(eq(events.id, eventId)).get()?.at ?? null;
+  const holdClose = closeAt !== null && (file.ballots ?? []).length > 0;
+  if (holdClose) tx.update(events).set({ votingCloseAt: null }).where(eq(events.id, eventId)).run();
   const seenPerson = new Set<string>();
   for (const b of file.ballots ?? []) {
     let userId: string | null = null;
@@ -647,6 +653,7 @@ export function restoreHistory(tx: Tx, file: History, ctx: RestoreContext, renam
     }
     out.ballots.push({ voter: voterId, picks });
   }
+  if (holdClose) tx.update(events).set({ votingCloseAt: closeAt }).where(eq(events.id, eventId)).run();
   if (file.ballots_sealed) {
     ctx.skip(
       "ballots",
