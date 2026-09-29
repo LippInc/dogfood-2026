@@ -244,7 +244,7 @@ In simulation the rule flags an honest judge in 7.7 % (no bias), 8.0 % (moderate
 - the method: with k, or the judges' answers and the pairs implied by scores, each kind counted apart, how many judges gave them, and, when the pairs implied by scores outnumber the answers, that more of the comparisons come from scores than from answers (the page's reading points and its "How these win % were made" say it in the same words, so no one takes the scores' pairs for answers); the two pulls the fit measured and corrected for, or that there were too few answers to measure them;
 - how many counted judges the correction moved by at least 0.005 points of a review's total (the page states that number), with the largest and the median correction in size;
 - how many judges were left out as a whole;
-- how many projects stand at a different place in their track than the plain average of every review (or, pairwise, the plain share of wins) would put them;
+- how many projects stand at a different place in their track than the plain average of every review (or, pairwise, the plain share of wins) would put them, places counted as the page prints them (tied projects share the first place of their group, so joint 2nd to 3rd is a move); after the README tour that is 4 of the 40;
 - the signal check's verdict in one sentence (a pairwise run stores no signal check, so it has no such line);
 - the audit entry the run was published as, with its hash.
 

@@ -8,7 +8,7 @@ import { openDatabase, setHandleForTests, type Handle } from "@/server/db/client
 import { importFixtures, loadFixtureFile } from "@/server/db/import-fixtures";
 import { runMigrations } from "@/server/db/migrate";
 import { acceptUnderReviewed, mergeDuplicate, setJudgeOverride } from "@/server/dal/decisions";
-import { CORRECTED_FROM, getPublishedResults, publishResults, type PublishedResults } from "@/server/dal/results";
+import { CORRECTED_FROM, evidenceOf, getPublishedResults, publishResults, type PublishedResults } from "@/server/dal/results";
 import { getPairwiseState, pickPairwise, pullShare, setJudgingMode, PAIRWISE_METHOD } from "@/server/dal/pairwise";
 import { actorForToken } from "@/server/session";
 import { mostlyFromScores, pairwiseSources, RankingEvidence, winPctMethod } from "@/components/results/ranking-evidence";
@@ -111,6 +111,38 @@ describe("How this ranking was reached (public results page)", () => {
     expect(html).toContain(`largest correction was ${e.judges!.largest.toFixed(2)}`);
     // the threshold the count uses is the one the sentence states (0.005 counted as 'corrected by 0.01' before)
     expect(html).toContain(`corrected by at least ${CORRECTED_FROM} points`);
+  });
+
+  it("counts a project as moved when its printed place differs, ties included: joint 1st to 2nd is a move", () => {
+    // raw A = B = 0.6 share 1st; by score A is 1st and B 2nd. Average ranks (1.5 to 2) called that no move.
+    const tie = evidenceOf("x", {}, [
+      [
+        { projectId: "A", score: 0.62, raw: 0.6 },
+        { projectId: "B", score: 0.58, raw: 0.6 },
+        { projectId: "C", score: 0.4, raw: 0.4 },
+      ],
+    ]);
+    expect(tie.moved).toBe(1);
+    // positive control: the same order both ways, with the same tie, moves nobody
+    const same = evidenceOf("x", {}, [
+      [
+        { projectId: "A", score: 0.6, raw: 0.6 },
+        { projectId: "B", score: 0.6, raw: 0.6 },
+        { projectId: "C", score: 0.4, raw: 0.4 },
+      ],
+    ]);
+    expect(same.moved).toBe(0);
+  });
+
+  it("after the README tour, 4 projects stand at a different place than their plain average gives (prj_39 goes from joint 2nd to 3rd)", () => {
+    settle();
+    publishResults(checker("organizer"), "evt_01");
+    const results = getPublishedResults("evt_01");
+    if (!results.published) throw new Error("not published");
+    expect(results.evidence.moved).toBe(4);
+    expect(render(results)).toContain("4 of the 40 projects stand at a different place in their track");
+    // one mover reads in the singular
+    expect(render({ ...results, evidence: { ...results.evidence, moved: 1 } })).toContain("1 of the 40 projects stands at a different place");
   });
 
   it("names no judge and carries no judge id, in the page block or in the API's evidence", () => {

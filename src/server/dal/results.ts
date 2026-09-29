@@ -8,6 +8,7 @@ import { getDb, type DbOrTx } from "../db/client";
 import { assignments, auditLog, events, normalizationRuns, normalizedScores, projects, scoreComments, scores, teams, tracks, users, type WeightChange } from "../db/schema";
 import type { ChainAnchor } from "../audit";
 import { formatUtc } from "@/lib/format";
+import { competitionPlaceOf } from "@/lib/places";
 import { ConflictError } from "../errors";
 import { averageRanks, type SignalCheck } from "../judging/normalize";
 import type { Bias } from "../judging/pairwise";
@@ -405,15 +406,18 @@ function median(xs: number[]): number {
 
 type EvidenceRow = { projectId: string; score: number | null; raw: number | null };
 
-function evidenceOf(method: string, params: Record<string, unknown>, tracksRows: EvidenceRow[][]): RankingEvidence {
+/** Exported for tests. */
+export function evidenceOf(method: string, params: Record<string, unknown>, tracksRows: EvidenceRow[][]): RankingEvidence {
   let placed = 0;
   let moved = 0;
   for (const rows of tracksRows) {
     const both = rows.filter((r) => r.score !== null && r.raw !== null);
     placed += rows.filter((r) => r.score !== null).length;
-    const byScore = averageRanks(new Map(both.map((r) => [r.projectId, r.score!])));
-    const byRaw = averageRanks(new Map(both.map((r) => [r.projectId, r.raw!])));
-    for (const r of both) if (Math.abs(byScore.get(r.projectId)! - byRaw.get(r.projectId)!) >= 1) moved++;
+    // the places the page prints (competition places, ties sharing the first), so a project that
+    // goes from joint 2nd to 3rd counts as moved; average ranks (2.5 to 3) would miss it
+    const byScore = competitionPlaceOf(new Map(both.map((r) => [r.projectId, r.score!])));
+    const byRaw = competitionPlaceOf(new Map(both.map((r) => [r.projectId, r.raw!])));
+    for (const r of both) if (byScore.get(r.projectId) !== byRaw.get(r.projectId)) moved++;
   }
   const excluded = Array.isArray(params.excluded) ? params.excluded.length : 0;
   if (method === PAIRWISE_METHOD) {

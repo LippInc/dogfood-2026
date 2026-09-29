@@ -103,7 +103,7 @@ export function RankingEvidence({ results }: { results: PublishedResults }) {
   }
 
   const effect = e.moved
-    ? `${e.moved} of the ${plural(e.placed, "project")} stand at a different place in their track than ${plainFigure} would put them.`
+    ? `${e.moved} of the ${plural(e.placed, "project")} ${e.moved === 1 ? "stands" : "stand"} at a different place in their track than ${plainFigure} would put them.`
     : `Every project stands at the place in its track that ${plainFigure} would give it.`;
 
   let signal: string | null = null;
