@@ -417,6 +417,29 @@ def run_checks(cfg):
     for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403)):
         s, _, _ = person.request("GET", judging_url)
         expect(c, s == wanted, person, "GET", judging_url, s, str(wanted))
+    # close calls (JUDGING.md, "Close calls"): the organizer's to read and settle. The sample event's scores carry no
+    # signal, so every close call there only advises and none holds publishing back (C4 publishes). One refusal per
+    # person and route, so no person nears the refusal limit B15 measures.
+    close_url = u(f"/api/events/{EVENT_ID}/close-calls")
+    close_track_url = u(f"/api/events/{EVENT_ID}/close-calls/trk_01")
+    s, body, _ = organizer.request("GET", close_url)
+    if expect(c, s == 200, organizer, "GET", close_url, s, "200"):
+        calls = as_json(body).get("tracks", [])
+        expect(c, len(calls) > 0 and not any(t.get("required") for t in calls), organizer, "GET", close_url,
+               f"{len(calls)} close calls, {sum(1 for t in calls if t.get('required'))} required", "close calls on every track, none required")
+    for person, wanted in ((visitor, 401), (participant, 403), (judge_a, 403)):
+        s, _, _ = person.request("GET", close_url)
+        expect(c, s == wanted, person, "GET", close_url, s, str(wanted))
+    for person, wanted in ((visitor, 401), (judge_b, 403)):
+        s, _, _ = person.request("PUT", close_track_url, {"mode": "keep"})
+        expect(c, s == wanted, person, "PUT", close_track_url, s, str(wanted))
+        s, _, _ = person.request("DELETE", close_track_url)
+        expect(c, s == wanted, person, "DELETE", close_track_url, s, str(wanted))
+    s, _, _ = organizer.request("PUT", close_track_url, {"mode": "judges", "winnerId": "prj_01", "reason": ""})
+    expect(c, s == 422, organizer, "PUT", close_track_url, s, "422 (past the gate, no reason given)")
+    s, body, _ = organizer.request("DELETE", close_track_url)
+    if expect(c, s == 200, organizer, "DELETE", close_track_url, s, "200 (no choice stored: nothing changes)"):
+        expect(c, as_json(body).get("undone") is False, organizer, "DELETE", close_track_url, f"undone {as_json(body).get('undone')!r}", "undone False")
     checks.append(c)
 
     # A8 -- a new event from the sample event's settings: only an administrator who organizes the sample event.
