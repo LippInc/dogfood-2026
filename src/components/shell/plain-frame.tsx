@@ -31,11 +31,12 @@ export function PlainFrame({
         Skip to content
       </a>
       <header className="border-b border-rule">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:px-8 xl:px-16">
-          <Link href="/" className="font-display text-20 uppercase">
+        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-2 px-4 sm:gap-3 sm:px-8 xl:px-16">
+          {/* one line from 375 px, beside Help, the mode toggle and Sign in or Sign out: the name steps down a size on a phone */}
+          <Link href="/" className="font-display text-15 whitespace-nowrap uppercase min-[390px]:text-17 min-[480px]:text-20">
             Dogfood portal
           </Link>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1 sm:gap-2">
             {help}
             <ModeToggle />
           </div>
@@ -45,11 +46,11 @@ export function PlainFrame({
                 {account.name}
               </span>
               <form action="/api/auth/sign-out" method="post">
-                <button className="h-10 rounded-sm border border-edge px-4 text-14 hover:bg-surface">Sign out</button>
+                <button className="h-10 rounded-sm border border-edge px-3 text-14 whitespace-nowrap hover:bg-surface sm:px-4">Sign out</button>
               </form>
             </>
           ) : (
-            <Link href="/sign-in" className="inline-flex h-10 items-center rounded-sm border border-edge px-4 text-15 hover:bg-surface">
+            <Link href="/sign-in" className="inline-flex h-10 items-center rounded-sm border border-edge px-3 text-15 whitespace-nowrap hover:bg-surface sm:px-4">
               Sign in
             </Link>
           )}
