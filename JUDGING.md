@@ -246,7 +246,7 @@ In simulation the rule flags an honest judge in 7.7 % (no bias), 8.0 % (moderate
 - how many judges were left out as a whole;
 - how many projects stand at a different place in their track than the plain average of every review (or, pairwise, the plain share of wins) would put them, places counted as the page prints them (tied projects share the first place of their group, so joint 2nd to 3rd is a move); after the README tour that is 4 of the 40; and, pairwise, each track whose answers split into groups never compared with each other, whose places compare only within a group (the organizer's Results tab says the same);
 - the signal check's verdict in one sentence (a pairwise run stores no signal check, so it has no such line);
-- the audit entry the run was published as, with its hash.
+- the audit entry the run was published as, with its hash (only for results published on this portal: an event imported already published has no such entry here, its publication is in the import's audit row, so the page leaves this line and the seal out).
 
 It never names a judge or shows a judge's own figure, beyond the size of the largest correction; `tests/results-evidence.test.ts` holds it to that. The same numbers are the `evidence` field of `GET /api/events/{event}/results`.
 
@@ -466,7 +466,7 @@ This section says what the audit log records, what protects it, and where that p
 
 **Limits, stated plainly:** the triggers stop the application, not someone holding the database file; the chain is tamper-evident only against a head hash kept outside the portal.
 
-- The portal spreads such heads as it goes: each signed certificate and judging record carries the newest entry's number and hash inside its signature (the record's page says whether the log still holds that entry as signed), and the public results page shows the entry that published the results.
+- The portal spreads such heads as it goes: each signed certificate and judging record carries the newest entry's number and hash inside its signature (the record's page says whether the log still holds that entry as signed), and the public results page shows the entry that published the results (for an event imported already published there is none on this portal: its publication is in the import's audit row, as `DATA-MODEL.md` and `docs/OPERATIONS.md` say).
 - The signing key itself is sealed under the portal's secret, so with your own `DOGFOOD_SEED_SECRET` a copy of the database cannot sign new records to match a rewritten log (under the documented default anyone can derive the sealing key, which is why the portal runs on it only as the local demo; `DATA-MODEL.md`, `signing_keys`).
 
 ## Threat model
