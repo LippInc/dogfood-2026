@@ -155,6 +155,14 @@ export default async function MyProjectPage({ params }: PageProps<"/events/[even
             )}
             {work.feedback.score !== null ? <ScoreFigure feedback={work.feedback} pairwise={pairwise} /> : null}
           </div>
+          {work.feedback.decision ? (
+            <p className="mt-4 max-w-[760px] text-14 text-ink-2 wrap-anywhere">
+              {work.feedback.decision.ours
+                ? "Your 1st place is the judges’ decision on a close call: "
+                : `1st place in ${work.feedback.trackName} went to ${work.feedback.decision.winnerTitle} by the judges’ decision on a close call: `}
+              &ldquo;{work.feedback.decision.reason}&rdquo;
+            </p>
+          ) : null}
           <div className="mt-6 flex flex-wrap items-center gap-3">
             {certificate ? (
               <Link href={`/records/${certificate.id}`} className={recordButton}>

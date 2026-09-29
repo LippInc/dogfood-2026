@@ -32,6 +32,7 @@ const { exportFile } = await import("@/server/dal/exports");
 const { computeNormalization } = await import("@/server/dal/normalization");
 const { createLoginSession } = await import("@/server/session");
 const { importEventFile } = await import("@/server/dal/imports");
+const { getMyWork } = await import("@/server/dal/projects");
 const listRoute = await import("@/app/api/events/[event]/close-calls/route");
 const trackRoute = await import("@/app/api/events/[event]/close-calls/[track]/route");
 
@@ -289,6 +290,29 @@ describe("settling a close call", () => {
     const text = renderToStaticMarkup(createElement(RankingEvidence, { results: r }));
     expect(text).not.toContain("By the scores");
     expect(text).not.toContain("close call");
+  });
+
+  const memberOf = (projectId: string) => actorOf((h.sqlite.prepare("SELECT id FROM users WHERE email = ?").get(`${projectId}@example.org`) as { id: string }).id);
+
+  it("the team's own page names the judges' decision and its reason, for the team placed below it and for the winner", () => {
+    settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "judges", winnerId: "prj_a2", reason: "The judges found its demo worked end to end." });
+    publishResults(organizer(), "evt_cc");
+    const below = getMyWork(memberOf("prj_a1"), "evt_cc").feedback!;
+    expect(below.place).toBe(2);
+    expect(below.decision).toEqual({ ours: false, winnerTitle: "Project A2", reason: "The judges found its demo worked end to end." });
+    const winner = getMyWork(memberOf("prj_a2"), "evt_cc").feedback!;
+    expect(winner.place).toBe(1);
+    expect(winner.decision).toEqual({ ours: true, winnerTitle: "Project A2", reason: "The judges found its demo worked end to end." });
+    // the other track's teams read nothing about it
+    expect("decision" in getMyWork(memberOf("prj_b2"), "evt_cc").feedback!).toBe(false);
+  });
+
+  it("positive control: with the ranking's winner kept, the team's page carries no decision", () => {
+    settleCloseCall(organizer(), "evt_cc", "trk_close", { mode: "keep" });
+    publishResults(organizer(), "evt_cc");
+    const f = getMyWork(memberOf("prj_a2"), "evt_cc").feedback!;
+    expect(f.place).toBe(2);
+    expect("decision" in f).toBe(false);
   });
 
   it("refuses a winner outside the close projects, the ranking's own winner, a missing reason, a clear track and an unknown one", () => {

@@ -431,6 +431,11 @@ export type TeamFeedback = {
   se: number | null;
   trackName: string;
   reviews: { values: { label: string; value: number }[]; total: number; feedback: string; counted: boolean }[];
+  /**
+   * only when the judges' decision on a close call named the track's winner: who it named, whether that is this
+   * project, and their reason, as the public project page says it
+   */
+  decision?: { ours: boolean; winnerTitle: string; reason: string };
 };
 
 /** The published outcome for one project, for its own team. DAL-internal: the caller checks membership. */
@@ -466,6 +471,15 @@ function teamFeedback(db: DbOrTx, event: EventRow, projectId: string): TeamFeedb
     score: row?.score ?? null,
     se: row?.se ?? null,
     trackName: track?.name ?? "",
+    ...(track?.decision
+      ? {
+          decision: {
+            ours: track.decision.winnerId === projectId,
+            winnerTitle: track.rows.find((r) => r.decided)?.title ?? "",
+            reason: track.decision.reason,
+          },
+        }
+      : {}),
     reviews: reviews.map((r) => ({
       values: criteria.map((c, i) => ({ label: c.label, value: r.values[i]! })),
       total: weightedTotal(criteria, r.values),

@@ -128,7 +128,9 @@ each person sees.
   Overview as a decision made.
 - **Everyone, after publishing:** the judges' winner is first in its track, marked "Winner by the judges' decision"
   with their reason, the close projects' chances and the order by score alone; every score is shown unchanged. The
-  project pages and the certificates follow the published places.
+  project pages and the certificates follow the published places. Each team of that track reads it on its own My
+  project page too: "1st place in <track> went to <project> by the judges' decision on a close call", with the reason
+  (or, for the winner, that its 1st place is the judges' decision).
 - **API:** `GET /api/events/{event}/close-calls`, `PUT` and `DELETE /api/events/{event}/close-calls/{track}`
   (organizers). A choice travels in the event's `fixtures.json` (`decisions.close_calls`) and a published decision
   with its run.
