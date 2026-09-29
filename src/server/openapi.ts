@@ -45,7 +45,7 @@ export const OPERATIONS: Operation[] = [
   // Accounts
   { method: "POST", path: "/api/auth/sign-up", tag: "Accounts", summary: "Create an account and sign in (sets the session cookie)", access: "anyone", body: In.SignUp, ok: 201, also: [403, 409, 429], note: "An address named in ADMIN_EMAILS signs up only with the one-time setup code from the server log (403 without it). One network address gets 300 sign-ups and password sign-ins per 10 minutes by default (SIGN_IN_LIMIT_PER_ADDRESS), then 429. A browser request from another origin is 403 cross_origin." },
   { method: "POST", path: "/api/auth/sign-in", tag: "Accounts", summary: "Sign in with email and password (sets the session cookie)", access: "anyone", body: credentials, lenient: true, also: [401, 403, 429], note: "A missing or wrong email or password is 401 bad_credentials, never 422. 403 cross_origin for a browser request from another origin (login CSRF)." },
-  { method: "POST", path: "/api/auth/sign-out", tag: "Accounts", summary: "End the session the request carries, by cookie or Bearer: { signedOut, reason? }", access: "anyone", answers: { 303: "A browser's own form post (Accept: text/html) is sent to the front page instead" }, note: "A session token sent as Authorization: Bearer ends as the cookie's session does, and the session cookie is cleared either way. An API token is not a session and is not ended: the answer is { signedOut: false, reason } (revoke it at /account/tokens or with POST /api/tokens/{token}/revoke). The four checker sessions are never ended: sent as Bearer the answer is signedOut: false with the reason; in the cookie, the cookie is cleared (signedOut: true) and the reason says the session itself stays." },
+  { method: "POST", path: "/api/auth/sign-out", tag: "Accounts", summary: "End the session the request carries, by cookie or Bearer: { signedOut, reason? }", access: "anyone", answers: { 303: "A browser's own form post (Accept: text/html, or Sec-Fetch-Mode: navigate) is sent to the front page instead" }, note: "A session token sent as Authorization: Bearer ends as the cookie's session does, and the session cookie is cleared either way. An API token is not a session and is not ended: the answer is { signedOut: false, reason } (revoke it at /account/tokens or with POST /api/tokens/{token}/revoke). The four checker sessions are never ended: sent as Bearer the answer is signedOut: false with the reason; in the cookie, the cookie is cleared (signedOut: true) and the reason says the session itself stays." },
   { method: "POST", path: "/api/auth/demo-sign-in", tag: "Accounts", summary: "While demo mode is on, sign in as one of the four demo identities, as the sign-in page's demo buttons do (sets the session cookie)", access: "anyone", body: z.object({ as: z.enum(["organizer", "judge_a", "judge_b", "participant"]) }), lenient: true, also: [403], note: "A label not among the four is 403 demo_sign_in_off too, never 422. 403 demo_sign_in_off when the portal runs with SEED_CHECKER_SESSIONS off (a real event), or refuses demo mode on a public address (unless PUBLIC_DEMO=true with an own secret). A browser request from another origin is 403 cross_origin." },
 
   { method: "GET", path: "/api/tokens", tag: "Accounts", summary: "Your API tokens (never the tokens themselves)", access: "signed in", note: "From a signed-in session; an API token cannot manage tokens." },
@@ -352,7 +352,7 @@ const REFUSAL: Record<number, string> = {
   410: "The link was used already or has expired",
   413: "The body is too large",
   415: "The body is not a kind of file this operation takes",
-  422: "The body failed validation; details lists the fields (a body of the wrong shape as a whole under request)",
+  422: "The body or a query parameter failed validation; details lists the fields or parameters (a body of the wrong shape as a whole under request)",
   429: "Too many requests; wait the Retry-After seconds (also once a signed-in person has been refused 60 times in ten minutes)",
   503: "Not ready yet; try again shortly",
 };
@@ -417,7 +417,8 @@ export function openApiDocument(serverUrl: string) {
       version: "1.0.0",
       description:
         "Every action in the portal's interface, as JSON. Authenticate with the session cookie, or with Authorization: Bearer <token>: an API token (made at /account/tokens or POST /api/tokens) or a session token. " +
-        "Refusals are real 401 and 403 answers with a JSON error code, never redirects. Every answer is JSON; the one redirect is sign-out's, for a browser's own form post.",
+        "Refusals are real 401 and 403 answers with a JSON error code, never redirects. Every refusal is JSON; the CSV exports answer text/csv. " +
+          "The one redirect is sign-out's, for a browser's own form post: a request with Accept: text/html or Sec-Fetch-Mode: navigate is sent to the front page (303).",
     },
     servers: [{ url: serverUrl }],
     paths,
