@@ -469,9 +469,9 @@ export function CloseCallBody({
   const others = c.projects.filter((p) => c.close.includes(p.id) && !(c.top.length === 1 && p.id === c.top[0]));
   const settledNow = c.choice !== null && c.stale === null;
   return (
-    <div className="flex flex-col gap-3">
+    <div className={explain ? "flex flex-col gap-3" : "flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-6"}>
       {explain ? null : (
-        <p className="text-14 leading-6">
+        <p className="text-14 leading-6 md:min-w-0 md:flex-1">
           <strong>{chancesLine(c)}.</strong> Ranking&rsquo;s winner: {leader}.
         </p>
       )}
@@ -494,7 +494,7 @@ export function CloseCallBody({
       </p>
       ) : null}
       {c.stale && c.choice ? (
-        <p className="text-13 text-flag">
+        <p className="basis-full text-13 text-flag">
           Your earlier choice ({c.choice.mode === "keep" ? "keep the ranking's winner" : `the judges named ${titleOf(c, c.choice.winnerId)}`}) no longer fits: {c.stale}.
           Choose again, or undo it.
         </p>
@@ -513,7 +513,7 @@ export function CloseCallBody({
       ) : published ? (
         <p className="text-13 text-ink-2">Published with the ranking&rsquo;s winner, {leader}.</p>
       ) : (
-        <div className="flex flex-wrap items-start gap-3">
+        <div className={`flex flex-wrap items-start gap-3 ${choosing ? "basis-full" : ""}`}>
           {c.signal || c.choice ? (
             <OneClick label={`Keep the ranking's winner, ${leader}`} action={keepRankingAction} fields={{ track: c.trackId }} eventSlug={eventSlug} />
           ) : null}
