@@ -84,6 +84,9 @@ describe("answers come in only with a project the import creates", () => {
 
   it("positive control: a project the import creates brings its answers", () => {
     withQuestion();
+    // a project comes into an event that is here only while its submissions are open (tests/import-deadlines.test.ts);
+    // the fixture event's closed on 1 March 2026
+    h.sqlite.prepare("UPDATE events SET submissions_close_at = '2999-01-01T00:00:00.000Z' WHERE id = ?").run(EVENT);
     const file = exported();
     file.teams.push({ id: "tm_new", name: "New Team", members: ["new.captain@example.org"] });
     file.projects.push({ id: "prj_new", team: "tm_new", track: file.tracks[0]!.id, title: "New", submitted_at: "2026-02-28T10:00:00Z", answers: { q_stack: "Go" } });

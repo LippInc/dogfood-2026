@@ -206,7 +206,8 @@ the file is the same, and so are its ranking, count and exports); what stays beh
 [`OPERATIONS.md`](OPERATIONS.md#moving-an-event-to-another-portal). Into an event already here an import adds none of
 that history (409 `new_event_only`, naming what the file would add). A file for an event already here adds to it only for that
 event's organizers and never once its results are published, never changes the criteria of an event judges have
-scored (409 `rubric_in_use`), keeps the forms' team rules there (409 `team_full`, `team_has_project`,
+scored (409 `rubric_in_use`), keeps its deadlines as the forms do (no project once submissions have closed, 409
+`submissions_closed`; no review once judging has closed, 409 `judging_closed`), keeps the forms' team rules there (409 `team_full`, `team_has_project`,
 `conflict_of_interest`, `vote_would_change`, naming the row), holds the criteria and questions it brings to the Rubric and Questions
 tabs' limits (at most 16 criteria with labels of 2 to 60 characters and prompts of at most 200; at most 20
 questions with labels of 3 to 200 characters and help of at most 300; past one, 422 naming the row), renames an

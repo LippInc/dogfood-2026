@@ -10,6 +10,7 @@ import { events, userRoles } from "../db/schema";
 import { AuthzError, ConflictError, ValidationError } from "../errors";
 import { guardRead } from "../mutate";
 import { canonicalJson, nowIso, sha256 } from "../util";
+import { formatUtc } from "@/lib/format";
 
 // Bulk import: an administrator uploads an event in the organizers' own fixture
 // format (event, tracks, judges, teams, projects, scores), the format this portal
@@ -47,6 +48,31 @@ function whatIsWrong(error: z.ZodError): string {
   return shown.join("; ") + (error.issues.length > 3 ? `; and ${error.issues.length - 3} more` : "");
 }
 
+type Deadlines = { submissionsCloseAt: string; judgingCloseAt: string | null };
+
+/**
+ * A file for an event that is here keeps that event's deadlines as its forms do (authz.ts: project.create, review.save),
+ * by the server's clock: no project once submissions have closed, and no review (an assignment, a score, a value or
+ * feedback) once judging has closed. It is refused whole, 409, naming the deadline. A new event's file is its history
+ * and comes in whole, whatever its dates.
+ */
+function refuseLateAdditions(event: Deadlines, report: ImportReport, now: number) {
+  const projects = report.inserted.projects;
+  if (projects > 0 && now >= Date.parse(event.submissionsCloseAt)) {
+    throw new ConflictError(
+      "submissions_closed",
+      `Submissions to this event closed at ${formatUtc(event.submissionsCloseAt)}, so an import can no longer add a project to it, as the project form cannot (this file adds ${projects === 1 ? "one" : projects}). Nothing was imported.`,
+    );
+  }
+  const reviews = report.added.reviews.length;
+  if (reviews > 0 && event.judgingCloseAt && now >= Date.parse(event.judgingCloseAt)) {
+    throw new ConflictError(
+      "judging_closed",
+      `Judging in this event closed at ${formatUtc(event.judgingCloseAt)}, so an import can no longer add a review, a score or feedback to it, as the judging console cannot (this file adds to ${reviews === 1 ? "one review" : `${reviews} reviews`}). Nothing was imported.`,
+    );
+  }
+}
+
 export function importEventFile(actor: Actor | null, body: unknown): EventImport {
   // Decided (and a refusal audited) before the file is read; decided again inside the import's transaction.
   guardRead(actor, "event.create", { kind: "platform" });
@@ -60,6 +86,7 @@ export function importEventFile(actor: Actor | null, body: unknown): EventImport
   const existing = getDb().select().from(events).where(eq(events.id, fixture.event.id)).get();
   if (existing) guardRead(actor, "event.manage", { kind: "event", event: existing }, new Date(), "write"); // an import changes the event
   let published = false;
+  let here: Deadlines | null = null;
   const refuse = () =>
     new ConflictError(
       "results_published",
@@ -87,10 +114,12 @@ export function importEventFile(actor: Actor | null, body: unknown): EventImport
         const manage = authorize(actor, "event.manage", { kind: "event", event });
         if (!manage.ok) throw new AuthzError(manage);
         published = event.resultsPublishedAt !== null;
+        here = { submissionsCloseAt: event.submissionsCloseAt, judgingCloseAt: event.judgingCloseAt };
       }
     },
     after: (tx, r) => {
       if (published && Object.values(r.inserted).some((n) => n > 0)) throw refuse();
+      if (here) refuseLateAdditions(here, r, Date.parse(now));
       if (r.inserted.events === 0) return; // the organizers of an event that was already here stay as they are
       const added = tx
         .insert(userRoles)

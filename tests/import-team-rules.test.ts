@@ -87,6 +87,9 @@ function refused(file: File, code: string, names: string[]) {
 
 describe("an import into an event that is here keeps the forms' team rules", () => {
   it("positive control: a new team with one new project, and a new member for a team with room, come in", () => {
+    // a project comes into an event that is here only while its submissions are open (tests/import-deadlines.test.ts);
+    // the fixture event's closed on 1 March 2026
+    h.sqlite.prepare("UPDATE events SET submissions_close_at = '2999-01-01T00:00:00.000Z' WHERE id = ?").run(EVENT);
     const file = exported();
     const small = file.teams.find((t) => t.members.length === 1)!;
     small.members.push("newcomer@example.org");

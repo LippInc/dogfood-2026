@@ -749,6 +749,21 @@ def section_c(u, people, cfg):
         slug = as_json(body).get("eventSlug")
         expect(c, bool(slug), organizer, "POST", imports_url, f"no eventSlug ({body[:120]!r})", "an eventSlug")
     if slug:
+        # The new event came in whole, its past dates and all: a new event's file is its history. Now it is here, and
+        # its submissions closed yesterday, so a second file that adds a project is refused whole, as the project form
+        # refuses one (an organizer who administers the portal gets no way around the deadline by importing).
+        late_team, late_prj = f"team_iso_late_{suffix}", f"prj_iso_late_{suffix}"
+        late_file = json.loads(json.dumps(event_file))
+        late_file["teams"].append({"id": late_team, "name": "Iso Late Team", "members": [f"late-{suffix}@example.org"]})
+        late_file["projects"].append({"id": late_prj, "team": late_team, "track": trk, "title": "A project after the close",
+                                      "summary": "written by the isolation check", "repo_url": "", "submitted_at": past})
+        s, body, _ = organizer.request("POST", imports_url, late_file)
+        expect(c, s == 409 and error_code(body) == "submissions_closed", organizer, "POST", imports_url,
+               f"{s} ({error_code(body)})", "409 submissions_closed: the event is here and its submissions have closed")
+        s, body, _ = visitor.request("GET", u(f"/api/events/{slug}/projects"))
+        ids = [p.get("id") for p in as_json(body).get("projects", [])]
+        expect(c, s == 200 and prj in ids and late_prj not in ids, visitor, "GET", u(f"/api/events/{slug}/projects"),
+               f"{s}, projects {ids}", "the imported project, and not the refused one")
         s, _, _ = visitor.request("GET", u(f"/api/events/{slug}"))
         expect(c, s == 200, visitor, "GET", u(f"/api/events/{slug}"), s, "200")
         claims_url = u(f"/api/events/{slug}/claims")
