@@ -470,8 +470,9 @@ Results tab before publishing with the places beside each project. The rule:
 
 - A prize goes to one project, or jointly to several, with an optional note; a prize nobody is given stays
   unawarded, and publishing is allowed with prizes unawarded (the Publish panel says how many).
-- Only the event's submitted projects can win; a winner withdrawn or merged into its other copy since no longer
-  counts.
+- Only the event's submitted projects can win (a submitted project never goes back to a draft); a winner the
+  organizer merged into its other copy since the award no longer counts, and a prize whose every winner went that
+  way is unawarded again.
 - Every award, change and taking back is one audited action, in the same transaction as the change.
 - Publishing makes them final: the app refuses a change (409 `results_published`) and so does the database
   (`events_prize_awards_final`, and `prizes_final_*` for the prize list of an event that awarded one).

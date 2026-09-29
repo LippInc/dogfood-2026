@@ -46,7 +46,7 @@ function eligible(db: DbOrTx, eventId: string): Map<string, PrizeWinner> {
 
 /**
  * Every prize of the event, in its order, with its winners. An award that names a prize removed since, or a
- * project that was withdrawn or merged into another copy since it was given, counts only for what still stands:
+ * project merged into its other copy since it was given, counts only for what still stands:
  * a prize whose every winner went is unawarded again (the Overview says so before publishing).
  */
 export function prizeStandings(db: DbOrTx, event: EventRow): PrizeStanding[] {

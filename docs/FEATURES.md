@@ -129,7 +129,7 @@ note shown beside it; the ranking's places in each track stand beside the projec
 also stay unawarded, which is where every prize starts: the Overview's Publish panel says how many are not awarded
 yet, and publishing is allowed anyway (they stay unawarded). Every award, change or taking back is one entry in the
 audit log ("awarded the prize ... to ..."), and removing an awarded prize on Settings takes its award with it, logged
-as taken back. Only the event's submitted projects can win; a winner later withdrawn or merged into its other copy
+as taken back. Only the event's submitted projects can win; a winner later merged into its other copy
 no longer counts. Publishing makes the awards final: the app answers 409 `results_published`, and the database
 refuses a changed award, and any edit to the prize list of an event that awarded one. Once published, the public
 results show each prize with its winners and note, a winner's project page says "Winner, <prize>", and so does its
