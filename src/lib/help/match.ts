@@ -63,8 +63,9 @@ const PHRASES: [RegExp, string][] = [
   [/\bopen\s*-?\s*link\b/g, " openlink "],
   // "when does voting close", "until when", "how long is it open": a question about the timeline, not how to do it
   [/\bwhen\b|\buntil\b|\bhow\s+long\b/g, " askwhen "],
-  // "how does judging work": how projects are scored, not the list of judges
-  [/\bhow\s+(?:does|do|is)\s+(?:the\s+)?(?:judging|scoring)\s+(?:work|done)\b/g, "$& scored "],
+  // "how does judging work": how projects are scored, not the list of judges ("scored" alone stems to the question's
+  // own "scoring", so a word of its own marks it; only How projects are scored names this phrasing)
+  [/\bhow\s+(?:does|do|is)\s+(?:the\s+)?(?:judging|scoring)\s+(?:work|done)\b/g, "$& scored howscored "],
   // "how do I score", "where do I score": scoring itself happens in the judge console
   [/\b(?:do|can|should)\s+i\s+(?:score|rate|grade)\b/g, "$& console "],
   // "delete my project": dissolving the team is what deletes a draft; not deleting a comment on a project
