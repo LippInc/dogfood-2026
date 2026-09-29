@@ -25,14 +25,15 @@ export type EventImport = ImportReport & { eventSlug: string };
  * The largest event file the import takes, in bytes. The portal's own fixtures.json export
  * of a big event must fit: with every field at its longest (a 4,000-character review note,
  * 16 criteria, a project's six gallery pictures and eight tags, a team of 20), 64 MB holds an event of
- * 1,000 projects and 8,000 reviews (tests/import-size.test.ts measures the exporter's
- * worst case). Only POST /api/imports takes a file this large: the proxy leaves that route
+ * 1,000 projects and 8,000 reviews, or 5,000 when every review also carries a 4,000-character private
+ * note (tests/import-size.test.ts measures the exporter's worst case); ballots and comments take room of
+ * their own. Only POST /api/imports takes a file this large: the proxy leaves that route
  * out and it reads the body itself (src/app/api/imports/route.ts), so the global limits on
  * server actions and the proxy (next.config.ts) stay small.
  */
 export const MAX_EVENT_FILE_BYTES = 64_000_000;
 export const EVENT_FILE_TOO_LARGE =
-  "Event files are limited to 64 MB, room for an event of 1,000 projects and 8,000 reviews with every field at its longest; the portal's own export of any event that size fits.";
+  "Event files are limited to 64 MB, room for an event of 1,000 projects and 8,000 reviews with every field at its longest (5,000 when each review also carries the longest private note), before its ballots and comments.";
 
 /** Refuses (and audits) a caller who may not import, before the file is read: nobody else makes the server buffer one. */
 export function guardImport(actor: Actor | null) {

@@ -62,8 +62,12 @@ const email = (n: string) => {
   return "m".repeat(254 - tail.length) + tail;
 };
 
-/** A fixture with every field at its longest: P projects (each on its own full team), J judges, and every judge reviewing every project when scored. */
-function worstFixture(eventId: string, projects: number, judges: number, scored: boolean) {
+/**
+ * A fixture with every field at its longest: P projects (each on its own full team), J judges, and every judge reviewing
+ * every project when scored; with notes, each review also carries the judge's private note at its longest, which the
+ * portal's export carries since it moves a whole event.
+ */
+function worstFixture(eventId: string, projects: number, judges: number, scored: boolean, notes = false) {
   const p = Array.from({ length: projects }, (_, i) => i);
   const j = Array.from({ length: judges }, (_, i) => i);
   return {
@@ -84,15 +88,23 @@ function worstFixture(eventId: string, projects: number, judges: number, scored:
       submitted_at: "2026-02-27T04:08:00Z",
     })),
     scores: scored
-      ? j.flatMap((k) => p.map((i) => ({ judge: `jdg_${k}`, project: `prj_${i}`, criteria: { functionality: 5, quality: 5, innovation: 5 }, comment: "c".repeat(FEEDBACK_MAX) })))
+      ? j.flatMap((k) =>
+          p.map((i) => ({
+            judge: `jdg_${k}`,
+            project: `prj_${i}`,
+            criteria: { functionality: 5, quality: 5, innovation: 5 },
+            comment: "c".repeat(FEEDBACK_MAX),
+            ...(notes ? { private_note: "n".repeat(FEEDBACK_MAX) } : {}),
+          })),
+        )
       : [],
   };
 }
 
 const admin = (): Actor => ({ userId: "usr_admin", name: "Admin", email: "admin@example.org", isAdmin: true, roles: [], sessionKind: "login" });
 
-function exportedSize(eventId: string, projects: number, judges: number, scored: boolean): { bytes: number; scores: number } {
-  const fixture = FixtureSchema.parse(worstFixture(eventId, projects, judges, scored));
+function exportedSize(eventId: string, projects: number, judges: number, scored: boolean, notes = false): { bytes: number; scores: number } {
+  const fixture = FixtureSchema.parse(worstFixture(eventId, projects, judges, scored, notes));
   importFixtures(h.db, fixture, { source: "upload", sha256: eventId, now: NOW });
   const body = exportFile(admin(), eventId, "fixtures.json").body;
   return { bytes: Buffer.byteLength(body), scores: JSON.parse(body).scores.length };
@@ -114,6 +126,12 @@ describe("the event import's size limit", () => {
     expect(worst).toBeLessThanOrEqual(MAX_EVENT_FILE_BYTES);
     // known-bad: the old 5 MB cap could not hold it
     expect(worst).toBeGreaterThan(5_000_000);
+    // With every review's private note at its longest too, the number the message gives: 5,000 reviews fit, 8,000 do not
+    const noted = exportedSize("evt_noted", P, J, true, true);
+    const perNotedReview = (noted.bytes - bare.bytes) / (P * J) + extraCriteria;
+    expect(perNotedReview).toBeGreaterThan(perReview + FEEDBACK_MAX); // the measurement saw the notes
+    expect(1000 * perProject + 5000 * perNotedReview).toBeLessThanOrEqual(MAX_EVENT_FILE_BYTES);
+    expect(1000 * perProject + 8000 * perNotedReview).toBeGreaterThan(MAX_EVENT_FILE_BYTES);
   });
 
   it("POST /api/imports takes a real 6 MB export (over the old 5 MB cap), and refuses a file over the limit with 413 and the plain reason", async () => {

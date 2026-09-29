@@ -217,7 +217,7 @@ review and judge's track it added, and `scores.csv` marks each imported review i
 `project_title` keep what the team typed, and a last column, `shown_title`, gives the name shown meanwhile (the
 team's). Files up
 to 64 MB, which holds the portal's own export of 1,000 projects and 8,000 reviews with every field at its
-longest; people who come in that way get one-time personal links to set a password (Integrations tab).
+longest (5,000 when each review also carries the longest private note), before its ballots and comments; people who come in that way get one-time personal links to set a password (Integrations tab).
 
 ## Audit log
 
