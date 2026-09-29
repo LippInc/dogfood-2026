@@ -10,7 +10,7 @@ clean run is `isolation-report.txt`), and how to see it yourself. Paths assume t
 
 - **Where:** organizer, Voting tab; voters, `/events/sample-hack-2026/vote` and `/vote/<code>`.
 - **Checks:** B1, B3, B4, B6.
-- **By hand:** the sample event's vote is open from the first start in demo mode (README tour, step 3). "Email
+- **By hand:** the sample event's vote is open from the first start in demo mode (README tour, step 4). "Email
   gated" is the voter list by address, with one personal link each.
 
 ## T3: Project comments
