@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { NavProgress } from "@/components/nav-progress";
+import { SessionWatch } from "@/components/session-watch";
 import { Toaster } from "@/components/ui/sonner";
+import { currentActor } from "@/server/dal";
 import { archivo, jetbrains, plex, sourceSerif } from "./fonts";
 import "./globals.css";
 
@@ -16,6 +18,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // page follows the operating system (color-scheme: light dark).
   const mode = (await cookies()).get("mode")?.value;
   const dataMode = mode === "light" || mode === "dark" ? mode : undefined;
+  // Whom this page is drawn for: every tab shares the browser's one sign-in, so the page is told when another tab
+  // signs in as someone else or signs out (SessionWatch). No session cookie, no database read.
+  const actor = await currentActor();
   return (
     <html
       lang="en"
@@ -30,6 +35,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <NavProgress />
         </Suspense>
         {children}
+        <SessionWatch person={actor ? { id: actor.userId, name: actor.name } : null} />
         <Toaster />
       </body>
     </html>

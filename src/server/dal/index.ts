@@ -157,7 +157,7 @@ export {
 } from "./voting-organizer";
 export { deleteComment, hideComment, listComments, postComment, unhideComment, type CommentView } from "./comments";
 export { RateLimitedError } from "../errors";
-export { actionError, json, route, type ActionResult } from "../http";
+export { actionError, json, route, samePagePerson, type ActionResult } from "../http";
 export { actorNav, type NavLink } from "./nav";
 export { helpViewer } from "./help";
 export {

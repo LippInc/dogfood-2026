@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useFlip } from "@/components/use-flip";
 import type { PairwiseProject, PairwiseState, PairwiseTrackState } from "@/server/dal";
 import type { FieldModes } from "@/lib/project-fields";
+import { personHeaders } from "@/lib/session-watch";
 import { Kbd, letters, paragraphs, ProjectLink, RecuseDialog } from "./judge-bits";
 import "./judge.css";
 
@@ -64,7 +65,7 @@ export function CompareView({ initial, faces }: { initial: PairwiseState; faces:
       try {
         const res = await fetch(`/api/judge/${slug}/pairwise/${path}`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...personHeaders() },
           body: JSON.stringify(body),
         });
         if (res.status >= 500) throw new Error(`server ${res.status}`);

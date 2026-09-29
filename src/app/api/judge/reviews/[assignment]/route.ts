@@ -1,4 +1,4 @@
-import { currentActor, json, route, saveReview } from "@/server/dal";
+import { currentActor, json, route, samePagePerson, saveReview } from "@/server/dal";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
  */
 export async function PUT(req: Request, ctx: RouteContext<"/api/judge/reviews/[assignment]">) {
   return route(async () => {
+    await samePagePerson();
     const { assignment } = await ctx.params;
     const actor = await currentActor();
     const body = await req.json().catch(() => null);

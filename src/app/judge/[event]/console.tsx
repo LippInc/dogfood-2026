@@ -8,8 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFlip } from "@/components/use-flip";
 import { formatUtc, weightShares } from "@/lib/format";
 import { startIndex } from "@/lib/judge-start";
+import { pageIsStale, personHeaders } from "@/lib/session-watch";
 import type { ConsoleItem, Criterion, JudgeConsole } from "@/server/dal";
 import { Kbd, letters, paragraphs, RecuseDialog, shortUrl } from "./judge-bits";
+import { afterRefusal, type Draft } from "./refusal";
 import { saveAndNextTarget } from "./save-next";
 import "./judge.css";
 
@@ -135,6 +137,10 @@ export function JudgeConsoleView({
   const again = useRef(new Set<string>());
   const retryDelay = useRef(new Map<string, number>());
   const flushRef = useRef<(id: string) => Promise<void>>(async () => {});
+  // What the server last accepted for each review: a refused save puts the review back to it (see refusal.ts).
+  const savedRef = useRef<Record<string, Draft>>(
+    Object.fromEntries(items.map((i) => [i.assignmentId, { values: i.values, feedback: i.feedback, privateNote: i.privateNote }])),
+  );
 
   const current = items[index];
   const review = current ? reviews[current.assignmentId]! : null;
@@ -159,25 +165,34 @@ export function JudgeConsoleView({
     }
     const r = reviewsRef.current[id];
     if (!r || r.readOnly) return;
+    const refuse = (status: number, body: { error?: unknown; message?: unknown }) => {
+      // Refused: back to what the server holds, "Not saved" with the server's words, and no second try of it.
+      again.current.delete(id);
+      const outcome = afterRefusal(reviewsRef.current[id]!, savedRef.current[id]!, status, body);
+      setReviews((all) => ({ ...all, [id]: { ...outcome.review, version: all[id]!.version + 1 } }));
+      setSaveState((s) => ({ ...s, [id]: { kind: "error", message: outcome.message } }));
+    };
+    // Another tab signed in as someone else (or out): this page's saves would go out as them, so none is sent.
+    if (pageIsStale()) {
+      refuse(409, { error: "session_changed", message: "Not saved: this browser is now signed in as someone else, or signed out. Reload the page." });
+      return;
+    }
     inflight.current.add(id);
     setSaveState((s) => ({ ...s, [id]: { kind: "saving" } }));
     const sent = r.version;
     try {
       const res = await fetch(`/api/judge/reviews/${id}`, {
         method: "PUT",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...personHeaders() },
         body: JSON.stringify({ values: r.values, feedback: r.feedback, privateNote: r.privateNote }),
       });
       if (res.status >= 500) throw new Error(`server ${res.status}`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        // A refusal is final for this page: show the server's words and stop editing.
-        setSaveState((s) => ({ ...s, [id]: { kind: "error", message: body.message ?? "Not saved." } }));
-        if (res.status === 401 || res.status === 403) {
-          setReviews((all) => ({ ...all, [id]: { ...all[id]!, readOnly: body.message ?? "You can no longer change this review." } }));
-        }
+        refuse(res.status, body);
         return;
       }
+      savedRef.current[id] = { values: r.values, feedback: r.feedback, privateNote: r.privateNote };
       retryDelay.current.delete(id);
       setReviews((all) => ({ ...all, [id]: { ...all[id]!, status: body.status } }));
       setSaveState((s) => ({ ...s, [id]: { kind: "saved", at: new Date() } }));

@@ -5,6 +5,7 @@ import { FieldError } from "@/components/field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { personHeaders } from "@/lib/session-watch";
 
 // Small pieces the scores console and the pairwise Compare screen share.
 
@@ -102,7 +103,7 @@ export function RecuseDialog({
     try {
       const res = await fetch(`/api/judge/reviews/${assignmentId}/recuse`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...personHeaders() },
         body: JSON.stringify({ reason }),
       });
       const body = await res.json().catch(() => ({}));
