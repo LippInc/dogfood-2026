@@ -190,7 +190,11 @@ function picksOf(db: DbOrTx, voterId: string): string[] {
     .map((v) => v.p);
 }
 
-/** Who is voting: the event's voter token wins over the account, since a link names one ballot. */
+/**
+ * Who is voting: the event's voter token wins over the account, since a link names one ballot. The only place a
+ * request is tied to a ballot: authorize's vote.cast rule (decideVote in authz.ts) trusts this answer and does not
+ * read the actor itself.
+ */
 function resolveVoter(db: DbOrTx, event: EventRow, actor: Actor | null, token: string | null) {
   const byToken = voterByToken(db, event.id, token);
   if (byToken) return { row: byToken, kind: byToken.kind, viaAccount: false } as const;

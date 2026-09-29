@@ -157,6 +157,13 @@ function windowRefusal(event: EventFacts, now: Date, what: string): Refusal {
 /**
  * A ballot is proved by the voter's link token or by their account, so a voter may
  * have no session at all: 401 means neither proof came with the request.
+ *
+ * This is the one action decided before the actor is looked at, and it never reads the actor: who is voting
+ * is settled by resolveVoter in dal/voting.ts (the event's voter token first, else the session's own account
+ * voter), and the resource's `voter` is that answer. So the tie between a request and a ballot lives there, in
+ * one function the ballot page, the ballot save and the refusal row all go through; here the rules are the
+ * event's: the mode on, the ballot not set aside, the window open. It is not moved in here because authorize
+ * decides from facts the caller loaded and never reads the database.
  */
 function decideVote(resource: Resource, now: Date): Decision {
   if (resource.kind !== "ballot") return refuse("bad_resource", "This action needs a ballot.");
