@@ -48,7 +48,7 @@ export default async function EmbedPage({
   // Bold: once the results are out, the placed projects lead the frame, lit as the portal lights a tile it points at.
   const shown = places.size ? [...projects.filter((p) => places.has(p.id)), ...projects.filter((p) => !places.has(p.id))] : projects;
   return (
-    <div className="public min-h-0 p-4 wrap-anywhere">
+    <div className="public min-h-0 p-4 wrap-anywhere" data-embed="">
       <ReportHeight />
       <div className="flex items-stretch gap-6">
         <p className="label-mono flex min-w-0 flex-wrap items-center gap-y-1 text-ink-2">

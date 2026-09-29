@@ -75,6 +75,63 @@
   --face-dot: light-dark(#5e6d9c, #4d60a0);
 }
 
+/*
+ * Scrollbars: one style for the page and every inner scroll area (wide tables, the help panel,
+ * dialogs, menus, code blocks). Thin, a thumb in --edge (3:1 on --bg and --surface, like every
+ * border; tests/scrollbar.test.ts) that turns --ink-3 under the pointer, and a transparent track.
+ * Never hidden: at 390 px a wide table's scrollbar is the sign that more columns exist.
+ * scrollbar-color is inherited, so each side's tokens reach every scroll area inside it; the page
+ * scrollbar belongs to <html>, outside .work and .public, so :root carries the .work values.
+ * Chrome, Edge (121+) and Firefox read scrollbar-width and scrollbar-color; Safari, which lacks
+ * scrollbar-color, gets the ::-webkit-scrollbar rules below, drawn to look the same.
+ * scrollbar-gutter: stable keeps the page from moving sideways when its scrollbar comes and goes
+ * (the header moved when the demo disclosure opened and the page grew a scrollbar).
+ */
+:root {
+  --scroll-thumb: light-dark(#7f889e, #65739a);
+  --scroll-thumb-hover: light-dark(#5a6683, #8e9bbe);
+  scrollbar-color: var(--scroll-thumb) transparent;
+  scrollbar-gutter: stable;
+}
+/* The embedded gallery sizes its iframe to fit (embed/[event]/height.tsx): no empty gutter there. */
+:root:has([data-embed]) {
+  scrollbar-gutter: auto;
+}
+.work,
+.public {
+  --scroll-thumb: var(--edge);
+  --scroll-thumb-hover: var(--ink-3);
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+* {
+  scrollbar-width: thin;
+}
+:where([class*="overflow-"], [data-radix-scroll-area-viewport], pre, textarea):hover {
+  scrollbar-color: var(--scroll-thumb-hover) transparent;
+}
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+    background: transparent;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb);
+    background-clip: content-box;
+    border: 2px solid transparent;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-thumb:active {
+    background: var(--scroll-thumb-hover);
+    background-clip: content-box;
+  }
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
