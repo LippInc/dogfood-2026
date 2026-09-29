@@ -5,9 +5,8 @@ import type { Actor } from "../authz";
 import type { DbOrTx } from "../db/client";
 import { assignments, events, judgeOverrides, projects } from "../db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
-import { mutate, type MutationAudit } from "../mutate";
 import { newId } from "../util";
-import { eventFacts, requireEvent, type EventRow } from "./events";
+import { organizerMutation, type EventRow } from "./events";
 import { isJudgeIn } from "./judges";
 import { finishedReviews, judgeSet, submittedProjects, type ProjectInfo } from "./judging";
 import { computePairwise, judgingModeOf, pairwiseDecisions, type CoinFlipDecision, type PairwiseComputed } from "./pairwise";
@@ -181,19 +180,6 @@ export function eventDecisions(
 // ---------------------------------------------------------------------------
 // Audited actions
 // ---------------------------------------------------------------------------
-
-export function organizerMutation<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOrTx, event: EventRow) => { result: T; audit: MutationAudit }) {
-  let event: EventRow;
-  return mutate<T>({
-    actor,
-    action: "event.manage",
-    load: (tx) => {
-      event = requireEvent(tx, eventIdOrSlug);
-      return { kind: "event", event: eventFacts(event) };
-    },
-    run: (tx) => run(tx, event),
-  });
-}
 
 export function notPublished(event: EventRow) {
   if (event.resultsPublishedAt) throw new ConflictError("results_published", "Results are published, so the judge set and the projects are final.");

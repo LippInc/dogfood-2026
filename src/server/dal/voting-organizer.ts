@@ -7,9 +7,9 @@ import { auditLog, events, projects, teamMembers, teams, users, voters, votes, t
 import { formatUtc } from "@/lib/format";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { appendAudit } from "../audit";
-import { guardRead, mutate, type MutationAudit } from "../mutate";
+import { guardRead } from "../mutate";
 import { newId, newSecret, sha256 } from "../util";
-import { eventFacts, requireEvent, type EventRow } from "./events";
+import { eventFacts, organizerMutation, requireEvent, type EventRow } from "./events";
 import { parse, utcTimeOrEmpty } from "./parse";
 import { votingSettings, anyBallotCast, type VotingState, votingState, keptCopies, type VoterRow, MAX_LINK_PER_ADDRESS } from "./voting";
 import { shownTitle } from "./project-fields";
@@ -33,19 +33,6 @@ export const SettingsInput = z
   })
   .refine((v) => (v.votingOpenAt === "") === (v.votingCloseAt === ""), { message: "set both times or neither", path: ["votingCloseAt"] })
   .refine((v) => !v.votingOpenAt || Date.parse(v.votingOpenAt) < Date.parse(v.votingCloseAt), { message: "must be after voting opens", path: ["votingCloseAt"] });
-
-function organizer<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: DbOrTx, event: EventRow) => { result: T; audit: MutationAudit }) {
-  let event: EventRow;
-  return mutate<T>({
-    actor,
-    action: "event.manage",
-    load: (tx) => {
-      event = requireEvent(tx, eventIdOrSlug);
-      return { kind: "event", event: eventFacts(event) };
-    },
-    run: (tx) => run(tx, event),
-  });
-}
 
 /**
  * Once the window has closed the count is public, so it is final: the window can no
@@ -114,7 +101,7 @@ function countingRulesHold(tx: DbOrTx, event: EventRow, current: VoteRules, next
 }
 
 export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
-  return organizer(actor, eventIdOrSlug, (tx, event) => {
+  return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     voteFinal(event);
     const input = parse(SettingsInput, body);
     // Saved ballots are counted as they stand, so the pick limit can rise but never drop
@@ -178,7 +165,7 @@ export function saveVotingSettings(actor: Actor | null, eventIdOrSlug: string, b
 
 /** A new open voting link; the old one stops working. The code is shown once. */
 export function makeVotingLink(actor: Actor | null, eventIdOrSlug: string) {
-  return organizer(actor, eventIdOrSlug, (tx, event) => {
+  return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     voteFinal(event);
     const code = newSecret(18);
     const current = votingSettings(event);
@@ -197,7 +184,7 @@ export const VoterList = z.object({ emails: z.string().max(200_000) });
 
 /** Add people to the voter list; each gets a personal link, shown once. Known addresses are skipped. */
 export function addListedVoters(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
-  return organizer(actor, eventIdOrSlug, (tx, event) => {
+  return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     voteFinal(event);
     const raw = parse(VoterList, body).emails;
     const emails = [...new Set(raw.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))];
@@ -242,7 +229,7 @@ export const VoterAddress = z.object({ email: z.string().trim().toLowerCase().pi
  * stays set aside, so its voter gets no new link until it is counted again.
  */
 export function newVoterLink(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
-  return organizer(actor, eventIdOrSlug, (tx, event) => {
+  return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     voteFinal(event);
     const { email } = parse(VoterAddress, body);
     const v = tx
@@ -265,7 +252,7 @@ export const VoidInput = z.object({ voterId: z.string().min(1), reason: z.string
 
 /** Set a ballot aside (a suspected duplicate), with a reason; its votes stop counting. */
 export function voidVoter(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
-  return organizer(actor, eventIdOrSlug, (tx, event) => {
+  return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     voteFinal(event);
     const { voterId, reason } = parse(VoidInput, body);
     const v = tx.select().from(voters).where(and(eq(voters.id, voterId), eq(voters.eventId, event.id))).get();
@@ -279,7 +266,7 @@ export function voidVoter(actor: Actor | null, eventIdOrSlug: string, body: unkn
 export const RestoreInput = z.object({ voterId: z.string().min(1) });
 
 export function restoreVoter(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
-  return organizer(actor, eventIdOrSlug, (tx, event) => {
+  return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
     voteFinal(event);
     const { voterId } = parse(RestoreInput, body);
     const v = tx.select().from(voters).where(and(eq(voters.id, voterId), eq(voters.eventId, event.id))).get();

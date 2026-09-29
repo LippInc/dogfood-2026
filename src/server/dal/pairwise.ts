@@ -20,7 +20,7 @@ import {
 import { averageRanks } from "../judging/normalize";
 import { guardRead, mutate } from "../mutate";
 import { newId } from "../util";
-import { eventFacts, requireEvent, type EventRow } from "./events";
+import { eventFacts, organizerMutation, requireEvent, type EventRow } from "./events";
 import { memoByData } from "./memo";
 import { finishedReviews, formerJudges, inJudgeTracks, judgeNames, judgeSet, rubricOf, submittedProjects, weightedTotal, type ProjectInfo } from "./judging";
 import { parse } from "./parse";
@@ -601,29 +601,20 @@ export const ModeInput = z.object({
 
 /** How the event's judges judge. Organizer only, with a reason when it changes, until results are published. */
 export function setJudgingMode(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
-  let event: EventRow;
-  return mutate({
-    actor,
-    action: "event.manage",
-    load: (tx) => {
-      event = requireEvent(tx, eventIdOrSlug);
-      return { kind: "event", event: eventFacts(event) };
-    },
-    run: (tx) => {
-      const input = parse(ModeInput, body);
-      if (event.resultsPublishedAt) throw new ConflictError("results_published", "Results are published, so how the event was judged is final.");
-      const before = judgingModeOf(event);
-      if (before === input.mode) return { result: { mode: before, changed: false }, audit: null };
-      if (input.reason.length < 3) throw new ValidationError("Check the highlighted fields.", { reason: ["say why, in a few words"] });
-      tx.update(events)
-        .set({ settings: { ...event.settings, judgingMode: input.mode } })
-        .where(eq(events.id, event.id))
-        .run();
-      return {
-        result: { mode: input.mode, changed: true },
-        audit: { action: "event.judging_mode", eventId: event.id, targetType: "event", targetId: event.id, before: { mode: before }, after: { mode: input.mode, reason: input.reason } },
-      };
-    },
+  return organizerMutation(actor, eventIdOrSlug, (tx, event) => {
+    const input = parse(ModeInput, body);
+    if (event.resultsPublishedAt) throw new ConflictError("results_published", "Results are published, so how the event was judged is final.");
+    const before = judgingModeOf(event);
+    if (before === input.mode) return { result: { mode: before, changed: false }, audit: null };
+    if (input.reason.length < 3) throw new ValidationError("Check the highlighted fields.", { reason: ["say why, in a few words"] });
+    tx.update(events)
+      .set({ settings: { ...event.settings, judgingMode: input.mode } })
+      .where(eq(events.id, event.id))
+      .run();
+    return {
+      result: { mode: input.mode, changed: true },
+      audit: { action: "event.judging_mode", eventId: event.id, targetType: "event", targetId: event.id, before: { mode: before }, after: { mode: input.mode, reason: input.reason } },
+    };
   });
 }
 

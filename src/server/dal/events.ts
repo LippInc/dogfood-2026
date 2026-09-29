@@ -1,9 +1,10 @@
 import "server-only";
 import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
-import type { EventFacts } from "../authz";
-import { getDb, type DbOrTx } from "../db/client";
+import type { Actor, EventFacts } from "../authz";
+import { getDb, type DbOrTx, type Tx } from "../db/client";
 import { events, prizes, projects, rubricCriteria, teams, tracks, userRoles } from "../db/schema";
 import { NotFoundError, ValidationError } from "../errors";
+import { mutate, type MutationAudit } from "../mutate";
 import { withoutHidden, type FieldModes } from "@/lib/project-fields";
 import { projectMatches, searchWords } from "@/lib/search";
 import { fieldModes, trackCount, shownTitle } from "./project-fields";
@@ -47,6 +48,24 @@ export function requireEvent(db: DbOrTx, idOrSlug: string): EventRow {
   const e = findEvent(db, idOrSlug);
   if (!e) throw new NotFoundError("Event");
   return e;
+}
+
+/**
+ * An organizer's audited change to one event: the event is loaded and event.manage decided inside the
+ * transaction (a refusal is recorded like every 403), then `run` makes the change with the event as loaded,
+ * and its audit row commits with it (mutate). Synchronous, like every write.
+ */
+export function organizerMutation<T>(actor: Actor | null, eventIdOrSlug: string, run: (tx: Tx, event: EventRow) => { result: T; audit: MutationAudit }): T {
+  let event: EventRow;
+  return mutate<T>({
+    actor,
+    action: "event.manage",
+    load: (tx) => {
+      event = requireEvent(tx, eventIdOrSlug);
+      return { kind: "event", event: eventFacts(event) };
+    },
+    run: (tx) => run(tx, event),
+  });
 }
 
 export type PublicEvent = Pick<
