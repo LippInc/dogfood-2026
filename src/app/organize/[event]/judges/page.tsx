@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DetailRows, DetailToggle } from "@/components/detail-row";
 import { formatUtc, plural } from "@/lib/format";
+import { openWork } from "@/lib/judge-open-work";
 import { guardPage } from "@/lib/page-guard";
 import { LeniencyAxis, LeniencyRow, leniencySpan } from "@/components/figures/leniency-row";
 import { currentActor, emailIsOn, getAssignments, getJudges, getNormalization, judgingModeOf, type JudgeRow, type JudgeStanding } from "@/server/dal";
@@ -51,7 +52,8 @@ export const metadata: Metadata = { title: "Judges" };
 
 /** Where a judge sits in the table: what needs the organizer first, then open work, then done. */
 const groupOf = (j: JudgeRow) => (j.excluded || (j.flat && !j.override) ? 0 : j.pending > 0 ? 1 : j.assigned > 0 ? 2 : 3);
-const GROUPS = ["Flagged", "Open reviews", "All finished", "Nothing assigned"];
+// The second group is open work while judging runs, and only unfinished once results are published.
+const groupNames = (published: boolean) => ["Flagged", openWork(0, published).group, "All finished", "Nothing assigned"];
 
 export default async function JudgesPage({ params }: PageProps<"/organize/[event]/judges">) {
   const { event: key } = await params;
@@ -63,6 +65,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
   const grouped = new Set(judges.map(groupOf)).size > 1;
   const a = getAssignments(actor, event.id);
   const published = Boolean(event.resultsPublishedAt);
+  const groups = groupNames(published);
   const origin = process.env.PUBLIC_URL ?? "http://localhost:8080";
   const assigned = judges.reduce((s, j) => s + j.assigned, 0);
   const finished = judges.reduce((s, j) => s + j.done, 0);
@@ -163,6 +166,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                     {judges.map((j, n) => {
                       const g = groupOf(j);
                       const first = grouped && (n === 0 || groupOf(judges[n - 1]) !== g);
+                      const work = openWork(j.pending, published);
                       const reminder = `Hi ${j.name}, ${j.pending} of your ${plural(j.assigned, "review")} for ${event.name} ${j.pending === 1 ? "is" : "are"} still open. Your console: ${origin}/judge/${event.slug}`;
                       return (
                         <Fragment key={j.id}>
@@ -170,7 +174,7 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                           <TableRow className="h-auto bg-sunken hover:bg-sunken max-md:block">
                             <TableCell colSpan={norm ? 5 : 4} className="py-1.5 max-md:block max-md:px-4">
                               <span className={`label-mono ${g === 0 ? "text-flag" : "text-ink-2"}`}>
-                                {GROUPS[g]} · {judges.filter((x) => groupOf(x) === g).length}
+                                {groups[g]} · {judges.filter((x) => groupOf(x) === g).length}
                               </span>
                             </TableCell>
                           </TableRow>
@@ -278,11 +282,14 @@ export default async function JudgesPage({ params }: PageProps<"/organize/[event
                             ) : j.pending > 0 ? (
                               <div className="flex flex-col items-start gap-1">
                                 <div className="flex items-center gap-3">
-                                  <p className="font-medium whitespace-nowrap">{j.pending} open</p>
-                                  <CopyButton text={reminder} label="Copy reminder" />
+                                  <p className="font-medium whitespace-nowrap">{work.label}</p>
+                                  {/* once results are published scoring is over: there is nothing to remind anyone of */}
+                                  {work.remind ? <CopyButton text={reminder} label="Copy reminder" /> : null}
                                 </div>
                                 {/* When a judge last scored matters only while they still have work: it shows who has gone quiet. */}
-                                <p className="text-12 whitespace-nowrap text-ink-3">{j.lastScoredAt ? `last review ${formatUtc(j.lastScoredAt)}` : "nothing scored yet"}</p>
+                                <p className={`text-12 text-ink-3 ${work.note ? "" : "whitespace-nowrap"}`}>
+                                  {work.note ?? (j.lastScoredAt ? `last review ${formatUtc(j.lastScoredAt)}` : "nothing scored yet")}
+                                </p>
                               </div>
                             ) : j.assigned > 0 ? (
                               // Under the "All finished" label the words would repeat on every row: the check says it.
