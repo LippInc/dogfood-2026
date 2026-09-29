@@ -127,6 +127,15 @@ describe("password reset links", () => {
     expect(row.used_at).toBeNull();
   });
 
+  it("an administrator's API token cannot make a link (it would end in a full sign-in); the same administrator signed in can", () => {
+    const viaToken: Actor = { ...actorIn("usr_admin"), sessionKind: "api" };
+    expectHttpError(() => makePasswordReset(viaToken, { email: "admin@example.org" }), 403, "token_cannot_reset_passwords");
+    expectHttpError(() => makePasswordReset(viaToken, { email: "target@example.org" }), 403, "token_cannot_reset_passwords");
+    expect(resets()).toBe(0);
+    expect(() => guardAccounts(viaToken)).not.toThrow(); // reading the Accounts gate is not a write
+    expect(makePasswordReset(actorIn("usr_admin"), { email: "target@example.org" }).path).toMatch(/^\/reset\//); // positive control
+  });
+
   it("the email is trimmed and lowercased before the lookup; an unknown address is a 404 that inserts nothing", () => {
     const admin = actorIn("usr_admin");
 

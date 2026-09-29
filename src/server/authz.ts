@@ -198,7 +198,11 @@ export function authorize(
       return actor.isAdmin ? allow : refuse("not_an_admin", "Only an administrator of this portal can read the portal's own log.");
 
     case "portal.accounts":
-      return actor.isAdmin ? allow : refuse("not_an_admin", "Only an administrator of this portal can make a password reset link.");
+      if (!actor.isAdmin) return refuse("not_an_admin", "Only an administrator of this portal can make a password reset link.");
+      // a reset link ends in a full sign-in, which can make tokens: a leaked token must not reach one (as account.tokens)
+      return mode === "write" && actor.sessionKind === "api"
+        ? refuse("token_cannot_reset_passwords", "Sign in to make a password reset link; an API token cannot.")
+        : allow;
 
     case "event.manage":
     case "event.export": {
