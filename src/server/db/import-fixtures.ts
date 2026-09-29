@@ -54,7 +54,7 @@ const dateTime = z.string().refine(isIsoDateTime, "must be a date and time with 
  * database while it runs, so a file far past any real event is refused (422, naming the list) rather than
  * stalling the portal for everyone. Several files can add to the same event.
  */
-export const IMPORT_LIMITS = { tracks: 100, judges: 1_000, teams: 2_000, members: 50, projects: 2_000, scores: 5_000 } as const;
+export const IMPORT_LIMITS = { tracks: 100, judges: 1_000, teams: 2_000, members: 50, projects: 2_000, scores: 16_000 } as const;
 const atMost = (n: number, what: string) => `at most ${n.toLocaleString("en")} ${what} in one file; split it into several imports`;
 
 export const FixtureSchema = z.looseObject({

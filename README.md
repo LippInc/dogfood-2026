@@ -250,7 +250,7 @@ one-time link: `administrator setup: open https://hack.example.org/sign-up?setup
 Open it and sign up with the address in `ADMIN_EMAILS`: that account is an
 administrator, and on **Your events** it creates your event (dates, tracks,
 prizes, rubric) or imports one from a `fixtures.json`-format file (up to 2,000
-projects and 5,000 reviews per file; a bigger event goes in over several files). Judges and
+projects and 16,000 reviews per file; a bigger event goes in over several files). Judges and
 teams join through the links the portal gives you; co-organizers sign up and you
 add them by their email on the event's **Settings** tab (an account that already
 has a place in an event you do not run is added only by the administrator). Someone who forgets
