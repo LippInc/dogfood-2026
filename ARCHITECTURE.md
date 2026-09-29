@@ -74,7 +74,7 @@ The rate limits and the duplicate-ballot flags key on the requester's network ad
 - `src/instrumentation.ts` — the Next hook that starts the boot.
 - `drizzle/` — the SQL migrations.
 - `scripts/` — for operators, in the image too: `backup.mjs` and `restore.mjs` (`docs/OPERATIONS.md`, "Backup and restore"), `verify-record.mjs`, which checks a signed record offline, and `webhook-receiver.mjs`, which prints webhook deliveries and checks their signatures.
-- `tests/` — vitest suites, including the boundary and API registry tests; the hand check for the tiers run.py does not verify is `tests/isolation_check.py`.
+- `tests/` — vitest suites, including the boundary and API registry tests; the hand check for the tiers run.py does not verify is `tests/isolation_check.py`, and `tests/webhook_live_check.py` checks a signed webhook as it arrives at a receiver.
 
 ## Where to change what
 

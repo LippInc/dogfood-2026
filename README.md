@@ -89,9 +89,13 @@ npm ci && npm test                             # vitest, on Node 24 like the ima
 **T3 and T4** are judged by hand (the organizers said so on their Discord, 2026-09-25), so we claim them on our own
 check, which you can rerun: `tests/isolation_check.py` (standard library only; Section C, for T4 and pairwise
 judging, is in `tests/isolation_t4.py`; Node, when installed, adds the offline record check). It writes votes and
-comments and publishes the sample event's results, so run it on a fresh portal, after run.py.
-`isolation-report.txt` is its output from a clean `docker compose down -v && docker compose up`, with the commit it
-ran on in its first lines. Each T3 and T4 bullet, mapped to its checks: [Beyond the checker](#beyond-the-checker).
+comments and publishes the sample event's results, so run it on a fresh portal, after run.py; it takes under a
+minute. `isolation-report.txt` is its output from a clean `docker compose down -v && docker compose up`, with the
+commit it ran on in its first lines. The signed webhook request itself needs a receiver the portal may reach, and
+the portal refuses private targets unless `WEBHOOKS_ALLOW_PRIVATE=true`, which would make C3 wrong:
+`python tests/webhook_live_check.py .dogfood.toml`, on a portal started with that setting, runs a receiver and
+checks what arrives (the header in the script says how). Each T3 and T4 bullet, mapped to its checks:
+[Beyond the checker](#beyond-the-checker).
 
 **Our own tests** (`npm test`; Node 24, since passwords use its built-in argon2) cover the permission rules, the
 assignment engine, the normalization engine and its Monte Carlo validation, the pairwise engine and its proof,
@@ -114,14 +118,14 @@ Every T3 and T4 bullet from the event site. All are built; the by-hand steps for
 |---|---|---|---|
 | T3 | Community voting: email gated, link based or authenticated | Voting tab; `/events/<event>/vote`, `/vote/<code>` | B1, B3, B4, B6 |
 | T3 | Project comments | Each project page | B8 |
-| T3 | Results hidden during the voting window | Count `null` to all but organizers until it closes | B2, B5, B10 |
-| T3 | Randomized project ordering on ballots | Each voter's own seeded order | B4 |
-| T3 | Anti abuse: rate limits, duplicate detection, audit trail | Limits, flags on the Voting tab, audit log | B3, B5, B7, B9, B10, B12 |
-| T4 | REST API and webhooks | `/api-docs`, `/api/openapi.json`; Integrations tab | C1 to C3 |
-| T4 | Certificate and record generation | Results tab, "Issue every record"; `/records/<id>` | C4 |
+| T3 | Results hidden during the voting window | Count `null` to all but organizers until it closes | B2, B5, B10, B11 |
+| T3 | Randomized project ordering on ballots | Each voter's own seeded order | B4, B13 |
+| T3 | Anti abuse: rate limits, duplicate detection, audit trail | Limits, flags on the Voting tab, audit log | B3, B5, B7, B9, B10, B12, B14, B15 |
+| T4 | REST API and webhooks | `/api-docs`, `/api/openapi.json`; Integrations tab | C1 to C3, C10; `webhook_live_check.py` |
+| T4 | Certificate and record generation | Results tab, "Issue every record"; `/records/<id>` | C4, C11 |
 | T4 | Signed, publicly verifiable judge participation records | Ed25519; `/verify`; `scripts/verify-record.mjs` | C4, C5 |
 | T4 | Embeddable gallery widget | `/embed.js`, `/embed/<event>` | C6 |
-| T4 | Bulk import and export | CSV, `event.json`, `fixtures.json`; import on Your events | C7, C8 |
+| T4 | Bulk import and export | CSV, `event.json`, `fixtures.json`; import on Your events | C7, C8, C12 |
 
 ## Where we deliberately differ
 
