@@ -90,6 +90,32 @@ describe("the fixture import at start", () => {
   });
 });
 
+describe("a changed fixture file bringing a review to a published event", () => {
+  it("known-bad: the database refuses the review, and the start logs it and goes on, as for any addition", () => {
+    expect(bootFixture(h, NOW)).toBe("evt_01");
+    h.sqlite.prepare("UPDATE events SET results_published_at = ? WHERE id = 'evt_01'").run(NOW);
+    const fixture = JSON.parse(fs.readFileSync(path.join(process.cwd(), "fixtures.json"), "utf8"));
+    const judge = fixture.judges[0];
+    const scored = new Set(fixture.scores.filter((s: { judge: string }) => s.judge === judge.id).map((s: { project: string }) => s.project));
+    const project = fixture.projects.find((p: { id: string; track: string }) => judge.tracks.includes(p.track) && !scored.has(p.id));
+    fixture.scores.push({ judge: judge.id, project: project.id, criteria: { functionality: 3, quality: 3, innovation: 3 }, comment: "late" });
+    const changed = path.join(os.tmpdir(), `fixtures-published-review-${process.pid}.json`);
+    fs.writeFileSync(changed, JSON.stringify(fixture));
+    const reviews = () => count("SELECT count(*) AS n FROM scores");
+    const before = reviews();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      process.env.FIXTURES_PATH = changed;
+      expect(bootFixture(h, NOW)).toBe("evt_01");
+      expect(reviews()).toBe(before);
+      expect(warn.mock.calls.map((c) => String(c[0])).join("\n")).toContain("whose results are published, so nothing was added");
+    } finally {
+      warn.mockRestore();
+      fs.unlinkSync(changed);
+    }
+  });
+});
+
 describe("a fixture file the start cannot use", () => {
   it("known-bad: FIXTURES_PATH naming a missing file stops the start with the setting and the path, not a bare ENOENT", () => {
     const missing = path.join(os.tmpdir(), `no-such-fixtures-${process.pid}.json`);

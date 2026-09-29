@@ -10,6 +10,7 @@ import { events } from "./db/schema";
 import { FixtureSchema, importedBefore, importFixtures, type Fixture } from "./db/import-fixtures";
 import { claimDataFolder } from "./instance-lock";
 import { runMigrations } from "./db/migrate";
+import { isPublishedRefusal } from "./db/triggers";
 import { requireEvent } from "./dal/events";
 import { mailProblem } from "./mail";
 import { HttpError } from "./errors";
@@ -134,7 +135,8 @@ export function bootFixture(h: Handle, now: string): string | null {
       },
     });
   } catch (err) {
-    if (err instanceof PublishedEventImport) {
+    // the database refuses a review, a criterion or an assignment for a published event before the count can (triggers.ts)
+    if (err instanceof PublishedEventImport || isPublishedRefusal(err)) {
       console.warn(
         `[boot] fixtures not imported (${path.basename(file)}, sha256 ${sha256.slice(0, 12)}): the file adds to ${fixture.event.id}, whose results are published, so nothing was added. Give the file an event id of its own to import it as a new event.`,
       );

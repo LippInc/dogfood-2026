@@ -5,6 +5,7 @@ import { appendAudit } from "../audit";
 import { authorize, type Actor } from "../authz";
 import { getDb } from "../db/client";
 import { FixtureSchema, importFixtures, type ImportReport } from "../db/import-fixtures";
+import { isPublishedRefusal } from "../db/triggers";
 import { events, userRoles } from "../db/schema";
 import { AuthzError, ConflictError, ValidationError } from "../errors";
 import { guardRead } from "../mutate";
@@ -58,7 +59,21 @@ export function importEventFile(actor: Actor | null, body: unknown): EventImport
   const existing = getDb().select().from(events).where(eq(events.id, fixture.event.id)).get();
   if (existing) guardRead(actor, "event.manage", { kind: "event", event: existing }, new Date(), "write"); // an import changes the event
   let published = false;
-  const report = importFixtures(getDb(), fixture, {
+  const refuse = () =>
+    new ConflictError(
+      "results_published",
+      "This event's results are published, so an import can no longer add to it. Import the file as a new event (give it an event id of its own).",
+    );
+  const run = (opts: Parameters<typeof importFixtures>[2]) => {
+    try {
+      return importFixtures(getDb(), fixture, opts);
+    } catch (err) {
+      // a review, a criterion or an assignment for the published event: the database refused it (src/server/db/triggers.ts)
+      if (isPublishedRefusal(err)) throw refuse();
+      throw err;
+    }
+  };
+  const report = run({
     source: "upload",
     sha256: sha256(canonicalJson(body)),
     now,
@@ -74,12 +89,7 @@ export function importEventFile(actor: Actor | null, body: unknown): EventImport
       }
     },
     after: (tx, r) => {
-      if (published && Object.values(r.inserted).some((n) => n > 0)) {
-        throw new ConflictError(
-          "results_published",
-          "This event's results are published, so an import can no longer add to it. Import the file as a new event (give it an event id of its own).",
-        );
-      }
+      if (published && Object.values(r.inserted).some((n) => n > 0)) throw refuse();
       if (r.inserted.events === 0) return; // the organizers of an event that was already here stay as they are
       const added = tx
         .insert(userRoles)

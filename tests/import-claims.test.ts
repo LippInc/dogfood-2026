@@ -458,6 +458,30 @@ describe("importing onto what this portal already holds", () => {
     expect(nOf(ha, "SELECT count(*) AS n FROM projects WHERE id = 'prj_99'")).toBe(0);
     expect(imports()).toBe(importsBefore + 1); // the passing re-import's row only: the refused one rolled back
   });
+
+  it("once results are published, a file bringing a new review answers the same 409, not a database error; before publishing it goes in", () => {
+    const file = JSON.parse(exportFile(organizer(), EVENT, "fixtures.json").body) as FixtureFile;
+    importEventFile(organizer(), file);
+    // a judge's review of a project in their track they have not scored: the database's post-publish trigger meets it first
+    const judge = file.judges[0]!;
+    const scored = new Set(file.scores.filter((s) => s.judge === judge.id).map((s) => s.project));
+    const project = file.projects.find((p) => judge.tracks.includes(p.track) && !scored.has(p.id))!;
+    const withReview = structuredClone(file);
+    withReview.scores.push({ judge: judge.id, project: project.id, criteria: Object.fromEntries(Object.keys(file.scores[0]!.criteria).map((k) => [k, 3])), comment: "late" } as FixtureFile["scores"][number]);
+    const reviews = () => nOf(ha, "SELECT count(*) AS n FROM scores");
+
+    ha.sqlite.prepare("UPDATE events SET results_published_at = ? WHERE id = ?").run(NOW, EVENT);
+    const before = countsOf(ha);
+    expectHttpError(() => importEventFile(organizer(), withReview), 409, "results_published");
+    expect(countsOf(ha)).toEqual(before);
+
+    // positive control: the same file on the event before publishing adds the review (a fresh event, as publishing is final)
+    const unpublished = structuredClone(withReview);
+    unpublished.event = { ...unpublished.event, id: "evt_late", slug: "late-hack" } as FixtureFile["event"];
+    const n = reviews();
+    importEventFile(organizer(), unpublished);
+    expect(reviews()).toBeGreaterThan(n);
+  });
 });
 
 describe("what an import adds to a judged event is named in the log and marked in the exports", () => {

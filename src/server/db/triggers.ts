@@ -119,6 +119,15 @@ export const TRIGGERS: Record<string, string> = {
   END`,
 };
 
+/**
+ * Whether an error is one of the post-publish refusals above. An import into a published event counts what it
+ * added and refuses in its own words; a row that would add a review, a criterion or an assignment now stops at the
+ * trigger first, so the callers (dal/imports.ts, the boot's bootFixture) map this to the same refusal.
+ */
+export function isPublishedRefusal(err: unknown): boolean {
+  return err instanceof Error && /: the results are published, so /.test(err.message);
+}
+
 const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 
 export type TriggerReport = { created: string[]; restored: string[] };
