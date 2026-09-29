@@ -623,7 +623,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     href: "/organize/[event]/judges",
     who: ["organizer"],
     answer:
-      "On Judges, the Not started view lists the judges who have saved nothing yet, with a reminder to copy for each and for all. With email on (SMTP_URL set) it also has Email reminder and Email all, the same words, at most once an hour per judge.",
+      "On Judges, the Not started view lists the judges who have saved nothing yet, with a reminder to copy for each and for all. With email on (SMTP_URL set) it also has Email reminder beside each judge and Email N reminders for all of them (N is how many have not started), the same words, at most once an hour per judge.",
     keywords: ["remind judges", "reminder", "nudge judges", "judges not started", "chase judges", "email judges", "late judges"],
     doc: { file: "docs/FEATURES.md", heading: "Judging" },
   },

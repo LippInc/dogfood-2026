@@ -191,6 +191,18 @@ describe("the Judges page", () => {
     expect(html).toContain("Copy reminder");
   });
 
+  it("the Help entry names the buttons as this view draws them (Email reminder, Email N reminders), no other", async () => {
+    const { HELP_ENTRIES } = await import("@/lib/help");
+    const answer = HELP_ENTRIES.find((e) => e.id === "remind-judges")!.answer;
+    newJudge("usr_idle", "Ida Idle", 3);
+    newJudge("usr_idle2", "Ivo Idle", 1);
+    const html = await draw("not-started");
+    const named = [...answer.matchAll(/\bEmail (reminder|N reminders|all)\b/g)].map((m) => m[0]);
+    expect(named).toEqual(["Email reminder", "Email N reminders"]);
+    expect(html).toContain("Email reminder");
+    expect(html).toContain("Email 2 reminders");
+  });
+
   it("without SMTP_URL: only today's copy buttons", async () => {
     delete process.env.SMTP_URL;
     newJudge("usr_idle", "Ida Idle", 3);
