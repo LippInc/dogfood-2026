@@ -286,3 +286,15 @@ describe("export and import", () => {
     expect(count("SELECT count(*) AS n FROM event_updates WHERE id = 'upd_planted'")).toBe(0);
   });
 });
+
+describe("the sentence after mailing an update", () => {
+  it("all sent, one reason for all failed, and a mix each read plainly", async () => {
+    const { mailedNote } = await import("@/lib/mail-note");
+    expect(mailedNote({ on: false, mailed: [] }, "participant")).toBe("Nothing was mailed: email is off.");
+    expect(mailedNote({ on: true, mailed: [{ to: "a@x.org", status: "sent" }, { to: "b@x.org", status: "sent" }] }, "participant")).toBe("Mailed to all 2 participants.");
+    const dead = { on: true, mailed: [{ to: "a@x.org", status: "failed" as const, error: "connect ECONNREFUSED" }, { to: "b@x.org", status: "failed" as const, error: "not tried: connect ECONNREFUSED" }] };
+    expect(mailedNote(dead, "participant")).toBe("Could not mail any of the 2 (connect ECONNREFUSED).");
+    const mixed = { on: true, mailed: [{ to: "a@x.org", status: "sent" as const }, { to: "b@x.org", status: "failed" as const, error: "mailbox unavailable" }] };
+    expect(mailedNote(mixed, "participant")).toBe("Mailed 1 of 2. Could not mail b@x.org (mailbox unavailable).");
+  });
+});

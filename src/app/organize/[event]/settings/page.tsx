@@ -94,7 +94,12 @@ export default async function SettingsPage({ params }: PageProps<"/organize/[eve
           <div>
             <h1 className="text-24 font-semibold">Settings</h1>
             <p className="mt-1 text-14 text-ink-2">
-              Every save is written to the audit log with what it changed. Times are in UTC.
+              Every save is written to the audit log with what it changed. Times are in UTC. News for everyone following the event
+              goes on{" "}
+              <a href={`/organize/${event.slug}/updates`} className="underline underline-offset-2 hover:text-ink">
+                the Updates page
+              </a>
+              .
             </p>
           </div>
           {/* on phones the form is five screens long: the same contents, as a two-column index under the heading */}

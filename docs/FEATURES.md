@@ -193,7 +193,7 @@ edited: delete and post again.
 
 ## Updates
 
-An organizer posts news to the event on its Updates tab (`/organize/{event}/updates`): a title of up to 120
+An organizer posts news to the event on its Updates page (`/organize/{event}/updates`, linked from Settings): a title of up to 120
 characters and a plain-text body of up to 5,000. The event's Projects and About pages show the newest three with
 their times (UTC) and a link to its Updates page (`/events/{event}/updates`), which lists every one; an event
 without updates shows nothing, so its pages are as they were. The body is text, never HTML: its line breaks are

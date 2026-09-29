@@ -60,7 +60,20 @@ export function mailedNote(report: MailReport, who: string): string {
   if (sent === total) return total === 1 ? `Mailed to ${report.mailed[0]!.to}.` : `Mailed to all ${total} ${who}s.`;
   if (sent) parts.push(`Mailed ${sent} of ${total}.`);
   if (pending) parts.push(`${pending} still sending: the outbox shows each result as it comes.`);
-  if (failed.length) parts.push(`Could not mail ${list(failed.map((m) => `${m.to} (${m.error ?? "the mail server refused it"})`))}.`);
+  if (failed.length) {
+    // grouped by reason, a "not tried" after a dead server counted with the failure that stopped the batch
+    const byReason = new Map<string, string[]>();
+    for (const m of failed) {
+      const why = (m.error ?? "the mail server refused it").replace(/^not tried: /, "");
+      byReason.set(why, [...(byReason.get(why) ?? []), m.to]);
+    }
+    const [only] = [...byReason.keys()];
+    parts.push(
+      byReason.size === 1 && failed.length === total
+        ? `Could not mail ${total === 1 ? "it" : `any of the ${total}`} (${only}).`
+        : `Could not mail ${[...byReason].map(([why, to]) => `${list(to)} (${why})`).join("; ")}.`,
+    );
+  }
   if (unknown.length) parts.push(`${list(unknown.map((m) => m.to))} may have arrived: the connection to the mail server broke after the message was handed over.`);
   return parts.join(" ");
 }

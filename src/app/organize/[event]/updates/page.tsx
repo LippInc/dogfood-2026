@@ -6,7 +6,8 @@ import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
 import { currentActor, getUpdatesAdmin, UPDATE_BODY_MAX, UPDATE_TITLE_MAX } from "@/server/dal";
 import { postUpdateAction } from "./actions";
-import { BODY_INPUT, EditUpdate, RemoveUpdate, TITLE_INPUT } from "./forms";
+import { EditUpdate, RemoveUpdate } from "./forms";
+import { BODY_INPUT, TITLE_INPUT } from "./styles";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Updates" };
@@ -20,10 +21,17 @@ export default async function UpdatesAdminPage({ params }: PageProps<"/organize/
   if (!actor) unauthorized();
   const { event, updates, emailOn, recipients } = guardPage(() => getUpdatesAdmin(actor, key));
   return (
-    <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Updates")} person={actor.name} role="Organizer">
+    <WorkShell eventName={event.name} eventHref={`/organize/${event.slug}`} tabs={organizerTabs(event.slug, "Settings")} person={actor.name} role="Organizer">
       <div className="mx-auto flex max-w-[960px] flex-col gap-6">
         <div>
-          <h1 className="text-24 font-semibold">Updates</h1>
+          {/* a page of Settings: the tab bar has no room left at 1440 px for a tab of its own */}
+          <p className="text-13 text-ink-3">
+            <a href={`/organize/${event.slug}/settings`} className="underline underline-offset-2 hover:text-ink">
+              Settings
+            </a>{" "}
+            / Updates
+          </p>
+          <h1 className="mt-1 text-24 font-semibold">Updates</h1>
           <p className="mt-1 max-w-[720px] text-14 text-ink-2">
             News for everyone following the event: a deadline moved, judging has started, winners at 18:00. The newest three show on the event&apos;s
             Projects and About pages, all of them on{" "}
@@ -77,18 +85,19 @@ export default async function UpdatesAdminPage({ params }: PageProps<"/organize/
             <ol className="divide-y divide-rule rounded-sm border border-rule bg-surface">
               {updates.map((u) => (
                 <li key={u.id} className="flex flex-col gap-2 px-4 py-4 sm:px-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="label-mono tnum text-ink-3">
-                        {formatUtc(u.at)}
-                        {u.editedAt ? ` · edited ${formatUtc(u.editedAt)}` : ""}
-                      </p>
-                      <h3 className="mt-1 text-15 font-semibold wrap-anywhere">{u.title}</h3>
-                    </div>
-                    <RemoveUpdate eventSlug={event.slug} id={u.id} title={u.title} />
+                  <div className="min-w-0">
+                    <p className="label-mono tnum text-ink-3">
+                      {formatUtc(u.at)}
+                      {u.editedAt ? ` · edited ${formatUtc(u.editedAt)}` : ""}
+                    </p>
+                    <h3 className="mt-1 text-15 font-semibold wrap-anywhere">{u.title}</h3>
                   </div>
                   <p className="max-w-[680px] font-serif text-15 leading-6 whitespace-pre-line text-ink-2 wrap-anywhere">{u.body}</p>
-                  <EditUpdate eventSlug={event.slug} id={u.id} title={u.title} body={u.body} titleMax={UPDATE_TITLE_MAX} bodyMax={UPDATE_BODY_MAX} />
+                  {/* what an organizer can do to it, on one line under its words: edit (opens below) or remove */}
+                  <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                    <EditUpdate eventSlug={event.slug} id={u.id} title={u.title} body={u.body} titleMax={UPDATE_TITLE_MAX} bodyMax={UPDATE_BODY_MAX} />
+                    <RemoveUpdate eventSlug={event.slug} id={u.id} title={u.title} />
+                  </div>
                 </li>
               ))}
             </ol>

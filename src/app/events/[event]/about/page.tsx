@@ -38,7 +38,7 @@ export default async function AboutPage({ params }: PageProps<"/events/[event]/a
       {event.description ? (
         <p className="mt-6 max-w-[680px] font-serif text-17 leading-7 whitespace-pre-line text-ink-2 wrap-anywhere">{event.description}</p>
       ) : null}
-      <LatestUpdates slug={event.slug} {...listUpdates(event.id, UPDATES_SHOWN)} className="mt-8 md:mt-10" />
+      <LatestUpdates slug={event.slug} {...listUpdates(event.id, UPDATES_SHOWN)} closed={false} className="mt-8 md:mt-10" />
       <section aria-labelledby="dates-title" className="mt-8 border-t border-rule pt-6 md:mt-10">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-5">
           <h2 id="dates-title" className="label-mono text-ink">

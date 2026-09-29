@@ -124,7 +124,6 @@ export function organizerTabs(slug: string, active: string): WorkTab[] {
     { href: `/organize/${slug}/judges`, label: "Judges" },
     { href: `/organize/${slug}/voting`, label: "Voting" },
     { href: `/organize/${slug}/results`, label: "Results" },
-    { href: `/organize/${slug}/updates`, label: "Updates" },
     { href: `/organize/${slug}/audit`, label: "Audit log" },
     { href: `/organize/${slug}/integrations`, label: "Integrations" },
     { href: `/organize/${slug}/settings`, label: "Settings" },

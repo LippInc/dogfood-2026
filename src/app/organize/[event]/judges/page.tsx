@@ -339,7 +339,8 @@ export default async function JudgesPage({ params, searchParams }: PageProps<"/o
                               <p className="text-flag">Excluded by an organizer.</p>
                             ) : j.pending > 0 ? (
                               <div className="flex flex-col items-start gap-1">
-                                <div className="flex items-center gap-3">
+                                {/* with the email button beside the copy one the row wraps in the narrow cell; without it, as before */}
+                                <div className={mailable && onlyIdle ? "flex flex-wrap items-center gap-x-3 gap-y-2" : "flex items-center gap-3"}>
                                   <p className="font-medium whitespace-nowrap">{work.label}</p>
                                   {/* once results are published scoring is over: there is nothing to remind anyone of */}
                                   {work.remind ? <CopyButton text={reminder} label="Copy reminder" /> : null}

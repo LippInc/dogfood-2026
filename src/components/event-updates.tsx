@@ -24,7 +24,22 @@ export function UpdateEntry({ u, clamp = false }: { u: UpdateView; clamp?: boole
 }
 
 /** The newest few updates with a way to every one of them; nothing when there is none. */
-export function LatestUpdates({ slug, updates, total, clamp = false, className = "" }: { slug: string; updates: UpdateView[]; total: number; clamp?: boolean; className?: string }) {
+/** closed: a rule under the last update, for a page whose next part draws none of its own. */
+export function LatestUpdates({
+  slug,
+  updates,
+  total,
+  clamp = false,
+  closed = true,
+  className = "",
+}: {
+  slug: string;
+  updates: UpdateView[];
+  total: number;
+  clamp?: boolean;
+  closed?: boolean;
+  className?: string;
+}) {
   if (!updates.length) return null;
   return (
     <section aria-labelledby="updates-title" className={`border-t border-rule pt-6 ${className}`}>
@@ -36,7 +51,7 @@ export function LatestUpdates({ slug, updates, total, clamp = false, className =
           {total > updates.length ? `Every update (${total})` : total === 1 ? "The update on its own page" : `All ${total} updates on their own page`}
         </Link>
       </div>
-      <div className="mt-2 divide-y divide-rule border-b border-rule">
+      <div className={`mt-2 divide-y divide-rule ${closed ? "border-b border-rule" : ""}`}>
         {updates.map((u) => (
           <UpdateEntry key={u.id} u={u} clamp={clamp} />
         ))}

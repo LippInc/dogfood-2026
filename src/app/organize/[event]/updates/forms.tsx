@@ -5,17 +5,15 @@ import { Button } from "@/components/ui/button";
 import { useFormAction } from "@/components/use-form-action";
 import type { ActionResult } from "@/server/dal";
 import { editUpdateAction, removeUpdateAction } from "./actions";
+import { BODY_INPUT, TITLE_INPUT } from "./styles";
 
-const field = "w-full rounded-sm border border-edge bg-surface px-2.5 text-14";
-export const TITLE_INPUT = `h-8 ${field}`;
-export const BODY_INPUT = `${field} py-2 font-serif text-15 leading-6`;
 
 /** An update's edit form, opened under it; saving keeps the old words in the audit log and mails nothing. */
 export function EditUpdate({ eventSlug, id, title, body, titleMax, bodyMax }: { eventSlug: string; id: string; title: string; body: string; titleMax: number; bodyMax: number }) {
   const [state, form, pending] = useFormAction<ActionResult>(editUpdateAction, { ok: false, message: null }, { resetOnSuccess: false });
   const errors = Object.values(state.fieldErrors ?? {}).flat();
   return (
-    <details className="group mt-3">
+    <details className="group min-w-0 flex-1 basis-[280px] pt-1">
       <summary className="inline-flex cursor-pointer list-none items-center rounded-sm text-13 font-medium text-ink underline underline-offset-2 [&::-webkit-details-marker]:hidden">
         <span className="group-open:hidden">Edit</span>
         <span className="hidden group-open:inline">Close the editor</span>
