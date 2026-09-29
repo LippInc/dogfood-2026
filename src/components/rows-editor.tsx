@@ -3,6 +3,7 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SectionErrors } from "@/components/section-form";
+import { rowTyped } from "@/lib/row-typed";
 
 export type RowField =
   | { key: string; label: string; type: "text"; placeholder?: string; width?: string }
@@ -95,9 +96,9 @@ export function RowsEditor({
     made.current += 1;
     setItems((r) => [...r, { k: `added-${made.current}`, row: { ...blank } }]);
   };
-  // A new row nobody typed into is left out, so the blank row the editor starts with
-  // never fails validation ("a prize needs a name"); a stored row is always sent.
-  const isTyped = (row: Row) => row.id !== undefined || fields.some((f) => f.type === "text" && String(row[f.key] ?? "").trim() !== "");
+  // A new row nobody changed is left out, so the blank row the editor starts with never fails
+  // validation ("a prize needs a name"); a stored row, or one with any field changed, is sent.
+  const isTyped = (row: Row) => rowTyped(row, fields, blank);
   const typed = rows.filter(isTyped);
   const sentAt = rows.map((row) => (isTyped(row) ? typed.indexOf(row) : -1));
   const rowErrors = (i: number) => (errors && sentAt[i] >= 0 ? (errors[String(sentAt[i])] ?? []) : []);
