@@ -1,6 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import type { DbOrTx } from "./db/client";
 import { auditLog } from "./db/schema";
 import { canonicalJson, nowIso, sha256 } from "./util";
@@ -112,9 +112,17 @@ export function appendAudit(tx: DbOrTx, entry: AuditEntry, at: string = nowIso()
   return hash;
 }
 
-export type ChainCheck = { ok: true; rows: number; head: string } | { ok: false; rows: number; brokenAtId: number };
+/** `cut`: how many rows are missing from the end (brokenAtId is then the first of them). */
+export type ChainCheck = { ok: true; rows: number; head: string } | { ok: false; rows: number; brokenAtId: number; cut?: number };
 
-/** Recompute the chain from the first row; any edited, dropped or reordered row breaks it. */
+/**
+ * Recompute the chain from the first row; any edited, dropped or reordered row breaks it. Rows cut off the end leave
+ * what remains a whole chain, so the check also reads SQLite's own count for the table: `sqlite_sequence` holds the
+ * highest id AUTOINCREMENT ever gave an audit row (a rolled-back write puts it back; nothing in the app lowers it, and
+ * the triggers keep every new row at the end). When it is past the last row, the rows between were removed. A
+ * tripwire for a careless cut, not proof: whoever edits the file can lower that count too, and what catches them is a
+ * head kept outside the portal (DATA-MODEL.md, "The chain").
+ */
 export function verifyAuditChain(db: DbOrTx): ChainCheck {
   const rows = db.select().from(auditLog).orderBy(auditLog.id).all();
   let prev = GENESIS_HASH;
@@ -134,5 +142,8 @@ export function verifyAuditChain(db: DbOrTx): ChainCheck {
     if (r.prevHash !== prev || r.hash !== expected) return { ok: false, rows: rows.length, brokenAtId: r.id };
     prev = r.hash;
   }
+  const last = rows.at(-1)?.id ?? 0;
+  const written = db.get<{ seq: number } | undefined>(sql`SELECT seq FROM sqlite_sequence WHERE name = 'audit_log'`)?.seq ?? 0;
+  if (written > last) return { ok: false, rows: rows.length, brokenAtId: last + 1, cut: written - last };
   return { ok: true, rows: rows.length, head: prev };
 }

@@ -42,7 +42,7 @@ export const OPERATIONS: Operation[] = [
   // Portal
   { method: "GET", path: "/api/health", tag: "Portal", summary: "Liveness and database check: { ok, events }", access: "anyone", answers: { 503: "Not ready: warming up, the data folder cannot be written, or no event yet; the same report with ok: false and the problem" } },
   { method: "GET", path: "/api/openapi.json", tag: "Portal", summary: "This document", access: "anyone" },
-  { method: "GET", path: "/api/audit", tag: "Portal", summary: "The portal's own audit log: the entries no event owns (accounts, sign-ins, API tokens, the signing key, demo mode), newest first, each as a sentence with its row id and hash, and the chain's state; ?limit= up to 5000 (default 500)", access: "administrator" },
+  { method: "GET", path: "/api/audit", tag: "Portal", summary: "The portal's own audit log: the entries no event owns (accounts, sign-ins, API tokens, the signing key, demo mode), newest first, each as a sentence with its row id and hash, and the chain's state (verified with its head, broken at a row, or cut: rows removed from the end, counted); ?limit= up to 5000 (default 500)", access: "administrator" },
 
   // Accounts
   { method: "POST", path: "/api/auth/sign-up", tag: "Accounts", summary: "Create an account and sign in (sets the session cookie)", access: "anyone", body: In.SignUp, ok: 201, also: [403, 409, 429], note: "An address named in ADMIN_EMAILS signs up only with the one-time setup code from the server log (403 without it). One network address gets 300 sign-ups and password sign-ins per 10 minutes by default (SIGN_IN_LIMIT_PER_ADDRESS), then 429. A browser request from another origin is 403 cross_origin." },
@@ -83,7 +83,7 @@ export const OPERATIONS: Operation[] = [
   { method: "PUT", path: "/api/events/{event}/questions", tag: "Events", summary: "Replace the custom submission questions", access: "organizer", body: In.QuestionRows, also: [409], note: "409 question_answered: a question teams have answered cannot be removed; edit it instead." },
   { method: "PUT", path: "/api/events/{event}/rubric", tag: "Events", summary: "Replace the weighted scoring rubric", access: "organizer", body: In.RubricInput, also: [409], note: "The body is { criteria, reason }, or a bare list of rows (the rows with no reason). Once any score exists the set of criteria is fixed (409 rubric_in_use), and a weight change needs a reason (422 without one): it is audited and the published results list it (weightChanges). Labels and prompts can change until the results are published (409 results_published)." },
   { method: "GET", path: "/api/events/{event}/overview", tag: "Events", summary: "Progress, open decisions and the latest audit lines", access: "organizer" },
-  { method: "GET", path: "/api/events/{event}/audit", tag: "Events", summary: "The event's audit log, newest first, as its log page shows it (a ballot's picks sealed until voting closes), each entry a sentence with its row id and hash, and the chain's state; ?limit= up to 5000 (default 500)", access: "organizer" },
+  { method: "GET", path: "/api/events/{event}/audit", tag: "Events", summary: "The event's audit log, newest first, as its log page shows it (a ballot's picks sealed until voting closes), each entry a sentence with its row id and hash, and the chain's state (verified with its head, broken at a row, or cut: rows removed from the end, counted); ?limit= up to 5000 (default 500)", access: "organizer" },
   {
     method: "GET",
     path: "/api/events/{event}/export/{file}",

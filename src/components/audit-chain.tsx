@@ -8,7 +8,24 @@ import type { AuditLine } from "@/server/dal";
 // rows that belong elsewhere. The drawing matches the event's Audit log tab; the portal
 // log (/organize/log) uses these pieces.
 
-export type Chain = { ok: true; rows: number; head: string } | { ok: false; brokenAtId: number };
+export type Chain = { ok: true; rows: number; head: string } | { ok: false; brokenAtId: number; cut?: number };
+
+/** The seal's heading: verified, broken at a row, or rows cut from the end (src/server/audit.ts verifyAuditChain). */
+export function chainHeading(chain: Chain): string {
+  if (chain.ok) return "Chain verified";
+  return chain.cut ? `${plural(chain.cut, "row")} cut from the end` : `Chain broken at row #${chain.brokenAtId}`;
+}
+
+/** What a broken chain means, in words. */
+export function chainBrokenText(chain: Extract<Chain, { ok: false }>): string {
+  if (!chain.cut) return `A row was changed outside the app. Treat everything from row #${chain.brokenAtId} on as unverified.`;
+  const last = chain.brokenAtId - 1;
+  const written = last + chain.cut;
+  return (
+    `${last > 0 ? `The log ends at row #${last}` : "The log is empty"}, but SQLite's own count says ${plural(written, "row")} ${written === 1 ? "was" : "were"} written: ` +
+    `${chain.cut === 1 ? "the last one was" : `the last ${chain.cut} were`} removed outside the app. Treat the log as unverified.`
+  );
+}
 
 export const isRefusal = (l: AuditLine) => l.action.endsWith(".refused");
 
@@ -102,13 +119,13 @@ export function ChainSeal({ chain }: { chain: Chain }) {
               <path d="M6 6l8 8M14 6l-8 8" className="fill-none stroke-flag-bar" strokeWidth="2" />
             </svg>
           )}
-          {chain.ok ? "Chain verified" : `Chain broken at row #${chain.brokenAtId}`}
+          {chainHeading(chain)}
         </h2>
         <p className="text-14 text-ink-2">
           {chain.ok ? (
             <>Recomputed from the first row on this request: {plural(chain.rows, "row")} in the whole log, each hash matching the row before it.</>
           ) : (
-            <>A row was changed outside the app. Treat everything from row #{chain.brokenAtId} on as unverified.</>
+            <>{chainBrokenText(chain)}</>
           )}
         </p>
       </div>

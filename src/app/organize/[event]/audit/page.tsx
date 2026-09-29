@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { unauthorized } from "next/navigation";
 import { HashGlyph, hashGroups } from "@/components/figures/hash-glyph";
+import { chainBrokenText, chainHeading } from "@/components/audit-chain";
 import { organizerTabs, WorkShell } from "@/components/shell/work-shell";
 import { formatUtc, plural } from "@/lib/format";
 import { guardPage } from "@/lib/page-guard";
@@ -237,7 +238,7 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
                   <path d="M6 6l8 8M14 6l-8 8" className="fill-none stroke-flag-bar" strokeWidth="2" />
                 </svg>
               )}
-              {chain.ok ? "Chain verified" : `Chain broken at row #${chain.brokenAtId}`}
+              {chainHeading(chain)}
             </h2>
             <p className="text-14 text-ink-2">
               {chain.ok ? (
@@ -245,7 +246,7 @@ export default async function AuditPage({ params, searchParams }: PageProps<"/or
                   Recomputed from the first row on this request: {plural(chain.rows, "row")} in the whole log, each hash matching the row before it.
                 </>
               ) : (
-                <>A row was changed outside the app. Treat everything from row #{chain.brokenAtId} on as unverified.</>
+                <>{chainBrokenText(chain)}</>
               )}
             </p>
           </div>

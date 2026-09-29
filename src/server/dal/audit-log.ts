@@ -2,7 +2,7 @@ import "server-only";
 import { FIELD_LABELS, type ProjectField } from "@/lib/project-fields";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Actor } from "../authz";
-import { verifyAuditChain } from "../audit";
+import { chainHead, verifyAuditChain } from "../audit";
 import { getDb, type DbOrTx } from "../db/client";
 import { formatUtc } from "@/lib/format";
 import type { TextEdit } from "@/lib/text-edit";
@@ -649,17 +649,20 @@ export function getPortalEntries(actor: Actor | null, opts: { limit?: number } =
 /**
  * The event's log as CSV, oldest first, every row with its own hash and the one before, and every field the hash
  * covers: a row whose values are shown can be recomputed from its own line (DATA-MODEL.md, "The chain"). A ballot's
- * picks and its salt stay hidden together until voting closes.
+ * picks and its salt stay hidden together until voting closes. Every line also carries the whole log's head, its hash
+ * and its entry number: the pair a signed record pins, so a saved export is an anchor (the log must still hold that
+ * entry with that hash; an export whose head entry is lower than a saved one's was cut).
  */
 export function auditCsv(db: DbOrTx, eventId: string): string {
   const rows = db.select().from(auditLog).where(eq(auditLog.eventId, eventId)).orderBy(auditLog.id).all();
   const text = lines(db, eventId, rows);
   const head = verifyAuditChain(db);
+  const entry = head.ok ? (chainHead(db)?.entry ?? "") : "";
   const sealed = ballotsSealed(db, eventId);
   const hidden = (r: Row) => sealed && r.action === "vote.cast";
   const payload = (r: Row, v: unknown) => (v === null ? "" : hidden(r) ? SEALED : JSON.stringify(v));
   return toCsv(
-    ["id", "at", "actor", "actor_user_id", "action", "sentence", "event_id", "target_type", "target_id", "before", "after", "salt", "prev_hash", "hash", "chain_ok", "chain_head"],
+    ["id", "at", "actor", "actor_user_id", "action", "sentence", "event_id", "target_type", "target_id", "before", "after", "salt", "prev_hash", "hash", "chain_ok", "chain_head", "chain_head_entry"],
     rows.map((r, i) => [
       r.id,
       r.at,
@@ -676,7 +679,8 @@ export function auditCsv(db: DbOrTx, eventId: string): string {
       r.prevHash,
       r.hash,
       head.ok ? "yes" : "no",
-      head.ok ? (head.head ?? "") : `broken at ${head.brokenAtId}`,
+      head.ok ? (head.head ?? "") : head.cut ? `${head.cut} cut from the end, after entry ${head.brokenAtId - 1}` : `broken at ${head.brokenAtId}`,
+      entry,
     ]),
   );
 }
