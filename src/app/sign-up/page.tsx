@@ -34,7 +34,7 @@ export default async function SignUpPage({ searchParams }: PageProps<"/sign-up">
           <p className="mt-2 text-15 text-ink-2">
             {setup
               ? "This account will administer the portal: it creates events, or imports them from a file."
-              : "An account on its own can do nothing yet: you get a role by starting or joining a team, or when an organizer invites you to judge."}
+              : "An account on its own can comment on projects, and vote where an event lets accounts vote; for more, you get a role by starting or joining a team, or when an organizer invites you to judge."}
           </p>
           <div className="mt-8">
             <SignUpForm next={next} setup={setup} />
