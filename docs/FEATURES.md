@@ -132,7 +132,7 @@ audit log ("awarded the prize ... to ..."), and removing an awarded prize on Set
 as taken back. Only the event's submitted projects can win; a winner later merged into its other copy
 no longer counts. Publishing makes the awards final: the app answers 409 `results_published`, and the database
 refuses a changed award, and any edit to the prize list of an event that awarded one. Once published, the public
-results show each prize with its winners and note, a winner's project page says "Winner, <prize>", and so does its
+results show each prize with its winners (each with its published place in its track) and note, a winner's project page says "Winner, <prize>", and so does its
 team's certificate ("Joint winner, <prize>" for a joint award). `GET /api/events/{event}/awards` lists them
 (organizers before publishing, anyone after), `PUT /api/events/{event}/awards/{prize}` sets one, and `awards.csv`
 exports them. An event that awards no prize shows, exports and signs exactly what it did before.

@@ -476,7 +476,7 @@ Results tab before publishing with the places beside each project. The rule:
 - Every award, change and taking back is one audited action, in the same transaction as the change.
 - Publishing makes them final: the app refuses a change (409 `results_published`) and so does the database
   (`events_prize_awards_final`, and `prizes_final_*` for the prize list of an event that awarded one).
-- The public results list each prize with its winners and note; a winner's page and its team's certificates say
+- The public results list each prize with its winners, each with its place in its track as published ("4th"), and the note; a winner's page and its team's certificates say
   "Winner, <prize>" ("Joint winner, <prize>" for a joint award). A place does not win a prize by itself: the first
   places stay as the engine placed them, and the prizes show beside them.
 - An event that awards no prize publishes, exports and signs exactly what it did before prizes could be awarded.

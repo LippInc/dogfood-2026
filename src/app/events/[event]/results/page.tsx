@@ -232,7 +232,11 @@ export default async function ResultsPage({ params }: PageProps<"/events/[event]
             ) : null}
           </div>
 
-          <PrizeWinners eventSlug={event.slug} prizes={prizes} />
+          <PrizeWinners
+            eventSlug={event.slug}
+            prizes={prizes}
+            places={Object.fromEntries(placed.flatMap((t) => t.rows.map((r, i) => [r.projectId, t.places[i]!.place === null ? "not placed" : `${t.places[i]!.joint ? "joint " : ""}${ordinal(t.places[i]!.place!)}`])))}
+          />
 
           <section aria-labelledby="scale-title" className="mt-16 border-t border-rule pt-6">
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">

@@ -5,9 +5,11 @@ import type { PrizeStanding } from "@/server/dal";
 /**
  * The published prizes, each with its winners (a joint award names them all) and the organizers' note, in the
  * results page's language: a label-mono heading, then one column per prize under an accent rule, like the first
- * places. Rendered only when the results are published and at least one prize was awarded.
+ * places. Each winner shows its place in its track as the published results give it ("4th", "joint 1st"), so a prize
+ * given to a project that did not top its track reads as the organizers' choice it is. Rendered only when the results
+ * are published and at least one prize was awarded.
  */
-export function PrizeWinners({ eventSlug, prizes }: { eventSlug: string; prizes: PrizeStanding[] }) {
+export function PrizeWinners({ eventSlug, prizes, places }: { eventSlug: string; prizes: PrizeStanding[]; places: Record<string, string> }) {
   if (!prizes.some((p) => p.winners.length)) return null;
   return (
     <section aria-labelledby="prizes-title" className="mt-16 border-t border-rule pt-6">
@@ -15,7 +17,7 @@ export function PrizeWinners({ eventSlug, prizes }: { eventSlug: string; prizes:
         <h2 id="prizes-title" className="label-mono text-ink">
           Prizes
         </h2>
-        <p className="text-13 text-ink-3">Given by the organizers on the final places. Each winner opens its project.</p>
+        <p className="text-13 text-ink-3">Chosen by the organizers; each winner&apos;s place is the engine&apos;s. Each winner opens its project.</p>
       </div>
       <ol className="mt-6 grid grid-cols-[minmax(0,1fr)] gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
         {prizes.map((p) => (
@@ -37,6 +39,7 @@ export function PrizeWinners({ eventSlug, prizes }: { eventSlug: string; prizes:
                           <span className="block text-13 text-ink-2">
                             {w.teamName}
                             {w.trackName ? ` · ${w.trackName}` : ""}
+                            {places[w.projectId] ? ` · ${places[w.projectId]}` : ""}
                           </span>
                         </span>
                       </Link>
