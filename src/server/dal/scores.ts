@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, type SQL } from "drizzle-orm";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import {
@@ -57,12 +57,30 @@ export function getJudgeScores(actor: Actor | null, requestedJudgeId: string | n
 
 /**
  * Every review assigned to one judge, in the judge's own order. DAL-internal.
- * ownTracksOnly: what the judge may see (projects in their tracks now); exports pass
- * nothing and get every review.
+ * ownTracksOnly: what the judge may see (projects in their tracks now).
  */
 export function reviewsOf(db: DbOrTx, judgeUserId: string, opts: { ownTracksOnly?: boolean } = {}): JudgeReview[] {
+  return readReviews(db, and(eq(assignments.judgeUserId, judgeUserId), opts.ownTracksOnly ? inJudgeTracks : undefined));
+}
+
+/**
+ * Every review of one event, each judge's in that judge's own order, keyed by judge: the exports read the whole
+ * event in one pass instead of one judge (and every event of theirs) at a time. DAL-internal.
+ */
+export function eventReviews(db: DbOrTx, eventId: string): Map<string, JudgeReview[]> {
+  const byJudge = new Map<string, JudgeReview[]>();
+  for (const { judgeUserId, ...review } of readReviews(db, eq(assignments.eventId, eventId))) {
+    const list = byJudge.get(judgeUserId) ?? [];
+    list.push(review);
+    byJudge.set(judgeUserId, list);
+  }
+  return byJudge;
+}
+
+function readReviews(db: DbOrTx, where: SQL | undefined): (JudgeReview & { judgeUserId: string })[] {
   const rows = db
     .select({
+      judgeUserId: assignments.judgeUserId,
       assignmentId: assignments.id,
       eventId: assignments.eventId,
       projectId: projects.id,
@@ -83,7 +101,7 @@ export function reviewsOf(db: DbOrTx, judgeUserId: string, opts: { ownTracksOnly
     .innerJoin(tracks, eq(tracks.id, projects.trackId))
     .leftJoin(scores, eq(scores.assignmentId, assignments.id))
     .leftJoin(scoreComments, eq(scoreComments.scoreId, scores.id))
-    .where(and(eq(assignments.judgeUserId, judgeUserId), opts.ownTracksOnly ? inJudgeTracks : undefined))
+    .where(where)
     .orderBy(asc(assignments.eventId), asc(assignments.batchNo), asc(assignments.position), asc(assignments.id))
     .all();
 
@@ -120,6 +138,7 @@ export function reviewsOf(db: DbOrTx, judgeUserId: string, opts: { ownTracksOnly
     const its = r.scoreId ? (byScore.get(r.scoreId) ?? []) : [];
     const complete = its.length > 0 && its.length === criteriaCount.get(r.eventId);
     return {
+      judgeUserId: r.judgeUserId,
       assignmentId: r.assignmentId,
       eventId: r.eventId,
       projectId: r.projectId,

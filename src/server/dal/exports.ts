@@ -33,7 +33,7 @@ import { computeNormalization } from "./normalization";
 import { PAIRWISE_METHOD } from "./pairwise";
 import { averageRanks } from "../judging/normalize";
 import { issuer } from "./records";
-import { reviewsOf } from "./scores";
+import { eventReviews } from "./scores";
 import { changedFromDefaults } from "@/lib/project-fields";
 import { labelFor } from "../db/import-fixtures";
 import { BUILTIN_CRITERIA } from "../rubric-defaults";
@@ -70,9 +70,10 @@ function scoresCsv(db: DbOrTx, event: EventRow): string {
       .all()
       .map((a) => a.id),
   );
+  const reviews = eventReviews(db, event.id);
   const rows: Cell[][] = [];
   for (const j of judges) {
-    for (const r of reviewsOf(db, j.id).filter((x) => x.eventId === event.id)) {
+    for (const r of reviews.get(j.id) ?? []) {
       const value = new Map(r.items.map((i) => [i.key, i.value]));
       rows.push([
         r.projectId,
@@ -380,9 +381,10 @@ function fixturesJson(db: DbOrTx, event: EventRow): string {
   const submitted = new Set(projectRows.map((p) => p.id));
   // beyond the organizers' format, and only when the event asks for something other than the defaults
   const fields = changedFromDefaults(fieldModes(db, event.id));
+  const reviews = eventReviews(db, event.id);
   const scoreRows = judgeRows.flatMap((j) =>
-    reviewsOf(db, j.id)
-      .filter((r) => r.eventId === event.id && r.status === "done" && submitted.has(r.projectId))
+    (reviews.get(j.id) ?? [])
+      .filter((r) => r.status === "done" && submitted.has(r.projectId))
       .map((r) => ({
         judge: j.id,
         project: r.projectId,
