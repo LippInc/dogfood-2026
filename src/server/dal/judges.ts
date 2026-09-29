@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { Actor } from "../authz";
 import { getDb, type DbOrTx } from "../db/client";
 import { assignmentRuns, assignments, events, judgeInvites, judgeTracks, projects, scores, tracks, userRoles, users, auditLog } from "../db/schema";
-import { ConflictError, NotFoundError, ValidationError } from "../errors";
+import { ConflictError, HttpError, NotFoundError, ValidationError } from "../errors";
 import { formatUtc } from "@/lib/format";
 import type { FlatFlag } from "../judging/flat";
 import { guardRead, mutate } from "../mutate";
@@ -69,6 +69,25 @@ function replaceOpenInvites(tx: DbOrTx, eventId: string, email: string, now: str
   for (const row of open) tx.update(judgeInvites).set({ revokedAt: now }).where(eq(judgeInvites.id, row.id)).run();
   return open.map((row) => ({ action: "judge.invite_revoke", eventId, targetType: "judge_invite", targetId: row.id, after: { replacedBy } }));
 }
+
+/**
+ * Whether a revoked invitation was replaced by a newer one for the same address (replaceOpenInvites), read from the
+ * audit row written with the revocation, which names the replacement; false when an organizer revoked it by hand.
+ */
+function wasReplaced(db: DbOrTx, invite: { id: string; eventId: string }): boolean {
+  const row = db
+    .select({ after: auditLog.after })
+    .from(auditLog)
+    .where(and(eq(auditLog.eventId, invite.eventId), eq(auditLog.action, "judge.invite_revoke"), eq(auditLog.targetType, "judge_invite"), eq(auditLog.targetId, invite.id)))
+    .orderBy(desc(auditLog.id))
+    .limit(1)
+    .get();
+  return typeof (row?.after as { replacedBy?: unknown } | null | undefined)?.replacedBy === "string";
+}
+
+/** A link a newer invitation to the same address replaced: said as such (410 invite_replaced), not as a link never made. */
+const inviteReplaced = () =>
+  new HttpError(410, "invite_replaced", "A newer invitation replaced this link. Use the link in the newest invitation mail, or ask the organizer for a new one.");
 
 /** The organizer makes an invitation link. The code is returned once and never stored. */
 export function inviteJudge(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
@@ -259,7 +278,8 @@ export type JudgeInviteView = {
   name: string;
   email: string | null;
   tracks: string[];
-  state: "open" | "used";
+  /** replaced: a newer invitation to the same address replaced this link, which no longer admits anyone */
+  state: "open" | "used" | "replaced";
   /** why the event takes no new judges any more (judging closed, results published); null while it does */
   closed: string | null;
 };
@@ -281,7 +301,9 @@ export function joiningClosed(event: Pick<EventRow, "resultsPublishedAt" | "judg
 export function judgeInviteByCode(code: string): JudgeInviteView {
   const db = getDb();
   const row = db.select().from(judgeInvites).where(eq(judgeInvites.codeHash, sha256(code))).get();
-  if (!row || row.revokedAt) throw new NotFoundError("Invitation link");
+  if (!row) throw new NotFoundError("Invitation link");
+  const replaced = Boolean(row.revokedAt) && wasReplaced(db, row);
+  if (row.revokedAt && !replaced) throw new NotFoundError("Invitation link");
   const full = requireEvent(db, row.eventId);
   const names = row.trackIds.length
     ? db.select({ name: tracks.name }).from(tracks).where(inArray(tracks.id, row.trackIds)).orderBy(asc(tracks.position)).all().map((t) => t.name)
@@ -291,7 +313,7 @@ export function judgeInviteByCode(code: string): JudgeInviteView {
     name: row.name,
     email: row.email,
     tracks: names,
-    state: row.acceptedAt ? "used" : "open",
+    state: replaced ? "replaced" : row.acceptedAt ? "used" : "open",
     closed: joiningClosed(full)?.message ?? null,
   };
 }
@@ -304,7 +326,8 @@ export function acceptJudgeInvite(actor: Actor | null, code: string) {
     action: "judge.accept_invite",
     load: (tx) => {
       const row = tx.select().from(judgeInvites).where(eq(judgeInvites.codeHash, sha256(code))).get();
-      if (!row || row.revokedAt) throw new NotFoundError("Invitation link");
+      if (!row) throw new NotFoundError("Invitation link");
+      if (row.revokedAt) throw wasReplaced(tx, row) ? inviteReplaced() : new NotFoundError("Invitation link");
       invite = row;
       event = requireEvent(tx, row.eventId);
       return { kind: "judge_invite", event: eventFacts(event), email: row.email };

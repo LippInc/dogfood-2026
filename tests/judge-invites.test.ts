@@ -10,6 +10,8 @@ import { ensureDemoOrganizer } from "@/server/checker";
 import { HttpError } from "@/server/errors";
 import { sha256 } from "@/server/util";
 import { acceptJudgeInvite, inviteJudge, judgeInviteByCode, revokeJudgeInvite, setJudgeTracks } from "@/server/dal/judges";
+import { latestAudit } from "@/server/dal/audit-log";
+import { replacedNote } from "@/lib/invite-note";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -316,12 +318,55 @@ describe("one open invitation per address", () => {
     expect(second.replaced).toBe(1);
     expect(inviteRow(first.id).revoked_at).not.toBeNull();
     expect(inviteRow(second.id).revoked_at).toBeNull();
-    expectHttpError(() => judgeInviteByCode(first.code), 404, "not_found");
+    expect(judgeInviteByCode(first.code).state).toBe("replaced");
     expect(judgeInviteByCode(second.code).state).toBe("open");
     expect(count("SELECT count(*) AS n FROM judge_invites WHERE email = 'mira@example.org' AND accepted_at IS NULL AND revoked_at IS NULL")).toBe(1);
     const revoked = auditRows().filter((r) => r.action === "judge.invite_revoke");
     expect(revoked.map((r) => [r.targetId, r.after])).toEqual([[first.id, { replacedBy: second.id }]]);
     expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
+  it("a replaced link says a newer invitation replaced it, with its own code (410 invite_replaced), not that it was never there", () => {
+    const mira = addUser("usr_mira", "mira@example.org", "Mira");
+    const first = inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    const second = inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    expectHttpError(() => acceptJudgeInvite(mira, first.code), 410, "invite_replaced");
+    let message = "";
+    try {
+      acceptJudgeInvite(mira, first.code);
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    expect(message).toMatch(/newer invitation replaced this link/i);
+    expect(message).toMatch(/newest invitation mail|ask the organizer/i);
+    expect(inviteRow(first.id).accepted_at).toBeNull(); // nothing taken through the old link
+    acceptJudgeInvite(mira, second.code); // positive control: the newest link admits her
+    expect(inviteRow(second.id).accepted_by).toBe("usr_mira");
+    // known-bad: a link the organizer revoked by hand, and a made-up one, stay plain 404s
+    const noor = inviteJudge(organizer(), "evt_01", { name: "Noor", email: "noor@example.org", trackIds: ["trk_01"] });
+    revokeJudgeInvite(organizer(), noor.id);
+    expectHttpError(() => judgeInviteByCode(noor.code), 404, "not_found");
+    expectHttpError(() => acceptJudgeInvite(addUser("usr_noor", "noor@example.org", "Noor"), noor.code), 404, "not_found");
+    expectHttpError(() => acceptJudgeInvite(mira, "made-up-code"), 404, "not_found");
+  });
+
+  it("the audit log says a replaced invitation was replaced by a new one, and a revoked one that it was revoked", () => {
+    const first = inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    const noor = inviteJudge(organizer(), "evt_01", { name: "Noor", email: "noor@example.org", trackIds: ["trk_01"] });
+    revokeJudgeInvite(organizer(), noor.id);
+    const said = latestAudit(h.db, "evt_01", 10, ["judge.invite_revoke"]).map((l) => [l.targetId, l.parts.map((p) => p.text).join("")]);
+    expect(said).toHaveLength(2);
+    const byTarget = Object.fromEntries(said);
+    expect(byTarget[first.id]).toMatch(/replaced a judge invitation .*with a new invitation/);
+    expect(byTarget[first.id]).not.toMatch(/revoked/);
+    expect(byTarget[noor.id]).toMatch(/revoked a judge invitation/);
+  });
+
+  it("the organizer's screen says which addresses' older links stopped working", () => {
+    expect(replacedNote([])).toBeNull();
+    expect(replacedNote(["mira@example.org"])).toBe("The older invitation for mira@example.org stopped working: this new link replaces it.");
+    expect(replacedNote(["mira@example.org", "noor@example.org"])).toBe("The older invitations for mira@example.org and noor@example.org stopped working: the new links replace them.");
   });
 
   it("positive controls: another address, an open link without one, and an accepted invitation are left alone", () => {

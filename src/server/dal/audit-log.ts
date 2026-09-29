@@ -275,7 +275,8 @@ function sentence(r: Row, n: Names): Part[] {
     case "judge.invite":
       return [actor, t(` made a judge invitation for ${after.name || after.email || "an open link"}`)];
     case "judge.invite_revoke":
-      return [actor, t(" revoked a judge invitation")];
+      // replacedBy: the organizer invited the same address again, and the new invitation took this one's place
+      return [actor, t(after.replacedBy ? " replaced a judge invitation with a new invitation to the same address; the older link stopped working" : " revoked a judge invitation")];
     case "judge.join":
       return [actor, t(" joined as a judge")];
     case "judge.remove": {

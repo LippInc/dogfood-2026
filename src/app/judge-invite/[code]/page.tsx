@@ -56,7 +56,12 @@ export default async function JudgeInvitePage({ params }: PageProps<"/judge-invi
           judging is done{gallery.event.judgingCloseAt ? `, at the latest ${formatUtc(gallery.event.judgingCloseAt)}` : ""}.
         </p>
         <div className="mt-8 flex flex-col gap-4">
-          {invite.state === "used" ? (
+          {invite.state === "replaced" ? (
+            <TicketNote flag>
+              A newer invitation replaced this link, so it no longer admits anyone. Use the link in the newest invitation mail, or ask the organizer for a
+              new one.
+            </TicketNote>
+          ) : invite.state === "used" ? (
             alreadyJudge ? (
               <>
                 <TicketNote>This invitation was used, and you judge this event.</TicketNote>

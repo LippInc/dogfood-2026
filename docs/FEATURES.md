@@ -32,7 +32,9 @@ organizer's questions); the server refuses changes after it.
 
 - **Invitations.** The organizer invites judges by link, one at a time or from a pasted list of names and
   addresses, one link each (no mail server needed; a link stops admitting judges once judging closes or the
-  results are out).
+  results are out). An address holds one open invitation per event: inviting it again replaces the open one.
+  The Judges page then says the older link stopped working, the audit log says it was replaced by a new
+  invitation, and the old link tells whoever opens it that a newer invitation replaced it.
 - **Assignment.** Projects are assigned with a seeded, stored assignment run; judges score in a keyboard-first
   console with autosave and see only their own scores.
 - **Decisions before publishing.** The organizer's overview shows progress live and lists the decisions that

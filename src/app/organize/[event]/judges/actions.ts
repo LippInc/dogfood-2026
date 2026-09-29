@@ -16,6 +16,7 @@ import {
   type ActionResult,
 } from "@/server/dal";
 import { mailNote } from "@/lib/mail-note";
+import { replacedNote } from "@/lib/invite-note";
 
 export type InviteResult = ActionResult & { path?: string };
 export type BatchInviteResult = ActionResult & {
@@ -40,7 +41,8 @@ export async function inviteJudgeAction(_prev: InviteResult, form: FormData): Pr
     });
     refresh(slug);
     const note = mailNote(await mailJudgeInvite(actor, slug, invite));
-    return { ok: true, message: `${note ? `${note} ` : ""}Invitation ready. Copy the link now: it is shown only once.`, path: invite.path };
+    const replaced = invite.replaced && invite.email ? replacedNote([invite.email]) : null;
+    return { ok: true, message: `${note ? `${note} ` : ""}Invitation ready. Copy the link now: it is shown only once.${replaced ? ` ${replaced}` : ""}`, path: invite.path };
   } catch (err) {
     return actionError(err);
   }
