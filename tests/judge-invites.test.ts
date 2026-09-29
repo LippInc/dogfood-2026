@@ -308,3 +308,35 @@ describe("setJudgeTracks", () => {
     expect(tracksOf("jdg_24")).toEqual(["trk_01", "trk_07"]); // unchanged
   });
 });
+
+describe("one open invitation per address", () => {
+  it("inviting the same address again replaces the open invitation: the old link stops working, the new one works, and the replacement is audited", () => {
+    const first = inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    const second = inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    expect(second.replaced).toBe(1);
+    expect(inviteRow(first.id).revoked_at).not.toBeNull();
+    expect(inviteRow(second.id).revoked_at).toBeNull();
+    expectHttpError(() => judgeInviteByCode(first.code), 404, "not_found");
+    expect(judgeInviteByCode(second.code).state).toBe("open");
+    expect(count("SELECT count(*) AS n FROM judge_invites WHERE email = 'mira@example.org' AND accepted_at IS NULL AND revoked_at IS NULL")).toBe(1);
+    const revoked = auditRows().filter((r) => r.action === "judge.invite_revoke");
+    expect(revoked.map((r) => [r.targetId, r.after])).toEqual([[first.id, { replacedBy: second.id }]]);
+    expect(verifyAuditChain(h.db).ok).toBe(true);
+  });
+
+  it("positive controls: another address, an open link without one, and an accepted invitation are left alone", () => {
+    const mira = inviteJudge(organizer(), "evt_01", { name: "Mira", email: "mira@example.org", trackIds: ["trk_01"] });
+    const openA = inviteJudge(organizer(), "evt_01", { name: "Open", email: "", trackIds: ["trk_01"] });
+    const openB = inviteJudge(organizer(), "evt_01", { name: "Open", email: "", trackIds: ["trk_01"] });
+    const other = inviteJudge(organizer(), "evt_01", { name: "Noor", email: "noor@example.org", trackIds: ["trk_01"] });
+    expect([mira, openA, openB, other].map((i) => i.replaced)).toEqual([0, 0, 0, 0]);
+    for (const i of [mira, openA, openB, other]) expect(inviteRow(i.id).revoked_at).toBeNull();
+    const pat = addUser("usr_pat", "pat@example.org", "Pat");
+    const used = inviteJudge(organizer(), "evt_01", { name: "Pat", email: "pat@example.org", trackIds: ["trk_01"] });
+    acceptJudgeInvite(pat, used.code);
+    // Pat judges now: a new invitation is refused as before, and the used one keeps its outcome
+    expectHttpError(() => inviteJudge(organizer(), "evt_01", { name: "Pat", email: "pat@example.org", trackIds: ["trk_01"] }), 409, "already_a_judge");
+    expect(inviteRow(used.id).accepted_at).not.toBeNull();
+    expect(inviteRow(used.id).revoked_at).toBeNull();
+  });
+});

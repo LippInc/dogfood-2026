@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { sortByName } from "@/lib/names";
 import { z } from "zod";
 import type { Actor } from "../authz";
@@ -55,6 +55,21 @@ export function isJudgeIn(db: DbOrTx, userId: string, eventId: string): boolean 
   );
 }
 
+/**
+ * An address holds at most one open invitation per event: a new one for the same address (sent again after a
+ * lost mail, a double click, a replayed form) replaces the open one, which stops working, so an event never
+ * collects several live links for one person. Returns the audit rows of the replaced ones (each a revocation).
+ */
+function replaceOpenInvites(tx: DbOrTx, eventId: string, email: string, now: string, replacedBy: string) {
+  const open = tx
+    .select({ id: judgeInvites.id })
+    .from(judgeInvites)
+    .where(and(eq(judgeInvites.eventId, eventId), eq(judgeInvites.email, email), isNull(judgeInvites.acceptedAt), isNull(judgeInvites.revokedAt)))
+    .all();
+  for (const row of open) tx.update(judgeInvites).set({ revokedAt: now }).where(eq(judgeInvites.id, row.id)).run();
+  return open.map((row) => ({ action: "judge.invite_revoke", eventId, targetType: "judge_invite", targetId: row.id, after: { replacedBy } }));
+}
+
 /** The organizer makes an invitation link. The code is returned once and never stored. */
 export function inviteJudge(actor: Actor | null, eventIdOrSlug: string, body: unknown) {
   let event: EventRow;
@@ -77,13 +92,15 @@ export function inviteJudge(actor: Actor | null, eventIdOrSlug: string, body: un
       }
       const id = newId("jinv");
       const code = newSecret(18);
+      const now = new Date().toISOString();
+      const replaced = email ? replaceOpenInvites(tx, event.id, email, now, id) : [];
       tx.insert(judgeInvites)
-        .values({ id, eventId: event.id, codeHash: sha256(code), name: input.name, email, trackIds, createdAt: new Date().toISOString(), createdBy: actor!.userId })
+        .values({ id, eventId: event.id, codeHash: sha256(code), name: input.name, email, trackIds, createdAt: now, createdBy: actor!.userId })
         .run();
       return {
-        result: { id, code, path: `/judge-invite/${code}`, email },
+        result: { id, code, path: `/judge-invite/${code}`, email, replaced: replaced.length },
         // The code is a credential: the audit row names the invitation, never the code.
-        audit: { action: "judge.invite", eventId: event.id, targetType: "judge_invite", targetId: id, after: { name: input.name, email, trackIds } },
+        audit: [...replaced, { action: "judge.invite", eventId: event.id, targetType: "judge_invite", targetId: id, after: { name: input.name, email, trackIds } }],
       };
     },
   });
@@ -185,6 +202,7 @@ export function inviteJudges(actor: Actor | null, eventIdOrSlug: string, body: u
       const now = new Date().toISOString();
       const invites: BatchInvite[] = [];
       const skipped: BatchResult["skipped"] = [];
+      const replaced: ReturnType<typeof replaceOpenInvites> = [];
       for (const l of lines) {
         if (l.email && judging.has(l.email)) {
           skipped.push({ line: l.line, email: l.email, reason: "already a judge in this event" });
@@ -192,6 +210,7 @@ export function inviteJudges(actor: Actor | null, eventIdOrSlug: string, body: u
         }
         const id = newId("jinv");
         const code = newSecret(18);
+        if (l.email) replaced.push(...replaceOpenInvites(tx, event.id, l.email, now, id));
         tx.insert(judgeInvites)
           .values({ id, eventId: event.id, codeHash: sha256(code), name: l.name, email: l.email, trackIds: l.trackIds, createdAt: now, createdBy: actor!.userId })
           .run();
@@ -200,13 +219,13 @@ export function inviteJudges(actor: Actor | null, eventIdOrSlug: string, body: u
       return {
         result: { invites, skipped },
         // One row per invitation, as a single invite writes; the codes are credentials and never logged.
-        audit: invites.map((inv) => ({
+        audit: [...replaced, ...invites.map((inv) => ({
           action: "judge.invite",
           eventId: event.id,
           targetType: "judge_invite",
           targetId: inv.id,
           after: { name: inv.name, email: inv.email, trackIds: lines.find((l) => l.line === inv.line)!.trackIds, batch: true },
-        })),
+        }))],
       };
     },
   });
@@ -306,7 +325,13 @@ export function acceptJudgeInvite(actor: Actor | null, code: string) {
       for (const trackId of trackIds) {
         tx.insert(judgeTracks).values({ judgeUserId: actor!.userId, eventId: event.id, trackId }).onConflictDoNothing().run();
       }
-      tx.update(judgeInvites).set({ acceptedAt: now, acceptedBy: actor!.userId }).where(eq(judgeInvites.id, invite.id)).run();
+      // The guard in the WHERE, as password resets and claims have it: only an open invitation is taken.
+      const took = tx
+        .update(judgeInvites)
+        .set({ acceptedAt: now, acceptedBy: actor!.userId })
+        .where(and(eq(judgeInvites.id, invite.id), isNull(judgeInvites.acceptedAt), isNull(judgeInvites.revokedAt)))
+        .run();
+      if (took.changes !== 1) throw new ConflictError("invite_used", "This invitation was already used. Ask the organizer for a new link.");
       return {
         result: { eventSlug: event.slug },
         audit: { action: "judge.join", eventId: event.id, targetType: "user", targetId: actor!.userId, after: { invite: invite.id, trackIds } },

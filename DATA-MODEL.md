@@ -38,7 +38,7 @@ SQLite through Drizzle ORM, one file on the Docker volume at `/data`. Migrations
 
 **`judge_tracks`** — one judge's claim on one track. `judge_user_id`, `event_id`, `track_id` (pk); the track is composite-pinned to the event.
 
-**`judge_invites`** — an organizer's invitation link for a judge. `id`; `event_id`; `code_hash` unique — only the SHA-256 of the link's code, so the link is shown once; `name`; `email` (optional, lowercased); `track_ids` json array; `created_at`; `created_by`; `accepted_at`; `accepted_by`; `revoked_at` (CHECK: an invite is accepted or revoked, never both).
+**`judge_invites`** — an organizer's invitation link for a judge. `id`; `event_id`; `code_hash` unique — only the SHA-256 of the link's code, so the link is shown once; `name`; `email` (optional, lowercased); `track_ids` json array; `created_at`; `created_by`; `accepted_at`; `accepted_by`; `revoked_at` (CHECK: an invite is accepted or revoked, never both). An address holds at most one open invitation per event: a new one for it revokes the open one.
 
 **`assignment_runs`** — one stored run of the assignment engine, so any assignment can be traced to its parameters. `id`; `event_id`; `mode` (`fixture` | `fresh` | `topup`); `seed` int; `params` json; `created_at`; `created_by`.
 
