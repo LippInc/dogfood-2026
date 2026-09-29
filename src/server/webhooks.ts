@@ -1,6 +1,8 @@
 import "server-only";
 import crypto from "node:crypto";
 import dns from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import net from "node:net";
 import { and, asc, eq, isNull, lte } from "drizzle-orm";
 import { getDb, type DbOrTx } from "./db/client";
@@ -185,7 +187,11 @@ export function privateAddress(ip: string): boolean {
  * are refused (so an organizer cannot make the portal call the machines around it)
  * unless WEBHOOKS_ALLOW_PRIVATE=true, for a test receiver on the same host.
  */
-export async function targetProblem(url: string, opts: { forDelivery?: boolean } = {}): Promise<string | null> {
+/** A host name's addresses, as the system resolver gives them; tests hand in their own. */
+export type Resolve = (host: string) => Promise<string[]>;
+const systemResolve: Resolve = async (host) => (await dns.lookup(host, { all: true })).map((a) => a.address);
+
+export async function targetProblem(url: string, opts: { forDelivery?: boolean; resolve?: Resolve } = {}): Promise<string | null> {
   let u: URL;
   try {
     u = new URL(url);
@@ -199,13 +205,89 @@ export async function targetProblem(url: string, opts: { forDelivery?: boolean }
   if (host === "localhost" || host.endsWith(".localhost")) return "it points at this machine";
   let addresses: string[];
   try {
-    addresses = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true })).map((a) => a.address);
+    addresses = net.isIP(host) ? [host] : await (opts.resolve ?? systemResolve)(host);
   } catch {
     // When a webhook is added a name that does not resolve yet (or an offline portal)
     // proves nothing either way; each delivery checks again and does not send.
     return opts.forDelivery ? "its host name does not resolve" : null;
   }
   return addresses.some(privateAddress) ? "it resolves to a private or local address" : null;
+}
+
+/** What a delivery sends: a POST of body with these headers. It answers the receiver's status and the start of its body. */
+export type Send = (url: string, init: { body: string; headers: Record<string, string> }) => Promise<{ status: number; text: string }>;
+
+/** How much of a receiver's answer is read (the log keeps its first 500 characters); the rest is never downloaded. */
+export const ANSWER_BYTES = 2048;
+
+/**
+ * The connection's own name lookup: the addresses it is about to connect to are the ones checked. Checking a name
+ * first and letting the request look it up again would let a DNS answer that changes in between (DNS rebinding) reach
+ * a private address; here there is no second lookup to change.
+ */
+function checkedLookup(resolve: Resolve): net.LookupFunction {
+  return (hostname, options, callback) => {
+    const done = callback as (err: Error | null, address: string | { address: string; family: number }[], family?: number) => void;
+    resolve(hostname)
+      .then((found) => {
+        const wanted = options.family === 4 || options.family === 6 ? found.filter((a) => net.isIP(a) === options.family) : found;
+        if (!wanted.length) throw Object.assign(new Error(`its host name ${hostname} does not resolve`), { code: "ENOTFOUND" });
+        if (!allowPrivate() && wanted.some(privateAddress)) {
+          throw Object.assign(new Error("not sent: its host name resolved to a private or local address when connecting"), { code: "EPRIVATE" });
+        }
+        if (options.all) done(null, wanted.map((address) => ({ address, family: net.isIP(address) })));
+        else done(null, wanted[0]!, net.isIP(wanted[0]!));
+      })
+      .catch((err: Error) => done(err, ""));
+  };
+}
+
+/**
+ * The portal's own sender: node:http(s) with the checked lookup above, no redirects followed, no compressed answers
+ * asked for (so none is inflated), at most ANSWER_BYTES of the answer read before the connection is dropped, and
+ * TIMEOUT_MS for the whole exchange.
+ */
+function guardedSend(resolve: Resolve): Send {
+  return (url, init) =>
+    new Promise((resolvePromise, reject) => {
+      const u = new URL(url);
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+      const req = (u.protocol === "https:" ? https : http).request(
+        u,
+        {
+          method: "POST",
+          agent: false,
+          lookup: checkedLookup(resolve),
+          headers: { ...init.headers, "content-length": String(Buffer.byteLength(init.body)) },
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+          let read = 0;
+          const finish = () =>
+            settle(() => {
+              res.destroy();
+              resolvePromise({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).subarray(0, ANSWER_BYTES).toString("utf8") });
+            });
+          res.on("data", (chunk: Buffer) => {
+            chunks.push(chunk);
+            read += chunk.length;
+            if (read >= ANSWER_BYTES) finish();
+          });
+          res.on("end", finish);
+          res.on("close", finish);
+          res.on("error", finish);
+        },
+      );
+      const timer = setTimeout(() => req.destroy(new Error(`no answer within ${TIMEOUT_MS / 1000} s`)), TIMEOUT_MS);
+      req.on("error", (err) => settle(() => reject(err)));
+      req.end(init.body);
+    });
 }
 
 /** delivered: arrived; retrying: failed this time, tried again later; failed: failed for good. */
@@ -215,8 +297,10 @@ export type DeliveryOutcome = { attempted: number; delivered: number; retrying: 
  * Send every due delivery once (oldest first); a failure is retried later, the last one is final. Each delivery is
  * claimed before it is sent, so two passes at once, or two portal processes on one database, do not both send it.
  */
-export async function deliverDue(opts: { now?: Date; limit?: number; fetchImpl?: typeof fetch } = {}): Promise<DeliveryOutcome> {
+export async function deliverDue(opts: { now?: Date; limit?: number; send?: Send; resolve?: Resolve } = {}): Promise<DeliveryOutcome> {
   const db = getDb();
+  const resolve = opts.resolve ?? systemResolve;
+  const send = opts.send ?? guardedSend(resolve);
   const now = opts.now ?? new Date();
   const due = db
     .select({ d: webhookDeliveries, url: webhooks.url, secret: webhooks.secret, disabledAt: webhooks.disabledAt })
@@ -241,17 +325,14 @@ export async function deliverDue(opts: { now?: Date; limit?: number; fetchImpl?:
     let status: number | null = null;
     let text = "";
     let error: string | null = null;
-    const problem = disabledAt ? "the webhook is turned off" : await targetProblem(url, { forDelivery: true });
+    const problem = disabledAt ? "the webhook is turned off" : await targetProblem(url, { forDelivery: true, resolve });
     if (problem) {
       error = `not sent: ${problem}`;
     } else {
       const body = JSON.stringify(d.payload);
       try {
-        const res = await (opts.fetchImpl ?? fetch)(url, {
-          method: "POST",
+        const res = await send(url, {
           body,
-          redirect: "manual",
-          signal: AbortSignal.timeout(TIMEOUT_MS),
           headers: {
             "content-type": "application/json",
             "user-agent": "dogfood-portal-webhooks/1",
@@ -261,7 +342,7 @@ export async function deliverDue(opts: { now?: Date; limit?: number; fetchImpl?:
           },
         });
         status = res.status;
-        text = (await res.text().catch(() => "")).slice(0, 500);
+        text = res.text.slice(0, 500);
       } catch (err) {
         error = err instanceof Error ? err.message : String(err);
       }

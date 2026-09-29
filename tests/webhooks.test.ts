@@ -25,7 +25,7 @@ import {
   setWebhookEnabled,
   testWebhook,
 } from "@/server/dal/webhooks";
-import { CLAIM_MS, MAX_ATTEMPTS, RETRY_DELAYS_S, deliverDue, privateAddress, verifySignature } from "@/server/webhooks";
+import { ANSWER_BYTES, CLAIM_MS, MAX_ATTEMPTS, RETRY_DELAYS_S, deliverDue, privateAddress, verifySignature, type Resolve, type Send } from "@/server/webhooks";
 import type { Actor } from "@/server/authz";
 
 const NOW = "2026-09-26T12:00:00.000Z";
@@ -58,21 +58,16 @@ afterAll(async () => {
 
 const receiverUrl = () => `http://127.0.0.1:${(server.address() as net.AddressInfo).port}/hook`;
 
-// --- the stub: an in-process fetch, so no test but the end-to-end one waits on the network ---
+// --- the stub: an in-process sender, so no test but the end-to-end ones waits on the network ---
 // It records what deliverDue sends into the same `received` array the real receiver fills
 // (headers with lowercased names, as req.headers would give them) and answers from the same
 // `statuses` queue, so every existing read and push keeps working unchanged.
 
-const stubFetch: typeof fetch = async (input, init) => {
+const stubSend: Send = async (url, init) => {
   const headers: Record<string, string> = {};
-  const given = init?.headers;
-  if (given instanceof Headers) given.forEach((value, name) => (headers[name.toLowerCase()] = value));
-  else if (Array.isArray(given)) for (const [name, value] of given) headers[name.toLowerCase()] = String(value);
-  else if (given) for (const [name, value] of Object.entries(given)) headers[name.toLowerCase()] = String(value);
-  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  const body = typeof init?.body === "string" ? init.body : "";
-  received.push({ method: init?.method ?? "GET", url, headers, body });
-  return new Response(null, { status: statuses.shift() ?? 200 });
+  for (const [name, value] of Object.entries(init.headers)) headers[name.toLowerCase()] = value;
+  received.push({ method: "POST", url, headers, body: init.body });
+  return { status: statuses.shift() ?? 200, text: "" };
 };
 
 // --- the database, fresh per test, and the private-target flag clean per test ---
@@ -204,7 +199,7 @@ async function failFrom(firstAttempt: number, from: Date): Promise<Date> {
   for (let attempt = firstAttempt; attempt <= MAX_ATTEMPTS; attempt++) {
     t = new Date(t.getTime() + (RETRY_DELAYS_S[attempt - 2]! + 1) * 1000);
     statuses.push(500);
-    const out = await deliverDue({ now: t, fetchImpl: stubFetch });
+    const out = await deliverDue({ now: t, send: stubSend });
     expect(out.attempted, `attempt ${attempt}`).toBe(1);
   }
   return t;
@@ -323,6 +318,67 @@ describe("webhooks", () => {
     expect(row.error).toBeNull();
   });
 
+  it("DNS rebinding: a name that was public when checked and private when connecting is not sent to", { timeout: 30_000 }, async () => {
+    // The receiver listens on 127.0.0.1. The fake resolver answers a public address to the check and 127.0.0.1 to
+    // the connection: a sender that looked the name up a second time on its own would reach the receiver.
+    process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
+    const port = (server.address() as net.AddressInfo).port;
+    await createWebhook(organizer(), "evt_01", { url: `http://rebind.test:${port}/hook`, actions: ["comment.post"] });
+    delete process.env.WEBHOOKS_ALLOW_PRIVATE;
+    postComment(participant(), "prj_01", { body: "Rebind me" });
+
+    const asked: string[] = [];
+    const rebinding: Resolve = async (host) => {
+      asked.push(host);
+      return asked.length === 1 ? ["93.184.215.14"] : ["93.184.215.14", "127.0.0.1"];
+    };
+    const out = await deliverDue({ now: soon(), resolve: rebinding });
+    expect(asked).toEqual(["rebind.test", "rebind.test"]); // checked, then looked up by the connection itself
+    expect(out).toEqual({ attempted: 1, delivered: 0, retrying: 1, failed: 0 });
+    expect(received).toHaveLength(0);
+    expect(theDelivery().error).toMatch(/private or local address when connecting/);
+  });
+
+  it("positive control: the connection goes where the checked lookup says, by name", { timeout: 30_000 }, async () => {
+    process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
+    const port = (server.address() as net.AddressInfo).port;
+    await createWebhook(organizer(), "evt_01", { url: `http://hooks.test:${port}/hook`, actions: ["comment.post"] });
+    postComment(participant(), "prj_01", { body: "Find me by name" });
+    const toLocal: Resolve = async () => ["127.0.0.1"];
+    const out = await deliverDue({ now: soon(), resolve: toLocal });
+    expect(out).toEqual({ attempted: 1, delivered: 1, retrying: 0, failed: 0 });
+    expect(received).toHaveLength(1);
+    expect(received[0]!.headers.host).toBe(`hooks.test:${port}`);
+    expect(received[0]!.headers["accept-encoding"]).toBeUndefined(); // no compressed answer is asked for, so none is inflated
+  });
+
+  it("an endless answer is read only up to ANSWER_BYTES, then dropped: the delivery is logged at once", { timeout: 30_000 }, async () => {
+    process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
+    let writing: ReturnType<typeof setInterval> | undefined;
+    const endless = http.createServer((req, res) => {
+      req.resume();
+      res.writeHead(200, { "content-type": "text/plain" });
+      writing = setInterval(() => res.write("x".repeat(1024)), 5);
+      res.on("close", () => clearInterval(writing));
+    });
+    await new Promise<void>((resolve) => endless.listen(0, "127.0.0.1", resolve));
+    try {
+      const port = (endless.address() as net.AddressInfo).port;
+      await createWebhook(organizer(), "evt_01", { url: `http://127.0.0.1:${port}/hook`, actions: ["comment.post"] });
+      postComment(participant(), "prj_01", { body: "Talk forever" });
+      const started = Date.now();
+      const out = await deliverDue({ now: soon() });
+      expect(Date.now() - started).toBeLessThan(3000); // well inside the 5 s timeout: it stopped reading, it did not time out
+      expect(out.delivered).toBe(1);
+      expect(theDelivery().responseBody).toBe("x".repeat(500));
+      expect(ANSWER_BYTES).toBeLessThan(64 * 1024);
+    } finally {
+      clearInterval(writing);
+      endless.closeAllConnections();
+      await new Promise<void>((resolve) => endless.close(() => resolve()));
+    }
+  });
+
   it("a 500 is retried with backoff, and after MAX_ATTEMPTS the delivery is final", async () => {
     process.env.WEBHOOKS_ALLOW_PRIVATE = "true";
     await createWebhook(organizer(), "evt_01", { url: receiverUrl(), actions: ["comment.post"] });
@@ -330,7 +386,7 @@ describe("webhooks", () => {
 
     const t0 = soon();
     statuses.push(500);
-    let out = await deliverDue({ now: t0, fetchImpl: stubFetch });
+    let out = await deliverDue({ now: t0, send: stubSend });
     expect(out).toEqual({ attempted: 1, delivered: 0, retrying: 1, failed: 0 });
     let row = theDelivery();
     expect(row.status).toBe("pending");
@@ -341,7 +397,7 @@ describe("webhooks", () => {
     expect(received).toHaveLength(1);
 
     // not due yet: a pass at the same moment attempts nothing
-    out = await deliverDue({ now: t0, fetchImpl: stubFetch });
+    out = await deliverDue({ now: t0, send: stubSend });
     expect(out.attempted).toBe(0);
     expect(received).toHaveLength(1);
 
@@ -350,7 +406,7 @@ describe("webhooks", () => {
     for (let attempt = 2; attempt <= MAX_ATTEMPTS; attempt++) {
       t = new Date(t.getTime() + (RETRY_DELAYS_S[attempt - 2]! + 1) * 1000);
       statuses.push(500);
-      const pass = await deliverDue({ now: t, fetchImpl: stubFetch });
+      const pass = await deliverDue({ now: t, send: stubSend });
       expect(pass.attempted, `attempt ${attempt}`).toBe(1);
       row = theDelivery();
       expect(row.attempts).toBe(attempt);
@@ -361,7 +417,7 @@ describe("webhooks", () => {
 
     // final means final: one more pass attempts nothing
     statuses.push(500); // would be consumed if a seventh attempt were made
-    const idle = await deliverDue({ now: new Date(t.getTime() + 3_600_000), fetchImpl: stubFetch });
+    const idle = await deliverDue({ now: new Date(t.getTime() + 3_600_000), send: stubSend });
     expect(idle.attempted).toBe(0);
     expect(received).toHaveLength(MAX_ATTEMPTS);
   });
@@ -372,7 +428,7 @@ describe("webhooks", () => {
     postComment(participant(), "prj_01", { body: "Only once" });
 
     const t0 = soon();
-    const [a, b] = await Promise.all([deliverDue({ now: t0, fetchImpl: stubFetch }), deliverDue({ now: t0, fetchImpl: stubFetch })]);
+    const [a, b] = await Promise.all([deliverDue({ now: t0, send: stubSend }), deliverDue({ now: t0, send: stubSend })]);
     expect(received).toHaveLength(1);
     expect(a.attempted + b.attempted).toBe(1);
     expect(theDelivery().status).toBe("delivered");
@@ -385,9 +441,9 @@ describe("webhooks", () => {
 
     const t0 = soon();
     // claims the delivery, then never finishes, like a process that died while sending
-    void deliverDue({ now: t0, fetchImpl: () => new Promise<Response>(() => {}) });
-    expect((await deliverDue({ now: new Date(t0.getTime() + CLAIM_MS - 1000), fetchImpl: stubFetch })).attempted).toBe(0);
-    const out = await deliverDue({ now: new Date(t0.getTime() + CLAIM_MS + 1000), fetchImpl: stubFetch });
+    void deliverDue({ now: t0, send: () => new Promise(() => {}) });
+    expect((await deliverDue({ now: new Date(t0.getTime() + CLAIM_MS - 1000), send: stubSend })).attempted).toBe(0);
+    const out = await deliverDue({ now: new Date(t0.getTime() + CLAIM_MS + 1000), send: stubSend });
     expect(out).toEqual({ attempted: 1, delivered: 1, retrying: 0, failed: 0 });
     expect(received).toHaveLength(1);
   });
@@ -399,7 +455,7 @@ describe("webhooks", () => {
 
     const t0 = soon();
     statuses.push(500);
-    await deliverDue({ now: t0, fetchImpl: stubFetch });
+    await deliverDue({ now: t0, send: stubSend });
     await failFrom(2, t0);
     let row = theDelivery();
     expect(row.status).toBe("failed");
@@ -409,7 +465,7 @@ describe("webhooks", () => {
     expect(row.status).toBe("pending");
     expect(row.nextAttemptAt).toBeTruthy();
 
-    const out = await deliverDue({ now: soon(), fetchImpl: stubFetch }); // statuses is empty: the stub answers 200 again
+    const out = await deliverDue({ now: soon(), send: stubSend }); // statuses is empty: the stub answers 200 again
     expect(out).toEqual({ attempted: 1, delivered: 1, retrying: 0, failed: 0 });
     row = theDelivery();
     expect(row.status).toBe("delivered");
@@ -562,7 +618,7 @@ describe("webhooks", () => {
     expect(rotated.secret).not.toBe(hook.secret);
 
     const now = soon();
-    await deliverDue({ now, fetchImpl: stubFetch });
+    await deliverDue({ now, send: stubSend });
     const req = received[0]!;
     const sig = req.headers["dogfood-signature"] as string;
     expect(verifySignature(rotated.secret, req.body, sig, now.getTime())).toBe(true);
@@ -576,7 +632,7 @@ describe("webhooks", () => {
 
     process.env.WEBHOOKS_ALLOW_PRIVATE = "false";
     const now = soon();
-    const out = await deliverDue({ now, fetchImpl: stubFetch });
+    const out = await deliverDue({ now, send: stubSend });
     expect(out).toEqual({ attempted: 1, delivered: 0, retrying: 1, failed: 0 });
     expect(received).toHaveLength(0);
 
@@ -604,7 +660,7 @@ describe("webhooks", () => {
 
     const t1 = new Date(base + 10_000);
     statuses.push(200, 500, 500); // oldest arrives, the other two fail and stay pending
-    await deliverDue({ now: t1, fetchImpl: stubFetch });
+    await deliverDue({ now: t1, send: stubSend });
     expect(rowById(ids[0]!).status).toBe("delivered");
     expect(rowById(ids[1]!).status).toBe("pending");
     expect(rowById(ids[2]!).status).toBe("pending");
