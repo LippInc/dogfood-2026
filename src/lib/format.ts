@@ -10,6 +10,15 @@ export function plural(n: number, noun: string, many = `${noun}s`): string {
   return `${n} ${n === 1 ? noun : many}`;
 }
 
+/**
+ * A form's result line: the message, then the field's detail when the message does not already say it
+ * ("Check the highlighted fields. say why, in a few words"; a message that names the problem stands alone).
+ */
+export function withDetail(message: string, detail: string | null | undefined): string {
+  if (!detail || message.toLowerCase().includes(detail.toLowerCase())) return message;
+  return `${message} ${detail}`;
+}
+
 export function formatUtc(iso: string | null | undefined, opts: { weekday?: boolean; time?: boolean } = {}): string {
   if (!iso) return "";
   const d = new Date(iso);

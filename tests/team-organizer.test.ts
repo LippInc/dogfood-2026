@@ -11,6 +11,7 @@ import { HttpError } from "@/server/errors";
 import { getPublicProject } from "@/server/dal/projects";
 import { joinTeam, organizerAddMember, organizerRemoveMember, renameTeam } from "@/server/dal/teams";
 import type { Actor } from "@/server/authz";
+import { withDetail } from "@/lib/format";
 
 // Teams are fixed when submissions close, and certificates go to their members. Until results
 // are published an organizer can put someone back on a team or take someone off, with a
@@ -98,6 +99,14 @@ describe("an organizer puts someone on a team after the close", () => {
     const e = expectHttpError(() => organizerAddMember(org(), "tm_02", { email: "nobody@example.org", reason }), 422, "invalid");
     expect(e.details).toHaveProperty("email");
     expect(members("tm_02").length).toBe(before);
+  });
+
+  it("an address with no account reads as one sentence on the form, not the same thing twice", () => {
+    const e = expectHttpError(() => organizerAddMember(org(), "tm_02", { email: "nobody@example.org", reason }), 422, "invalid");
+    const line = withDetail(e.message, (e.details as Record<string, string[]>).email?.[0]);
+    expect(line).toBe("No account has that address: they sign up first, then you add them.");
+    // the helper still adds a detail the message does not say, as the other refusals on the form need
+    expect(withDetail("Check the highlighted fields.", "say why, in a few words")).toBe("Check the highlighted fields. say why, in a few words");
   });
 
   it("known-bad: the join rules hold: one team per person (409 already_on_a_team / already_on_this_team), the team size (409 team_full), no judge of the project (409 conflict_of_interest)", () => {

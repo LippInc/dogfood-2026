@@ -472,7 +472,7 @@ export function organizerAddMember(actor: Actor | null, teamId: string, body: un
       const { email, reason } = parse(AddMemberInput, body);
       const person = tx.select({ id: users.id, name: users.name }).from(users).where(eq(users.email, email)).get();
       if (!person) {
-        throw new ValidationError("No account has that address.", { email: ["no account has this address: they sign up first, then you add them"] });
+        throw new ValidationError("No account has that address: they sign up first, then you add them.", { email: ["no account has that address"] });
       }
       const current = tx
         .select({ teamId: teamMembers.teamId, name: teams.name })

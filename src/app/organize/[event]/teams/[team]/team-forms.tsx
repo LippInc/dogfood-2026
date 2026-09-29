@@ -6,6 +6,7 @@ import { useRescueFocus } from "@/components/use-rescue-focus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { withDetail } from "@/lib/format";
 import type { ActionResult } from "@/server/dal";
 import { organizerAddAction, organizerRemoveAction, organizerRenameAction } from "./actions";
 
@@ -16,8 +17,7 @@ function Result({ state }: { state: ActionResult }) {
   const detail = state.ok ? null : (state.fieldErrors?.name?.[0] ?? state.fieldErrors?.reason?.[0] ?? state.fieldErrors?.email?.[0]);
   return (
     <p role="status" className={`text-13 ${state.ok ? "text-ok" : "text-flag"}`}>
-      {state.message}
-      {detail ? ` ${detail}` : ""}
+      {withDetail(state.message, detail)}
     </p>
   );
 }
